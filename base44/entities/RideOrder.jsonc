@@ -1,0 +1,77 @@
+{
+  "name": "RideOrder",
+  "type": "object",
+  "properties": {
+    "client_name": {
+      "type": "string",
+      "description": "Nombre del cliente"
+    },
+    "client_phone": {
+      "type": "string",
+      "description": "Tel\u00e9fono del cliente"
+    },
+    "pickup_address": {
+      "type": "string",
+      "description": "Direcci\u00f3n de recogida"
+    },
+    "pickup_lat": {
+      "type": "number",
+      "description": "Latitud de recogida"
+    },
+    "pickup_lng": {
+      "type": "number",
+      "description": "Longitud de recogida"
+    },
+    "dropoff_address": {
+      "type": "string",
+      "description": "Direcci\u00f3n de destino"
+    },
+    "dropoff_lat": {
+      "type": "number",
+      "description": "Latitud de destino"
+    },
+    "dropoff_lng": {
+      "type": "number",
+      "description": "Longitud de destino"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendiente",
+        "asignado",
+        "en_camino",
+        "en_viaje",
+        "completado",
+        "cancelado"
+      ],
+      "default": "pendiente",
+      "description": "Estado del viaje"
+    },
+    "driver_id": {
+      "type": "string",
+      "description": "ID del conductor asignado"
+    },
+    "driver_name": {
+      "type": "string",
+      "description": "Nombre del conductor asignado"
+    },
+    "fare": {
+      "type": "number",
+      "description": "Tarifa del viaje"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notas adicionales"
+    },
+    "scheduled_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Hora programada del viaje"
+    }
+  },
+  "required": [
+    "client_name",
+    "client_phone",
+    "pickup_address"
+  ]
+}

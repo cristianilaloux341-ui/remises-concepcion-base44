@@ -1,0 +1,49 @@
+{
+  "name": "Driver",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nombre completo del conductor"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Tel\u00e9fono del conductor"
+    },
+    "vehicle_model": {
+      "type": "string",
+      "description": "Modelo del veh\u00edculo"
+    },
+    "vehicle_plate": {
+      "type": "string",
+      "description": "Patente del veh\u00edculo"
+    },
+    "vehicle_color": {
+      "type": "string",
+      "description": "Color del veh\u00edculo"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "disponible",
+        "en_viaje",
+        "no_disponible"
+      ],
+      "default": "disponible",
+      "description": "Estado del conductor"
+    },
+    "current_lat": {
+      "type": "number",
+      "description": "Latitud actual"
+    },
+    "current_lng": {
+      "type": "number",
+      "description": "Longitud actual"
+    }
+  },
+  "required": [
+    "name",
+    "phone",
+    "vehicle_plate"
+  ]
+}
