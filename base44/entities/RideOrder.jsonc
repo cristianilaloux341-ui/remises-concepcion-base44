@@ -15,58 +15,66 @@
       "description": "Direcci\u00f3n de recogida"
     },
     "pickup_lat": {
-      "type": "number",
-      "description": "Latitud de recogida"
+      "type": "number"
     },
     "pickup_lng": {
-      "type": "number",
-      "description": "Longitud de recogida"
+      "type": "number"
     },
     "dropoff_address": {
       "type": "string",
       "description": "Direcci\u00f3n de destino"
     },
     "dropoff_lat": {
-      "type": "number",
-      "description": "Latitud de destino"
+      "type": "number"
     },
     "dropoff_lng": {
-      "type": "number",
-      "description": "Longitud de destino"
+      "type": "number"
     },
     "status": {
       "type": "string",
       "enum": [
         "pendiente",
-        "asignado",
+        "ofrecido",
+        "aceptado",
         "en_camino",
         "en_viaje",
         "completado",
-        "cancelado"
+        "cancelado",
+        "rechazado"
       ],
-      "default": "pendiente",
-      "description": "Estado del viaje"
+      "default": "pendiente"
+    },
+    "assigned_base": {
+      "type": "string",
+      "description": "Base desde donde sale el chofer"
     },
     "driver_id": {
-      "type": "string",
-      "description": "ID del conductor asignado"
+      "type": "string"
     },
     "driver_name": {
-      "type": "string",
-      "description": "Nombre del conductor asignado"
+      "type": "string"
+    },
+    "offered_driver_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs de choferes a quienes se ofreci\u00f3 el viaje"
     },
     "fare": {
-      "type": "number",
-      "description": "Tarifa del viaje"
+      "type": "number"
     },
     "notes": {
-      "type": "string",
-      "description": "Notas adicionales"
+      "type": "string"
     },
-    "scheduled_time": {
+    "source": {
       "type": "string",
-      "format": "date-time",
-      "description": "Hora programada del viaje"
+      "enum": [
+        "operador",
+        "cliente"
+      ],
+      "default": "operador",
+      "description": "Origen del pedido"
     }
   },
   "required": [

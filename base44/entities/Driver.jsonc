@@ -3,24 +3,19 @@
   "type": "object",
   "properties": {
     "name": {
-      "type": "string",
-      "description": "Nombre completo del conductor"
+      "type": "string"
     },
     "phone": {
-      "type": "string",
-      "description": "Tel\u00e9fono del conductor"
+      "type": "string"
     },
     "vehicle_model": {
-      "type": "string",
-      "description": "Modelo del veh\u00edculo"
+      "type": "string"
     },
     "vehicle_plate": {
-      "type": "string",
-      "description": "Patente del veh\u00edculo"
+      "type": "string"
     },
     "vehicle_color": {
-      "type": "string",
-      "description": "Color del veh\u00edculo"
+      "type": "string"
     },
     "status": {
       "type": "string",
@@ -29,16 +24,38 @@
         "en_viaje",
         "no_disponible"
       ],
-      "default": "disponible",
-      "description": "Estado del conductor"
+      "default": "disponible"
+    },
+    "current_base": {
+      "type": "string",
+      "enum": [
+        "Puerto",
+        "Plaza",
+        "Columna",
+        "Cementerio",
+        "Don Bosco",
+        "D\u00edaz V\u00e9lez",
+        "Monumento"
+      ],
+      "description": "Base actual donde est\u00e1 esperando"
+    },
+    "queue_position": {
+      "type": "number",
+      "description": "Posici\u00f3n en la cola de la base"
+    },
+    "queue_entered_at": {
+      "type": "string",
+      "description": "Timestamp de cuando entr\u00f3 a la cola"
     },
     "current_lat": {
-      "type": "number",
-      "description": "Latitud actual"
+      "type": "number"
     },
     "current_lng": {
-      "type": "number",
-      "description": "Longitud actual"
+      "type": "number"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "ID del usuario vinculado al chofer"
     }
   },
   "required": [

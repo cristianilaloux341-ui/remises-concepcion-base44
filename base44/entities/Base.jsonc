@@ -1,0 +1,30 @@
+{
+  "name": "Base",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "enum": [
+        "Puerto",
+        "Plaza",
+        "Columna",
+        "Cementerio",
+        "Don Bosco",
+        "D\u00edaz V\u00e9lez",
+        "Monumento"
+      ]
+    },
+    "lat": {
+      "type": "number"
+    },
+    "lng": {
+      "type": "number"
+    },
+    "address": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

@@ -1,13 +1,14 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, Car, Users, Plus, X } from "lucide-react";
+import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { label: "Panel", path: "/", icon: LayoutDashboard },
+  { label: "Central", path: "/", icon: LayoutDashboard },
   { label: "Órdenes", path: "/orders", icon: Car },
   { label: "Mapa", path: "/map", icon: MapPin },
-  { label: "Conductores", path: "/drivers", icon: Users },
+  { label: "Chóferes", path: "/drivers", icon: Users },
+  { label: "App Chófer", path: "/driver-app", icon: Smartphone },
 ];
 
 export default function Sidebar({ open, onClose }) {
@@ -56,6 +57,11 @@ export default function Sidebar({ open, onClose }) {
               >
                 <item.icon className="w-5 h-5" />
                 {item.label}
+                {item.path === "/driver-app" && (
+                  <span className="ml-auto text-xs bg-sidebar-primary/30 text-sidebar-primary-foreground px-2 py-0.5 rounded-full">
+                    Móvil
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -65,7 +71,7 @@ export default function Sidebar({ open, onClose }) {
           <Link to="/orders/new" onClick={onClose}>
             <Button className="w-full gap-2 rounded-xl h-11 bg-sidebar-primary hover:bg-sidebar-primary/90">
               <Plus className="w-4 h-4" />
-              Nuevo Viaje
+              Nuevo Pedido
             </Button>
           </Link>
         </div>

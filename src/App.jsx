@@ -19,6 +19,7 @@ import NewOrder from '@/pages/NewOrder';
 import OrderDetail from '@/pages/OrderDetail';
 import MapView from '@/pages/MapView';
 import Drivers from '@/pages/Drivers';
+import DriverApp from '@/pages/DriverApp';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -55,6 +56,7 @@ const AuthenticatedApp = () => {
           <Route path="/orders/:id" element={<OrderDetail />} />
           <Route path="/map" element={<MapView />} />
           <Route path="/drivers" element={<Drivers />} />
+          <Route path="/driver-app" element={<DriverApp />} />
         </Route>
       </Route>
       
