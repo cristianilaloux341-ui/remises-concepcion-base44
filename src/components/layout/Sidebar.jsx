@@ -8,7 +8,7 @@ const navItems = [
   { label: "Órdenes", path: "/orders", icon: Car },
   { label: "Mapa", path: "/map", icon: MapPin },
   { label: "Chóferes", path: "/drivers", icon: Users },
-  { label: "App Chófer", path: "/driver-app", icon: Smartphone },
+  { label: "App Chófer", path: "/driver-link", icon: Smartphone },
 ];
 
 export default function Sidebar({ open, onClose }) {
@@ -57,7 +57,7 @@ export default function Sidebar({ open, onClose }) {
               >
                 <item.icon className="w-5 h-5" />
                 {item.label}
-                {item.path === "/driver-app" && (
+                {item.path === "/driver-link" && (
                   <span className="ml-auto text-xs bg-sidebar-primary/30 text-sidebar-primary-foreground px-2 py-0.5 rounded-full">
                     Móvil
                   </span>

@@ -20,6 +20,7 @@ import OrderDetail from '@/pages/OrderDetail';
 import MapView from '@/pages/MapView';
 import Drivers from '@/pages/Drivers';
 import DriverApp from '@/pages/DriverApp';
+import DriverLink from '@/pages/DriverLink';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -49,6 +50,9 @@ const AuthenticatedApp = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
       
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+        {/* Driver mobile app - no sidebar layout */}
+        <Route path="/driver-app" element={<DriverApp />} />
+
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/orders" element={<Orders />} />
@@ -56,7 +60,7 @@ const AuthenticatedApp = () => {
           <Route path="/orders/:id" element={<OrderDetail />} />
           <Route path="/map" element={<MapView />} />
           <Route path="/drivers" element={<Drivers />} />
-          <Route path="/driver-app" element={<DriverApp />} />
+          <Route path="/driver-link" element={<DriverLink />} />
         </Route>
       </Route>
       
