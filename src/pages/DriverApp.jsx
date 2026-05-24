@@ -9,20 +9,43 @@ import RideMap from "@/components/map/RideMap";
 import { BASES } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
 
-// Play alert beep
+// Play alert beep + vibrate
 function playAlert() {
+  // Vibration (Android)
+  try { navigator.vibrate?.([400, 200, 400, 200, 800]); } catch (_) {}
+
+  // Audio
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [0, 300, 600].forEach(delay => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.frequency.value = 880;
-      g.gain.setValueAtTime(0.3, ctx.currentTime + delay / 1000);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay / 1000 + 0.3);
-      o.start(ctx.currentTime + delay / 1000);
-      o.stop(ctx.currentTime + delay / 1000 + 0.3);
+    const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
+    resume.then(() => {
+      [0, 400, 800].forEach(delay => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = "sine";
+        o.frequency.value = 880;
+        g.gain.setValueAtTime(0, ctx.currentTime + delay / 1000);
+        g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + delay / 1000 + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay / 1000 + 0.4);
+        o.start(ctx.currentTime + delay / 1000);
+        o.stop(ctx.currentTime + delay / 1000 + 0.4);
+      });
     });
+  } catch (_) {}
+}
+
+// Unlock AudioContext on first user touch (required by mobile browsers)
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(ctx.destination); src.start(0);
+    ctx.resume();
   } catch (_) {}
 }
 
@@ -60,7 +83,7 @@ function LoginScreen({ drivers, onSelect }) {
               <button
                 key={d.id}
                 className="w-full p-4 rounded-xl border border-gray-700 text-left hover:border-blue-500 hover:bg-blue-500/5 transition-all active:scale-95"
-                onClick={() => onSelect(d.id)}
+                onClick={() => { unlockAudio(); onSelect(d.id); }}
               >
                 <p className="font-semibold text-white">{d.name}</p>
                 <p className="text-xs text-gray-400 mt-0.5 font-mono">
@@ -332,7 +355,7 @@ export default function DriverApp() {
   const { data: orders = [] } = useQuery({
     queryKey: ["orders"],
     queryFn: () => base44.entities.RideOrder.list("-created_date", 100),
-    refetchInterval: 4000,
+    refetchInterval: 2000,
   });
 
   const myDriver = drivers.find(d => d.id === myDriverId);
@@ -340,14 +363,22 @@ export default function DriverApp() {
   const offeredOrder = orders.find(o => o.driver_id === myDriverId && o.status === "ofrecido");
   const availableOrders = orders.filter(o => o.status === "pendiente" && !o.driver_id);
 
-  // Play alert when a new offer arrives
+  // Play alert when a new offer arrives — and repeat every 4s until answered
   useEffect(() => {
-    if (offeredOrder && offeredOrder.id !== prevOfferedId.current) {
-      playAlert();
-      prevOfferedId.current = offeredOrder.id;
+    if (offeredOrder) {
+      if (offeredOrder.id !== prevOfferedId.current) {
+        prevOfferedId.current = offeredOrder.id;
+        playAlert();
+      }
+      // Repeat alert every 4 seconds while offer is pending
+      const interval = setInterval(() => {
+        playAlert();
+      }, 4000);
+      return () => clearInterval(interval);
+    } else {
+      prevOfferedId.current = null;
     }
-    if (!offeredOrder) prevOfferedId.current = null;
-  }, [offeredOrder]);
+  }, [offeredOrder?.id]);
 
   const updateOrder = useMutation({
     mutationFn: ({ id, data }) => base44.entities.RideOrder.update(id, data),
@@ -393,7 +424,7 @@ export default function DriverApp() {
   }
 
   return (
-    <div className="h-screen bg-gray-100 flex flex-col max-w-md mx-auto relative overflow-hidden">
+    <div className="h-screen bg-gray-100 flex flex-col max-w-md mx-auto relative overflow-hidden" onTouchStart={unlockAudio} onClick={unlockAudio}>
       {/* Install PWA banner */}
       <InstallBanner />
 
@@ -441,7 +472,7 @@ export default function DriverApp() {
       )}
 
       {/* Incoming alert overlay */}
-      {offeredOrder && !activeOrder && (
+      {offeredOrder && (
         <IncomingAlert order={offeredOrder} onAccept={handleAccept} onReject={handleReject} />
       )}
     </div>
