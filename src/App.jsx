@@ -25,6 +25,15 @@ import DriverLink from '@/pages/DriverLink';
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
+  // Driver app is fully public - render immediately without auth checks
+  if (window.location.pathname === '/driver-app') {
+    return (
+      <Routes>
+        <Route path="/driver-app" element={<DriverApp />} />
+      </Routes>
+    );
+  }
+
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">

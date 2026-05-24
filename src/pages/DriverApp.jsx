@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List } from "lucide-react";
 import RideMap from "@/components/map/RideMap";
 import { BASES } from "@/lib/dispatchLogic";
+import InstallBanner from "@/components/driver/InstallBanner";
 
 // Play alert beep
 function playAlert() {
@@ -393,6 +394,9 @@ export default function DriverApp() {
 
   return (
     <div className="h-screen bg-gray-100 flex flex-col max-w-md mx-auto relative overflow-hidden">
+      {/* Install PWA banner */}
+      <InstallBanner />
+
       {/* Header */}
       <div className="bg-gray-950 text-white px-5 py-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
