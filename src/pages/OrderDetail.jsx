@@ -61,12 +61,10 @@ export default function OrderDetail() {
       data: {
         driver_id: driverId,
         driver_name: driver?.name || "",
-        status: "asignado",
+        status: "ofrecido",
+        offered_driver_ids: [...(order.offered_driver_ids || []), driverId],
       },
     });
-    if (driver) {
-      base44.entities.Driver.update(driverId, { status: "en_viaje" });
-    }
   };
 
   const availableDrivers = drivers.filter(d => d.status === "disponible");
@@ -168,7 +166,8 @@ export default function OrderDetail() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="asignado">Asignado</SelectItem>
+                    <SelectItem value="ofrecido">Ofrecido</SelectItem>
+                    <SelectItem value="aceptado">Aceptado</SelectItem>
                     <SelectItem value="en_camino">En Camino</SelectItem>
                     <SelectItem value="en_viaje">En Viaje</SelectItem>
                     <SelectItem value="completado">Completado</SelectItem>

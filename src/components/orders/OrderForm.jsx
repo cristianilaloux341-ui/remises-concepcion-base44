@@ -40,7 +40,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       ...prev,
       driver_id: driverId,
       driver_name: driver?.name || "",
-      status: driverId ? "asignado" : "pendiente",
+      status: driverId ? "ofrecido" : "pendiente",
     }));
   };
 
