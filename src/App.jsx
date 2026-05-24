@@ -49,10 +49,10 @@ const AuthenticatedApp = () => {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       
-      <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
-        {/* Driver mobile app - no sidebar layout */}
-        <Route path="/driver-app" element={<DriverApp />} />
+      {/* Driver mobile app - public, no login needed */}
+      <Route path="/driver-app" element={<DriverApp />} />
 
+      <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/orders" element={<Orders />} />

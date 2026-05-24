@@ -1,6 +1,12 @@
 {
   "name": "Driver",
   "type": "object",
+  "rls": {
+    "read": true,
+    "create": false,
+    "update": true,
+    "delete": false
+  },
   "properties": {
     "name": {
       "type": "string"
