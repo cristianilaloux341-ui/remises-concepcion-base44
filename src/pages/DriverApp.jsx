@@ -4,38 +4,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List } from "lucide-react";
+import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft } from "lucide-react";
 import RideMap from "@/components/map/RideMap";
 import { BASES } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
 
-// Play alert beep + vibrate
-function playAlert() {
-  // Vibration (Android)
-  try { navigator.vibrate?.([400, 200, 400, 200, 800]); } catch (_) {}
+// ── Audio & Notifications ─────────────────────────────────────────────────────
 
-  // Audio
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
-    resume.then(() => {
-      [0, 400, 800].forEach(delay => {
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.type = "sine";
-        o.frequency.value = 880;
-        g.gain.setValueAtTime(0, ctx.currentTime + delay / 1000);
-        g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + delay / 1000 + 0.05);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay / 1000 + 0.4);
-        o.start(ctx.currentTime + delay / 1000);
-        o.stop(ctx.currentTime + delay / 1000 + 0.4);
-      });
-    });
-  } catch (_) {}
-}
-
-// Unlock AudioContext on first user touch (required by mobile browsers)
 let audioUnlocked = false;
 function unlockAudio() {
   if (audioUnlocked) return;
@@ -47,6 +22,62 @@ function unlockAudio() {
     src.buffer = buf; src.connect(ctx.destination); src.start(0);
     ctx.resume();
   } catch (_) {}
+}
+
+function playAlert() {
+  try { navigator.vibrate?.([400, 200, 400, 200, 800]); } catch (_) {}
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
+    resume.then(() => {
+      [0, 400, 800].forEach(delay => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = "sine"; o.frequency.value = 880;
+        g.gain.setValueAtTime(0, ctx.currentTime + delay / 1000);
+        g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + delay / 1000 + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay / 1000 + 0.4);
+        o.start(ctx.currentTime + delay / 1000);
+        o.stop(ctx.currentTime + delay / 1000 + 0.4);
+      });
+    });
+  } catch (_) {}
+}
+
+// Request notification permission and send system notification
+async function requestNotificationPermission() {
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "default") {
+    await Notification.requestPermission();
+  }
+}
+
+function sendSystemNotification(order) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const n = new Notification("🚖 ¡Nuevo Viaje!", {
+      body: `${order.pickup_address}${order.dropoff_address ? " → " + order.dropoff_address : ""}`,
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      vibrate: [400, 200, 400, 200, 800],
+      requireInteraction: true,
+      tag: "ride-offer-" + order.id,
+    });
+    setTimeout(() => n.close(), 30000);
+  } catch (_) {}
+}
+
+// ── Navigation helper ─────────────────────────────────────────────────────────
+function openMapsNavigation(address, driverLat, driverLng) {
+  const dest = encodeURIComponent(address);
+  let url;
+  if (driverLat && driverLng) {
+    url = `https://www.google.com/maps/dir/${driverLat},${driverLng}/${dest}`;
+  } else {
+    url = `https://www.google.com/maps/search/?api=1&query=${dest}`;
+  }
+  window.open(url, "_blank");
 }
 
 const STATUS_CONFIG = {
@@ -103,7 +134,6 @@ function IncomingAlert({ order, onAccept, onReject }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300">
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
-        {/* flashing header */}
         <div className="bg-amber-500 px-5 py-4 flex items-center gap-3 animate-pulse">
           <Bell className="w-6 h-6 text-white" />
           <div>
@@ -113,7 +143,6 @@ function IncomingAlert({ order, onAccept, onReject }) {
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Client */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
               <Phone className="w-5 h-5 text-gray-500" />
@@ -124,7 +153,6 @@ function IncomingAlert({ order, onAccept, onReject }) {
             </div>
           </div>
 
-          {/* Route */}
           <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
             <div className="flex items-start gap-3">
               <div className="w-5 h-5 rounded-full bg-green-500 mt-0.5 shrink-0" />
@@ -182,16 +210,20 @@ function IncomingAlert({ order, onAccept, onReject }) {
 }
 
 // ── Active ride screen ────────────────────────────────────────────────────────
-function ActiveRideScreen({ order, onStatusChange }) {
+function ActiveRideScreen({ order, driver, onStatusChange }) {
   const cfg = STATUS_CONFIG[order.status];
+
+  const handleNavigate = () => {
+    const address = order.status === "en_viaje" ? order.dropoff_address : order.pickup_address;
+    if (address) openMapsNavigation(address, driver?.current_lat, driver?.current_lng);
+  };
+
   return (
     <div className="flex-1 flex flex-col">
-      {/* Map */}
       <div className="flex-1 min-h-0">
         <RideMap orders={[order]} drivers={[]} className="h-full" />
       </div>
 
-      {/* Bottom sheet */}
       <div className="bg-white rounded-t-3xl shadow-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
           <p className="font-bold text-lg">Viaje en Curso</p>
@@ -201,7 +233,7 @@ function ActiveRideScreen({ order, onStatusChange }) {
         <div className="space-y-3">
           <div className="flex items-start gap-3">
             <div className="w-5 h-5 rounded-full bg-green-500 mt-0.5 shrink-0" />
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-xs text-gray-400">RECOGIDA</p>
               <p className="font-semibold text-sm">{order.pickup_address}</p>
             </div>
@@ -209,7 +241,7 @@ function ActiveRideScreen({ order, onStatusChange }) {
           {order.dropoff_address && (
             <div className="flex items-start gap-3">
               <MapPin className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-400">DESTINO</p>
                 <p className="font-semibold text-sm">{order.dropoff_address}</p>
               </div>
@@ -221,6 +253,16 @@ function ActiveRideScreen({ order, onStatusChange }) {
             <a href={`tel:${order.client_phone}`} className="text-blue-600 font-medium">{order.client_phone}</a>
           </div>
         </div>
+
+        {/* Navigate button */}
+        <Button
+          variant="outline"
+          className="w-full h-11 rounded-2xl gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 font-semibold"
+          onClick={handleNavigate}
+        >
+          <Navigation className="w-4 h-4" />
+          Navegar con Google Maps
+        </Button>
 
         {order.status === "aceptado" && (
           <Button className="w-full h-14 rounded-2xl gap-2 bg-purple-500 hover:bg-purple-600 text-base font-bold shadow-lg shadow-purple-500/20" onClick={() => onStatusChange("en_camino")}>
@@ -279,50 +321,127 @@ function AvailableOrders({ orders, onTake }) {
 }
 
 // ── Idle / waiting screen ─────────────────────────────────────────────────────
-function IdleScreen({ driver, selectedBase, onBaseChange, onEnter }) {
+function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onChangeBase }) {
+  const [changingBase, setChangingBase] = useState(false);
+  const [newBase, setNewBase] = useState("");
+
   const isInBase = driver.current_base && driver.status === "disponible";
+
+  // Queue for current base
+  const baseQueue = drivers
+    .filter(d => d.current_base === driver.current_base && d.status === "disponible")
+    .sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at));
+  const myPosition = baseQueue.findIndex(d => d.id === driver.id) + 1;
+
+  if (changingBase) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-6 space-y-6">
+        <div className="text-center">
+          <p className="text-xl font-bold text-gray-800">Cambiar de Base</p>
+          <p className="text-gray-500 text-sm mt-1">Estás en: <span className="font-semibold text-gray-700">{driver.current_base}</span></p>
+        </div>
+        <div className="w-full max-w-xs space-y-3">
+          <Select value={newBase} onValueChange={setNewBase}>
+            <SelectTrigger className="h-12 rounded-2xl text-base border-2">
+              <SelectValue placeholder="Seleccionar nueva base..." />
+            </SelectTrigger>
+            <SelectContent>
+              {BASES.filter(b => b !== driver.current_base).map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button
+            className="w-full h-12 rounded-2xl text-base font-bold"
+            disabled={!newBase}
+            onClick={() => { onChangeBase(newBase); setChangingBase(false); setNewBase(""); }}
+          >
+            Moverme a {newBase || "esta base"}
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full h-12 rounded-2xl text-base"
+            onClick={() => setChangingBase(false)}
+          >
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isInBase) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-6 space-y-5">
+        <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center relative">
+          <div className="w-6 h-6 rounded-full bg-green-500 animate-ping absolute" />
+          <Clock className="w-10 h-10 text-green-600 relative" />
+        </div>
+        <div className="text-center">
+          <p className="text-xl font-bold text-gray-800">En Posición</p>
+          <p className="text-gray-500 mt-1">Base: <span className="font-semibold text-gray-700">{driver.current_base}</span></p>
+          <p className="text-gray-400 text-sm mt-1">Esperando asignación de viaje...</p>
+        </div>
+
+        {/* Queue info */}
+        <div className="w-full max-w-xs bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-600 flex items-center gap-1.5">
+              <Users className="w-4 h-4" /> Cola de la Base
+            </span>
+            <Badge className="bg-blue-100 text-blue-700 border-0">
+              {myPosition}° de {baseQueue.length}
+            </Badge>
+          </div>
+          <div className="space-y-1.5">
+            {baseQueue.map((d, i) => (
+              <div
+                key={d.id}
+                className={`flex items-center gap-2 text-sm px-3 py-2 rounded-xl ${d.id === driver.id ? "bg-green-50 border border-green-200 font-semibold text-green-800" : "text-gray-500"}`}
+              >
+                <span className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</span>
+                <span className="truncate">{d.name}</span>
+                {d.id === driver.id && <span className="ml-auto text-xs text-green-600">← vos</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <Button
+          variant="outline"
+          className="gap-2 rounded-2xl border-gray-300"
+          onClick={() => setChangingBase(true)}
+        >
+          <ArrowRightLeft className="w-4 h-4" /> Cambiar de Base
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 space-y-6">
-      {isInBase ? (
-        <>
-          <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center">
-            <div className="w-6 h-6 rounded-full bg-green-500 animate-ping absolute" />
-            <Clock className="w-10 h-10 text-green-600 relative" />
-          </div>
-          <div className="text-center">
-            <p className="text-xl font-bold text-gray-800">En Posición</p>
-            <p className="text-gray-500 mt-1">Base: <span className="font-semibold text-gray-700">{driver.current_base}</span></p>
-            <p className="text-gray-400 text-sm mt-1">Esperando asignación de viaje...</p>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center">
-            <Car className="w-10 h-10 text-gray-400" />
-          </div>
-          <div className="text-center">
-            <p className="text-xl font-bold text-gray-800">¿En qué base estás?</p>
-            <p className="text-gray-500 text-sm mt-1">Seleccioná tu base para quedar en posición</p>
-          </div>
-          <div className="w-full max-w-xs space-y-3">
-            <Select value={selectedBase} onValueChange={onBaseChange}>
-              <SelectTrigger className="h-12 rounded-2xl text-base border-2">
-                <SelectValue placeholder="Seleccionar base..." />
-              </SelectTrigger>
-              <SelectContent>
-                {BASES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button
-              className="w-full h-12 rounded-2xl text-base font-bold"
-              disabled={!selectedBase}
-              onClick={onEnter}
-            >
-              Entrar a la Cola
-            </Button>
-          </div>
-        </>
-      )}
+      <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center">
+        <Car className="w-10 h-10 text-gray-400" />
+      </div>
+      <div className="text-center">
+        <p className="text-xl font-bold text-gray-800">¿En qué base estás?</p>
+        <p className="text-gray-500 text-sm mt-1">Seleccioná tu base para quedar en posición</p>
+      </div>
+      <div className="w-full max-w-xs space-y-3">
+        <Select value={selectedBase} onValueChange={onBaseChange}>
+          <SelectTrigger className="h-12 rounded-2xl text-base border-2">
+            <SelectValue placeholder="Seleccionar base..." />
+          </SelectTrigger>
+          <SelectContent>
+            {BASES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button
+          className="w-full h-12 rounded-2xl text-base font-bold"
+          disabled={!selectedBase}
+          onClick={onEnter}
+        >
+          Entrar a la Cola
+        </Button>
+      </div>
     </div>
   );
 }
@@ -333,6 +452,9 @@ export default function DriverApp() {
   const [myDriverId, setMyDriverId] = useState(() => localStorage.getItem("my_driver_id") || "");
   const [selectedBase, setSelectedBase] = useState("");
   const prevOfferedId = useRef(null);
+
+  // Request notification permission on load
+  useEffect(() => { requestNotificationPermission(); }, []);
 
   // GPS
   useEffect(() => {
@@ -349,7 +471,7 @@ export default function DriverApp() {
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
-    refetchInterval: 8000,
+    refetchInterval: 5000,
   });
 
   const { data: orders = [] } = useQuery({
@@ -363,16 +485,17 @@ export default function DriverApp() {
   const offeredOrder = orders.find(o => o.driver_id === myDriverId && o.status === "ofrecido");
   const availableOrders = orders.filter(o => o.status === "pendiente" && !o.driver_id);
 
-  // Play alert when a new offer arrives — and repeat every 4s until answered
+  // Alert on new offer (audio + system notification) — repeat every 4s
   useEffect(() => {
     if (offeredOrder) {
       if (offeredOrder.id !== prevOfferedId.current) {
         prevOfferedId.current = offeredOrder.id;
         playAlert();
+        sendSystemNotification(offeredOrder);
       }
-      // Repeat alert every 4 seconds while offer is pending
       const interval = setInterval(() => {
         playAlert();
+        sendSystemNotification(offeredOrder);
       }, 4000);
       return () => clearInterval(interval);
     } else {
@@ -408,12 +531,17 @@ export default function DriverApp() {
       data: { current_base: selectedBase, status: "disponible", queue_entered_at: new Date().toISOString() },
     });
   };
+  const handleChangeBase = (newBase) => {
+    updateDriver.mutate({
+      id: myDriverId,
+      data: { current_base: newBase, status: "disponible", queue_entered_at: new Date().toISOString() },
+    });
+  };
   const handleTakeOrder = (order) => {
     updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
   };
 
-  // ── Login ──
   if (!myDriver) {
     return (
       <LoginScreen
@@ -425,7 +553,6 @@ export default function DriverApp() {
 
   return (
     <div className="h-screen bg-gray-100 flex flex-col max-w-md mx-auto relative overflow-hidden" onTouchStart={unlockAudio} onClick={unlockAudio}>
-      {/* Install PWA banner */}
       <InstallBanner />
 
       {/* Header */}
@@ -459,19 +586,20 @@ export default function DriverApp() {
 
       {/* Body */}
       {activeOrder ? (
-        <ActiveRideScreen order={activeOrder} onStatusChange={handleStatusChange} />
+        <ActiveRideScreen order={activeOrder} driver={myDriver} onStatusChange={handleStatusChange} />
       ) : !activeOrder && availableOrders.length > 1 && myDriver.status === "disponible" ? (
         <AvailableOrders orders={availableOrders} onTake={handleTakeOrder} />
       ) : (
         <IdleScreen
           driver={myDriver}
+          drivers={drivers}
           selectedBase={selectedBase}
           onBaseChange={setSelectedBase}
           onEnter={handleEnterBase}
+          onChangeBase={handleChangeBase}
         />
       )}
 
-      {/* Incoming alert overlay */}
       {offeredOrder && (
         <IncomingAlert order={offeredOrder} onAccept={handleAccept} onReject={handleReject} />
       )}
