@@ -149,7 +149,6 @@ function IncomingAlert({ order, onAccept, onReject }) {
             </div>
             <div>
               <p className="font-semibold">{order.client_name}</p>
-              <p className="text-sm text-gray-500">{order.client_phone}</p>
             </div>
           </div>
 
@@ -249,8 +248,7 @@ function ActiveRideScreen({ order, driver, onStatusChange }) {
           )}
           <div className="flex items-center gap-2 text-gray-500 text-sm">
             <Phone className="w-4 h-4" />
-            <span>{order.client_name} · </span>
-            <a href={`tel:${order.client_phone}`} className="text-blue-600 font-medium">{order.client_phone}</a>
+            <span>{order.client_name}</span>
           </div>
         </div>
 
@@ -446,6 +444,20 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
   );
 }
 
+// ── Register Service Worker ───────────────────────────────────────────────────
+async function registerSW() {
+  if (!("serviceWorker" in navigator)) return null;
+  try {
+    const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    return reg;
+  } catch (_) { return null; }
+}
+
+function notifySW(message) {
+  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
+  navigator.serviceWorker.controller.postMessage(message);
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function DriverApp() {
   const queryClient = useQueryClient();
@@ -453,8 +465,11 @@ export default function DriverApp() {
   const [selectedBase, setSelectedBase] = useState("");
   const prevOfferedId = useRef(null);
 
-  // Request notification permission on load
-  useEffect(() => { requestNotificationPermission(); }, []);
+  // Register SW and request notification permission on load
+  useEffect(() => {
+    registerSW();
+    requestNotificationPermission();
+  }, []);
 
   // GPS
   useEffect(() => {
@@ -485,21 +500,28 @@ export default function DriverApp() {
   const offeredOrder = orders.find(o => o.driver_id === myDriverId && o.status === "ofrecido");
   const availableOrders = orders.filter(o => o.status === "pendiente" && !o.driver_id);
 
-  // Alert on new offer (audio + system notification) — repeat every 4s
+  // Inform SW which driver is active
+  useEffect(() => {
+    notifySW({ type: "SET_DRIVER", driverId: myDriverId || null });
+  }, [myDriverId]);
+
+  // Alert on new offer (audio + SW notification) — repeat every 4s
   useEffect(() => {
     if (offeredOrder) {
       if (offeredOrder.id !== prevOfferedId.current) {
         prevOfferedId.current = offeredOrder.id;
         playAlert();
         sendSystemNotification(offeredOrder);
+        notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
       }
       const interval = setInterval(() => {
         playAlert();
-        sendSystemNotification(offeredOrder);
+        notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
       }, 4000);
       return () => clearInterval(interval);
     } else {
       prevOfferedId.current = null;
+      notifySW({ type: "OFFER_CLEARED" });
     }
   }, [offeredOrder?.id]);
 
