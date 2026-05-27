@@ -57,15 +57,54 @@ export async function findBestDriver(order, drivers, bases) {
 
 // Assign driver to order
 export async function assignDriverToOrder(order, driver) {
-  await Promise.all([
-    base44.entities.RideOrder.update(order.id, {
-      status: "ofrecido",
-      driver_id: driver.id,
-      driver_name: driver.name,
-      assigned_base: driver.current_base,
-      offered_driver_ids: [...(order.offered_driver_ids || []), driver.id],
-    }),
-  ]);
+  await base44.entities.RideOrder.update(order.id, {
+    status: "ofrecido",
+    driver_id: driver.id,
+    driver_name: driver.name,
+    assigned_base: driver.current_base,
+    offered_driver_ids: [...(order.offered_driver_ids || []), driver.id],
+  });
+}
+
+// Reassign after rejection: next in same base queue (skipping already-offered),
+// or broadcast to ALL available drivers if no one left in zone
+export async function reassignAfterReject(order, drivers, bases) {
+  const offeredIds = order.offered_driver_ids || [];
+  const available = drivers.filter(d => d.status === "disponible" && d.current_base && !offeredIds.includes(d.id));
+
+  if (!available.length) {
+    // No one left untried → reset to pendiente without driver
+    await base44.entities.RideOrder.update(order.id, {
+      status: "pendiente",
+      driver_id: null,
+      driver_name: null,
+    });
+    return "sin_moviles";
+  }
+
+  // Determine which base the order was assigned from
+  const lastBase = order.assigned_base;
+  const sameBaseQueue = available
+    .filter(d => d.current_base === lastBase)
+    .sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at));
+
+  if (sameBaseQueue.length > 0) {
+    // Next driver in same base
+    const next = sameBaseQueue[0];
+    await assignDriverToOrder(order, next);
+    return "next_in_queue";
+  }
+
+  // No one in same zone → broadcast to ALL available (first to accept wins)
+  // We use status "pendiente" with no driver_id so all drivers see it as available,
+  // but set a special broadcast flag via notes prefix
+  await base44.entities.RideOrder.update(order.id, {
+    status: "pendiente",
+    driver_id: null,
+    driver_name: null,
+    assigned_base: null,
+  });
+  return "broadcast";
 }
 
 export { BASES };

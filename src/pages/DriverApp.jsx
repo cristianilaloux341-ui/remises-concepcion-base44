@@ -4,9 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle } from "lucide-react";
+import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi } from "lucide-react";
 import RideMap from "@/components/map/RideMap";
-import { BASES } from "@/lib/dispatchLogic";
+import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
 import DriverMessages from "@/components/driver/DriverMessages";
 
@@ -319,8 +319,29 @@ function AvailableOrders({ orders, onTake }) {
   );
 }
 
+// ── Off service screen ────────────────────────────────────────────────────────
+function OffServiceScreen({ onGoOnService }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center px-6 space-y-6">
+      <div className="w-24 h-24 rounded-full bg-red-100 flex items-center justify-center">
+        <PowerOff className="w-10 h-10 text-red-400" />
+      </div>
+      <div className="text-center">
+        <p className="text-xl font-bold text-gray-800">Fuera de Servicio</p>
+        <p className="text-gray-500 text-sm mt-1">No recibirás viajes mientras estés fuera de servicio</p>
+      </div>
+      <Button
+        className="h-14 px-8 rounded-2xl text-base font-bold bg-green-500 hover:bg-green-600 gap-2 shadow-lg shadow-green-500/20"
+        onClick={onGoOnService}
+      >
+        <Wifi className="w-5 h-5" /> Entrar en Servicio
+      </Button>
+    </div>
+  );
+}
+
 // ── Idle / waiting screen ─────────────────────────────────────────────────────
-function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onChangeBase }) {
+function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onChangeBase, onGoOffService }) {
   const [changingBase, setChangingBase] = useState(false);
   const [newBase, setNewBase] = useState("");
 
@@ -404,13 +425,22 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
           </div>
         </div>
 
-        <Button
-          variant="outline"
-          className="gap-2 rounded-2xl border-gray-300"
-          onClick={() => setChangingBase(true)}
-        >
-          <ArrowRightLeft className="w-4 h-4" /> Cambiar de Base
-        </Button>
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            className="gap-2 rounded-2xl border-gray-300"
+            onClick={() => setChangingBase(true)}
+          >
+            <ArrowRightLeft className="w-4 h-4" /> Cambiar Base
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2 rounded-2xl border-red-200 text-red-500 hover:bg-red-50"
+            onClick={onGoOffService}
+          >
+            <PowerOff className="w-4 h-4" /> Salir de Servicio
+          </Button>
+        </div>
       </div>
     );
   }
@@ -494,7 +524,7 @@ export default function DriverApp() {
   const { data: orders = [] } = useQuery({
     queryKey: ["orders"],
     queryFn: () => base44.entities.RideOrder.list("-created_date", 100),
-    refetchInterval: 2000,
+    refetchInterval: 800,
   });
 
   const myDriver = drivers.find(d => d.id === myDriverId);
@@ -540,8 +570,10 @@ export default function DriverApp() {
     updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado" } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
   };
-  const handleReject = () => {
-    updateOrder.mutate({ id: offeredOrder.id, data: { status: "pendiente", driver_id: null, driver_name: null } });
+  const handleReject = async () => {
+    const currentOrder = { ...offeredOrder, offered_driver_ids: [...(offeredOrder.offered_driver_ids || []), myDriverId] };
+    await reassignAfterReject(currentOrder, drivers, []);
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
   };
   const handleStatusChange = (newStatus) => {
     updateOrder.mutate({ id: activeOrder.id, data: { status: newStatus } });
@@ -565,6 +597,21 @@ export default function DriverApp() {
     updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
   };
+
+  const handleGoOffService = () => {
+    updateDriver.mutate({ id: myDriverId, data: { status: "no_disponible", current_base: null } });
+  };
+
+  const handleGoOnService = () => {
+    // Re-enter idle so driver picks a base
+    updateDriver.mutate({ id: myDriverId, data: { status: "disponible", current_base: null, queue_entered_at: null } });
+  };
+
+  // Count unread messages for badge
+  const unreadCount = (() => {
+    // We don't fetch messages here; badge is shown in DriverMessages component
+    return 0;
+  })();
 
   if (!myDriver) {
     return (
@@ -590,7 +637,7 @@ export default function DriverApp() {
             <p className="text-xs text-gray-400 font-mono">{myDriver.vehicle_plate}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {myDriver.current_base && myDriver.status === "disponible" && (
             <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
               📍 {myDriver.current_base}
@@ -599,12 +646,34 @@ export default function DriverApp() {
           {myDriver.status === "en_viaje" && (
             <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">En Viaje</Badge>
           )}
+          {myDriver.status === "no_disponible" && (
+            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs">Fuera de Servicio</Badge>
+          )}
           <button
             className="p-2 rounded-xl bg-blue-600/20 text-blue-400"
             onClick={() => setShowMessages(true)}
           >
             <MessageCircle className="w-4 h-4" />
           </button>
+          {myDriver.status !== "en_viaje" && (
+            myDriver.status === "no_disponible" ? (
+              <button
+                className="p-2 rounded-xl bg-green-600/20 text-green-400"
+                onClick={handleGoOnService}
+                title="Entrar en servicio"
+              >
+                <Wifi className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                className="p-2 rounded-xl bg-red-600/20 text-red-400"
+                onClick={handleGoOffService}
+                title="Salir de servicio"
+              >
+                <PowerOff className="w-4 h-4" />
+              </button>
+            )
+          )}
           <button
             className="text-xs text-gray-500 underline"
             onClick={() => { localStorage.removeItem("my_driver_id"); setMyDriverId(""); }}
@@ -617,7 +686,9 @@ export default function DriverApp() {
       {/* Body */}
       {activeOrder ? (
         <ActiveRideScreen order={activeOrder} driver={myDriver} onStatusChange={handleStatusChange} />
-      ) : !activeOrder && availableOrders.length > 1 && myDriver.status === "disponible" ? (
+      ) : myDriver.status === "no_disponible" ? (
+        <OffServiceScreen onGoOnService={handleGoOnService} />
+      ) : availableOrders.length > 0 && myDriver.status === "disponible" && !myDriver.current_base ? (
         <AvailableOrders orders={availableOrders} onTake={handleTakeOrder} />
       ) : (
         <IdleScreen
@@ -627,6 +698,7 @@ export default function DriverApp() {
           onBaseChange={setSelectedBase}
           onEnter={handleEnterBase}
           onChangeBase={handleChangeBase}
+          onGoOffService={handleGoOffService}
         />
       )}
 

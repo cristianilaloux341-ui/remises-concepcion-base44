@@ -15,7 +15,7 @@ export default function DriverMessages({ driver, onClose }) {
   const { data: messages = [] } = useQuery({
     queryKey: ["messages"],
     queryFn: () => base44.entities.Message.list("created_date", 100),
-    refetchInterval: 3000,
+    refetchInterval: 1500,
   });
 
   // Filter: messages for this driver or broadcast
