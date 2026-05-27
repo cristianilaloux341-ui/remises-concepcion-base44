@@ -1,0 +1,67 @@
+{
+  "name": "ScheduledRide",
+  "type": "object",
+  "properties": {
+    "client_name": {
+      "type": "string"
+    },
+    "client_phone": {
+      "type": "string"
+    },
+    "client_id": {
+      "type": "string"
+    },
+    "pickup_address": {
+      "type": "string"
+    },
+    "dropoff_address": {
+      "type": "string"
+    },
+    "scheduled_datetime": {
+      "type": "string",
+      "description": "ISO datetime del viaje"
+    },
+    "notify_minutes_before": {
+      "type": "number",
+      "default": 10,
+      "description": "Minutos antes para alertar al operador"
+    },
+    "require_specific_driver": {
+      "type": "boolean",
+      "default": false
+    },
+    "preferred_driver_id": {
+      "type": "string"
+    },
+    "preferred_driver_name": {
+      "type": "string"
+    },
+    "fare": {
+      "type": "number"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendiente",
+        "notificado",
+        "despachado",
+        "completado",
+        "cancelado"
+      ],
+      "default": "pendiente"
+    },
+    "order_id": {
+      "type": "string",
+      "description": "ID del RideOrder creado cuando se despacha"
+    }
+  },
+  "required": [
+    "client_name",
+    "client_phone",
+    "pickup_address",
+    "scheduled_datetime"
+  ]
+}

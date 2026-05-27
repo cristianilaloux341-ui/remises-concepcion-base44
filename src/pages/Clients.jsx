@@ -1,0 +1,260 @@
+import { useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Plus, Search, Star, Phone, AlertTriangle, XCircle, Car, User } from "lucide-react";
+
+function scoreColor(score) {
+  if (score >= 8) return "text-green-600";
+  if (score >= 5) return "text-amber-600";
+  return "text-red-600";
+}
+
+function scoreBg(score) {
+  if (score >= 8) return "bg-green-100 text-green-700";
+  if (score >= 5) return "bg-amber-100 text-amber-700";
+  return "bg-red-100 text-red-700";
+}
+
+function scoreLabel(score) {
+  if (score >= 9) return "Excelente";
+  if (score >= 7) return "Bueno";
+  if (score >= 5) return "Regular";
+  if (score >= 3) return "Conflictivo";
+  return "Lista Negra";
+}
+
+function ClientForm({ client, drivers, onSave, onClose }) {
+  const [form, setForm] = useState(client || {
+    name: "", phone: "", score: 5, complaints: 0, cancelled_trips: 0,
+    total_trips: 0, preferred_driver_id: "", preferred_driver_name: "",
+    blacklisted: false, notes: ""
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>Nombre</Label>
+          <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+        </div>
+        <div className="space-y-1">
+          <Label>Teléfono</Label>
+          <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="space-y-1">
+          <Label>Puntuación (1-10)</Label>
+          <Input type="number" min={1} max={10} value={form.score}
+            onChange={e => setForm({ ...form, score: Number(e.target.value) })} />
+        </div>
+        <div className="space-y-1">
+          <Label>Reclamos</Label>
+          <Input type="number" min={0} value={form.complaints}
+            onChange={e => setForm({ ...form, complaints: Number(e.target.value) })} />
+        </div>
+        <div className="space-y-1">
+          <Label>Cancelaciones</Label>
+          <Input type="number" min={0} value={form.cancelled_trips}
+            onChange={e => setForm({ ...form, cancelled_trips: Number(e.target.value) })} />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label>Móvil preferido (opcional)</Label>
+        <Select
+          value={form.preferred_driver_id || "ninguno"}
+          onValueChange={v => {
+            if (v === "ninguno") {
+              setForm({ ...form, preferred_driver_id: "", preferred_driver_name: "" });
+            } else {
+              const d = drivers.find(d => d.id === v);
+              setForm({ ...form, preferred_driver_id: v, preferred_driver_name: d?.name || "" });
+            }
+          }}
+        >
+          <SelectTrigger><SelectValue placeholder="Sin preferencia..." /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ninguno">Sin preferencia</SelectItem>
+            {drivers.map(d => (
+              <SelectItem key={d.id} value={d.id}>{d.name} — {d.vehicle_plate}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-1">
+        <Label>Notas / Observaciones</Label>
+        <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
+          placeholder="Ej: siempre pide el mismo auto, reclama mucho, etc." className="h-20" />
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Switch checked={form.blacklisted} onCheckedChange={v => setForm({ ...form, blacklisted: v })} />
+        <Label className="text-red-600 font-medium">Lista negra (no tomar viajes)</Label>
+      </div>
+
+      <div className="flex gap-2 pt-2">
+        <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
+        <Button className="flex-1" onClick={() => onSave(form)}>Guardar</Button>
+      </div>
+    </div>
+  );
+}
+
+function ClientCard({ client, onEdit }) {
+  const cancelRate = client.total_trips > 0
+    ? Math.round((client.cancelled_trips / client.total_trips) * 100)
+    : 0;
+
+  return (
+    <Card className={`hover:shadow-md transition-all cursor-pointer ${client.blacklisted ? "border-red-300 bg-red-50" : ""}`}
+      onClick={() => onEdit(client)}>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="font-semibold">{client.name}</p>
+              {client.blacklisted && <Badge className="bg-red-100 text-red-700 border-0 text-xs">⛔ Lista Negra</Badge>}
+            </div>
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+              <Phone className="w-3 h-3" />{client.phone}
+            </p>
+          </div>
+          <div className={`text-center px-3 py-1.5 rounded-xl ${scoreBg(client.score || 5)}`}>
+            <p className="text-lg font-bold leading-none">{client.score || 5}</p>
+            <p className="text-xs mt-0.5">{scoreLabel(client.score || 5)}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="bg-muted rounded-lg p-2">
+            <p className="font-bold text-base">{client.total_trips || 0}</p>
+            <p className="text-muted-foreground">Viajes</p>
+          </div>
+          <div className={`rounded-lg p-2 ${client.cancelled_trips > 2 ? "bg-red-100" : "bg-muted"}`}>
+            <p className="font-bold text-base">{client.cancelled_trips || 0}</p>
+            <p className="text-muted-foreground">Cancela</p>
+          </div>
+          <div className={`rounded-lg p-2 ${client.complaints > 2 ? "bg-amber-100" : "bg-muted"}`}>
+            <p className="font-bold text-base">{client.complaints || 0}</p>
+            <p className="text-muted-foreground">Reclamos</p>
+          </div>
+        </div>
+
+        {client.preferred_driver_name && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Car className="w-3 h-3 text-blue-500" /> Prefiere: <span className="font-medium">{client.preferred_driver_name}</span>
+          </p>
+        )}
+        {client.notes && (
+          <p className="text-xs text-muted-foreground italic line-clamp-2">"{client.notes}"</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function Clients() {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ["clients"],
+    queryFn: () => base44.entities.Client.list("-created_date", 200),
+  });
+
+  const { data: drivers = [] } = useQuery({
+    queryKey: ["drivers"],
+    queryFn: () => base44.entities.Driver.list(),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (form) => {
+      if (editing?.id) {
+        await base44.entities.Client.update(editing.id, form);
+      } else {
+        await base44.entities.Client.create(form);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      setShowForm(false);
+      setEditing(null);
+    }
+  });
+
+  const filtered = clients.filter(c =>
+    !search ||
+    c.name?.toLowerCase().includes(search.toLowerCase()) ||
+    c.phone?.includes(search)
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Clientes</h1>
+          <p className="text-muted-foreground mt-1">Historial y puntuación</p>
+        </div>
+        <Button className="rounded-xl gap-2" onClick={() => { setEditing(null); setShowForm(true); }}>
+          <Plus className="w-4 h-4" /> Nuevo Cliente
+        </Button>
+      </div>
+
+      {/* Stats summary */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="p-3 text-center">
+          <p className="text-2xl font-bold">{clients.length}</p>
+          <p className="text-xs text-muted-foreground">Total Clientes</p>
+        </Card>
+        <Card className="p-3 text-center">
+          <p className="text-2xl font-bold text-red-600">{clients.filter(c => c.blacklisted).length}</p>
+          <p className="text-xs text-muted-foreground">Lista Negra</p>
+        </Card>
+        <Card className="p-3 text-center">
+          <p className="text-2xl font-bold text-green-600">{clients.filter(c => (c.score || 5) >= 8).length}</p>
+          <p className="text-xs text-muted-foreground">Excelentes</p>
+        </Card>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input className="pl-9 rounded-xl" placeholder="Buscar por nombre o teléfono..."
+          value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {filtered.map(client => (
+          <ClientCard key={client.id} client={client} onEdit={(c) => { setEditing(c); setShowForm(true); }} />
+        ))}
+      </div>
+
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setEditing(null); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Editar Cliente" : "Nuevo Cliente"}</DialogTitle>
+          </DialogHeader>
+          <ClientForm
+            client={editing}
+            drivers={drivers}
+            onSave={(form) => saveMutation.mutate(form)}
+            onClose={() => { setShowForm(false); setEditing(null); }}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

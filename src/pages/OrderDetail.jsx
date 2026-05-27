@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Phone, MapPin, User, DollarSign, Trash2, Loader2 } from "lucide-react";
+import { ArrowLeft, Phone, MapPin, User, DollarSign, Trash2, Loader2, XCircle, RefreshCw } from "lucide-react";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
 import RideMap from "@/components/map/RideMap";
 import { format } from "date-fns";
@@ -76,16 +76,36 @@ export default function OrderDetail() {
           <ArrowLeft className="w-4 h-4" />
           Volver
         </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          className="gap-2"
-          onClick={() => deleteMutation.mutate(order.id)}
-          disabled={deleteMutation.isPending}
-        >
-          {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-          Eliminar
-        </Button>
+        <div className="flex gap-2">
+          {order.status === "cancelado" ? (
+            <Button
+              size="sm"
+              className="gap-2 bg-green-600 hover:bg-green-700"
+              onClick={() => updateMutation.mutate({ id: order.id, data: { status: "pendiente" } })}
+            >
+              <RefreshCw className="w-4 h-4" /> Reactivar
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
+              onClick={() => updateMutation.mutate({ id: order.id, data: { status: "cancelado" } })}
+            >
+              <XCircle className="w-4 h-4" /> Cancelar
+            </Button>
+          )}
+          <Button
+            variant="destructive"
+            size="sm"
+            className="gap-2"
+            onClick={() => deleteMutation.mutate(order.id)}
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            Eliminar
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

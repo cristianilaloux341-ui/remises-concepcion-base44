@@ -1,0 +1,47 @@
+{
+  "name": "Client",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "total_trips": {
+      "type": "number",
+      "default": 0
+    },
+    "cancelled_trips": {
+      "type": "number",
+      "default": 0
+    },
+    "complaints": {
+      "type": "number",
+      "default": 0
+    },
+    "score": {
+      "type": "number",
+      "default": 5,
+      "description": "Puntuaci\u00f3n del 1 al 10"
+    },
+    "preferred_driver_id": {
+      "type": "string",
+      "description": "ID del m\u00f3vil preferido"
+    },
+    "preferred_driver_name": {
+      "type": "string"
+    },
+    "blacklisted": {
+      "type": "boolean",
+      "default": false
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "phone"
+  ]
+}

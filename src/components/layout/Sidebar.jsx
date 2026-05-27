@@ -1,11 +1,14 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone } from "lucide-react";
+import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
   { label: "Central", path: "/", icon: LayoutDashboard },
   { label: "Órdenes", path: "/orders", icon: Car },
+  { label: "Agenda", path: "/agenda", icon: CalendarClock },
+  { label: "Clientes", path: "/clients", icon: UserCheck },
+  { label: "Mensajes", path: "/messages", icon: MessageSquare },
   { label: "Mapa", path: "/map", icon: MapPin },
   { label: "Chóferes", path: "/drivers", icon: Users },
   { label: "App Chófer", path: "/driver-link", icon: Smartphone },

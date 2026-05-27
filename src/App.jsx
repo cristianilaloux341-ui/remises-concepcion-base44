@@ -21,6 +21,9 @@ import MapView from '@/pages/MapView';
 import Drivers from '@/pages/Drivers';
 import DriverApp from '@/pages/DriverApp';
 import DriverLink from '@/pages/DriverLink';
+import Clients from '@/pages/Clients';
+import Agenda from '@/pages/Agenda';
+import Messages from '@/pages/Messages';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -70,6 +73,9 @@ const AuthenticatedApp = () => {
           <Route path="/map" element={<MapView />} />
           <Route path="/drivers" element={<Drivers />} />
           <Route path="/driver-link" element={<DriverLink />} />
+          <Route path="/clients" element={<Clients />} />
+          <Route path="/agenda" element={<Agenda />} />
+          <Route path="/messages" element={<Messages />} />
         </Route>
       </Route>
       

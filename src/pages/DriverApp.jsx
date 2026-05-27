@@ -4,10 +4,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft } from "lucide-react";
+import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle } from "lucide-react";
 import RideMap from "@/components/map/RideMap";
 import { BASES } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
+import DriverMessages from "@/components/driver/DriverMessages";
 
 // ── Audio & Notifications ─────────────────────────────────────────────────────
 
@@ -463,6 +464,7 @@ export default function DriverApp() {
   const queryClient = useQueryClient();
   const [myDriverId, setMyDriverId] = useState(() => localStorage.getItem("my_driver_id") || "");
   const [selectedBase, setSelectedBase] = useState("");
+  const [showMessages, setShowMessages] = useState(false);
   const prevOfferedId = useRef(null);
 
   // Register SW and request notification permission on load
@@ -598,6 +600,12 @@ export default function DriverApp() {
             <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">En Viaje</Badge>
           )}
           <button
+            className="p-2 rounded-xl bg-blue-600/20 text-blue-400"
+            onClick={() => setShowMessages(true)}
+          >
+            <MessageCircle className="w-4 h-4" />
+          </button>
+          <button
             className="text-xs text-gray-500 underline"
             onClick={() => { localStorage.removeItem("my_driver_id"); setMyDriverId(""); }}
           >
@@ -624,6 +632,10 @@ export default function DriverApp() {
 
       {offeredOrder && (
         <IncomingAlert order={offeredOrder} onAccept={handleAccept} onReject={handleReject} />
+      )}
+
+      {showMessages && myDriver && (
+        <DriverMessages driver={myDriver} onClose={() => setShowMessages(false)} />
       )}
     </div>
   );

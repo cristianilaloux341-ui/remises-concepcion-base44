@@ -6,9 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatCard from "@/components/dashboard/StatCard";
 import RideMap from "@/components/map/RideMap";
-import BaseQueue from "@/components/operator/BaseQueue";
+import BaseQueueManager from "@/components/operator/BaseQueueManager";
 import DispatchPanel from "@/components/operator/DispatchPanel";
-import { BASES } from "@/lib/dispatchLogic";
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
@@ -113,11 +112,7 @@ export default function Dashboard() {
           <Users className="w-5 h-5" />
           Colas por Base
         </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-          {BASES.map(baseName => (
-            <BaseQueue key={baseName} baseName={baseName} drivers={drivers} />
-          ))}
-        </div>
+        <BaseQueueManager drivers={drivers} />
       </div>
     </div>
   );

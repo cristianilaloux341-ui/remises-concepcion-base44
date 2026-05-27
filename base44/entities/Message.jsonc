@@ -1,0 +1,37 @@
+{
+  "name": "Message",
+  "type": "object",
+  "properties": {
+    "from_type": {
+      "type": "string",
+      "enum": [
+        "operador",
+        "movil"
+      ],
+      "description": "Qui\u00e9n env\u00eda"
+    },
+    "from_name": {
+      "type": "string"
+    },
+    "driver_id": {
+      "type": "string",
+      "description": "ID del m\u00f3vil (si es movil)"
+    },
+    "to_driver_id": {
+      "type": "string",
+      "description": "Si el operador escribe a un m\u00f3vil espec\u00edfico, si vac\u00edo es broadcast"
+    },
+    "content": {
+      "type": "string"
+    },
+    "read": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "from_type",
+    "from_name",
+    "content"
+  ]
+}

@@ -59,6 +59,7 @@ export default function Orders() {
             <TabsTrigger value="pendiente" className="text-xs">Pendientes</TabsTrigger>
             <TabsTrigger value="en_viaje" className="text-xs">En Viaje</TabsTrigger>
             <TabsTrigger value="completado" className="text-xs">Completados</TabsTrigger>
+            <TabsTrigger value="cancelado" className="text-xs">Cancelados</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
