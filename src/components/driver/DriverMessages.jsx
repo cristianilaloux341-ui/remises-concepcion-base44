@@ -7,10 +7,30 @@ import { Badge } from "@/components/ui/badge";
 import { Send, X, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 
+function playBeep(type = "send") {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
+    resume.then(() => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = "sine";
+      o.frequency.value = type === "send" ? 660 : 880;
+      g.gain.setValueAtTime(0, ctx.currentTime);
+      g.gain.linearRampToValueAtTime(0.35, ctx.currentTime + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      o.start(ctx.currentTime);
+      o.stop(ctx.currentTime + 0.25);
+    });
+  } catch (_) {}
+}
+
 export default function DriverMessages({ driver, onClose }) {
   const queryClient = useQueryClient();
   const [content, setContent] = useState("");
   const bottomRef = useRef(null);
+  const prevCountRef = useRef(null);
 
   const { data: messages = [] } = useQuery({
     queryKey: ["messages"],
@@ -25,6 +45,24 @@ export default function DriverMessages({ driver, onClose }) {
 
   const unread = myMessages.filter(m => !m.read && m.from_type === "operador").length;
 
+  // Play sound when new incoming message arrives
+  useEffect(() => {
+    if (prevCountRef.current === null) {
+      prevCountRef.current = myMessages.length;
+      return;
+    }
+    const incoming = myMessages.filter(m => m.from_type === "operador");
+    const prevIncoming = prevCountRef.current;
+    if (myMessages.length > prevCountRef.current) {
+      const newMsgs = myMessages.slice(prevCountRef.current);
+      if (newMsgs.some(m => m.from_type === "operador")) {
+        playBeep("receive");
+        try { navigator.vibrate?.([200]); } catch (_) {}
+      }
+    }
+    prevCountRef.current = myMessages.length;
+  }, [myMessages.length]);
+
   const sendMutation = useMutation({
     mutationFn: () => base44.entities.Message.create({
       from_type: "movil",
@@ -37,6 +75,7 @@ export default function DriverMessages({ driver, onClose }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messages"] });
       setContent("");
+      playBeep("send");
     }
   });
 

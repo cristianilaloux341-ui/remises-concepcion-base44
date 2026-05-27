@@ -25,14 +25,28 @@ export default function OrderDetail() {
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
+    refetchInterval: 5000,
   });
 
   const order = orders.find(o => o.id === orderId);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.RideOrder.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] }),
   });
+
+  // When cancelling an active order, put the assigned driver first in queue
+  const cancelOrder = async () => {
+    await base44.entities.RideOrder.update(order.id, { status: "cancelado" });
+    if (order.driver_id && ["aceptado", "en_camino", "en_viaje", "ofrecido"].includes(order.status)) {
+      // Set queue_entered_at far in the past so driver appears first
+      await base44.entities.Driver.update(order.driver_id, {
+        status: "disponible",
+        queue_entered_at: new Date("2000-01-01").toISOString(),
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.RideOrder.delete(id),
@@ -67,7 +81,7 @@ export default function OrderDetail() {
     });
   };
 
-  const availableDrivers = drivers.filter(d => d.status === "disponible");
+  const availableDrivers = drivers.filter(d => d.status === "disponible" || d.id === order?.driver_id);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -90,7 +104,7 @@ export default function OrderDetail() {
               variant="outline"
               size="sm"
               className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
-              onClick={() => updateMutation.mutate({ id: order.id, data: { status: "cancelado" } })}
+              onClick={cancelOrder}
             >
               <XCircle className="w-4 h-4" /> Cancelar
             </Button>
@@ -196,30 +210,23 @@ export default function OrderDetail() {
                 </Select>
               </div>
 
-              {!order.driver_id && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Asignar Conductor</label>
-                  <Select onValueChange={handleAssignDriver}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar conductor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableDrivers.map((d) => (
-                        <SelectItem key={d.id} value={d.id}>
-                          {d.name} - {d.vehicle_plate}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {order.driver_name && (
-                <div className="p-3 bg-muted rounded-xl">
-                  <p className="text-xs text-muted-foreground mb-1">CONDUCTOR ASIGNADO</p>
-                  <p className="font-semibold">{order.driver_name}</p>
-                </div>
-              )}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {order.driver_id ? "Reasignar Conductor" : "Asignar Conductor"}
+                </label>
+                <Select value={order.driver_id || ""} onValueChange={handleAssignDriver}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar conductor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDrivers.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name} - {d.vehicle_plate}{d.current_base ? ` (${d.current_base})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </CardContent>
           </Card>
 
