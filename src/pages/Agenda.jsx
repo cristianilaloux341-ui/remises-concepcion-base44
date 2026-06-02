@@ -167,7 +167,8 @@ export default function Agenda() {
   const dispatchMutation = useMutation({
     mutationFn: async (ride) => {
       let driver;
-      if (ride.require_specific_driver && ride.preferred_driver_id) {
+      if (ride.preferred_driver_id) {
+        // Use the preferred driver regardless of their current status
         driver = drivers.find(d => d.id === ride.preferred_driver_id);
       } else {
         driver = await findBestDriver({ pickup_address: ride.pickup_address }, drivers, bases);
@@ -223,7 +224,6 @@ export default function Agenda() {
 
   // Auto-notification check every 15 seconds
   useEffect(() => {
-    if (rides.length === 0) return;
     const check = () => {
       rides.filter(r => r.status === "pendiente").forEach(r => {
         const mins = minutesUntil(r.scheduled_datetime);

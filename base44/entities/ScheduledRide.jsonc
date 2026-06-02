@@ -60,7 +60,6 @@
   },
   "required": [
     "client_name",
-    "client_phone",
     "pickup_address",
     "scheduled_datetime"
   ]

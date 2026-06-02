@@ -3,12 +3,14 @@ import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
+import AgendaAlert from "@/components/agenda/AgendaAlert";
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
+      <AgendaAlert />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
       <div className="lg:pl-64">
