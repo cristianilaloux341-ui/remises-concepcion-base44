@@ -179,7 +179,7 @@ export default function Agenda() {
         client_phone: ride.client_phone || "",
         pickup_address: ride.pickup_address,
         dropoff_address: ride.dropoff_address || "",
-        fare: ride.fare ? Number(ride.fare) : undefined,
+        fare: ride.fare && String(ride.fare).trim() !== "" && Number(ride.fare) > 0 ? Number(ride.fare) : undefined,
         notes: ride.notes || "",
         status: driver ? "ofrecido" : "pendiente",
         driver_id: driver?.id || undefined,
