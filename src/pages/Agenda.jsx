@@ -130,13 +130,13 @@ export default function Agenda() {
   const { data: rides = [] } = useQuery({
     queryKey: ["scheduled"],
     queryFn: () => base44.entities.ScheduledRide.list("-scheduled_datetime", 200),
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const { data: bases = [] } = useQuery({
@@ -172,47 +172,89 @@ export default function Agenda() {
       } else {
         driver = await findBestDriver({ pickup_address: ride.pickup_address }, drivers, bases);
       }
+      // Create the order — if a driver is found, mark as "ofrecido" so the driver app shows the alert
       const order = await base44.entities.RideOrder.create({
         client_name: ride.client_name,
-        client_phone: ride.client_phone,
+        client_phone: ride.client_phone || "",
         pickup_address: ride.pickup_address,
-        dropoff_address: ride.dropoff_address,
-        fare: ride.fare,
-        notes: ride.notes,
-        status: "pendiente",
+        dropoff_address: ride.dropoff_address || "",
+        fare: ride.fare ? Number(ride.fare) : undefined,
+        notes: ride.notes || "",
+        status: driver ? "ofrecido" : "pendiente",
+        driver_id: driver?.id || undefined,
+        driver_name: driver?.name || undefined,
+        assigned_base: driver?.current_base || undefined,
+        offered_driver_ids: driver ? [driver.id] : [],
       });
-      if (driver) await assignDriverToOrder(order, driver);
+      // Update driver status
+      if (driver) {
+        await base44.entities.Driver.update(driver.id, { status: "en_viaje" });
+      }
       await base44.entities.ScheduledRide.update(ride.id, { status: "despachado", order_id: order.id });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["scheduled"] });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
     }
   });
 
-  // Auto-notification check every minute
+  // Play alert sound
+  const playAgendaAlert = () => {
+    try {
+      navigator.vibrate?.([400, 150, 400, 150, 800]);
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
+      resume.then(() => {
+        [0, 500, 1000].forEach(delay => {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.type = "sine"; o.frequency.value = 660;
+          const t = ctx.currentTime + delay / 1000;
+          g.gain.setValueAtTime(0, t);
+          g.gain.linearRampToValueAtTime(0.6, t + 0.05);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+          o.start(t); o.stop(t + 0.5);
+        });
+      });
+    } catch (_) {}
+  };
+
+  // Auto-notification check every 15 seconds
   useEffect(() => {
+    if (rides.length === 0) return;
     const check = () => {
       rides.filter(r => r.status === "pendiente").forEach(r => {
         const mins = minutesUntil(r.scheduled_datetime);
         const threshold = r.notify_minutes_before ?? 10;
-        if (mins <= threshold && mins >= 0 && !notifiedRef.current.has(r.id)) {
+        if (mins <= threshold && mins >= -5 && !notifiedRef.current.has(r.id)) {
           notifiedRef.current.add(r.id);
           base44.entities.ScheduledRide.update(r.id, { status: "notificado" });
           queryClient.invalidateQueries({ queryKey: ["scheduled"] });
+          // Sound + vibration
+          playAgendaAlert();
           // System notification
-          if (Notification.permission === "granted") {
-            new Notification(`⏰ Agenda en ${mins} min`, {
-              body: `${r.client_name} — ${r.pickup_address}`,
+          if (Notification.permission !== "granted") {
+            Notification.requestPermission().then(p => {
+              if (p === "granted") {
+                new Notification(`⏰ Agenda: ${r.client_name}`, {
+                  body: `${r.pickup_address} — en ${Math.max(0, mins)} min`,
+                  requireInteraction: true,
+                });
+              }
+            });
+          } else {
+            new Notification(`⏰ Agenda: ${r.client_name}`, {
+              body: `${r.pickup_address} — en ${Math.max(0, mins)} min`,
               requireInteraction: true,
             });
           }
-          try { navigator.vibrate?.([500, 200, 500]); } catch (_) {}
         }
       });
     };
     check();
-    const interval = setInterval(check, 60000);
+    const interval = setInterval(check, 15000);
     return () => clearInterval(interval);
   }, [rides]);
 

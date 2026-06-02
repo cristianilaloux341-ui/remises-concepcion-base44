@@ -4,13 +4,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Star, Phone, AlertTriangle, XCircle, Car, User } from "lucide-react";
+import { Plus, Search, Phone, Car, MapPin } from "lucide-react";
 
 function scoreColor(score) {
   if (score >= 8) return "text-green-600";
@@ -34,22 +34,36 @@ function scoreLabel(score) {
 
 function ClientForm({ client, drivers, onSave, onClose }) {
   const [form, setForm] = useState(client || {
-    name: "", phone: "", score: 5, complaints: 0, cancelled_trips: 0,
+    name: "", phone: "", pickup_address: "", score: 5, complaints: 0, cancelled_trips: 0,
     total_trips: 0, preferred_driver_id: "", preferred_driver_name: "",
     blacklisted: false, notes: ""
   });
+  const [error, setError] = useState("");
+
+  const handleSave = () => {
+    if (!form.name.trim()) { setError("El nombre es obligatorio."); return; }
+    setError("");
+    onSave(form);
+  };
 
   return (
     <div className="space-y-4">
+      {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label>Nombre</Label>
-          <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+          <Label>Nombre <span className="text-red-500">*</span></Label>
+          <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Nombre del cliente" />
         </div>
         <div className="space-y-1">
-          <Label>Teléfono</Label>
-          <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+          <Label>Teléfono <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+          <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="Sin teléfono" />
         </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label>Dirección habitual <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+        <Input value={form.pickup_address || ""} onChange={e => setForm({ ...form, pickup_address: e.target.value })} placeholder="Ej: Rivadavia 1234" />
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -106,32 +120,35 @@ function ClientForm({ client, drivers, onSave, onClose }) {
 
       <div className="flex gap-2 pt-2">
         <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-        <Button className="flex-1" onClick={() => onSave(form)}>Guardar</Button>
+        <Button className="flex-1" onClick={handleSave}>Guardar</Button>
       </div>
     </div>
   );
 }
 
 function ClientCard({ client, onEdit }) {
-  const cancelRate = client.total_trips > 0
-    ? Math.round((client.cancelled_trips / client.total_trips) * 100)
-    : 0;
-
   return (
     <Card className={`hover:shadow-md transition-all cursor-pointer ${client.blacklisted ? "border-red-300 bg-red-50" : ""}`}
       onClick={() => onEdit(client)}>
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
               <p className="font-semibold">{client.name}</p>
               {client.blacklisted && <Badge className="bg-red-100 text-red-700 border-0 text-xs">⛔ Lista Negra</Badge>}
             </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-              <Phone className="w-3 h-3" />{client.phone}
-            </p>
+            {client.phone && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                <Phone className="w-3 h-3" />{client.phone}
+              </p>
+            )}
+            {client.pickup_address && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                <MapPin className="w-3 h-3 text-green-500" />{client.pickup_address}
+              </p>
+            )}
           </div>
-          <div className={`text-center px-3 py-1.5 rounded-xl ${scoreBg(client.score || 5)}`}>
+          <div className={`text-center px-3 py-1.5 rounded-xl shrink-0 ml-2 ${scoreBg(client.score || 5)}`}>
             <p className="text-lg font-bold leading-none">{client.score || 5}</p>
             <p className="text-xs mt-0.5">{scoreLabel(client.score || 5)}</p>
           </div>
@@ -199,7 +216,8 @@ export default function Clients() {
   const filtered = clients.filter(c =>
     !search ||
     c.name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone?.includes(search)
+    c.phone?.includes(search) ||
+    c.pickup_address?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -214,7 +232,6 @@ export default function Clients() {
         </Button>
       </div>
 
-      {/* Stats summary */}
       <div className="grid grid-cols-3 gap-3">
         <Card className="p-3 text-center">
           <p className="text-2xl font-bold">{clients.length}</p>
@@ -232,7 +249,7 @@ export default function Clients() {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input className="pl-9 rounded-xl" placeholder="Buscar por nombre o teléfono..."
+        <Input className="pl-9 rounded-xl" placeholder="Buscar por nombre, teléfono o dirección..."
           value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 

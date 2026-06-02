@@ -8,6 +8,10 @@
     "phone": {
       "type": "string"
     },
+    "pickup_address": {
+      "type": "string",
+      "description": "Direcci\u00f3n habitual de recogida"
+    },
     "total_trips": {
       "type": "number",
       "default": 0
@@ -41,7 +45,6 @@
     }
   },
   "required": [
-    "name",
-    "phone"
+    "name"
   ]
 }

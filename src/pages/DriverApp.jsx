@@ -515,16 +515,20 @@ export default function DriverApp() {
     return () => navigator.geolocation.clearWatch(id);
   }, [myDriverId]);
 
-  const { data: drivers = [] } = useQuery({
+  const { data: drivers = [], isError: driversError } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
-    refetchInterval: 5000,
+    refetchInterval: 4000,
+    retry: 2,
+    staleTime: 2000,
   });
 
-  const { data: orders = [] } = useQuery({
+  const { data: orders = [], isError: ordersError } = useQuery({
     queryKey: ["orders"],
-    queryFn: () => base44.entities.RideOrder.list("-created_date", 100),
-    refetchInterval: 800,
+    queryFn: () => base44.entities.RideOrder.list("-created_date", 50),
+    refetchInterval: 2500,
+    retry: 2,
+    staleTime: 1000,
   });
 
   const myDriver = drivers.find(d => d.id === myDriverId);
@@ -613,12 +617,25 @@ export default function DriverApp() {
     return 0;
   })();
 
-  if (!myDriver) {
+  // Show login if no driver selected or driver not found (but only after drivers loaded)
+  if (!myDriverId || (!myDriver && drivers.length > 0)) {
     return (
       <LoginScreen
         drivers={drivers}
         onSelect={(id) => { setMyDriverId(id); localStorage.setItem("my_driver_id", id); }}
       />
+    );
+  }
+
+  // Loading state — avoid blank screen while fetching
+  if (!myDriver) {
+    return (
+      <div className="h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-gray-400 text-sm">Conectando...</p>
+        </div>
+      </div>
     );
   }
 
