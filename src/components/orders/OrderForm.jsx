@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, Search, UserPlus } from "lucide-react";
 import { findBestDriver } from "@/lib/dispatchLogic";
 
-const ZONES = ["Centro", "Norte", "Sur", "Este", "Oeste", "Puerto", "Terminal", "Hospital", "Aeropuerto", "Otra"];
+const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 
 export default function OrderForm({ order, onSubmit, isSubmitting }) {
   const [form, setForm] = useState({
