@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,15 +6,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, User, Phone, DollarSign, Loader2 } from "lucide-react";
+import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, Search, UserPlus } from "lucide-react";
+import { findBestDriver } from "@/lib/dispatchLogic";
+
+const ZONES = ["Centro", "Norte", "Sur", "Este", "Oeste", "Puerto", "Terminal", "Hospital", "Aeropuerto", "Otra"];
 
 export default function OrderForm({ order, onSubmit, isSubmitting }) {
   const [form, setForm] = useState({
     client_name: "",
     client_phone: "",
+    client_id: "",
     pickup_address: "",
     dropoff_address: "",
+    dropoff_addresses: [],
+    zone: "",
     driver_id: "",
     driver_name: "",
     fare: "",
@@ -23,32 +30,108 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     ...order,
   });
 
+  const [clientSearch, setClientSearch] = useState("");
+  const [showClientResults, setShowClientResults] = useState(false);
+  const [autoAssigning, setAutoAssigning] = useState(false);
+  const [suggestedDriver, setSuggestedDriver] = useState(null);
+  const searchRef = useRef(null);
+
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
   });
 
-  const availableDrivers = drivers.filter(d => d.status === "disponible");
+  const { data: clients = [] } = useQuery({
+    queryKey: ["clients"],
+    queryFn: () => base44.entities.Client.list(),
+  });
 
-  const handleChange = (field, value) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-  };
+  const { data: bases = [] } = useQuery({
+    queryKey: ["bases"],
+    queryFn: () => base44.entities.Base.list(),
+  });
 
-  const handleDriverChange = (driverId) => {
-    const driver = drivers.find(d => d.id === driverId);
+  const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
+
+  // Auto-suggest best driver when pickup changes
+  useEffect(() => {
+    if (!form.pickup_address || availableDrivers.length === 0) { setSuggestedDriver(null); return; }
+    findBestDriver({ pickup_address: form.pickup_address, pickup_lat: form.pickup_lat, pickup_lng: form.pickup_lng }, drivers, bases)
+      .then(d => setSuggestedDriver(d));
+  }, [form.pickup_address, drivers.length]);
+
+  // Click outside to close search
+  useEffect(() => {
+    const handler = (e) => { if (!searchRef.current?.contains(e.target)) setShowClientResults(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filteredClients = clients.filter(c =>
+    clientSearch.length >= 1 &&
+    (c.name?.toLowerCase().includes(clientSearch.toLowerCase()) ||
+     c.phone?.includes(clientSearch))
+  ).slice(0, 6);
+
+  const handleSelectClient = (client) => {
     setForm(prev => ({
       ...prev,
-      driver_id: driverId,
-      driver_name: driver?.name || "",
-      status: driverId ? "ofrecido" : "pendiente",
+      client_name: client.name,
+      client_phone: client.phone || "",
+      client_id: client.id,
+      pickup_address: client.pickup_address || prev.pickup_address,
+    }));
+    setClientSearch(client.name);
+    setShowClientResults(false);
+  };
+
+  const handleChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+
+  const handleDriverChange = (driverId) => {
+    if (driverId === "none") {
+      setForm(prev => ({ ...prev, driver_id: "", driver_name: "", status: "pendiente" }));
+      return;
+    }
+    const driver = drivers.find(d => d.id === driverId);
+    setForm(prev => ({ ...prev, driver_id: driverId, driver_name: driver?.name || "", status: "ofrecido" }));
+  };
+
+  const handleAutoAssign = async () => {
+    setAutoAssigning(true);
+    const driver = await findBestDriver({ pickup_address: form.pickup_address }, drivers, bases);
+    if (driver) {
+      setForm(prev => ({ ...prev, driver_id: driver.id, driver_name: driver.name, status: "ofrecido" }));
+      setSuggestedDriver(driver);
+    }
+    setAutoAssigning(false);
+  };
+
+  const addDestination = () => {
+    setForm(prev => ({ ...prev, dropoff_addresses: [...(prev.dropoff_addresses || []), ""] }));
+  };
+
+  const updateDestination = (idx, value) => {
+    setForm(prev => {
+      const arr = [...(prev.dropoff_addresses || [])];
+      arr[idx] = value;
+      return { ...prev, dropoff_addresses: arr };
+    });
+  };
+
+  const removeDestination = (idx) => {
+    setForm(prev => ({
+      ...prev,
+      dropoff_addresses: (prev.dropoff_addresses || []).filter((_, i) => i !== idx),
     }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const data = { ...form };
-    if (data.fare) data.fare = Number(data.fare);
+    if (data.fare && String(data.fare).trim() !== "") data.fare = Number(data.fare);
     else delete data.fare;
+    if (!data.driver_id) { delete data.driver_id; delete data.driver_name; }
+    if (!data.client_id) delete data.client_id;
     onSubmit(data);
   };
 
@@ -64,83 +147,220 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="client_name">Nombre del Cliente</Label>
+
+          {/* ── CLIENTE ── */}
+          <div className="p-4 rounded-xl bg-muted/40 border space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5" /> Cliente
+            </p>
+
+            {/* Search box */}
+            <div className="relative" ref={searchRef}>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Buscar cliente por nombre o teléfono..."
+                value={clientSearch}
+                onChange={(e) => { setClientSearch(e.target.value); setShowClientResults(true); }}
+                onFocus={() => setShowClientResults(true)}
+              />
+              {showClientResults && filteredClients.length > 0 && (
+                <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-xl shadow-lg overflow-hidden">
+                  {filteredClients.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="w-full px-4 py-2.5 text-left hover:bg-muted flex items-center justify-between gap-2"
+                      onClick={() => handleSelectClient(c)}
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{c.name}</p>
+                        {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
+                      </div>
+                      {c.pickup_address && (
+                        <p className="text-xs text-muted-foreground truncate max-w-[150px]">{c.pickup_address}</p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Manual fields */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="client_name">Nombre</Label>
+                <div className="relative">
+                  <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="client_name"
+                    className="pl-9"
+                    placeholder="Juan Pérez"
+                    value={form.client_name}
+                    onChange={(e) => { handleChange("client_name", e.target.value); setClientSearch(e.target.value); }}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="client_phone">Teléfono</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="client_phone"
+                    className="pl-9"
+                    placeholder="3462-123456"
+                    value={form.client_phone}
+                    onChange={(e) => handleChange("client_phone", e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+            {form.client_id && (
+              <p className="text-xs text-green-600 flex items-center gap-1">
+                <User className="w-3 h-3" /> Cliente vinculado de la base de datos
+              </p>
+            )}
+          </div>
+
+          {/* ── DIRECCIONES ── */}
+          <div className="p-4 rounded-xl bg-muted/40 border space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5" /> Direcciones
+            </p>
+
+            {/* Recogida */}
+            <div className="space-y-1.5">
+              <Label htmlFor="pickup">Recogida</Label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-green-500" />
                 <Input
-                  id="client_name"
-                  className="pl-9"
-                  placeholder="Juan Pérez"
-                  value={form.client_name}
-                  onChange={(e) => handleChange("client_name", e.target.value)}
+                  id="pickup"
+                  className="pl-8"
+                  placeholder="Calle y número de recogida"
+                  value={form.pickup_address}
+                  onChange={(e) => handleChange("pickup_address", e.target.value)}
                   required
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="client_phone">Teléfono</Label>
+
+            {/* Destino principal */}
+            <div className="space-y-1.5">
+              <Label htmlFor="dropoff">Destino</Label>
               <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />
                 <Input
-                 id="client_phone"
-                 className="pl-9"
-                 placeholder="+54 11 1234-5678"
-                 value={form.client_phone}
-                 onChange={(e) => handleChange("client_phone", e.target.value)}
+                  id="dropoff"
+                  className="pl-9"
+                  placeholder="Calle y número de destino"
+                  value={form.dropoff_address}
+                  onChange={(e) => handleChange("dropoff_address", e.target.value)}
                 />
               </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="pickup">Dirección de Recogida</Label>
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-green-500" />
-              <Input
-                id="pickup"
-                className="pl-9"
-                placeholder="Av. Corrientes 1234, CABA"
-                value={form.pickup_address}
-                onChange={(e) => handleChange("pickup_address", e.target.value)}
-                required
-              />
-            </div>
-          </div>
+            {/* Destinos adicionales */}
+            {(form.dropoff_addresses || []).map((addr, idx) => (
+              <div key={idx} className="flex gap-2 items-center">
+                <div className="relative flex-1">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400" />
+                  <Input
+                    className="pl-9"
+                    placeholder={`Parada ${idx + 2}`}
+                    value={addr}
+                    onChange={(e) => updateDestination(idx, e.target.value)}
+                  />
+                </div>
+                <Button type="button" size="icon" variant="ghost" className="text-red-400 hover:text-red-600 shrink-0"
+                  onClick={() => removeDestination(idx)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
 
-          <div className="space-y-2">
-            <Label htmlFor="dropoff">Dirección de Destino</Label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />
-              <Input
-                id="dropoff"
-                className="pl-9"
-                placeholder="Av. Santa Fe 4567, CABA"
-                value={form.dropoff_address}
-                onChange={(e) => handleChange("dropoff_address", e.target.value)}
-              />
-            </div>
-          </div>
+            <Button type="button" variant="outline" size="sm" className="gap-1.5 rounded-lg"
+              onClick={addDestination}>
+              <Plus className="w-3.5 h-3.5" /> Agregar parada
+            </Button>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Conductor</Label>
-              <Select value={form.driver_id} onValueChange={handleDriverChange}>
+            {/* Zona */}
+            <div className="space-y-1.5">
+              <Label>Zona</Label>
+              <Select value={form.zone || ""} onValueChange={(v) => handleChange("zone", v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar conductor" />
+                  <SelectValue placeholder="Seleccionar zona..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {ZONES.map(z => <SelectItem key={z} value={z}>{z}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* ── ASIGNACIÓN ── */}
+          <div className="p-4 rounded-xl bg-muted/40 border space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+              <Car className="w-3.5 h-3.5" /> Asignación de Móvil
+            </p>
+
+            {/* Sugerencia automática */}
+            {suggestedDriver && !form.driver_id && (
+              <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <Zap className="w-4 h-4 text-amber-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">{suggestedDriver.name}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{suggestedDriver.vehicle_plate} · {suggestedDriver.current_base}</p>
+                </div>
+                <Button type="button" size="sm" className="gap-1.5 rounded-lg shrink-0 bg-amber-500 hover:bg-amber-600"
+                  onClick={handleAutoAssign} disabled={autoAssigning}>
+                  {autoAssigning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                  Asignar
+                </Button>
+              </div>
+            )}
+
+            {form.driver_id && (
+              <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-xl">
+                <Car className="w-4 h-4 text-green-600" />
+                <p className="text-sm font-semibold text-green-700 flex-1">{form.driver_name}</p>
+                <Badge className="bg-green-100 text-green-700 border-0 text-xs">asignado</Badge>
+                <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-red-400"
+                  onClick={() => handleChange("driver_id", "")}>
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Select value={form.driver_id || "none"} onValueChange={handleDriverChange}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Elegir móvil manualmente..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sin asignar</SelectItem>
                   {availableDrivers.map((d) => (
                     <SelectItem key={d.id} value={d.id}>
-                      {d.name} - {d.vehicle_plate}
+                      {d.name} — {d.vehicle_plate} ({d.current_base})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <Button type="button" variant="outline" className="gap-1.5 rounded-lg shrink-0"
+                onClick={handleAutoAssign} disabled={autoAssigning || !form.pickup_address}>
+                {autoAssigning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                Auto
+              </Button>
             </div>
-            <div className="space-y-2">
+
+            {availableDrivers.length === 0 && (
+              <p className="text-xs text-amber-600">Sin móviles disponibles en base</p>
+            )}
+          </div>
+
+          {/* ── TARIFA Y NOTAS ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
               <Label htmlFor="fare">Tarifa ($)</Label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -154,25 +374,20 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
                 />
               </div>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notas</Label>
-            <Textarea
-              id="notes"
-              placeholder="Observaciones adicionales..."
-              value={form.notes}
-              onChange={(e) => handleChange("notes", e.target.value)}
-              rows={3}
-            />
+            <div className="space-y-1.5">
+              <Label htmlFor="notes">Notas</Label>
+              <Input
+                id="notes"
+                placeholder="Observaciones..."
+                value={form.notes}
+                onChange={(e) => handleChange("notes", e.target.value)}
+              />
+            </div>
           </div>
 
           <Button type="submit" className="w-full h-11 rounded-xl" disabled={isSubmitting}>
             {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Guardando...
-              </>
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Guardando...</>
             ) : order ? "Actualizar Viaje" : "Crear Viaje"}
           </Button>
         </form>

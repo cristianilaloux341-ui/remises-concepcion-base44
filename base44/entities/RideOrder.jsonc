@@ -16,6 +16,10 @@
       "type": "string",
       "description": "Tel\u00e9fono del cliente"
     },
+    "client_id": {
+      "type": "string",
+      "description": "ID del cliente en la base de datos"
+    },
     "pickup_address": {
       "type": "string",
       "description": "Direcci\u00f3n de recogida"
@@ -28,13 +32,24 @@
     },
     "dropoff_address": {
       "type": "string",
-      "description": "Direcci\u00f3n de destino"
+      "description": "Direcci\u00f3n de destino principal"
+    },
+    "dropoff_addresses": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista de destinos adicionales"
     },
     "dropoff_lat": {
       "type": "number"
     },
     "dropoff_lng": {
       "type": "number"
+    },
+    "zone": {
+      "type": "string",
+      "description": "Zona del viaje"
     },
     "status": {
       "type": "string",
