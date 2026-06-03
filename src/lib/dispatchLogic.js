@@ -1,6 +1,6 @@
 import { base44 } from "@/api/base44Client";
 
-const BASES = ["Puerto", "Plaza", "Columna", "Cementerio", "Don Bosco", "Díaz Vélez", "Monumento"];
+const BASES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 
 // Haversine distance in km
 export function getDistance(lat1, lng1, lat2, lng2) {

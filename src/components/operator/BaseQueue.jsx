@@ -6,13 +6,14 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
 const BASE_COLORS = {
-  Puerto: "bg-blue-500",
-  Plaza: "bg-green-500",
-  Columna: "bg-purple-500",
-  Cementerio: "bg-gray-500",
-  "Don Bosco": "bg-orange-500",
-  "Díaz Vélez": "bg-pink-500",
-  Monumento: "bg-cyan-500",
+  "1-Puerto": "bg-blue-500",
+  "2-Plaza": "bg-green-500",
+  "3-Columna": "bg-purple-500",
+  "4-Base": "bg-yellow-500",
+  "5-Cementerio": "bg-gray-500",
+  "6-Díaz Vélez": "bg-pink-500",
+  "7-Don Bosco": "bg-orange-500",
+  "8-Monumento": "bg-cyan-500",
 };
 
 export default function BaseQueue({ baseName, drivers, onDriverClick }) {

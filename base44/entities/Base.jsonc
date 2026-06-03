@@ -5,13 +5,14 @@
     "name": {
       "type": "string",
       "enum": [
-        "Puerto",
-        "Plaza",
-        "Columna",
-        "Cementerio",
-        "Don Bosco",
-        "D\u00edaz V\u00e9lez",
-        "Monumento"
+        "1-Puerto",
+        "2-Plaza",
+        "3-Columna",
+        "4-Base",
+        "5-Cementerio",
+        "6-D\u00edaz V\u00e9lez",
+        "7-Don Bosco",
+        "8-Monumento"
       ]
     },
     "lat": {
