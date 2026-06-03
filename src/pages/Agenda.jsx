@@ -10,7 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Clock, Car, MapPin, Bell, BellOff, CheckCircle2, XCircle, Zap } from "lucide-react";
+import { Plus, Clock, Car, MapPin, Bell, BellOff, CheckCircle2, XCircle, Zap, Tag } from "lucide-react";
+
+const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 import { format, formatDistanceToNow, isPast, differenceInMinutes } from "date-fns";
 import { es } from "date-fns/locale";
 import { assignDriverToOrder, findBestDriver } from "@/lib/dispatchLogic";
@@ -26,6 +28,7 @@ const STATUS_COLORS = {
 function ScheduledForm({ ride, drivers, onSave, onClose }) {
   const [form, setForm] = useState(ride || {
     client_name: "", client_phone: "", pickup_address: "", dropoff_address: "",
+    zone: "",
     scheduled_datetime: "", notify_minutes_before: 10,
     require_specific_driver: false, preferred_driver_id: "", preferred_driver_name: "",
     fare: "", notes: ""
@@ -51,6 +54,16 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
       <div className="space-y-1">
         <Label>Destino (opcional)</Label>
         <Input value={form.dropoff_address} onChange={e => setForm({ ...form, dropoff_address: e.target.value })} />
+      </div>
+
+      <div className="space-y-1">
+        <Label className="flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" /> Zona</Label>
+        <Select value={form.zone || ""} onValueChange={v => setForm({ ...form, zone: v })}>
+          <SelectTrigger><SelectValue placeholder="Seleccionar zona..." /></SelectTrigger>
+          <SelectContent>
+            {ZONES.map(z => <SelectItem key={z} value={z}>{z}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -179,6 +192,7 @@ export default function Agenda() {
         client_phone: ride.client_phone || "",
         pickup_address: ride.pickup_address,
         dropoff_address: ride.dropoff_address || "",
+        zone: ride.zone || undefined,
         fare: ride.fare && String(ride.fare).trim() !== "" && Number(ride.fare) > 0 ? Number(ride.fare) : undefined,
         notes: ride.notes || "",
         status: driver ? "ofrecido" : "pendiente",
@@ -314,7 +328,14 @@ export default function Agenda() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                  {ride.zone && (
+                    <>
+                      <Tag className="w-3 h-3 text-purple-500" />
+                      <span className="text-purple-600 font-medium">{ride.zone}</span>
+                      <span>·</span>
+                    </>
+                  )}
                   <Bell className="w-3 h-3" />
                   <span>Alerta {ride.notify_minutes_before ?? 10} min antes</span>
                   {ride.require_specific_driver && ride.preferred_driver_name && (

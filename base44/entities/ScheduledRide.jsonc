@@ -17,6 +17,10 @@
     "dropoff_address": {
       "type": "string"
     },
+    "zone": {
+      "type": "string",
+      "description": "Zona del viaje"
+    },
     "scheduled_datetime": {
       "type": "string",
       "description": "ISO datetime del viaje"
