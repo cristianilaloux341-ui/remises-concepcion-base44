@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
+import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi } from "lucide-react";
@@ -491,7 +493,6 @@ function notifySW(message) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function DriverApp() {
-  const queryClient = useQueryClient();
   const [myDriverId, setMyDriverId] = useState(() => localStorage.getItem("my_driver_id") || "");
   const [selectedBase, setSelectedBase] = useState("");
   const [showMessages, setShowMessages] = useState(false);
@@ -515,21 +516,9 @@ export default function DriverApp() {
     return () => navigator.geolocation.clearWatch(id);
   }, [myDriverId]);
 
-  const { data: drivers = [], isError: driversError } = useQuery({
-    queryKey: ["drivers"],
-    queryFn: () => base44.entities.Driver.list(),
-    refetchInterval: 4000,
-    retry: 2,
-    staleTime: 2000,
-  });
-
-  const { data: orders = [], isError: ordersError } = useQuery({
-    queryKey: ["orders"],
-    queryFn: () => base44.entities.RideOrder.list("-created_date", 50),
-    refetchInterval: 2500,
-    retry: 2,
-    staleTime: 1000,
-  });
+  // ── Tiempo real: suscripciones en lugar de polling ────────────────────────
+  const { drivers } = useRealtimeDrivers();
+  const { orders } = useRealtimeOrders({ limit: 50 });
 
   const myDriver = drivers.find(d => d.id === myDriverId);
   const activeOrder = orders.find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
@@ -561,13 +550,12 @@ export default function DriverApp() {
     }
   }, [offeredOrder?.id]);
 
+  // Las mutaciones ya no necesitan invalidar queries: la suscripción actualiza el estado automáticamente
   const updateOrder = useMutation({
     mutationFn: ({ id, data }) => base44.entities.RideOrder.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
   });
   const updateDriver = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Driver.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["drivers"] }),
   });
 
   const handleAccept = () => {
@@ -575,9 +563,10 @@ export default function DriverApp() {
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
   };
   const handleReject = async () => {
+    // La suscripción en tiempo real propagará el cambio automáticamente a todos los dispositivos
     const currentOrder = { ...offeredOrder, offered_driver_ids: [...(offeredOrder.offered_driver_ids || []), myDriverId] };
     await reassignAfterReject(currentOrder, drivers, []);
-    queryClient.invalidateQueries({ queryKey: ["orders"] });
+    // No necesita invalidateQueries — la suscripción actualiza instantáneamente
   };
   const handleStatusChange = (newStatus) => {
     updateOrder.mutate({ id: activeOrder.id, data: { status: newStatus } });

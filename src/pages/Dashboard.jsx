@@ -1,5 +1,7 @@
 import { base44 } from "@/api/base44Client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
+import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { Car, Clock, CheckCircle2, Users, ArrowRight, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -10,19 +12,9 @@ import BaseQueueManager from "@/components/operator/BaseQueueManager";
 import DispatchPanel from "@/components/operator/DispatchPanel";
 
 export default function Dashboard() {
-  const queryClient = useQueryClient();
-
-  const { data: orders = [], isLoading: loadingOrders } = useQuery({
-    queryKey: ["orders"],
-    queryFn: () => base44.entities.RideOrder.list("-created_date", 100),
-    refetchInterval: 10000,
-  });
-
-  const { data: drivers = [] } = useQuery({
-    queryKey: ["drivers"],
-    queryFn: () => base44.entities.Driver.list(),
-    refetchInterval: 10000,
-  });
+  // Suscripciones en tiempo real — actualizaciones instantáneas sin polling
+  const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100 });
+  const { drivers } = useRealtimeDrivers();
 
   const { data: bases = [] } = useQuery({
     queryKey: ["bases"],

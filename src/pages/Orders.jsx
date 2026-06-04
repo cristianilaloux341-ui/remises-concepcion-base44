@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
+import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +12,7 @@ export default function Orders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const { data: orders = [], isLoading } = useQuery({
-    queryKey: ["orders"],
-    queryFn: () => base44.entities.RideOrder.list("-created_date", 100),
-  });
+  const { orders, isLoading } = useRealtimeOrders({ limit: 100 });
 
   const filtered = orders.filter(o => {
     const matchSearch =

@@ -1,18 +1,37 @@
 import { base44 } from "@/api/base44Client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrderForm from "@/components/orders/OrderForm";
+import { findBestDriver, assignDriverToOrder } from "@/lib/dispatchLogic";
 
 export default function NewOrder() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.RideOrder.create(data),
+    mutationFn: async (data) => {
+      // 1. Crear la orden
+      const newOrder = await base44.entities.RideOrder.create(data);
+
+      // 2. Si ya viene con driver asignado desde el formulario, no hacer nada más
+      if (newOrder.driver_id) return newOrder;
+
+      // 3. Si está pendiente, intentar auto-despacho INMEDIATO
+      if (newOrder.status === "pendiente") {
+        const [drivers, bases] = await Promise.all([
+          base44.entities.Driver.list(),
+          base44.entities.Base.list(),
+        ]);
+        const bestDriver = await findBestDriver(newOrder, drivers, bases);
+        if (bestDriver) {
+          await assignDriverToOrder(newOrder, bestDriver);
+        }
+      }
+
+      return newOrder;
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
       navigate("/orders");
     },
   });

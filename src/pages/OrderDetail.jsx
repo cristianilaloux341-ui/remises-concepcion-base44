@@ -2,6 +2,7 @@ import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { useRealtimeOrders, useRealtimeDrivers } from "@/lib/useRealtimeOrders";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,15 +18,19 @@ export default function OrderDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  useRealtimeOrders();
+  useRealtimeDrivers();
+
   const { data: orders = [] } = useQuery({
     queryKey: ["orders"],
     queryFn: () => base44.entities.RideOrder.list("-created_date", 100),
+    staleTime: 60000,
   });
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
-    refetchInterval: 5000,
+    staleTime: 60000,
   });
 
   const order = orders.find(o => o.id === orderId);

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -117,7 +116,6 @@ function PendingOrderCard({ order, drivers, bases, onDispatched }) {
 }
 
 export default function DispatchPanel({ orders, drivers, bases, onOrderClick }) {
-  const queryClient = useQueryClient();
   const [dispatchingAll, setDispatchingAll] = useState(false);
 
   const pending = orders.filter(o => o.status === "pendiente");
@@ -125,17 +123,19 @@ export default function DispatchPanel({ orders, drivers, bases, onOrderClick }) 
 
   const handleDispatchAll = async () => {
     setDispatchingAll(true);
-    for (const order of pending) {
-      const driver = await findBestDriver(order, drivers, bases);
-      if (driver) await assignDriverToOrder(order, driver);
-    }
-    queryClient.invalidateQueries({ queryKey: ["orders"] });
+    // Despachar todos en paralelo para máxima velocidad
+    await Promise.all(
+      pending.map(async (order) => {
+        const driver = await findBestDriver(order, drivers, bases);
+        if (driver) await assignDriverToOrder(order, driver);
+      })
+    );
     setDispatchingAll(false);
+    // No necesita invalidateQueries — la suscripción en tiempo real actualiza el estado automáticamente
   };
 
-  const handleDispatched = () => {
-    queryClient.invalidateQueries({ queryKey: ["orders"] });
-  };
+  // No necesita invalidateQueries — la suscripción en tiempo real actualiza automáticamente
+  const handleDispatched = () => {};
 
   return (
     <div className="space-y-4">
