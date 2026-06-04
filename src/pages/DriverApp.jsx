@@ -16,11 +16,20 @@ import DriverMessages from "@/components/driver/DriverMessages";
 // ── Audio & Notifications ─────────────────────────────────────────────────────
 
 let audioUnlocked = false;
+let audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx || audioCtx.state === "closed") {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
 function unlockAudio() {
   if (audioUnlocked) return;
   audioUnlocked = true;
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = getAudioCtx();
     const buf = ctx.createBuffer(1, 1, 22050);
     const src = ctx.createBufferSource();
     src.buffer = buf; src.connect(ctx.destination); src.start(0);
@@ -29,23 +38,27 @@ function unlockAudio() {
 }
 
 function playAlert() {
-  try { navigator.vibrate?.([400, 200, 400, 200, 800]); } catch (_) {}
+  try { navigator.vibrate?.([500, 200, 500, 200, 1000, 300, 500]); } catch (_) {}
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
-    resume.then(() => {
-      [0, 400, 800].forEach(delay => {
+    const ctx = getAudioCtx();
+    const doPlay = () => {
+      // 3 beeps ascendentes
+      [[0, 660], [350, 880], [700, 1100]].forEach(([delay, freq]) => {
         const o = ctx.createOscillator();
         const g = ctx.createGain();
         o.connect(g); g.connect(ctx.destination);
-        o.type = "sine"; o.frequency.value = 880;
-        g.gain.setValueAtTime(0, ctx.currentTime + delay / 1000);
-        g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + delay / 1000 + 0.05);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay / 1000 + 0.4);
-        o.start(ctx.currentTime + delay / 1000);
-        o.stop(ctx.currentTime + delay / 1000 + 0.4);
+        o.type = "triangle";
+        o.frequency.value = freq;
+        const t = ctx.currentTime + delay / 1000;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.6, t + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        o.start(t);
+        o.stop(t + 0.5);
       });
-    });
+    };
+    if (ctx.state === "suspended") ctx.resume().then(doPlay);
+    else doPlay();
   } catch (_) {}
 }
 
@@ -58,15 +71,18 @@ async function requestNotificationPermission() {
 }
 
 function sendSystemNotification(order) {
+  // Delegamos al SW para que la notificación funcione en segundo plano
+  // Si no hay SW activo, fallback a Notification API directa
+  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) return; // SW lo maneja
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   try {
-    const n = new Notification("🚖 ¡Nuevo Viaje!", {
-      body: `${order.pickup_address}${order.dropoff_address ? " → " + order.dropoff_address : ""}`,
+    const n = new Notification("🚖 ¡Nuevo Viaje! — " + (order.client_name || ""), {
+      body: `${order.pickup_address}${order.dropoff_address ? " → " + order.dropoff_address : ""}${order.fare ? "  $" + order.fare : ""}`,
       icon: "/icon-192.png",
-      badge: "/icon-192.png",
-      vibrate: [400, 200, 400, 200, 800],
+      badge: "/icon-72.png",
+      vibrate: [500, 200, 500, 200, 1000],
       requireInteraction: true,
-      tag: "ride-offer-" + order.id,
+      tag: "ride-offer",
     });
     setTimeout(() => n.close(), 30000);
   } catch (_) {}
@@ -483,13 +499,21 @@ async function registerSW() {
   if (!("serviceWorker" in navigator)) return null;
   try {
     const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    await navigator.serviceWorker.ready;
     return reg;
   } catch (_) { return null; }
 }
 
 function notifySW(message) {
-  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
-  navigator.serviceWorker.controller.postMessage(message);
+  if (!("serviceWorker" in navigator)) return;
+  // Enviar al controller activo (o esperar a que esté listo)
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage(message);
+  } else {
+    navigator.serviceWorker.ready.then((reg) => {
+      reg.active?.postMessage(message);
+    });
+  }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -503,6 +527,57 @@ export default function DriverApp() {
   useEffect(() => {
     registerSW();
     requestNotificationPermission();
+
+    // Escuchar mensajes del Service Worker (ej: acción "Aceptar" desde notificación nativa)
+    const onSWMessage = (event) => {
+      if (event.data?.type === "SW_ACCEPT_ORDER") {
+        // El SW nos dice que el chofer tocó "Aceptar" en la notificación
+        // La lógica real se ejecuta a través del estado reactivo — buscamos la orden en el ref
+        const orderId = event.data.orderId;
+        // Disparar aceptación usando el orderId (handleAccept usa offeredOrder del closure,
+        // así que usamos una mutación directa aquí)
+        base44.entities.RideOrder.update(orderId, { status: "aceptado" }).catch(() => {});
+        // El driver_id y status del driver se actualizan via handleAccept cuando la UI está activa,
+        // pero si está en background el driver_id ya está en la orden por el dispatch previo
+      }
+    };
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", onSWMessage);
+    }
+    return () => {
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("message", onSWMessage);
+      }
+    };
+  }, []);
+
+  // Escuchar mensajes del SW (ej: usuario tocó "Aceptar" en la notificación)
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const handler = (event) => {
+      if (event.data?.type === "SW_ACCEPT_ORDER") {
+        // El SW nos pide aceptar la orden porque el usuario tocó el botón en la notif
+        const orderId = event.data.orderId;
+        if (orderId && myDriverId) {
+          base44.entities.RideOrder.update(orderId, { status: "aceptado" }).catch(() => {});
+          base44.entities.Driver.update(myDriverId, { status: "en_viaje" }).catch(() => {});
+        }
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", handler);
+    return () => navigator.serviceWorker.removeEventListener("message", handler);
+  }, [myDriverId]);
+
+  // Re-alertar cuando la pantalla vuelve a estar activa (venía de background)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && prevOfferedId.current) {
+        playAlert();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
   // GPS
@@ -560,8 +635,11 @@ export default function DriverApp() {
   });
 
   const handleAccept = () => {
+    if (!offeredOrder) return;
     updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado" } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+    // Cerrar notificaciones pendientes
+    notifySW({ type: "OFFER_CLEARED" });
   };
   const handleReject = async () => {
     // La suscripción en tiempo real propagará el cambio automáticamente a todos los dispositivos
