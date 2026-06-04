@@ -1,5 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+// base44 y useQuery se usan solo para bases (dato estático, no necesita tiempo real)
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { Car, Clock, CheckCircle2, Users, ArrowRight, Zap } from "lucide-react";
