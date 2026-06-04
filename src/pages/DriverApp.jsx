@@ -499,21 +499,13 @@ async function registerSW() {
   if (!("serviceWorker" in navigator)) return null;
   try {
     const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-    await navigator.serviceWorker.ready;
     return reg;
   } catch (_) { return null; }
 }
 
 function notifySW(message) {
-  if (!("serviceWorker" in navigator)) return;
-  // Enviar al controller activo (o esperar a que esté listo)
-  if (navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage(message);
-  } else {
-    navigator.serviceWorker.ready.then((reg) => {
-      reg.active?.postMessage(message);
-    });
-  }
+  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
+  navigator.serviceWorker.controller.postMessage(message);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -522,34 +514,12 @@ export default function DriverApp() {
   const [selectedBase, setSelectedBase] = useState("");
   const [showMessages, setShowMessages] = useState(false);
   const prevOfferedId = useRef(null);
+  const offeredOrderRef = useRef(null);
 
   // Register SW and request notification permission on load
   useEffect(() => {
     registerSW();
     requestNotificationPermission();
-
-    // Escuchar mensajes del Service Worker (ej: acción "Aceptar" desde notificación nativa)
-    const onSWMessage = (event) => {
-      if (event.data?.type === "SW_ACCEPT_ORDER") {
-        // El SW nos dice que el chofer tocó "Aceptar" en la notificación
-        // La lógica real se ejecuta a través del estado reactivo — buscamos la orden en el ref
-        const orderId = event.data.orderId;
-        // Disparar aceptación usando el orderId (handleAccept usa offeredOrder del closure,
-        // así que usamos una mutación directa aquí)
-        base44.entities.RideOrder.update(orderId, { status: "aceptado" }).catch(() => {});
-        // El driver_id y status del driver se actualizan via handleAccept cuando la UI está activa,
-        // pero si está en background el driver_id ya está en la orden por el dispatch previo
-      }
-    };
-
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.addEventListener("message", onSWMessage);
-    }
-    return () => {
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.removeEventListener("message", onSWMessage);
-      }
-    };
   }, []);
 
   // Escuchar mensajes del SW (ej: usuario tocó "Aceptar" en la notificación)
@@ -570,15 +540,17 @@ export default function DriverApp() {
   }, [myDriverId]);
 
   // Re-alertar cuando la pantalla vuelve a estar activa (venía de background)
+  // offeredOrderRef se usa para evitar stale closure sin necesidad de re-registrar el listener
   useEffect(() => {
+    const ref = offeredOrderRef;
     const onVisible = () => {
-      if (document.visibilityState === "visible" && prevOfferedId.current) {
+      if (document.visibilityState === "visible" && ref.current) {
         playAlert();
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // GPS
   useEffect(() => {
@@ -608,6 +580,7 @@ export default function DriverApp() {
 
   // Alert on new offer (audio + SW notification) — repeat every 4s
   useEffect(() => {
+    offeredOrderRef.current = offeredOrder || null;
     if (offeredOrder) {
       if (offeredOrder.id !== prevOfferedId.current) {
         prevOfferedId.current = offeredOrder.id;
@@ -635,11 +608,8 @@ export default function DriverApp() {
   });
 
   const handleAccept = () => {
-    if (!offeredOrder) return;
     updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado" } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
-    // Cerrar notificaciones pendientes
-    notifySW({ type: "OFFER_CLEARED" });
   };
   const handleReject = async () => {
     // La suscripción en tiempo real propagará el cambio automáticamente a todos los dispositivos
