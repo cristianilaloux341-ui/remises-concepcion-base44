@@ -60,14 +60,16 @@ export default function AgendaAlert() {
           setAlerts(prev => [...prev, { ...r, alertedAt: Date.now() }]);
 
           // System notification
-          const notify = () => new Notification(`⏰ Agenda: ${r.client_name}`, {
-            body: `${r.pickup_address} — en ${Math.max(0, mins)} min`,
-            requireInteraction: true,
-          });
-          if (Notification.permission === "granted") {
-            notify();
-          } else if (Notification.permission !== "denied") {
-            Notification.requestPermission().then(p => { if (p === "granted") notify(); });
+          if (typeof Notification !== "undefined") {
+            const notify = () => new Notification(`⏰ Agenda: ${r.client_name}`, {
+              body: `${r.pickup_address} — en ${Math.max(0, mins)} min`,
+              requireInteraction: true,
+            });
+            if (Notification.permission === "granted") {
+              notify();
+            } else if (Notification.permission !== "denied") {
+              Notification.requestPermission().then(p => { if (p === "granted") notify(); });
+            }
           }
         }
       });
