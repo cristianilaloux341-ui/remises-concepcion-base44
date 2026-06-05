@@ -1,0 +1,37 @@
+{
+  "name": "ZoneMapping",
+  "type": "object",
+  "properties": {
+    "keyword": {
+      "type": "string",
+      "description": "Palabra clave o nombre de calle (ej: 'San Mart\u00edn', 'Puerto', 'Belgrano')"
+    },
+    "zone": {
+      "type": "string",
+      "enum": [
+        "1-Puerto",
+        "2-Plaza",
+        "3-Columna",
+        "4-Base",
+        "5-Cementerio",
+        "6-D\u00edaz V\u00e9lez",
+        "7-Don Bosco",
+        "8-Monumento"
+      ],
+      "description": "Zona/base a la que pertenece esta calle"
+    },
+    "priority": {
+      "type": "number",
+      "default": 1,
+      "description": "Prioridad (mayor n\u00famero = mayor prioridad en caso de m\u00faltiples coincidencias)"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notas opcionales (ej: 'altura 100-500', 'lado norte')"
+    }
+  },
+  "required": [
+    "keyword",
+    "zone"
+  ]
+}

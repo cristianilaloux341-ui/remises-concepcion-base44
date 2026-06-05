@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, Search, UserPlus } from "lucide-react";
-import { findBestDriver } from "@/lib/dispatchLogic";
+import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, Search, UserPlus, Wand2 } from "lucide-react";
+import { findBestDriver, detectZoneFromAddress } from "@/lib/dispatchLogic";
 
 const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 
@@ -34,6 +34,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
   const [showClientResults, setShowClientResults] = useState(false);
   const [autoAssigning, setAutoAssigning] = useState(false);
   const [suggestedDriver, setSuggestedDriver] = useState(null);
+  const [detectedZone, setDetectedZone] = useState(null);
+  const [detectingZone, setDetectingZone] = useState(false);
   const searchRef = useRef(null);
 
   const { data: drivers = [] } = useQuery({
@@ -52,6 +54,24 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
   });
 
   const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
+
+  // Auto-detect zone when pickup address changes
+  useEffect(() => {
+    if (!form.pickup_address || form.pickup_address.length < 3) { setDetectedZone(null); return; }
+    const timeout = setTimeout(async () => {
+      setDetectingZone(true);
+      const zone = await detectZoneFromAddress(form.pickup_address);
+      setDetectingZone(false);
+      if (zone) {
+        setDetectedZone(zone);
+        // Auto-fill only if zone was empty
+        setForm(prev => prev.zone ? prev : { ...prev, zone });
+      } else {
+        setDetectedZone(null);
+      }
+    }, 600);
+    return () => clearTimeout(timeout);
+  }, [form.pickup_address]);
 
   // Auto-suggest best driver when pickup changes
   useEffect(() => {
@@ -286,9 +306,29 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
 
             {/* Zona */}
             <div className="space-y-1.5">
-              <Label>Zona</Label>
+              <Label className="flex items-center gap-2">
+                Zona
+                {detectingZone && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                {detectedZone && detectedZone === form.zone && (
+                  <span className="text-xs text-green-600 flex items-center gap-1 font-normal">
+                    <Wand2 className="w-3 h-3" /> Detectada automáticamente
+                  </span>
+                )}
+                {detectedZone && detectedZone !== form.zone && form.zone && (
+                  <button
+                    type="button"
+                    className="text-xs text-amber-600 underline font-normal flex items-center gap-1"
+                    onClick={() => handleChange("zone", detectedZone)}
+                  >
+                    <Wand2 className="w-3 h-3" /> Sugerida: {detectedZone}
+                  </button>
+                )}
+                {!form.zone && !detectedZone && !detectingZone && form.pickup_address?.length > 2 && (
+                  <span className="text-xs text-amber-600 font-normal">Selección manual requerida</span>
+                )}
+              </Label>
               <Select value={form.zone || ""} onValueChange={(v) => handleChange("zone", v)}>
-                <SelectTrigger>
+                <SelectTrigger className={!form.zone ? "border-amber-300" : ""}>
                   <SelectValue placeholder="Seleccionar zona..." />
                 </SelectTrigger>
                 <SelectContent>

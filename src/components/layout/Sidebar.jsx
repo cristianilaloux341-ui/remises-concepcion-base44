@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare } from "lucide-react";
+import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -12,6 +12,7 @@ const navItems = [
   { label: "Mapa", path: "/map", icon: MapPin },
   { label: "Chóferes", path: "/drivers", icon: Users },
   { label: "App Chófer", path: "/driver-link", icon: Smartphone },
+  { label: "Zonas", path: "/zone-settings", icon: Map },
 ];
 
 export default function Sidebar({ open, onClose }) {

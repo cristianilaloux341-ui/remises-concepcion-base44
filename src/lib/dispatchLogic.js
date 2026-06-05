@@ -107,4 +107,33 @@ export async function reassignAfterReject(order, drivers, bases) {
   return "broadcast";
 }
 
+// ── Zone Detection ────────────────────────────────────────────────────────────
+// Detects the zone for an address using the ZoneMapping entity (editable dictionary)
+// Returns { zone, confidence } or null if no match found
+export async function detectZoneFromAddress(address) {
+  if (!address || address.trim().length < 2) return null;
+
+  const mappings = await base44.entities.ZoneMapping.list("-priority");
+  if (!mappings.length) return null;
+
+  const normalized = address.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  let bestMatch = null;
+  let bestPriority = -1;
+
+  for (const m of mappings) {
+    const keyword = (m.keyword || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (!keyword) continue;
+    if (normalized.includes(keyword)) {
+      const priority = m.priority || 1;
+      if (priority > bestPriority) {
+        bestPriority = priority;
+        bestMatch = m.zone;
+      }
+    }
+  }
+
+  return bestMatch || null;
+}
+
 export { BASES };
