@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, Search, UserPlus, Wand2 } from "lucide-react";
 import { findBestDriver, detectZoneFromAddress } from "@/lib/dispatchLogic";
+import AddressAutocomplete from "@/components/orders/AddressAutocomplete";
+import { recordAddressUsage } from "@/hooks/useAddressSuggestions";
 
 const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 
@@ -33,6 +35,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
   const [clientSearch, setClientSearch] = useState("");
   const [showClientResults, setShowClientResults] = useState(false);
   const [autoAssigning, setAutoAssigning] = useState(false);
+  const queryClient = useQueryClient();
   const [suggestedDriver, setSuggestedDriver] = useState(null);
   const [detectedZone, setDetectedZone] = useState(null);
   const [detectingZone, setDetectingZone] = useState(false);
@@ -152,6 +155,12 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     else delete data.fare;
     if (!data.driver_id) { delete data.driver_id; delete data.driver_name; }
     if (!data.client_id) delete data.client_id;
+
+    // Record address usage for autocomplete learning
+    if (data.pickup_address) recordAddressUsage(data.pickup_address, queryClient);
+    if (data.dropoff_address) recordAddressUsage(data.dropoff_address, queryClient);
+    (data.dropoff_addresses || []).forEach(a => a && recordAddressUsage(a, queryClient));
+
     onSubmit(data);
   };
 
@@ -252,44 +261,35 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
             {/* Recogida */}
             <div className="space-y-1.5">
               <Label htmlFor="pickup">Recogida</Label>
-              <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-green-500" />
-                <Input
-                  id="pickup"
-                  className="pl-8"
-                  placeholder="Calle y número de recogida"
-                  value={form.pickup_address}
-                  onChange={(e) => handleChange("pickup_address", e.target.value)}
-                  required
-                />
-              </div>
+              <AddressAutocomplete
+                value={form.pickup_address}
+                onChange={(v) => handleChange("pickup_address", v)}
+                placeholder="Calle y número de recogida"
+                icon={<div className="w-3 h-3 rounded-full bg-green-500" />}
+                required
+              />
             </div>
 
             {/* Destino principal */}
             <div className="space-y-1.5">
               <Label htmlFor="dropoff">Destino</Label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />
-                <Input
-                  id="dropoff"
-                  className="pl-9"
-                  placeholder="Calle y número de destino"
-                  value={form.dropoff_address}
-                  onChange={(e) => handleChange("dropoff_address", e.target.value)}
-                />
-              </div>
+              <AddressAutocomplete
+                value={form.dropoff_address}
+                onChange={(v) => handleChange("dropoff_address", v)}
+                placeholder="Calle y número de destino"
+                icon={<MapPin className="w-4 h-4 text-red-500" />}
+              />
             </div>
 
             {/* Destinos adicionales */}
             {(form.dropoff_addresses || []).map((addr, idx) => (
               <div key={idx} className="flex gap-2 items-center">
-                <div className="relative flex-1">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400" />
-                  <Input
-                    className="pl-9"
-                    placeholder={`Parada ${idx + 2}`}
+                <div className="flex-1">
+                  <AddressAutocomplete
                     value={addr}
-                    onChange={(e) => updateDestination(idx, e.target.value)}
+                    onChange={(v) => updateDestination(idx, v)}
+                    placeholder={`Parada ${idx + 2}`}
+                    icon={<MapPin className="w-4 h-4 text-orange-400" />}
                   />
                 </div>
                 <Button type="button" size="icon" variant="ghost" className="text-red-400 hover:text-red-600 shrink-0"

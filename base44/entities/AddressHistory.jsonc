@@ -1,0 +1,22 @@
+{
+  "name": "AddressHistory",
+  "type": "object",
+  "properties": {
+    "address": {
+      "type": "string",
+      "description": "Direcci\u00f3n completa (ej: '9 de Julio 1250')"
+    },
+    "usage_count": {
+      "type": "number",
+      "default": 1,
+      "description": "Cantidad de veces que fue usada"
+    },
+    "last_used": {
+      "type": "string",
+      "description": "ISO datetime del \u00faltimo uso"
+    }
+  },
+  "required": [
+    "address"
+  ]
+}
