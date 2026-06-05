@@ -148,12 +148,42 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const data = { ...form };
     if (data.fare && String(data.fare).trim() !== "") data.fare = Number(data.fare);
     else delete data.fare;
     if (!data.driver_id) { delete data.driver_id; delete data.driver_name; }
+
+    // Auto-save/update client in database
+    if (data.client_name?.trim()) {
+      const existing = clients.find(c =>
+        (data.client_id && c.id === data.client_id) ||
+        (data.client_phone && c.phone === data.client_phone?.trim()) ||
+        c.name?.toLowerCase() === data.client_name.trim().toLowerCase()
+      );
+
+      if (existing) {
+        // Update phone or pickup address if changed
+        const updates = {};
+        if (data.client_phone && !existing.phone) updates.phone = data.client_phone.trim();
+        if (data.pickup_address && !existing.pickup_address) updates.pickup_address = data.pickup_address;
+        if (Object.keys(updates).length > 0) {
+          await base44.entities.Client.update(existing.id, updates);
+        }
+        data.client_id = existing.id;
+      } else if (!data.client_id) {
+        // New client — create automatically
+        const newClient = await base44.entities.Client.create({
+          name: data.client_name.trim(),
+          phone: data.client_phone?.trim() || undefined,
+          pickup_address: data.pickup_address || undefined,
+        });
+        data.client_id = newClient.id;
+      }
+      queryClient.invalidateQueries(["clients"]);
+    }
+
     if (!data.client_id) delete data.client_id;
 
     // Record address usage for autocomplete learning
@@ -245,11 +275,15 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
                 </div>
               </div>
             </div>
-            {form.client_id && (
+            {form.client_id ? (
               <p className="text-xs text-green-600 flex items-center gap-1">
                 <User className="w-3 h-3" /> Cliente vinculado de la base de datos
               </p>
-            )}
+            ) : form.client_name?.trim() ? (
+              <p className="text-xs text-blue-600 flex items-center gap-1">
+                <UserPlus className="w-3 h-3" /> Se guardará como nuevo cliente al confirmar
+              </p>
+            ) : null}
           </div>
 
           {/* ── DIRECCIONES ── */}
