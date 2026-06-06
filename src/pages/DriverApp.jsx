@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi } from "lucide-react";
@@ -567,6 +568,9 @@ export default function DriverApp() {
   // ── Tiempo real: suscripciones en lugar de polling ────────────────────────
   const { drivers } = useRealtimeDrivers();
   const { orders } = useRealtimeOrders({ limit: 50 });
+
+  // Wake Lock — mantiene la pantalla activa mientras el chofer está en servicio
+  useWakeLock(!!myDriverId);
 
   const myDriver = drivers.find(d => d.id === myDriverId);
   const activeOrder = orders.find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));

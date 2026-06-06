@@ -1,19 +1,23 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
+import { useBackgroundSync } from "./useBackgroundSync";
 
 /**
- * Suscripción en tiempo real a conductores.
- * Carga inicial + actualizaciones push instantáneas.
+ * Suscripción en tiempo real a conductores con reconexión automática
+ * cuando la app vuelve del background / pantalla desbloqueada.
  */
 export function useRealtimeDrivers() {
   const [drivers, setDrivers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const mountedRef = useRef(true);
+  const unsubRef = useRef(null);
 
-  useEffect(() => {
-    mountedRef.current = true;
+  const connect = useCallback(() => {
+    if (!mountedRef.current) return;
 
-    // Carga inicial
+    unsubRef.current?.();
+    unsubRef.current = null;
+
     base44.entities.Driver.list().then((data) => {
       if (mountedRef.current) {
         setDrivers(data);
@@ -21,29 +25,28 @@ export function useRealtimeDrivers() {
       }
     });
 
-    // Suscripción en tiempo real
-    const unsub = base44.entities.Driver.subscribe((event) => {
+    unsubRef.current = base44.entities.Driver.subscribe((event) => {
       if (!mountedRef.current) return;
-
       setDrivers((prev) => {
-        if (event.type === "create") {
-          return [...prev, event.data];
-        }
-        if (event.type === "update") {
-          return prev.map((d) => (d.id === event.id ? event.data : d));
-        }
-        if (event.type === "delete") {
-          return prev.filter((d) => d.id !== event.id);
-        }
+        if (event.type === "create") return [...prev, event.data];
+        if (event.type === "update") return prev.map((d) => (d.id === event.id ? event.data : d));
+        if (event.type === "delete") return prev.filter((d) => d.id !== event.id);
         return prev;
       });
     });
+  }, []);
 
+  useEffect(() => {
+    mountedRef.current = true;
+    connect();
     return () => {
       mountedRef.current = false;
-      unsub();
+      unsubRef.current?.();
     };
-  }, []);
+  }, [connect]);
+
+  // Reconectar automáticamente al volver del background
+  useBackgroundSync(connect);
 
   return { drivers, isLoading };
 }
