@@ -8,7 +8,8 @@ import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi } from "lucide-react";
+import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer } from "lucide-react";
+import { haversineMetros } from "@/hooks/useTarifaConfig";
 import RideMap from "@/components/map/RideMap";
 import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
@@ -292,10 +293,197 @@ function BroadcastAlert({ order, onAccept, onReject }) {
 function ActiveRideScreen({ order, driver, onStatusChange }) {
   const cfg = STATUS_CONFIG[order.status];
 
+  // ── Taxímetro en tiempo real (solo cuando status === "en_viaje") ────────────
+  const [importeActual, setImporteActual] = useState(order.importe_real_actual || order.importe_estimado || 0);
+  const [metrosRecorridos, setMetrosRecorridos] = useState(0);
+  const [enEspera, setEnEspera] = useState(false);
+
+  // refs para evitar stale closures dentro de intervals/watchers
+  const metrosRef = useRef(0);
+  const importeRef = useRef(importeActual);
+  const contadorParadoRef = useRef(0);
+  const lastPosRef = useRef(null);
+  const gpsWatchRef = useRef(null);
+  const timerRef = useRef(null);
+
+  // Sync importeActual ref
+  useEffect(() => { importeRef.current = importeActual; }, [importeActual]);
+
+  const distanciaTeórica = order.distancia_teorica_metros || 0;
+  const tarifaRef = useRef({
+    bajada_bandera: 500,
+    precio_por_metro: 2,
+    precio_por_minuto_espera: 50,
+    tolerancia_espera_segundos: 120,
+  });
+
+  // Load tarifa config once
+  useEffect(() => {
+    base44.entities.TarifaConfig.list().then(configs => {
+      if (configs[0]) {
+        tarifaRef.current = {
+          bajada_bandera: configs[0].bajada_bandera ?? 500,
+          precio_por_metro: configs[0].precio_por_metro ?? 2,
+          precio_por_minuto_espera: configs[0].precio_por_minuto_espera ?? 50,
+          tolerancia_espera_segundos: configs[0].tolerancia_espera_segundos ?? 120,
+        };
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Guardar importe en DB (debounced)
+  const saveTimeoutRef = useRef(null);
+  const saveImporte = (nuevoImporte, segundosEspera) => {
+    clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      base44.entities.RideOrder.update(order.id, {
+        importe_real_actual: Math.round(nuevoImporte),
+        segundos_espera_acumulados: segundosEspera,
+      }).catch(() => {});
+    }, 3000); // guarda cada 3s como máximo
+  };
+
+  // Activar GPS + Timer cuando pasa a "en_viaje"
+  useEffect(() => {
+    if (order.status !== "en_viaje") return;
+
+    // Inicializar con el importe actual de la orden
+    const importeInicial = order.importe_real_actual || order.importe_estimado || 0;
+    setImporteActual(importeInicial);
+    importeRef.current = importeInicial;
+    metrosRef.current = 0;
+    contadorParadoRef.current = 0;
+    let segundosEspera = order.segundos_espera_acumulados || 0;
+
+    // GPS tracker
+    if (navigator.geolocation) {
+      gpsWatchRef.current = navigator.geolocation.watchPosition((pos) => {
+        const { latitude, longitude, speed } = pos.coords;
+        const speedKmh = (speed || 0) * 3.6;
+
+        if (lastPosRef.current) {
+          const metros = haversineMetros(
+            lastPosRef.current.lat, lastPosRef.current.lng,
+            latitude, longitude
+          );
+          if (metros > 0.5 && metros < 500) { // filtrar saltos de GPS
+            metrosRef.current += metros;
+            setMetrosRecorridos(Math.round(metrosRef.current));
+
+            // Cobro por exceso de distancia
+            const excedente = metrosRef.current - distanciaTeórica;
+            if (excedente > 0) {
+              const base = order.importe_estimado || importeInicial;
+              const nuevo = base + excedente * tarifaRef.current.precio_por_metro;
+              setImporteActual(Math.round(nuevo));
+              importeRef.current = Math.round(nuevo);
+            }
+          }
+        }
+
+        lastPosRef.current = { lat: latitude, lng: longitude };
+
+        // Control de espera por velocidad
+        if (speedKmh < 5) {
+          setEnEspera(true);
+        } else {
+          contadorParadoRef.current = 0;
+          setEnEspera(false);
+        }
+      }, () => {}, { enableHighAccuracy: true, maximumAge: 2000 });
+    }
+
+    // Timer cada 1 segundo — cobra espera
+    timerRef.current = setInterval(() => {
+      const speedLow = lastPosRef.current !== null; // si tenemos GPS
+      if (enEspera || contadorParadoRef.current > 0) {
+        contadorParadoRef.current += 1;
+        if (contadorParadoRef.current > tarifaRef.current.tolerancia_espera_segundos) {
+          segundosEspera += 1;
+          const costoPorSegundo = tarifaRef.current.precio_por_minuto_espera / 60;
+          const nuevo = importeRef.current + costoPorSegundo;
+          importeRef.current = nuevo;
+          setImporteActual(Math.round(nuevo));
+          saveImporte(nuevo, segundosEspera);
+        }
+      }
+    }, 1000);
+
+    return () => {
+      if (gpsWatchRef.current) navigator.geolocation.clearWatch(gpsWatchRef.current);
+      clearInterval(timerRef.current);
+      clearTimeout(saveTimeoutRef.current);
+    };
+  }, [order.status, order.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pantalla de cobro final cuando está completado
+  const [showCobro, setShowCobro] = useState(order.status === "completado");
+  useEffect(() => {
+    if (order.status === "completado") setShowCobro(true);
+  }, [order.status]);
+
   const handleNavigate = () => {
     const address = order.status === "en_viaje" ? order.dropoff_address : order.pickup_address;
     if (address) openMapsNavigation(address, driver?.current_lat, driver?.current_lng);
   };
+
+  const handleCompletar = () => {
+    // Guardar importe final antes de completar
+    clearTimeout(saveTimeoutRef.current);
+    base44.entities.RideOrder.update(order.id, {
+      importe_real_actual: Math.round(importeRef.current),
+    }).catch(() => {});
+    onStatusChange("completado");
+  };
+
+  // Pantalla de cobro final
+  if (showCobro) {
+    const importeFinal = order.importe_real_actual || importeActual;
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50 space-y-6">
+        <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center">
+          <DollarSign className="w-12 h-12 text-green-600" />
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">COBRAR AL PASAJERO</p>
+          <p className="text-6xl font-black text-green-600">${Math.round(importeFinal).toLocaleString()}</p>
+          {order.importe_estimado && importeFinal !== order.importe_estimado && (
+            <p className="text-xs text-gray-400">
+              Estimado: ${Math.round(order.importe_estimado).toLocaleString()} · Ajuste: ${Math.round(importeFinal - order.importe_estimado).toLocaleString()}
+            </p>
+          )}
+          {order.segundos_espera_acumulados > 0 && (
+            <p className="text-xs text-amber-600">
+              ⏱ {order.segundos_espera_acumulados}s de espera cobrados
+            </p>
+          )}
+          {distanciaTeórica > 0 && (
+            <p className="text-xs text-gray-400">
+              {(distanciaTeórica / 1000).toFixed(1)} km estimados
+              {metrosRecorridos > 0 ? ` · ${(metrosRecorridos / 1000).toFixed(1)} km reales` : ""}
+            </p>
+          )}
+        </div>
+        <div className="w-full max-w-xs bg-white rounded-2xl border border-gray-200 p-4 space-y-2 text-sm">
+          <div className="flex justify-between text-gray-500">
+            <span>Recogida</span>
+            <span className="font-medium text-gray-700 text-right max-w-[60%]">{order.pickup_address}</span>
+          </div>
+          {order.dropoff_address && (
+            <div className="flex justify-between text-gray-500">
+              <span>Destino</span>
+              <span className="font-medium text-gray-700 text-right max-w-[60%]">{order.dropoff_address}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-gray-500">
+            <span>Pasajero</span>
+            <span className="font-medium text-gray-700">{order.client_name}</span>
+          </div>
+        </div>
+        <p className="text-sm text-gray-400">Viaje completado ✓</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col">
@@ -308,6 +496,25 @@ function ActiveRideScreen({ order, driver, onStatusChange }) {
           <p className="font-bold text-lg">Viaje en Curso</p>
           <Badge className={`${cfg?.bg} text-white border-0 px-3`}>{cfg?.label}</Badge>
         </div>
+
+        {/* Taxímetro en tiempo real — solo en_viaje */}
+        {order.status === "en_viaje" && (
+          <div className={`rounded-2xl p-4 flex items-center justify-between ${enEspera ? "bg-amber-50 border border-amber-200" : "bg-green-50 border border-green-200"}`}>
+            <div className="flex items-center gap-2">
+              {enEspera ? <Timer className="w-5 h-5 text-amber-500" /> : <Navigation className="w-5 h-5 text-green-600" />}
+              <div>
+                <p className="text-xs font-semibold text-gray-500">{enEspera ? "EN ESPERA" : "EN MOVIMIENTO"}</p>
+                {metrosRecorridos > 0 && (
+                  <p className="text-xs text-gray-400">{(metrosRecorridos / 1000).toFixed(2)} km recorridos</p>
+                )}
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-gray-400">Tarifa actual</p>
+              <p className="text-2xl font-black text-green-600">${importeActual.toLocaleString()}</p>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           <div className="flex items-start gap-3">
@@ -329,10 +536,12 @@ function ActiveRideScreen({ order, driver, onStatusChange }) {
           <div className="flex items-center gap-2 text-gray-500 text-sm">
             <Phone className="w-4 h-4" />
             <span>{order.client_name}</span>
+            {(order.importe_estimado > 0) && (
+              <span className="ml-auto font-semibold text-gray-700">${Math.round(order.importe_estimado).toLocaleString()} est.</span>
+            )}
           </div>
         </div>
 
-        {/* Navigate button */}
         <Button
           variant="outline"
           className="w-full h-11 rounded-2xl gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 font-semibold"
@@ -353,8 +562,8 @@ function ActiveRideScreen({ order, driver, onStatusChange }) {
           </Button>
         )}
         {order.status === "en_viaje" && (
-          <Button className="w-full h-14 rounded-2xl gap-2 bg-green-500 hover:bg-green-600 text-base font-bold shadow-lg shadow-green-500/20" onClick={() => onStatusChange("completado")}>
-            <CheckCircle2 className="w-5 h-5" /> Completar Viaje
+          <Button className="w-full h-14 rounded-2xl gap-2 bg-green-500 hover:bg-green-600 text-base font-bold shadow-lg shadow-green-500/20" onClick={handleCompletar}>
+            <CheckCircle2 className="w-5 h-5" /> Terminar Viaje · ${importeActual.toLocaleString()}
           </Button>
         )}
       </div>

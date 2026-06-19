@@ -7,11 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, UserPlus, Wand2 } from "lucide-react";
+import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, UserPlus, Wand2, Calculator } from "lucide-react";
 import { findBestDriver, detectZoneFromAddress, learnZoneMapping, parseAddress } from "@/lib/dispatchLogic";
 import PickupAutocomplete from "@/components/orders/PickupAutocomplete";
 import AddressAutocomplete from "@/components/orders/AddressAutocomplete";
 import { recordAddressUsage } from "@/hooks/useAddressSuggestions";
+import { useTarifaConfig, calcularDistanciaRuta, calcularImporte } from "@/hooks/useTarifaConfig";
 
 const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 
@@ -37,6 +38,9 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
   const [suggestedDriver, setSuggestedDriver] = useState(null);
   const [detectedZone, setDetectedZone] = useState(null);
   const [detectingZone, setDetectingZone] = useState(false);
+  const [calculandoTarifa, setCalculandoTarifa] = useState(false);
+  const [distanciaCalculada, setDistanciaCalculada] = useState(null);
+  const tarifa = useTarifaConfig();
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
@@ -136,9 +140,33 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     }));
   };
 
+  const handleCalcularTarifa = async () => {
+    if (!form.pickup_address || !form.dropoff_address) return;
+    setCalculandoTarifa(true);
+    const metros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address);
+    setCalculandoTarifa(false);
+    if (metros) {
+      setDistanciaCalculada(metros);
+      const importe = calcularImporte(metros, tarifa);
+      setForm(prev => ({
+        ...prev,
+        fare: importe,
+        distancia_teorica_metros: metros,
+        importe_estimado: importe,
+        importe_real_actual: importe,
+      }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const data = { ...form };
+    if (distanciaCalculada) {
+      data.distancia_teorica_metros = distanciaCalculada;
+      data.importe_estimado = data.fare ? Number(data.fare) : undefined;
+      data.importe_real_actual = data.importe_estimado;
+      data.segundos_espera_acumulados = 0;
+    }
     if (data.fare && String(data.fare).trim() !== "") data.fare = Number(data.fare);
     else delete data.fare;
     if (!data.driver_id) { delete data.driver_id; delete data.driver_name; }
@@ -419,17 +447,35 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="fare">Tarifa ($)</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="fare"
-                  className="pl-9"
-                  type="number"
-                  placeholder="0"
-                  value={form.fare}
-                  onChange={(e) => handleChange("fare", e.target.value)}
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="fare"
+                    className="pl-9"
+                    type="number"
+                    placeholder="0"
+                    value={form.fare}
+                    onChange={(e) => handleChange("fare", e.target.value)}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-1.5 shrink-0 text-xs"
+                  disabled={!form.pickup_address || !form.dropoff_address || calculandoTarifa}
+                  onClick={handleCalcularTarifa}
+                  title="Calcula la tarifa basada en la distancia real de ruta"
+                >
+                  {calculandoTarifa ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Calculator className="w-3.5 h-3.5" />}
+                  Calcular
+                </Button>
               </div>
+              {distanciaCalculada && (
+                <p className="text-xs text-green-600">
+                  📍 {(distanciaCalculada / 1000).toFixed(1)} km · Bandera ${tarifa.bajada_bandera} + ${tarifa.precio_por_metro}/m
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="notes">Notas</Label>

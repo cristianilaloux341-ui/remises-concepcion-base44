@@ -1,0 +1,27 @@
+{
+  "name": "TarifaConfig",
+  "type": "object",
+  "properties": {
+    "bajada_bandera": {
+      "type": "number",
+      "default": 500,
+      "description": "Importe fijo al iniciar un viaje"
+    },
+    "precio_por_metro": {
+      "type": "number",
+      "default": 2,
+      "description": "Precio por metro recorrido"
+    },
+    "precio_por_minuto_espera": {
+      "type": "number",
+      "default": 50,
+      "description": "Precio por minuto de espera (velocidad < 5 km/h)"
+    },
+    "tolerancia_espera_segundos": {
+      "type": "number",
+      "default": 120,
+      "description": "Segundos de gracia antes de cobrar espera"
+    }
+  },
+  "required": []
+}

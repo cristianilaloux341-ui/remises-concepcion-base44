@@ -96,6 +96,23 @@
       ],
       "default": "operador",
       "description": "Origen del pedido"
+    },
+    "distancia_teorica_metros": {
+      "type": "number",
+      "description": "Distancia calculada por API al despachar"
+    },
+    "importe_estimado": {
+      "type": "number",
+      "description": "Tarifa estimada al momento del despacho"
+    },
+    "importe_real_actual": {
+      "type": "number",
+      "description": "Tarifa ajustada en tiempo real por el chofer"
+    },
+    "segundos_espera_acumulados": {
+      "type": "number",
+      "default": 0,
+      "description": "Segundos de espera cobrados"
     }
   },
   "required": [

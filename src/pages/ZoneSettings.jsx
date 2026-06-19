@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Map, Search } from "lucide-react";
+import TarifaConfigPanel from "@/components/tarifa/TarifaConfig";
 
 const ZONES = ["1-Puerto","2-Plaza","3-Columna","4-Base","5-Cementerio","6-Díaz Vélez","7-Don Bosco","8-Monumento"];
 
@@ -65,10 +66,23 @@ export default function ZoneSettings() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Map className="w-6 h-6 text-primary" />
-          Diccionario de Zonas
+          Configuración del Sistema
         </h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Asociá calles y palabras clave a cada base. El sistema las usa para detectar la zona automáticamente al cargar un viaje.
+          Tarifas automáticas y diccionario de zonas.
+        </p>
+      </div>
+
+      {/* ── TARIFAS ── */}
+      <TarifaConfigPanel />
+
+      {/* ── ZONAS ── */}
+      <div>
+        <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+          <Map className="w-5 h-5 text-primary" /> Diccionario de Zonas
+        </h2>
+        <p className="text-muted-foreground text-sm mb-4">
+          Asociá calles y palabras clave a cada base para detección automática de zona.
         </p>
       </div>
 
