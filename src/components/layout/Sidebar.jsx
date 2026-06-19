@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign } from "lucide-react";
+import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
+import SwitchUserModal from "./SwitchUserModal";
 
 const operadorItems = [
   { label: "Central", path: "/", icon: LayoutDashboard },
@@ -22,9 +24,16 @@ const adminItems = [
 
 export default function Sidebar({ open, onClose }) {
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, checkUserAuth } = useAuth();
   const isAdmin = user?.role === "admin";
   const navItems = isAdmin ? [...operadorItems, ...adminItems] : operadorItems;
+  const [switchOpen, setSwitchOpen] = useState(false);
+
+  const handleSwitchSuccess = async (newUser) => {
+    setSwitchOpen(false);
+    await checkUserAuth();
+    onClose();
+  };
 
   return (
     <>
@@ -79,14 +88,35 @@ export default function Sidebar({ open, onClose }) {
           })}
         </nav>
 
-        <div className="p-4">
+        <div className="p-4 space-y-2">
           <Link to="/orders/new" onClick={onClose}>
             <Button className="w-full gap-2 rounded-xl h-11 bg-sidebar-primary hover:bg-sidebar-primary/90">
               <Plus className="w-4 h-4" />
               Nuevo Pedido
             </Button>
           </Link>
+          <div className="flex items-center justify-between px-1 pt-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <UserCircle className="w-4 h-4 text-sidebar-foreground/50 shrink-0" />
+              <span className="text-xs text-sidebar-foreground/60 truncate">{user?.full_name || user?.email || "Usuario"}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-sidebar-foreground/50 hover:text-sidebar-foreground h-7 px-2 text-xs gap-1 shrink-0"
+              onClick={() => setSwitchOpen(true)}
+            >
+              <RefreshCw className="w-3 h-3" />
+              Cambiar
+            </Button>
+          </div>
         </div>
+
+      <SwitchUserModal
+        open={switchOpen}
+        onClose={() => setSwitchOpen(false)}
+        onSuccess={handleSwitchSuccess}
+      />
       </aside>
     </>
   );
