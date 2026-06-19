@@ -17,7 +17,7 @@ const fromBase64Url = (str) => {
   return buf.buffer;
 };
 
-// Build minimal VAPID JWT (ES256) using SubtleCrypto
+// Build minimal VAPID JWT (ES256) using SubtleCrypto with proper r,s serialization
 async function buildVapidJwt(audience, privateKeyB64, subject) {
   const header = toBase64Url(new TextEncoder().encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
   const now = Math.floor(Date.now() / 1000);
@@ -44,7 +44,11 @@ async function buildVapidJwt(audience, privateKeyB64, subject) {
     new TextEncoder().encode(sigInput)
   );
 
-  return `${sigInput}.${toBase64Url(sigBuf)}`;
+  // ES256 signature: r and s are each 32 bytes, concatenated directly (not ASN.1 encoded)
+  // Web Push expects raw concatenation of r || s (64 bytes total)
+  const sig = new Uint8Array(sigBuf).slice(0, 64);
+
+  return `${sigInput}.${toBase64Url(sig)}`;
 }
 
 // Encrypt the push payload using RFC 8188 / Web Push encryption
@@ -201,34 +205,43 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
     }
 
-    const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
-    const driver = drivers[0];
-    if (!driver?.push_subscription) {
-      return Response.json({ ok: false, reason: 'no_subscription' });
+    try {
+      const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
+      const driver = drivers[0];
+      if (!driver?.push_subscription) {
+        return Response.json({ ok: false, reason: 'no_subscription' });
+      }
+
+      let sub;
+      try { sub = JSON.parse(driver.push_subscription); } catch (_) {
+        return Response.json({ ok: false, reason: 'invalid_subscription' });
+      }
+
+      const payload = JSON.stringify({
+        type: 'NEW_RIDE',
+        orderId,
+        driverId,
+        title: '🚖 ¡Nuevo Viaje!',
+        body: orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}${orderData.fare ? ' · $' + orderData.fare : ''}` : 'Tenés un viaje asignado',
+      });
+
+      const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+
+      // If subscription is expired/invalid, clean it
+      if (status === 410 || status === 404) {
+        await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: null });
+        return Response.json({ ok: false, reason: 'subscription_expired', status });
+      }
+
+      const success = status >= 200 && status < 300;
+      if (!success) {
+        console.warn(`Push failed for driver ${driverId}: status ${status}`);
+      }
+      return Response.json({ ok: success, status });
+    } catch (err) {
+      console.error(`Push error for driver ${driverId}:`, err.message);
+      return Response.json({ ok: false, reason: 'send_error', error: err.message });
     }
-
-    let sub;
-    try { sub = JSON.parse(driver.push_subscription); } catch (_) {
-      return Response.json({ ok: false, reason: 'invalid_subscription' });
-    }
-
-    const payload = JSON.stringify({
-      type: 'NEW_RIDE',
-      orderId,
-      title: '🚖 ¡Nuevo Viaje!',
-      body: orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}${orderData.fare ? ' · $' + orderData.fare : ''}` : 'Tenés un viaje asignado',
-      driverId,
-    });
-
-    const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-
-    // If subscription is expired/invalid, clean it
-    if (status === 410 || status === 404) {
-      await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: null });
-      return Response.json({ ok: false, reason: 'subscription_expired', status });
-    }
-
-    return Response.json({ ok: status >= 200 && status < 300, status });
   }
 
   // ── Get VAPID public key (for frontend subscription) ─────────────────────

@@ -84,6 +84,12 @@ export async function assignDriverToOrder(order, driver) {
       fare: order.fare,
     },
   }).catch(() => {}); // No bloquear si la push falla
+
+  // Timeout automático: si el chofer NO acepta en 30s, reasignar a otro
+  base44.functions.invoke("autoReassignOnTimeout", {
+    orderId: order.id,
+    timeoutSeconds: 30,
+  }).catch(() => {}); // No bloqueante
 }
 
 // Reassign after rejection: next in same base queue (skipping already-offered),
