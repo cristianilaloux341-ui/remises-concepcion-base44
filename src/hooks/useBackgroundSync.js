@@ -8,7 +8,7 @@ import { useEffect, useRef, useCallback } from "react";
  * @param {Function} onResume — callback que se llama al volver al primer plano
  * @param {number}   pingInterval — ms entre pings al SW (default: 20s)
  */
-export function useBackgroundSync(onResume, pingInterval = 20_000) {
+export function useBackgroundSync(onResume, pingInterval = 5_000) {
   const onResumeRef = useRef(onResume);
   const pingTimerRef = useRef(null);
   const wasHiddenRef = useRef(false);
@@ -18,7 +18,7 @@ export function useBackgroundSync(onResume, pingInterval = 20_000) {
   // Ping al SW para mantenerlo vivo
   const pingSW = useCallback(() => {
     if (navigator.serviceWorker?.controller) {
-      navigator.serviceWorker.controller.postMessage({ type: "KEEPALIVE" });
+      navigator.serviceWorker.controller.postMessage({ type: "KEEP_ALIVE" });
     }
   }, []);
 
@@ -52,12 +52,17 @@ export function useBackgroundSync(onResume, pingInterval = 20_000) {
     };
     window.addEventListener("focus", onFocus);
 
+    // Escuchar el evento custom que lanza DriverApp cuando el SW pide RECONNECT
+    const onCustomReconnect = () => onResumeRef.current?.();
+    window.addEventListener("radiocab_reconnect", onCustomReconnect);
+
     // Ping periódico para mantener SW + conexión activa
     pingTimerRef.current = setInterval(pingSW, pingInterval);
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("radiocab_reconnect", onCustomReconnect);
       navigator.serviceWorker?.removeEventListener("message", onSWMessage);
       clearInterval(pingTimerRef.current);
     };

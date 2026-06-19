@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 // base44 y useQuery se usan solo para bases (dato estático, no necesita tiempo real)
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
+import { useRejectionAlert } from "@/hooks/useRejectionAlert";
 import { Car, Clock, CheckCircle2, Users, ArrowRight, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -11,12 +12,20 @@ import StatCard from "@/components/dashboard/StatCard";
 import RideMap from "@/components/map/RideMap";
 import BaseQueueManager from "@/components/operator/BaseQueueManager";
 import DispatchPanel from "@/components/operator/DispatchPanel";
+import { reassignAfterReject } from "@/lib/dispatchLogic";
 
 
 export default function Dashboard() {
   // Suscripciones en tiempo real — actualizaciones instantáneas sin polling
   const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100 });
   const { drivers } = useRealtimeDrivers();
+
+  // Alarma + reasignación automática cuando un chofer rechaza
+  useRejectionAlert(orders, async (rejectedOrder) => {
+    // drivers puede estar desactualizado en el closure, obtener frescos
+    const freshDrivers = await base44.entities.Driver.list();
+    await reassignAfterReject(rejectedOrder, freshDrivers, []);
+  });
 
   const { data: bases = [] } = useQuery({
     queryKey: ["bases"],

@@ -828,23 +828,13 @@ export default function DriverApp() {
     requestNotificationPermission();
   }, []);
 
-  // Keep-alive: ping al SW cada 20s para que no lo maten en background
-  useEffect(() => {
-    if (!myDriverId) return;
-    const interval = setInterval(() => {
-      notifySW({ type: "KEEP_ALIVE" });
-    }, 20000);
-    return () => clearInterval(interval);
-  }, [myDriverId]);
-
   // BroadcastChannel: el SW nos despierta cuando detecta que la app está dormida
   useEffect(() => {
     if (!("BroadcastChannel" in window)) return;
     const bc = new BroadcastChannel("radiocab_wake");
     bc.onmessage = (e) => {
       if (e.data?.type === "WAKE_UP" && e.data.driverId === myDriverId) {
-        // La app se reactiva — las suscripciones en tiempo real se reconectan solas
-        console.log("[RadioCab] SW wake-up recibido");
+        window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       }
     };
     return () => bc.close();
@@ -857,17 +847,30 @@ export default function DriverApp() {
     setDismissedBroadcasts(dismissed);
   }, [myDriverId]);
 
-  // Escuchar mensajes del SW (ej: usuario tocó "Aceptar" en la notificación)
+  // Escuchar mensajes del SW
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     const handler = (event) => {
-      if (event.data?.type === "SW_ACCEPT_ORDER") {
-        // El SW nos pide aceptar la orden porque el usuario tocó el botón en la notif
-        const orderId = event.data.orderId;
+      const msg = event.data;
+      if (!msg) return;
+
+      if (msg.type === "SW_ACCEPT_ORDER") {
+        const orderId = msg.orderId;
         if (orderId && myDriverId) {
           base44.entities.RideOrder.update(orderId, { status: "aceptado" }).catch(() => {});
           base44.entities.Driver.update(myDriverId, { status: "en_viaje" }).catch(() => {});
         }
+      }
+
+      // SW ping — respondemos para mantener el canal vivo
+      if (msg.type === "SW_PING" || msg.type === "SW_ALIVE") {
+        notifySW({ type: "KEEP_ALIVE" });
+      }
+
+      // SW nos pide reconectar (app estaba dormida)
+      if (msg.type === "RECONNECT") {
+        // Reconectar forzando una recarga del estado
+        window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       }
     };
     navigator.serviceWorker.addEventListener("message", handler);
