@@ -1,0 +1,44 @@
+{
+  "name": "PanicAlert",
+  "type": "object",
+  "properties": {
+    "driver_id": {
+      "type": "string",
+      "description": "ID del chofer que activ\u00f3 la alerta"
+    },
+    "driver_name": {
+      "type": "string",
+      "description": "Nombre del chofer"
+    },
+    "vehicle_plate": {
+      "type": "string",
+      "description": "Patente del veh\u00edculo"
+    },
+    "current_lat": {
+      "type": "number",
+      "description": "Latitud de la ubicaci\u00f3n del p\u00e1nico"
+    },
+    "current_lng": {
+      "type": "number",
+      "description": "Longitud de la ubicaci\u00f3n del p\u00e1nico"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "activo",
+        "atendido",
+        "cancelado"
+      ],
+      "default": "activo",
+      "description": "Estado de la alerta"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notas adicionales del operador"
+    }
+  },
+  "required": [
+    "driver_id",
+    "driver_name"
+  ]
+}

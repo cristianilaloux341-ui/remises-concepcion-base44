@@ -8,7 +8,7 @@ import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle } from "lucide-react";
+import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle } from "lucide-react";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
 import RideMap from "@/components/map/RideMap";
 import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
@@ -1139,6 +1139,23 @@ export default function DriverApp() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            className="p-2 rounded-xl bg-red-600 hover:bg-red-700 text-white animate-pulse"
+            onClick={() => {
+              base44.entities.PanicAlert.create({
+                driver_id: myDriverId,
+                driver_name: myDriver.name,
+                vehicle_plate: myDriver.vehicle_plate,
+                current_lat: myDriver.current_lat,
+                current_lng: myDriver.current_lng,
+              });
+              navigator.vibrate?.([500, 200, 500, 200, 500]);
+              playAlert();
+            }}
+            title="Activar alerta de pánico"
+          >
+            <AlertCircle className="w-4 h-4" />
+          </button>
           {myDriver.current_base && myDriver.status === "disponible" && (
             <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
               📍 {myDriver.current_base}
