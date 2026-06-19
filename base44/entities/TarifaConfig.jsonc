@@ -2,30 +2,64 @@
   "name": "TarifaConfig",
   "type": "object",
   "properties": {
+    "clave_modificacion": {
+      "type": "string",
+      "description": "Clave num\u00e9rica para habilitar la edici\u00f3n de tarifas"
+    },
     "bajada_bandera": {
       "type": "number",
       "default": 500,
-      "description": "Importe fijo al iniciar un viaje"
+      "description": "Importe fijo al iniciar un viaje (diurno)"
     },
     "precio_por_km": {
       "type": "number",
       "default": 2000,
-      "description": "Precio por kil\u00f3metro recorrido"
+      "description": "Precio por kil\u00f3metro recorrido (diurno)"
     },
     "precio_por_minuto_corrido": {
       "type": "number",
       "default": 30,
-      "description": "Precio por minuto de viaje en movimiento"
+      "description": "Precio por minuto en movimiento (diurno)"
     },
     "precio_por_minuto_espera": {
       "type": "number",
       "default": 50,
-      "description": "Precio por minuto de espera (velocidad < 5 km/h)"
+      "description": "Precio por minuto de espera (diurno)"
     },
     "tolerancia_espera_segundos": {
       "type": "number",
       "default": 120,
       "description": "Segundos de gracia antes de cobrar espera"
+    },
+    "nocturna_bajada_bandera": {
+      "type": "number",
+      "default": 700,
+      "description": "Bajada de bandera nocturna"
+    },
+    "nocturna_precio_por_km": {
+      "type": "number",
+      "default": 2800,
+      "description": "Precio por km nocturno"
+    },
+    "nocturna_precio_por_minuto_corrido": {
+      "type": "number",
+      "default": 45,
+      "description": "Precio por minuto en movimiento nocturno"
+    },
+    "nocturna_precio_por_minuto_espera": {
+      "type": "number",
+      "default": 70,
+      "description": "Precio por minuto de espera nocturno"
+    },
+    "nocturna_hora_inicio": {
+      "type": "number",
+      "default": 22,
+      "description": "Hora de inicio de tarifa nocturna (0-23)"
+    },
+    "nocturna_hora_fin": {
+      "type": "number",
+      "default": 6,
+      "description": "Hora de fin de tarifa nocturna (0-23)"
     }
   },
   "required": []

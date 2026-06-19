@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { DollarSign, Save, Loader2 } from "lucide-react";
+import { DollarSign, Save, Loader2, Lock, Moon, Sun, KeyRound } from "lucide-react";
 
 const DEFAULTS = {
   bajada_bandera: 500,
@@ -13,12 +13,44 @@ const DEFAULTS = {
   precio_por_minuto_corrido: 30,
   precio_por_minuto_espera: 50,
   tolerancia_espera_segundos: 120,
+  nocturna_bajada_bandera: 700,
+  nocturna_precio_por_km: 2800,
+  nocturna_precio_por_minuto_corrido: 45,
+  nocturna_precio_por_minuto_espera: 70,
+  nocturna_hora_inicio: 22,
+  nocturna_hora_fin: 6,
 };
+
+function CampoMoneda({ label, description, field, form, onChange }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-sm font-semibold">{label}</Label>
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+        <Input
+          type="number"
+          min={0}
+          step={1}
+          className="pl-7"
+          value={form[field]}
+          onChange={(e) => onChange(field, e.target.value)}
+        />
+      </div>
+      {description && <p className="text-xs text-muted-foreground">{description}</p>}
+    </div>
+  );
+}
 
 export default function TarifaConfigPanel() {
   const qc = useQueryClient();
   const [saved, setSaved] = useState(false);
   const [form, setForm] = useState(DEFAULTS);
+  const [unlocked, setUnlocked] = useState(false);
+  const [claveInput, setClaveInput] = useState("");
+  const [claveError, setClaveError] = useState(false);
+  const [settingClave, setSettingClave] = useState(false);
+  const [newClave, setNewClave] = useState("");
+  const [newClaveConfirm, setNewClaveConfirm] = useState("");
 
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ["tarifa_config"],
@@ -35,19 +67,25 @@ export default function TarifaConfigPanel() {
         precio_por_minuto_corrido: config.precio_por_minuto_corrido ?? DEFAULTS.precio_por_minuto_corrido,
         precio_por_minuto_espera: config.precio_por_minuto_espera ?? DEFAULTS.precio_por_minuto_espera,
         tolerancia_espera_segundos: config.tolerancia_espera_segundos ?? DEFAULTS.tolerancia_espera_segundos,
+        nocturna_bajada_bandera: config.nocturna_bajada_bandera ?? DEFAULTS.nocturna_bajada_bandera,
+        nocturna_precio_por_km: config.nocturna_precio_por_km ?? DEFAULTS.nocturna_precio_por_km,
+        nocturna_precio_por_minuto_corrido: config.nocturna_precio_por_minuto_corrido ?? DEFAULTS.nocturna_precio_por_minuto_corrido,
+        nocturna_precio_por_minuto_espera: config.nocturna_precio_por_minuto_espera ?? DEFAULTS.nocturna_precio_por_minuto_espera,
+        nocturna_hora_inicio: config.nocturna_hora_inicio ?? DEFAULTS.nocturna_hora_inicio,
+        nocturna_hora_fin: config.nocturna_hora_fin ?? DEFAULTS.nocturna_hora_fin,
       });
     }
   }, [config?.id]);
 
   const saveMutation = useMutation({
     mutationFn: async (data) => {
-      const numData = {
-        bajada_bandera: Number(data.bajada_bandera),
-        precio_por_km: Number(data.precio_por_km),
-        precio_por_minuto_corrido: Number(data.precio_por_minuto_corrido),
-        precio_por_minuto_espera: Number(data.precio_por_minuto_espera),
-        tolerancia_espera_segundos: Number(data.tolerancia_espera_segundos),
-      };
+      const numData = Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, Number(v)])
+      );
+      // Preservar la clave existente
+      if (config?.clave_modificacion) {
+        numData.clave_modificacion = config.clave_modificacion;
+      }
       if (config?.id) {
         return base44.entities.TarifaConfig.update(config.id, numData);
       } else {
@@ -61,8 +99,46 @@ export default function TarifaConfigPanel() {
     },
   });
 
+  const saveClaveMutation = useMutation({
+    mutationFn: async (clave) => {
+      if (config?.id) {
+        return base44.entities.TarifaConfig.update(config.id, { clave_modificacion: clave });
+      } else {
+        return base44.entities.TarifaConfig.create({ ...DEFAULTS, clave_modificacion: clave });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries(["tarifa_config"]);
+      setSettingClave(false);
+      setNewClave("");
+      setNewClaveConfirm("");
+      setUnlocked(true);
+    },
+  });
+
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleUnlock = () => {
+    const clave = config?.clave_modificacion;
+    if (!clave) {
+      // Sin clave configurada, mostrar pantalla para crear una
+      setSettingClave(true);
+      return;
+    }
+    if (claveInput === clave) {
+      setUnlocked(true);
+      setClaveError(false);
+      setClaveInput("");
+    } else {
+      setClaveError(true);
+    }
+  };
+
+  const handleSetClave = () => {
+    if (!newClave || newClave !== newClaveConfirm) return;
+    saveClaveMutation.mutate(newClave);
   };
 
   if (isLoading) return (
@@ -71,143 +147,183 @@ export default function TarifaConfigPanel() {
     </div>
   );
 
-  // Preview: 3km, 10 min corrido, 2 min espera
-  const previewKm = 3;
-  const previewMinCorrido = 10;
-  const previewMinEspera = 2;
-  const previewTotal =
-    Number(form.bajada_bandera) +
-    previewKm * Number(form.precio_por_km) +
-    previewMinCorrido * Number(form.precio_por_minuto_corrido) +
-    previewMinEspera * Number(form.precio_por_minuto_espera);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-green-600" />
-          Tarifas
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
-
-        {/* Grid de campos */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-
-          {/* Bajada de bandera */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">Bajada de bandera</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-              <Input
-                type="number"
-                min={0}
-                step={1}
-                className="pl-7"
-                value={form.bajada_bandera}
-                onChange={(e) => handleChange("bajada_bandera", e.target.value)}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">Importe fijo al iniciar el viaje</p>
-          </div>
-
-          {/* Precio por km */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">Precio por kilómetro</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-              <Input
-                type="number"
-                min={0}
-                step={1}
-                className="pl-7"
-                value={form.precio_por_km}
-                onChange={(e) => handleChange("precio_por_km", e.target.value)}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">Por cada kilómetro recorrido</p>
-          </div>
-
-          {/* Tiempo corrido */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">Tiempo corrido (por minuto)</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-              <Input
-                type="number"
-                min={0}
-                step={1}
-                className="pl-7"
-                value={form.precio_por_minuto_corrido}
-                onChange={(e) => handleChange("precio_por_minuto_corrido", e.target.value)}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">Por cada minuto en movimiento</p>
-          </div>
-
-          {/* Tiempo de espera */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">Tiempo de espera (por minuto)</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-              <Input
-                type="number"
-                min={0}
-                step={1}
-                className="pl-7"
-                value={form.precio_por_minuto_espera}
-                onChange={(e) => handleChange("precio_por_minuto_espera", e.target.value)}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">Cuando el auto va a menos de 5 km/h</p>
-          </div>
-
-          {/* Tolerancia de espera */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">Tolerancia de espera</Label>
-            <div className="relative">
-              <Input
-                type="number"
-                min={0}
-                step={1}
-                className="pr-16"
-                value={form.tolerancia_espera_segundos}
-                onChange={(e) => handleChange("tolerancia_espera_segundos", e.target.value)}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">seg</span>
-            </div>
-            <p className="text-xs text-muted-foreground">Segundos de gracia antes de cobrar espera</p>
-          </div>
-
-        </div>
-
-        {/* Preview */}
-        <div className="bg-muted/40 rounded-lg p-4 text-sm space-y-1.5">
-          <p className="font-semibold text-xs text-muted-foreground uppercase tracking-wide mb-2">
-            Ejemplo: 3 km · 10 min en ruta · 2 min espera
+  // Pantalla de configurar clave por primera vez
+  if (settingClave || (!config?.clave_modificacion && !unlocked)) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="w-5 h-5 text-amber-500" />
+            Configurar clave de acceso
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 max-w-sm">
+          <p className="text-sm text-muted-foreground">
+            Definí una clave numérica para proteger la edición de tarifas. Necesitarás ingresarla cada vez que quieras modificarlas.
           </p>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Bajada de bandera</span>
-            <span className="font-mono text-foreground">${Number(form.bajada_bandera).toLocaleString()}</span>
+          <div className="space-y-1.5">
+            <Label>Nueva clave</Label>
+            <Input
+              type="password"
+              placeholder="Ej: 1234"
+              value={newClave}
+              onChange={(e) => setNewClave(e.target.value)}
+            />
           </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>3 km × ${Number(form.precio_por_km).toLocaleString()}/km</span>
-            <span className="font-mono text-foreground">${(3 * Number(form.precio_por_km)).toLocaleString()}</span>
+          <div className="space-y-1.5">
+            <Label>Confirmar clave</Label>
+            <Input
+              type="password"
+              placeholder="Repetí la clave"
+              value={newClaveConfirm}
+              onChange={(e) => setNewClaveConfirm(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSetClave()}
+            />
+            {newClave && newClaveConfirm && newClave !== newClaveConfirm && (
+              <p className="text-xs text-red-500">Las claves no coinciden</p>
+            )}
           </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>10 min corrido × ${Number(form.precio_por_minuto_corrido).toLocaleString()}/min</span>
-            <span className="font-mono text-foreground">${(10 * Number(form.precio_por_minuto_corrido)).toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>2 min espera × ${Number(form.precio_por_minuto_espera).toLocaleString()}/min</span>
-            <span className="font-mono text-foreground">${(2 * Number(form.precio_por_minuto_espera)).toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between font-bold border-t pt-2 mt-1 text-base">
-            <span>Total estimado</span>
-            <span className="text-green-600">${previewTotal.toLocaleString()}</span>
-          </div>
-        </div>
+          <Button
+            onClick={handleSetClave}
+            disabled={!newClave || newClave !== newClaveConfirm || saveClaveMutation.isPending}
+            className="gap-2"
+          >
+            {saveClaveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+            Guardar clave y continuar
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
+  // Pantalla de ingreso de clave
+  if (!unlocked) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lock className="w-5 h-5 text-muted-foreground" />
+            Tarifas protegidas
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 max-w-sm">
+          <p className="text-sm text-muted-foreground">
+            Ingresá la clave para poder modificar las tarifas.
+          </p>
+          <div className="space-y-1.5">
+            <Label>Clave de acceso</Label>
+            <Input
+              type="password"
+              placeholder="••••"
+              value={claveInput}
+              onChange={(e) => { setClaveInput(e.target.value); setClaveError(false); }}
+              onKeyDown={(e) => e.key === "Enter" && handleUnlock()}
+              autoFocus
+            />
+            {claveError && <p className="text-xs text-red-500">Clave incorrecta</p>}
+          </div>
+          <Button onClick={handleUnlock} className="gap-2">
+            <Lock className="w-4 h-4" />
+            Desbloquear
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Formulario completo (desbloqueado)
+  return (
+    <div className="space-y-6">
+
+      {/* Tarifa diurna */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sun className="w-5 h-5 text-amber-500" />
+            Tarifa Diurna
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <CampoMoneda label="Bajada de bandera" description="Importe fijo al iniciar" field="bajada_bandera" form={form} onChange={handleChange} />
+            <CampoMoneda label="Precio por kilómetro" description="Por cada km recorrido" field="precio_por_km" form={form} onChange={handleChange} />
+            <CampoMoneda label="Tiempo corrido (por minuto)" description="En movimiento" field="precio_por_minuto_corrido" form={form} onChange={handleChange} />
+            <CampoMoneda label="Tiempo de espera (por minuto)" description="Menos de 5 km/h" field="precio_por_minuto_espera" form={form} onChange={handleChange} />
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold">Tolerancia de espera</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  className="pr-14"
+                  value={form.tolerancia_espera_segundos}
+                  onChange={(e) => handleChange("tolerancia_espera_segundos", e.target.value)}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">seg</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Gracia antes de cobrar espera</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tarifa nocturna */}
+      <Card className="border-indigo-200 dark:border-indigo-800">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Moon className="w-5 h-5 text-indigo-500" />
+            Tarifa Nocturna
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex gap-4 flex-wrap">
+            <div className="space-y-1.5 w-36">
+              <Label className="text-sm font-semibold">Hora inicio</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={form.nocturna_hora_inicio}
+                  onChange={(e) => handleChange("nocturna_hora_inicio", e.target.value)}
+                  className="pr-10"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">hs</span>
+              </div>
+            </div>
+            <div className="space-y-1.5 w-36">
+              <Label className="text-sm font-semibold">Hora fin</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={form.nocturna_hora_fin}
+                  onChange={(e) => handleChange("nocturna_hora_fin", e.target.value)}
+                  className="pr-10"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">hs</span>
+              </div>
+            </div>
+            <div className="self-end pb-1">
+              <p className="text-xs text-muted-foreground">
+                Tarifa nocturna activa de las <strong>{form.nocturna_hora_inicio}:00</strong> a las <strong>{form.nocturna_hora_fin}:00</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <CampoMoneda label="Bajada de bandera" field="nocturna_bajada_bandera" form={form} onChange={handleChange} />
+            <CampoMoneda label="Precio por kilómetro" field="nocturna_precio_por_km" form={form} onChange={handleChange} />
+            <CampoMoneda label="Tiempo corrido (por min)" field="nocturna_precio_por_minuto_corrido" form={form} onChange={handleChange} />
+            <CampoMoneda label="Tiempo de espera (por min)" field="nocturna_precio_por_minuto_espera" form={form} onChange={handleChange} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Acciones */}
+      <div className="flex items-center gap-3 flex-wrap">
         <Button
           onClick={() => saveMutation.mutate(form)}
           disabled={saveMutation.isPending}
@@ -216,8 +332,24 @@ export default function TarifaConfigPanel() {
           {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {saved ? "¡Guardado!" : "Guardar Tarifas"}
         </Button>
-
-      </CardContent>
-    </Card>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 text-muted-foreground"
+          onClick={() => { setUnlocked(false); setSettingClave(true); }}
+        >
+          <KeyRound className="w-4 h-4" />
+          Cambiar clave
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground"
+          onClick={() => setUnlocked(false)}
+        >
+          Bloquear
+        </Button>
+      </div>
+    </div>
   );
 }
