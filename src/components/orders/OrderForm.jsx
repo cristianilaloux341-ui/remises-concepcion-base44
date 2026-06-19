@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, Search, UserPlus, Wand2 } from "lucide-react";
-import { findBestDriver, detectZoneFromAddress } from "@/lib/dispatchLogic";
+import { findBestDriver, detectZoneFromAddress, learnZoneMapping } from "@/lib/dispatchLogic";
 import AddressAutocomplete from "@/components/orders/AddressAutocomplete";
 import { recordAddressUsage } from "@/hooks/useAddressSuggestions";
 
@@ -190,6 +190,11 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     if (data.pickup_address) recordAddressUsage(data.pickup_address, queryClient);
     if (data.dropoff_address) recordAddressUsage(data.dropoff_address, queryClient);
     (data.dropoff_addresses || []).forEach(a => a && recordAddressUsage(a, queryClient));
+
+    // Learn zone mapping from address+zone for future auto-detection
+    if (data.zone && data.pickup_address) {
+      learnZoneMapping(data.pickup_address, data.zone).catch(() => {});
+    }
 
     onSubmit(data);
   };

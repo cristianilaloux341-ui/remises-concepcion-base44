@@ -107,6 +107,86 @@ export async function reassignAfterReject(order, drivers, bases) {
   return "broadcast";
 }
 
+// ── Address Parsing ───────────────────────────────────────────────────────────
+// Extracts street name and number from an Argentine-style address
+export function parseAddress(address) {
+  if (!address) return { street: null, number: null };
+  const cleaned = address.trim();
+
+  // Try to match: street name + number (possibly followed by more text)
+  // Handles: "San Martín 1250", "9 de Julio 350", "Av. Mitre 800 esq. Moreno"
+  const match = cleaned.match(/^(.+?)\s+(\d{2,5})\b(.*)$/);
+
+  if (match) {
+    let street = match[1].trim();
+    const number = parseInt(match[2], 10);
+    // Strip common prefixes
+    street = street.replace(/^(av\.?|avda\.?|calle|bv\.?|blvd\.?|pje\.?|pasaje)\s+/i, "").trim();
+    return { street, number };
+  }
+
+  // No number — extract street name only
+  let street = cleaned;
+  street = street.split(/\s+(y|esq\.?|esquina)\s+/i)[0].trim();
+  street = street.replace(/^(av\.?|avda\.?|calle|bv\.?|blvd\.?|pje\.?|pasaje)\s+/i, "").trim();
+  return { street: street || null, number: null };
+}
+
+// ── Zone Learning ─────────────────────────────────────────────────────────────
+// Saves/updates ZoneMapping when an address+zone is confirmed
+const _normalize = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+export async function learnZoneMapping(address, zone) {
+  if (!address || !zone || address.trim().length < 3) return;
+
+  const parsed = parseAddress(address);
+  if (!parsed.street || parsed.street.length < 2) return;
+
+  const streetNorm = _normalize(parsed.street);
+  const mappings = await base44.entities.ZoneMapping.list("-priority", 500);
+
+  // Check general street mapping
+  const existingGeneral = mappings.find(m => _normalize(m.keyword) === streetNorm);
+
+  if (!existingGeneral) {
+    // New street — create general mapping
+    await base44.entities.ZoneMapping.create({
+      keyword: parsed.street,
+      zone,
+      priority: 1,
+      notes: parsed.number ? `Ej: altura ${parsed.number}` : "",
+    });
+  } else if (existingGeneral.zone === zone && parsed.number) {
+    // Same zone — enrich notes with height
+    const notes = existingGeneral.notes || "";
+    const numStr = String(parsed.number);
+    if (!notes.includes(numStr) && notes.length < 400) {
+      const updated = notes ? `${notes}, ${numStr}` : `Alturas: ${numStr}`;
+      await base44.entities.ZoneMapping.update(existingGeneral.id, { notes: updated });
+    }
+  }
+
+  // If number exists, create a height-block mapping (more specific = higher priority)
+  if (parsed.number) {
+    const block = Math.floor(parsed.number / 100);
+    const blockKeyword = `${parsed.street} ${block}`;
+    const blockNorm = _normalize(blockKeyword);
+    const existingBlock = mappings.find(m => _normalize(m.keyword) === blockNorm);
+
+    if (!existingBlock) {
+      await base44.entities.ZoneMapping.create({
+        keyword: blockKeyword,
+        zone,
+        priority: 10,
+        notes: `Alturas ${block}00-${block}99`,
+      });
+    } else if (existingBlock.zone !== zone) {
+      // Operator chose a different zone for this block — update it
+      await base44.entities.ZoneMapping.update(existingBlock.id, { zone });
+    }
+  }
+}
+
 // ── Zone Detection ────────────────────────────────────────────────────────────
 // Detects the zone for an address using the ZoneMapping entity (editable dictionary)
 // Returns { zone, confidence } or null if no match found
