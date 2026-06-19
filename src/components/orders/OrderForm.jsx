@@ -1,15 +1,15 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, Search, UserPlus, Wand2 } from "lucide-react";
-import { findBestDriver, detectZoneFromAddress, learnZoneMapping } from "@/lib/dispatchLogic";
+import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, UserPlus, Wand2 } from "lucide-react";
+import { findBestDriver, detectZoneFromAddress, learnZoneMapping, parseAddress } from "@/lib/dispatchLogic";
+import PickupAutocomplete from "@/components/orders/PickupAutocomplete";
 import AddressAutocomplete from "@/components/orders/AddressAutocomplete";
 import { recordAddressUsage } from "@/hooks/useAddressSuggestions";
 
@@ -32,14 +32,11 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     ...order,
   });
 
-  const [clientSearch, setClientSearch] = useState("");
-  const [showClientResults, setShowClientResults] = useState(false);
   const [autoAssigning, setAutoAssigning] = useState(false);
   const queryClient = useQueryClient();
   const [suggestedDriver, setSuggestedDriver] = useState(null);
   const [detectedZone, setDetectedZone] = useState(null);
   const [detectingZone, setDetectingZone] = useState(false);
-  const searchRef = useRef(null);
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
@@ -54,6 +51,12 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
   const { data: bases = [] } = useQuery({
     queryKey: ["bases"],
     queryFn: () => base44.entities.Base.list(),
+  });
+
+  const { data: clientAddresses = [] } = useQuery({
+    queryKey: ["client_addresses"],
+    queryFn: () => base44.entities.ClientAddress.list("-usage_count", 500),
+    staleTime: 30_000,
   });
 
   const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
@@ -83,29 +86,13 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       .then(d => setSuggestedDriver(d));
   }, [form.pickup_address, drivers.length]);
 
-  // Click outside to close search
-  useEffect(() => {
-    const handler = (e) => { if (!searchRef.current?.contains(e.target)) setShowClientResults(false); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const filteredClients = clients.filter(c =>
-    clientSearch.length >= 1 &&
-    (c.name?.toLowerCase().includes(clientSearch.toLowerCase()) ||
-     c.phone?.includes(clientSearch))
-  ).slice(0, 6);
-
-  const handleSelectClient = (client) => {
+  const handleAddressClientSelect = (clientData) => {
     setForm(prev => ({
       ...prev,
-      client_name: client.name,
-      client_phone: client.phone || "",
-      client_id: client.id,
-      pickup_address: client.pickup_address || prev.pickup_address,
+      client_name: clientData.client_name || prev.client_name,
+      client_phone: clientData.client_phone || prev.client_phone,
+      client_id: clientData.client_id || prev.client_id,
     }));
-    setClientSearch(client.name);
-    setShowClientResults(false);
   };
 
   const handleChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
@@ -196,6 +183,36 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       learnZoneMapping(data.pickup_address, data.zone).catch(() => {});
     }
 
+    // Save/update ClientAddress relationship
+    if (data.pickup_address && data.client_id) {
+      const addrNorm = data.pickup_address.trim().toLowerCase();
+      const existingCA = clientAddresses.find(ca =>
+        ca.client_id === data.client_id &&
+        (ca.full_address || "").trim().toLowerCase() === addrNorm
+      );
+      if (existingCA) {
+        base44.entities.ClientAddress.update(existingCA.id, {
+          usage_count: (existingCA.usage_count || 0) + 1,
+          last_used: new Date().toISOString(),
+          client_name: data.client_name,
+          client_phone: data.client_phone || "",
+        }).catch(() => {});
+      } else {
+        const parsed = parseAddress(data.pickup_address);
+        base44.entities.ClientAddress.create({
+          client_id: data.client_id,
+          client_name: data.client_name,
+          client_phone: data.client_phone || "",
+          street: parsed.street || data.pickup_address,
+          height: parsed.number ? String(parsed.number) : "",
+          full_address: data.pickup_address,
+          usage_count: 1,
+          last_used: new Date().toISOString(),
+        }).catch(() => {});
+      }
+      queryClient.invalidateQueries({ queryKey: ["client_addresses"] });
+    }
+
     onSubmit(data);
   };
 
@@ -212,45 +229,56 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-5">
 
+          {/* ── DIRECCIÓN DE ORIGEN ── */}
+          <div className="p-4 rounded-xl bg-muted/40 border space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5" /> Dirección de Origen
+            </p>
+            <div className="space-y-1.5">
+              <Label>Recogida</Label>
+              <PickupAutocomplete
+                value={form.pickup_address}
+                onChange={(v) => handleChange("pickup_address", v)}
+                onClientSelect={handleAddressClientSelect}
+                required
+              />
+            </div>
+            {/* Zona */}
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-2">
+                Zona
+                {detectingZone && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                {detectedZone && detectedZone === form.zone && (
+                  <span className="text-xs text-green-600 flex items-center gap-1 font-normal">
+                    <Wand2 className="w-3 h-3" /> Detectada automáticamente
+                  </span>
+                )}
+                {detectedZone && detectedZone !== form.zone && form.zone && (
+                  <button type="button" className="text-xs text-amber-600 underline font-normal flex items-center gap-1"
+                    onClick={() => handleChange("zone", detectedZone)}>
+                    <Wand2 className="w-3 h-3" /> Sugerida: {detectedZone}
+                  </button>
+                )}
+                {!form.zone && !detectedZone && !detectingZone && form.pickup_address?.length > 2 && (
+                  <span className="text-xs text-amber-600 font-normal">Selección manual requerida</span>
+                )}
+              </Label>
+              <Select value={form.zone || ""} onValueChange={(v) => handleChange("zone", v)}>
+                <SelectTrigger className={!form.zone ? "border-amber-300" : ""}>
+                  <SelectValue placeholder="Seleccionar zona..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {ZONES.map(z => <SelectItem key={z} value={z}>{z}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {/* ── CLIENTE ── */}
           <div className="p-4 rounded-xl bg-muted/40 border space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
               <User className="w-3.5 h-3.5" /> Cliente
             </p>
-
-            {/* Search box */}
-            <div className="relative" ref={searchRef}>
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="Buscar cliente por nombre o teléfono..."
-                value={clientSearch}
-                onChange={(e) => { setClientSearch(e.target.value); setShowClientResults(true); }}
-                onFocus={() => setShowClientResults(true)}
-              />
-              {showClientResults && filteredClients.length > 0 && (
-                <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-xl shadow-lg overflow-hidden">
-                  {filteredClients.map(c => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      className="w-full px-4 py-2.5 text-left hover:bg-muted flex items-center justify-between gap-2"
-                      onClick={() => handleSelectClient(c)}
-                    >
-                      <div>
-                        <p className="text-sm font-medium">{c.name}</p>
-                        {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
-                      </div>
-                      {c.pickup_address && (
-                        <p className="text-xs text-muted-foreground truncate max-w-[150px]">{c.pickup_address}</p>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Manual fields */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="client_name">Nombre</Label>
@@ -259,9 +287,9 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
                   <Input
                     id="client_name"
                     className="pl-9"
-                    placeholder="Juan Pérez"
+                    placeholder="Nombre del cliente"
                     value={form.client_name}
-                    onChange={(e) => { handleChange("client_name", e.target.value); setClientSearch(e.target.value); }}
+                    onChange={(e) => handleChange("client_name", e.target.value)}
                     required
                   />
                 </div>
@@ -291,27 +319,13 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
             ) : null}
           </div>
 
-          {/* ── DIRECCIONES ── */}
+          {/* ── DESTINOS ── */}
           <div className="p-4 rounded-xl bg-muted/40 border space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5" /> Direcciones
+              <MapPin className="w-3.5 h-3.5" /> Destinos
             </p>
-
-            {/* Recogida */}
             <div className="space-y-1.5">
-              <Label htmlFor="pickup">Recogida</Label>
-              <AddressAutocomplete
-                value={form.pickup_address}
-                onChange={(v) => handleChange("pickup_address", v)}
-                placeholder="Calle y número de recogida"
-                icon={<div className="w-3 h-3 rounded-full bg-green-500" />}
-                required
-              />
-            </div>
-
-            {/* Destino principal */}
-            <div className="space-y-1.5">
-              <Label htmlFor="dropoff">Destino</Label>
+              <Label>Destino Principal</Label>
               <AddressAutocomplete
                 value={form.dropoff_address}
                 onChange={(v) => handleChange("dropoff_address", v)}
@@ -319,8 +333,6 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
                 icon={<MapPin className="w-4 h-4 text-red-500" />}
               />
             </div>
-
-            {/* Destinos adicionales */}
             {(form.dropoff_addresses || []).map((addr, idx) => (
               <div key={idx} className="flex gap-2 items-center">
                 <div className="flex-1">
@@ -337,44 +349,9 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
                 </Button>
               </div>
             ))}
-
-            <Button type="button" variant="outline" size="sm" className="gap-1.5 rounded-lg"
-              onClick={addDestination}>
+            <Button type="button" variant="outline" size="sm" className="gap-1.5 rounded-lg" onClick={addDestination}>
               <Plus className="w-3.5 h-3.5" /> Agregar parada
             </Button>
-
-            {/* Zona */}
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-2">
-                Zona
-                {detectingZone && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
-                {detectedZone && detectedZone === form.zone && (
-                  <span className="text-xs text-green-600 flex items-center gap-1 font-normal">
-                    <Wand2 className="w-3 h-3" /> Detectada automáticamente
-                  </span>
-                )}
-                {detectedZone && detectedZone !== form.zone && form.zone && (
-                  <button
-                    type="button"
-                    className="text-xs text-amber-600 underline font-normal flex items-center gap-1"
-                    onClick={() => handleChange("zone", detectedZone)}
-                  >
-                    <Wand2 className="w-3 h-3" /> Sugerida: {detectedZone}
-                  </button>
-                )}
-                {!form.zone && !detectedZone && !detectingZone && form.pickup_address?.length > 2 && (
-                  <span className="text-xs text-amber-600 font-normal">Selección manual requerida</span>
-                )}
-              </Label>
-              <Select value={form.zone || ""} onValueChange={(v) => handleChange("zone", v)}>
-                <SelectTrigger className={!form.zone ? "border-amber-300" : ""}>
-                  <SelectValue placeholder="Seleccionar zona..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {ZONES.map(z => <SelectItem key={z} value={z}>{z}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           {/* ── ASIGNACIÓN ── */}

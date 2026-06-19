@@ -1,0 +1,47 @@
+{
+  "name": "ClientAddress",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "description": "ID del cliente asociado"
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Nombre del cliente (cache para b\u00fasqueda r\u00e1pida)"
+    },
+    "client_phone": {
+      "type": "string",
+      "description": "Tel\u00e9fono del cliente (cache)"
+    },
+    "street": {
+      "type": "string",
+      "description": "Nombre de la calle"
+    },
+    "height": {
+      "type": "string",
+      "description": "Altura/n\u00famero"
+    },
+    "floor_apt": {
+      "type": "string",
+      "description": "Piso y departamento"
+    },
+    "full_address": {
+      "type": "string",
+      "description": "Direcci\u00f3n completa (calle + altura)"
+    },
+    "usage_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Cantidad de veces utilizada"
+    },
+    "last_used": {
+      "type": "string",
+      "description": "\u00daltima vez usada (ISO datetime)"
+    }
+  },
+  "required": [
+    "client_id",
+    "full_address"
+  ]
+}
