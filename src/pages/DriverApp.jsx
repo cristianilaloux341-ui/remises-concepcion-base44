@@ -114,6 +114,17 @@ const STATUS_CONFIG = {
 
 // ── Login screen ──────────────────────────────────────────────────────────────
 function LoginScreen({ drivers, onSelect }) {
+  const [gpsStatus, setGpsStatus] = useState(null); // null | 'ok' | 'denied'
+
+  const requestGps = () => {
+    if (!navigator.geolocation) { setGpsStatus("denied"); return; }
+    navigator.geolocation.getCurrentPosition(
+      () => setGpsStatus("ok"),
+      () => setGpsStatus("denied"),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
@@ -123,6 +134,25 @@ function LoginScreen({ drivers, onSelect }) {
           </div>
           <h1 className="text-3xl font-bold text-white">Remisería</h1>
           <p className="text-gray-400">App del Chófer</p>
+        </div>
+
+        {/* Permiso GPS */}
+        <div className={`rounded-2xl p-4 border flex items-center gap-3 ${gpsStatus === "ok" ? "bg-green-900/30 border-green-700" : gpsStatus === "denied" ? "bg-red-900/30 border-red-700" : "bg-gray-800 border-gray-700"}`}>
+          <MapPin className={`w-5 h-5 shrink-0 ${gpsStatus === "ok" ? "text-green-400" : gpsStatus === "denied" ? "text-red-400" : "text-gray-400"}`} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white">Ubicación GPS</p>
+            <p className="text-xs text-gray-400">
+              {gpsStatus === "ok" ? "✓ Permiso concedido" : gpsStatus === "denied" ? "✗ Permiso denegado — habilitalo en Ajustes" : "Necesario para recibir viajes"}
+            </p>
+          </div>
+          {gpsStatus !== "ok" && (
+            <button
+              className="shrink-0 bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl"
+              onClick={requestGps}
+            >
+              Permitir
+            </button>
+          )}
         </div>
 
         <div className="bg-gray-900 rounded-2xl p-5 space-y-3 border border-gray-800">
@@ -836,16 +866,48 @@ export default function DriverApp() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // GPS
+  // GPS — con reintentos automáticos si falla
+  const gpsIdRef = useRef(null);
   useEffect(() => {
-    if (!navigator.geolocation || !myDriverId) return;
-    const id = navigator.geolocation.watchPosition((pos) => {
-      base44.entities.Driver.update(myDriverId, {
-        current_lat: pos.coords.latitude,
-        current_lng: pos.coords.longitude,
-      }).catch(() => {});
-    });
-    return () => navigator.geolocation.clearWatch(id);
+    if (!myDriverId) return;
+    if (!navigator.geolocation) return;
+
+    const startWatch = () => {
+      if (gpsIdRef.current !== null) {
+        navigator.geolocation.clearWatch(gpsIdRef.current);
+      }
+      gpsIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          base44.entities.Driver.update(myDriverId, {
+            current_lat: pos.coords.latitude,
+            current_lng: pos.coords.longitude,
+          }).catch(() => {});
+        },
+        (err) => {
+          // Si el GPS falla, reintentar en 5s
+          console.warn("GPS error:", err.code, err.message);
+          setTimeout(startWatch, 5000);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 5000,
+        }
+      );
+    };
+
+    startWatch();
+
+    // Re-iniciar GPS cuando la página vuelve a primer plano (background → foreground)
+    const onVisible = () => {
+      if (document.visibilityState === "visible") startWatch();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      if (gpsIdRef.current !== null) navigator.geolocation.clearWatch(gpsIdRef.current);
+    };
   }, [myDriverId]);
 
   // ── Tiempo real: suscripciones en lugar de polling ────────────────────────
