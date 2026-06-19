@@ -16,8 +16,7 @@ const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-
 import { format, formatDistanceToNow, isPast, differenceInMinutes } from "date-fns";
 import { es } from "date-fns/locale";
 import { assignDriverToOrder, findBestDriver, detectZoneFromAddress } from "@/lib/dispatchLogic";
-import { haversineMetros } from "@/hooks/useTarifaConfig";
-import { useTarifaConfig } from "@/hooks/useTarifaConfig";
+import { useTarifaConfig, calcularDistanciaRuta, calcularImporte } from "@/hooks/useTarifaConfig";
 
 const STATUS_COLORS = {
   pendiente: "bg-amber-100 text-amber-700",
@@ -39,6 +38,7 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [filteredClients, setFilteredClients] = useState([]);
   const [selectedClientId, setSelectedClientId] = useState(ride?.client_id || "");
+  const [calculandoTarifa, setCalculandoTarifa] = useState(false);
   const tariffConfig = useTarifaConfig();
   const debounceTimer = useRef(null);
 
@@ -90,32 +90,17 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
         }
       }
 
-      // Auto-calculate fare
+      // Auto-calculate fare via OSRM
       if (form.pickup_address && form.dropoff_address && tariffConfig) {
+        setCalculandoTarifa(true);
         try {
-          const pickupCoords = await base44.integrations.Core.InvokeLLM({
-            prompt: `Extract lat/lng from address in Concepción del Uruguay, Entre Ríos, Argentina: "${form.pickup_address}". Return ONLY valid JSON: {"lat": number, "lng": number}.`,
-            response_json_schema: { type: "object", properties: { lat: { type: "number" }, lng: { type: "number" } } }
-          });
-          const dropoffCoords = await base44.integrations.Core.InvokeLLM({
-            prompt: `Extract lat/lng from address in Concepción del Uruguay, Entre Ríos, Argentina: "${form.dropoff_address}". Return ONLY valid JSON: {"lat": number, "lng": number}.`,
-            response_json_schema: { type: "object", properties: { lat: { type: "number" }, lng: { type: "number" } } }
-          });
-
-          if (pickupCoords?.data?.lat && dropoffCoords?.data?.lat) {
-            const distMetros = haversineMetros(
-              pickupCoords.data.lat, pickupCoords.data.lng,
-              dropoffCoords.data.lat, dropoffCoords.data.lng
-            );
-            const fare = Math.round(
-              tariffConfig.bajada_bandera + 
-              (distMetros * (tariffConfig.precio_por_metro ?? 2))
-            );
+          const distMetros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address);
+          if (distMetros) {
+            const fare = calcularImporte(distMetros, tariffConfig);
             setForm(f => ({ ...f, fare }));
           }
-        } catch (_) {
-          // Si falla la geocodificación, no hacer nada
-        }
+        } catch (_) {}
+        setCalculandoTarifa(false);
       }
     }, 800);
 
@@ -183,8 +168,11 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label>Tarifa (opcional)</Label>
-          <Input type="number" value={form.fare} onChange={e => setForm({ ...form, fare: e.target.value })} />
+          <Label className="flex items-center gap-1.5">
+            Tarifa (opcional)
+            {calculandoTarifa && <span className="text-xs text-blue-500 animate-pulse">calculando...</span>}
+          </Label>
+          <Input type="number" value={form.fare} onChange={e => setForm({ ...form, fare: e.target.value })} placeholder={calculandoTarifa ? "..." : "0"} />
         </div>
       </div>
 
