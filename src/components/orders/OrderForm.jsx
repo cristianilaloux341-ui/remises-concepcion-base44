@@ -87,11 +87,12 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
   }, [form.pickup_address, drivers.length]);
 
   const handleAddressClientSelect = (clientData) => {
+    // Force unconditional update — use the exact row's data (identified by addressId)
     setForm(prev => ({
       ...prev,
-      client_name: clientData.client_name || prev.client_name,
-      client_phone: clientData.client_phone || prev.client_phone,
-      client_id: clientData.client_id || prev.client_id,
+      client_id: clientData.client_id,
+      client_name: clientData.client_name,
+      client_phone: clientData.client_phone,
     }));
   };
 

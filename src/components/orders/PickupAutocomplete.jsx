@@ -73,11 +73,14 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     setInputValue(s.full_address);
     onChange(s.full_address);
     setOpen(false);
+    // Call with explicit addressId (row ID) so the parent can identify the exact record
     if (s.type === "client") {
       onClientSelect?.({
+        addressId: s.id,
         client_id: s.client_id,
-        client_name: s.client_name,
-        client_phone: s.client_phone || "",
+        client_name: s.client_name ?? "",
+        client_phone: s.client_phone ?? "",
+        floor_apt: s.floor_apt ?? "",
       });
     }
   };
@@ -109,11 +112,11 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
               <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{s.full_address}</p>
-                {s.type === "client" && s.client_name && (
+                {s.type === "client" && (
                   <p className="text-xs text-muted-foreground truncate">
                     <User className="w-3 h-3 inline mr-1" />
-                    {s.client_name}
-                    {s.client_phone ? ` (${s.client_phone})` : ""}
+                    {s.client_name || "(sin nombre)"}
+                    {s.client_phone ? ` · ${s.client_phone}` : ""}
                     {s.floor_apt ? ` · Piso ${s.floor_apt}` : ""}
                   </p>
                 )}
