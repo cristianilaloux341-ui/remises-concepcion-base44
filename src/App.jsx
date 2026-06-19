@@ -25,6 +25,7 @@ import Clients from '@/pages/Clients';
 import Agenda from '@/pages/Agenda';
 import Messages from '@/pages/Messages';
 import ZoneSettings from '@/pages/ZoneSettings';
+import Tarifas from '@/pages/Tarifas';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -78,6 +79,7 @@ const AuthenticatedApp = () => {
           <Route path="/agenda" element={<Agenda />} />
           <Route path="/messages" element={<Messages />} />
           <Route path="/zone-settings" element={<ZoneSettings />} />
+          <Route path="/tarifas" element={<Tarifas />} />
         </Route>
       </Route>
       
