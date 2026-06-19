@@ -7,10 +7,15 @@
       "default": 500,
       "description": "Importe fijo al iniciar un viaje"
     },
-    "precio_por_metro": {
+    "precio_por_km": {
       "type": "number",
-      "default": 2,
-      "description": "Precio por metro recorrido"
+      "default": 2000,
+      "description": "Precio por kil\u00f3metro recorrido"
+    },
+    "precio_por_minuto_corrido": {
+      "type": "number",
+      "default": 30,
+      "description": "Precio por minuto de viaje en movimiento"
     },
     "precio_por_minuto_espera": {
       "type": "number",
