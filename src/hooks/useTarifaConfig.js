@@ -105,5 +105,6 @@ export async function calcularDistanciaRuta(origen, destino) {
  * Calcula importe estimado.
  */
 export function calcularImporte(distanciaMetros, tarifa) {
-  return Math.round(tarifa.bajada_bandera + distanciaMetros * tarifa.precio_por_metro);
+  const precioPorMetro = (tarifa.precio_por_km ?? 2000) / 1000;
+  return Math.round(tarifa.bajada_bandera + distanciaMetros * precioPorMetro);
 }

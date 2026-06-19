@@ -42,6 +42,30 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
   const [distanciaCalculada, setDistanciaCalculada] = useState(null);
   const tarifa = useTarifaConfig();
 
+  // Auto-calcular tarifa cuando ambas direcciones estén completas
+  useEffect(() => {
+    const pickup = form.pickup_address?.trim();
+    const dropoff = form.dropoff_address?.trim();
+    if (!pickup || pickup.length < 4 || !dropoff || dropoff.length < 4) return;
+    const timeout = setTimeout(async () => {
+      setCalculandoTarifa(true);
+      const metros = await calcularDistanciaRuta(pickup, dropoff);
+      setCalculandoTarifa(false);
+      if (metros) {
+        setDistanciaCalculada(metros);
+        const importe = calcularImporte(metros, tarifa);
+        setForm(prev => ({
+          ...prev,
+          fare: importe,
+          distancia_teorica_metros: metros,
+          importe_estimado: importe,
+          importe_real_actual: importe,
+        }));
+      }
+    }, 800);
+    return () => clearTimeout(timeout);
+  }, [form.pickup_address, form.dropoff_address]);
+
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
@@ -473,7 +497,12 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
               </div>
               {distanciaCalculada && (
                 <p className="text-xs text-green-600">
-                  📍 {(distanciaCalculada / 1000).toFixed(1)} km · Bandera ${tarifa.bajada_bandera} + ${tarifa.precio_por_metro}/m
+                  📍 {(distanciaCalculada / 1000).toFixed(1)} km · Bandera ${tarifa.bajada_bandera} + ${tarifa.precio_por_km}/km {tarifa.es_nocturna ? "🌙 nocturna" : ""}
+                </p>
+              )}
+              {calculandoTarifa && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Calculando tarifa...
                 </p>
               )}
             </div>
