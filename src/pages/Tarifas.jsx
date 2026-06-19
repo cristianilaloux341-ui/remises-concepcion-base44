@@ -10,7 +10,7 @@ export default function Tarifas() {
           Configuración de Tarifas
         </h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Editá los valores de bajada de bandera, precio por km y tiempos de espera. Guardá una vez y quedan activos hasta el próximo aumento.
+          Editá los valores de bajada de bandera, precio por metro y tiempos de espera. Guardá una vez y quedan activos hasta el próximo aumento.
         </p>
       </div>
 

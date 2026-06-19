@@ -9,12 +9,12 @@ import { DollarSign, Save, Loader2, Lock, Moon, Sun, KeyRound } from "lucide-rea
 
 const DEFAULTS = {
   bajada_bandera: 500,
-  precio_por_km: 2000,
+  precio_por_metro: 2,
   precio_por_minuto_corrido: 30,
   precio_por_minuto_espera: 50,
   tolerancia_espera_segundos: 120,
   nocturna_bajada_bandera: 700,
-  nocturna_precio_por_km: 2800,
+  nocturna_precio_por_metro: 2.8,
   nocturna_precio_por_minuto_corrido: 45,
   nocturna_precio_por_minuto_espera: 70,
   nocturna_hora_inicio: 22,
@@ -62,18 +62,18 @@ export default function TarifaConfigPanel() {
   useEffect(() => {
     if (config) {
       setForm({
-        bajada_bandera: config.bajada_bandera ?? DEFAULTS.bajada_bandera,
-        precio_por_km: config.precio_por_km ?? DEFAULTS.precio_por_km,
-        precio_por_minuto_corrido: config.precio_por_minuto_corrido ?? DEFAULTS.precio_por_minuto_corrido,
-        precio_por_minuto_espera: config.precio_por_minuto_espera ?? DEFAULTS.precio_por_minuto_espera,
-        tolerancia_espera_segundos: config.tolerancia_espera_segundos ?? DEFAULTS.tolerancia_espera_segundos,
-        nocturna_bajada_bandera: config.nocturna_bajada_bandera ?? DEFAULTS.nocturna_bajada_bandera,
-        nocturna_precio_por_km: config.nocturna_precio_por_km ?? DEFAULTS.nocturna_precio_por_km,
-        nocturna_precio_por_minuto_corrido: config.nocturna_precio_por_minuto_corrido ?? DEFAULTS.nocturna_precio_por_minuto_corrido,
-        nocturna_precio_por_minuto_espera: config.nocturna_precio_por_minuto_espera ?? DEFAULTS.nocturna_precio_por_minuto_espera,
-        nocturna_hora_inicio: config.nocturna_hora_inicio ?? DEFAULTS.nocturna_hora_inicio,
-        nocturna_hora_fin: config.nocturna_hora_fin ?? DEFAULTS.nocturna_hora_fin,
-      });
+         bajada_bandera: config.bajada_bandera ?? DEFAULTS.bajada_bandera,
+         precio_por_metro: config.precio_por_metro ?? DEFAULTS.precio_por_metro,
+         precio_por_minuto_corrido: config.precio_por_minuto_corrido ?? DEFAULTS.precio_por_minuto_corrido,
+         precio_por_minuto_espera: config.precio_por_minuto_espera ?? DEFAULTS.precio_por_minuto_espera,
+         tolerancia_espera_segundos: config.tolerancia_espera_segundos ?? DEFAULTS.tolerancia_espera_segundos,
+         nocturna_bajada_bandera: config.nocturna_bajada_bandera ?? DEFAULTS.nocturna_bajada_bandera,
+         nocturna_precio_por_metro: config.nocturna_precio_por_metro ?? DEFAULTS.nocturna_precio_por_metro,
+         nocturna_precio_por_minuto_corrido: config.nocturna_precio_por_minuto_corrido ?? DEFAULTS.nocturna_precio_por_minuto_corrido,
+         nocturna_precio_por_minuto_espera: config.nocturna_precio_por_minuto_espera ?? DEFAULTS.nocturna_precio_por_minuto_espera,
+         nocturna_hora_inicio: config.nocturna_hora_inicio ?? DEFAULTS.nocturna_hora_inicio,
+         nocturna_hora_fin: config.nocturna_hora_fin ?? DEFAULTS.nocturna_hora_fin,
+       });
     }
   }, [config?.id]);
 
@@ -246,7 +246,7 @@ export default function TarifaConfigPanel() {
         <CardContent className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <CampoMoneda label="Bajada de bandera" description="Importe fijo al iniciar" field="bajada_bandera" form={form} onChange={handleChange} />
-            <CampoMoneda label="Precio por kilómetro" description="Por cada km recorrido" field="precio_por_km" form={form} onChange={handleChange} />
+            <CampoMoneda label="Precio por metro" description="Por cada metro recorrido" field="precio_por_metro" form={form} onChange={handleChange} />
             <CampoMoneda label="Tiempo corrido (por minuto)" description="En movimiento" field="precio_por_minuto_corrido" form={form} onChange={handleChange} />
             <CampoMoneda label="Tiempo de espera (por minuto)" description="Menos de 5 km/h" field="precio_por_minuto_espera" form={form} onChange={handleChange} />
             <div className="space-y-1.5">
@@ -315,7 +315,7 @@ export default function TarifaConfigPanel() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <CampoMoneda label="Bajada de bandera" field="nocturna_bajada_bandera" form={form} onChange={handleChange} />
-            <CampoMoneda label="Precio por kilómetro" field="nocturna_precio_por_km" form={form} onChange={handleChange} />
+            <CampoMoneda label="Precio por metro" field="nocturna_precio_por_metro" form={form} onChange={handleChange} />
             <CampoMoneda label="Tiempo corrido (por min)" field="nocturna_precio_por_minuto_corrido" form={form} onChange={handleChange} />
             <CampoMoneda label="Tiempo de espera (por min)" field="nocturna_precio_por_minuto_espera" form={form} onChange={handleChange} />
           </div>
