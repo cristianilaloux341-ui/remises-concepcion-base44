@@ -39,7 +39,7 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [filteredClients, setFilteredClients] = useState([]);
   const [selectedClientId, setSelectedClientId] = useState(ride?.client_id || "");
-  const { tariffConfig } = useTarifaConfig();
+  const tariffConfig = useTarifaConfig();
   const debounceTimer = useRef(null);
 
   // Cargar clientes
