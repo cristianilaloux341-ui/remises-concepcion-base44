@@ -46,18 +46,21 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     if (!debouncedQuery || debouncedQuery.length < 2) return [];
     const norm = normalize(debouncedQuery);
 
-    // Client-linked addresses (priority)
+    // Search by address OR client name — each row is unique by database ID
     const clientResults = clientAddresses
-      .filter((ca) => normalize(ca.full_address).includes(norm))
+      .filter((ca) =>
+        normalize(ca.full_address).includes(norm) ||
+        normalize(ca.client_name).includes(norm)
+      )
       .map((ca) => ({ ...ca, type: "client" }))
-      .slice(0, 6);
+      .slice(0, 8);
 
-    // General history (exclude duplicates)
-    const used = new Set(clientResults.map((r) => normalize(r.full_address)));
+    // General address history — only show if no client record covers this address
+    const clientAddressNorms = new Set(clientResults.map((r) => normalize(r.full_address)));
     const historyResults = addressHistory
-      .filter((a) => normalize(a.address).includes(norm) && !used.has(normalize(a.address)))
+      .filter((a) => normalize(a.address).includes(norm) && !clientAddressNorms.has(normalize(a.address)))
       .map((a) => ({ ...a, type: "history", full_address: a.address }))
-      .slice(0, 4);
+      .slice(0, 3);
 
     return [...clientResults, ...historyResults];
   }, [debouncedQuery, clientAddresses, addressHistory]);
@@ -92,7 +95,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
       </div>
       <Input
         className={cn("pl-8", className)}
-        placeholder={placeholder || "Escribí la dirección de recogida..."}
+        placeholder={placeholder || "Dirección o nombre del cliente..."}
         value={inputValue}
         onChange={handleChange}
         onFocus={() => inputValue.length >= 2 && setOpen(true)}
