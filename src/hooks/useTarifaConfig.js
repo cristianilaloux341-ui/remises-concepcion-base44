@@ -75,12 +75,16 @@ export function haversineMetros(lat1, lng1, lat2, lng2) {
  * Primero geocodifica con Nominatim, luego obtiene ruta con OSRM.
  * Retorna metros (number) o null si falla.
  */
+const CIUDAD = "Rufino, Santa Fe, Argentina";
+
 export async function calcularDistanciaRuta(origen, destino) {
   try {
     const geocode = async (addr) => {
+      // Si la dirección ya tiene ciudad incluida, no la duplicamos
+      const query = addr.toLowerCase().includes("rufino") ? addr : `${addr}, ${CIUDAD}`;
       const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1`,
-        { headers: { "Accept-Language": "es" } }
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=ar`,
+        { headers: { "Accept-Language": "es", "User-Agent": "remiseria-app/1.0" } }
       );
       const data = await r.json();
       if (!data.length) return null;
