@@ -27,6 +27,12 @@ import Messages from '@/pages/Messages';
 import ZoneSettings from '@/pages/ZoneSettings';
 import Tarifas from '@/pages/Tarifas';
 
+function AdminRoute({ children }) {
+  const { user } = useAuth();
+  if (user?.role !== "admin") return <Navigate to="/" replace />;
+  return children;
+}
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
@@ -73,13 +79,13 @@ const AuthenticatedApp = () => {
           <Route path="/orders/new" element={<NewOrder />} />
           <Route path="/orders/:id" element={<OrderDetail />} />
           <Route path="/map" element={<MapView />} />
-          <Route path="/drivers" element={<Drivers />} />
-          <Route path="/driver-link" element={<DriverLink />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/agenda" element={<Agenda />} />
           <Route path="/messages" element={<Messages />} />
-          <Route path="/zone-settings" element={<ZoneSettings />} />
-          <Route path="/tarifas" element={<Tarifas />} />
+          <Route path="/drivers" element={<AdminRoute><Drivers /></AdminRoute>} />
+          <Route path="/driver-link" element={<AdminRoute><DriverLink /></AdminRoute>} />
+          <Route path="/zone-settings" element={<AdminRoute><ZoneSettings /></AdminRoute>} />
+          <Route path="/tarifas" element={<AdminRoute><Tarifas /></AdminRoute>} />
         </Route>
       </Route>
       

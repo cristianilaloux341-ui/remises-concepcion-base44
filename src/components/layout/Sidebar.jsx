@@ -2,14 +2,18 @@ import { Link, useLocation } from "react-router-dom";
 import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/AuthContext";
 
-const navItems = [
+const operadorItems = [
   { label: "Central", path: "/", icon: LayoutDashboard },
   { label: "Órdenes", path: "/orders", icon: Car },
   { label: "Agenda", path: "/agenda", icon: CalendarClock },
   { label: "Clientes", path: "/clients", icon: UserCheck },
   { label: "Mensajes", path: "/messages", icon: MessageSquare },
   { label: "Mapa", path: "/map", icon: MapPin },
+];
+
+const adminItems = [
   { label: "Chóferes", path: "/drivers", icon: Users },
   { label: "App Chófer", path: "/driver-link", icon: Smartphone },
   { label: "Zonas", path: "/zone-settings", icon: Map },
@@ -18,6 +22,9 @@ const navItems = [
 
 export default function Sidebar({ open, onClose }) {
   const location = useLocation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const navItems = isAdmin ? [...operadorItems, ...adminItems] : operadorItems;
 
   return (
     <>
