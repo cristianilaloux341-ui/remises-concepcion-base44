@@ -917,6 +917,10 @@ export default function DriverApp() {
   // Alertas de mensajes entrantes (operador → este chofer)
   const { pendingMessages, dismissMessage } = useDriverMessageAlert(myDriverId || null);
 
+  // Estado local optimista — declarado ANTES de usarlo en myDriver
+  const [localBase, setLocalBase] = useState(null);
+  const [localStatus, setLocalStatus] = useState(null);
+
   const myDriverRaw = drivers.find(d => d.id === myDriverId);
   // Estado optimista: aplicar cambios locales inmediatamente sin esperar la suscripción
   const myDriver = myDriverRaw ? {
@@ -966,11 +970,6 @@ export default function DriverApp() {
     }
     if (!broadcastOrder) prevBroadcastId.current = null;
   }, [broadcastOrder?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Las mutaciones ya no necesitan invalidar queries: la suscripción actualiza el estado automáticamente
-  // Estado local optimista para la base — evita pantalla en blanco mientras llega la suscripción
-  const [localBase, setLocalBase] = useState(null);
-  const [localStatus, setLocalStatus] = useState(null);
 
   const updateOrder = useMutation({
     mutationFn: ({ id, data }) => base44.entities.RideOrder.update(id, data),
