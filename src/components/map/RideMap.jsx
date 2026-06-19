@@ -12,6 +12,13 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
+const centralIcon = new L.DivIcon({
+  html: '<div style="background:#7c3aed;width:18px;height:18px;border-radius:4px;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:10px;">🏢</div>',
+  className: "",
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+});
+
 const pickupIcon = new L.DivIcon({
   html: '<div style="background:#22c55e;width:14px;height:14px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
   className: "",
@@ -75,8 +82,11 @@ function FitBounds({ bounds }) {
   return null;
 }
 
+// Coordenadas de la central — Concepción del Uruguay, Entre Ríos
+const CENTRAL = { lat: -32.4847, lng: -58.2378, nombre: "Central Remisería" };
+
 export default function RideMap({ orders = [], drivers = [], center, zoom = 13, className = "" }) {
-  const defaultCenter = center || [-34.6037, -58.3816]; // Buenos Aires
+  const defaultCenter = center || [CENTRAL.lat, CENTRAL.lng];
 
   const allPoints = [];
   orders.forEach(o => {
@@ -101,6 +111,14 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
         />
 
         {allPoints.length > 1 && <FitBounds bounds={allPoints} />}
+
+        {/* Marcador fijo de la central */}
+        <Marker position={[CENTRAL.lat, CENTRAL.lng]} icon={centralIcon}>
+          <Popup>
+            <div className="text-sm font-semibold">{CENTRAL.nombre}</div>
+            <div className="text-xs text-gray-500">Concepción del Uruguay, Entre Ríos</div>
+          </Popup>
+        </Marker>
 
         {orders.map((order) => (
           <div key={order.id}>

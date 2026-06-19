@@ -75,7 +75,7 @@ export function haversineMetros(lat1, lng1, lat2, lng2) {
  * Primero geocodifica con Nominatim, luego obtiene ruta con OSRM.
  * Retorna metros (number) o null si falla.
  */
-const CIUDAD = "Rufino, Santa Fe, Argentina";
+const CIUDAD = "Concepción del Uruguay, Entre Ríos, Argentina";
 
 export async function calcularDistanciaRuta(origen, destino) {
   try {
