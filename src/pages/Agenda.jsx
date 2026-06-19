@@ -107,10 +107,9 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
               pickupCoords.data.lat, pickupCoords.data.lng,
               dropoffCoords.data.lat, dropoffCoords.data.lng
             );
-            const precioPorMetro = (tariffConfig.precio_por_km ?? 2000) / 1000;
             const fare = Math.round(
               tariffConfig.bajada_bandera + 
-              (distMetros * precioPorMetro)
+              (distMetros * (tariffConfig.precio_por_metro ?? 2))
             );
             setForm(f => ({ ...f, fare }));
           }

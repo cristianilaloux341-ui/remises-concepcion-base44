@@ -3,12 +3,12 @@ import { base44 } from "@/api/base44Client";
 
 const DEFAULTS = {
   bajada_bandera: 500,
-  precio_por_km: 2000,
+  precio_por_metro: 2,
   precio_por_minuto_corrido: 30,
   precio_por_minuto_espera: 50,
   tolerancia_espera_segundos: 120,
   nocturna_bajada_bandera: 700,
-  nocturna_precio_por_km: 2800,
+  nocturna_precio_por_metro: 2.8,
   nocturna_precio_por_minuto_corrido: 45,
   nocturna_precio_por_minuto_espera: 70,
   nocturna_hora_inicio: 22,
@@ -40,7 +40,7 @@ export function useTarifaConfig() {
   if (nocturna) {
     return {
       bajada_bandera: raw.nocturna_bajada_bandera ?? DEFAULTS.nocturna_bajada_bandera,
-      precio_por_km: raw.nocturna_precio_por_km ?? DEFAULTS.nocturna_precio_por_km,
+      precio_por_metro: raw.nocturna_precio_por_metro ?? DEFAULTS.nocturna_precio_por_metro,
       precio_por_minuto_corrido: raw.nocturna_precio_por_minuto_corrido ?? DEFAULTS.nocturna_precio_por_minuto_corrido,
       precio_por_minuto_espera: raw.nocturna_precio_por_minuto_espera ?? DEFAULTS.nocturna_precio_por_minuto_espera,
       tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? DEFAULTS.tolerancia_espera_segundos,
@@ -50,7 +50,7 @@ export function useTarifaConfig() {
 
   return {
     bajada_bandera: raw.bajada_bandera ?? DEFAULTS.bajada_bandera,
-    precio_por_km: raw.precio_por_km ?? DEFAULTS.precio_por_km,
+    precio_por_metro: raw.precio_por_metro ?? DEFAULTS.precio_por_metro,
     precio_por_minuto_corrido: raw.precio_por_minuto_corrido ?? DEFAULTS.precio_por_minuto_corrido,
     precio_por_minuto_espera: raw.precio_por_minuto_espera ?? DEFAULTS.precio_por_minuto_espera,
     tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? DEFAULTS.tolerancia_espera_segundos,
@@ -109,6 +109,6 @@ export async function calcularDistanciaRuta(origen, destino) {
  * Calcula importe estimado.
  */
 export function calcularImporte(distanciaMetros, tarifa) {
-  const precioPorMetro = (tarifa.precio_por_km ?? 2000) / 1000;
+  const precioPorMetro = tarifa.precio_por_metro ?? 2;
   return Math.round(tarifa.bajada_bandera + distanciaMetros * precioPorMetro);
 }

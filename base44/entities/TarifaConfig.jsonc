@@ -11,10 +11,10 @@
       "default": 500,
       "description": "Importe fijo al iniciar un viaje (diurno)"
     },
-    "precio_por_km": {
+    "precio_por_metro": {
       "type": "number",
-      "default": 2000,
-      "description": "Precio por kil\u00f3metro recorrido (diurno)"
+      "default": 2,
+      "description": "Precio por metro recorrido (diurno)"
     },
     "precio_por_minuto_corrido": {
       "type": "number",
@@ -36,10 +36,10 @@
       "default": 700,
       "description": "Bajada de bandera nocturna"
     },
-    "nocturna_precio_por_km": {
+    "nocturna_precio_por_metro": {
       "type": "number",
-      "default": 2800,
-      "description": "Precio por km nocturno"
+      "default": 2.8,
+      "description": "Precio por metro nocturno"
     },
     "nocturna_precio_por_minuto_corrido": {
       "type": "number",
