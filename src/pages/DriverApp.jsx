@@ -13,6 +13,8 @@ import RideMap from "@/components/map/RideMap";
 import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
 import DriverMessages from "@/components/driver/DriverMessages";
+import DriverMessageModal from "@/components/driver/DriverMessageModal";
+import { useDriverMessageAlert } from "@/hooks/useDriverMessageAlert";
 
 // ── Audio & Notifications ─────────────────────────────────────────────────────
 
@@ -638,6 +640,9 @@ export default function DriverApp() {
   // Wake Lock — mantiene la pantalla activa mientras el chofer está en servicio
   useWakeLock(!!myDriverId);
 
+  // Alertas de mensajes entrantes (operador → este chofer)
+  const { pendingMessages, dismissMessage } = useDriverMessageAlert(myDriverId || null);
+
   const myDriver = drivers.find(d => d.id === myDriverId);
   const activeOrder = orders.find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
   const offeredOrder = orders.find(o => o.driver_id === myDriverId && o.status === "ofrecido");
@@ -863,6 +868,14 @@ export default function DriverApp() {
 
       {showMessages && myDriver && (
         <DriverMessages driver={myDriver} onClose={() => setShowMessages(false)} />
+      )}
+
+      {/* Bloqueante: se muestra de a uno, el más antiguo primero */}
+      {pendingMessages.length > 0 && !showMessages && (
+        <DriverMessageModal
+          message={pendingMessages[0]}
+          onDismiss={() => dismissMessage(pendingMessages[0].id)}
+        />
       )}
     </div>
   );

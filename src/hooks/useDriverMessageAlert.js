@@ -1,0 +1,112 @@
+import { useState, useEffect, useRef } from "react";
+import { base44 } from "@/api/base44Client";
+
+// ── Audio engine ───────────────────────────────────────────────────────────────
+let _audioCtx = null;
+function getCtx() {
+  if (!_audioCtx || _audioCtx.state === "closed") {
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return _audioCtx;
+}
+
+// Plays one "blip" burst: two ascending tones
+function playBlip(ctx) {
+  [[0, 900, 0.55], [250, 1200, 0.45]].forEach(([delay, freq, vol]) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = "square";
+    o.frequency.value = freq;
+    const t = ctx.currentTime + delay / 1000;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    o.start(t); o.stop(t + 0.35);
+  });
+}
+
+// Starts continuous alert loop; returns stopFn
+function startAlertLoop() {
+  let stopped = false;
+  let intervalId = null;
+
+  const loop = () => {
+    if (stopped) return;
+    try {
+      const ctx = getCtx();
+      const doPlay = () => { if (!stopped) playBlip(ctx); };
+      if (ctx.state === "suspended") ctx.resume().then(doPlay);
+      else doPlay();
+    } catch (_) {}
+
+    try {
+      if (!stopped) navigator.vibrate?.([400, 200, 400, 200, 600]);
+    } catch (_) {}
+  };
+
+  loop(); // immediate first play
+  intervalId = setInterval(loop, 2200);
+
+  return () => {
+    stopped = true;
+    clearInterval(intervalId);
+    try { navigator.vibrate?.(0); } catch (_) {}
+  };
+}
+
+// ── Hook ───────────────────────────────────────────────────────────────────────
+// Returns: { pendingMessages, dismissMessage }
+// pendingMessages = array of message objects that need acknowledgement
+export function useDriverMessageAlert(driverId) {
+  const [pendingMessages, setPendingMessages] = useState([]);
+  const seenIds = useRef(new Set());
+  const stopAlertRef = useRef(null);
+
+  // Subscribe to new messages in real-time
+  useEffect(() => {
+    if (!driverId) return;
+
+    const unsubscribe = base44.entities.Message.subscribe((event) => {
+      if (event.type !== "create") return;
+      const msg = event.data;
+      if (!msg) return;
+      if (msg.from_type !== "operador") return; // only operator → driver
+      // Must be broadcast (no to_driver_id) or targeted at this driver
+      const isForMe = !msg.to_driver_id || msg.to_driver_id === driverId;
+      if (!isForMe) return;
+      if (seenIds.current.has(msg.id)) return;
+
+      seenIds.current.add(msg.id);
+      setPendingMessages(prev => [...prev, msg]);
+    });
+
+    return () => unsubscribe();
+  }, [driverId]);
+
+  // Start/stop audio loop based on pending messages
+  useEffect(() => {
+    if (pendingMessages.length > 0) {
+      if (!stopAlertRef.current) {
+        stopAlertRef.current = startAlertLoop();
+      }
+    } else {
+      if (stopAlertRef.current) {
+        stopAlertRef.current();
+        stopAlertRef.current = null;
+      }
+    }
+    // Cleanup on unmount
+    return () => {
+      if (stopAlertRef.current) { stopAlertRef.current(); stopAlertRef.current = null; }
+    };
+  }, [pendingMessages.length]);
+
+  const dismissMessage = (msgId) => {
+    // Mark as read in DB (fire and forget)
+    base44.entities.Message.update(msgId, { read: true }).catch(() => {});
+    setPendingMessages(prev => prev.filter(m => m.id !== msgId));
+  };
+
+  return { pendingMessages, dismissMessage };
+}

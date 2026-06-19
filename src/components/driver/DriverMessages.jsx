@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -27,16 +27,38 @@ function playBeep(type = "send") {
 }
 
 export default function DriverMessages({ driver, onClose }) {
-  const queryClient = useQueryClient();
   const [content, setContent] = useState("");
+  const [messages, setMessages] = useState([]);
   const bottomRef = useRef(null);
-  const prevCountRef = useRef(null);
+  const initializedRef = useRef(false);
 
-  const { data: messages = [] } = useQuery({
-    queryKey: ["messages"],
-    queryFn: () => base44.entities.Message.list("created_date", 100),
-    refetchInterval: 1500,
-  });
+  // Load initial messages then subscribe to real-time updates
+  useEffect(() => {
+    base44.entities.Message.list("created_date", 100).then(data => {
+      setMessages(data || []);
+      initializedRef.current = true;
+    });
+
+    const unsubscribe = base44.entities.Message.subscribe((event) => {
+      if (!initializedRef.current) return;
+      if (event.type === "create") {
+        setMessages(prev => {
+          if (prev.some(m => m.id === event.id)) return prev;
+          const msg = event.data;
+          // Only show messages relevant to this driver
+          const isForMe = !msg.to_driver_id || msg.to_driver_id === driver.id || msg.driver_id === driver.id;
+          if (!isForMe) return prev;
+          if (msg.from_type === "operador") {
+            playBeep("receive");
+            try { navigator.vibrate?.([200]); } catch (_) {}
+          }
+          return [...prev, msg];
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [driver.id]);
 
   // Filter: messages for this driver or broadcast
   const myMessages = messages.filter(m =>
@@ -44,24 +66,6 @@ export default function DriverMessages({ driver, onClose }) {
   );
 
   const unread = myMessages.filter(m => !m.read && m.from_type === "operador").length;
-
-  // Play sound when new incoming message arrives
-  useEffect(() => {
-    if (prevCountRef.current === null) {
-      prevCountRef.current = myMessages.length;
-      return;
-    }
-    const incoming = myMessages.filter(m => m.from_type === "operador");
-    const prevIncoming = prevCountRef.current;
-    if (myMessages.length > prevCountRef.current) {
-      const newMsgs = myMessages.slice(prevCountRef.current);
-      if (newMsgs.some(m => m.from_type === "operador")) {
-        playBeep("receive");
-        try { navigator.vibrate?.([200]); } catch (_) {}
-      }
-    }
-    prevCountRef.current = myMessages.length;
-  }, [myMessages.length]);
 
   const sendMutation = useMutation({
     mutationFn: () => base44.entities.Message.create({
@@ -73,7 +77,6 @@ export default function DriverMessages({ driver, onClose }) {
       read: false,
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
       setContent("");
       playBeep("send");
     }
@@ -81,7 +84,7 @@ export default function DriverMessages({ driver, onClose }) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [myMessages.length]);
+  }, [messages.length]);
 
   return (
     <div className="fixed inset-0 bg-white flex flex-col z-50">
