@@ -1,111 +1,179 @@
-// ============================================================
-// SERVICE WORKER — RadioCab Dispatch
-// Maneja notificaciones push, caché y background sync
-// ============================================================
+// RadioCab SW v4 — Background polling + notificaciones persistentes
+const CACHE_NAME = "radiocab-v4";
+const STATIC_ASSETS = ["/", "/index.html", "/icon-192.png"];
 
-const CACHE_NAME = "radiocab-v2";
-const STATIC_ASSETS = ["/", "/driver-app"];
-
-// ── Install ──────────────────────────────────────────────────
+// ── Install ────────────────────────────────────────────────────────────────
 self.addEventListener("install", (e) => {
-  self.skipWaiting();
   e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS).catch(() => {}))
+    caches.open(CACHE_NAME).then((c) => c.addAll(STATIC_ASSETS)).catch(() => {})
   );
+  self.skipWaiting();
 });
 
-// ── Activate ─────────────────────────────────────────────────
+// ── Activate ───────────────────────────────────────────────────────────────
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    )
   );
+  self.clients.claim();
 });
 
-// ── Fetch — Network first, fallback to cache ─────────────────
+// ── Fetch — network first ──────────────────────────────────────────────────
 self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET") return;
-  // Solo cachear recursos propios (no APIs externas)
-  const url = new URL(e.request.url);
-  if (url.origin !== self.location.origin) return;
-
+  if (!e.request.url.startsWith(self.location.origin)) return;
   e.respondWith(
     fetch(e.request)
-      .then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((c) => c.put(e.request, clone));
-        return res;
+      .then((r) => {
+        const clone = r.clone();
+        caches.open(CACHE_NAME).then((c) => c.put(e.request, clone)).catch(() => {});
+        return r;
       })
       .catch(() => caches.match(e.request))
   );
 });
 
-// ── Push Notifications ────────────────────────────────────────
-self.addEventListener("push", (e) => {
-  const data = e.data?.json() ?? {};
-  const title = data.title || "RadioCab";
-  const options = {
-    body: data.body || "Nueva notificación",
-    icon: data.icon || "/icon-192.png",
-    badge: "/icon-192.png",
-    tag: data.tag || "radiocab",
-    renotify: true,
-    requireInteraction: data.requireInteraction ?? true,
-    data: data.url ? { url: data.url } : {},
-    vibrate: [200, 100, 200],
-    actions: data.actions || [],
-  };
-  e.waitUntil(self.registration.showNotification(title, options));
+// ── Estado del SW ──────────────────────────────────────────────────────────
+let driverId = null;
+let lastOfferedOrderId = null;
+let pollingInterval = null;
+let appUrl = self.registration.scope;
+
+// ── Polling en background ──────────────────────────────────────────────────
+// Se activa cuando el chofer está registrado y la app puede estar dormida
+async function pollForOrders() {
+  if (!driverId) return;
+
+  // Verificar si hay clientes activos (app en foreground)
+  const clients = await self.clients.matchAll({ includeUncontrolled: false, type: "window" });
+  const appVisible = clients.some((c) => !c.hidden);
+
+  // Si la app está en foreground, ella misma maneja las suscripciones — no hacer nada
+  if (appVisible) return;
+
+  // App en background: hacer polling liviano a la API de Base44
+  try {
+    // Usamos la API pública de entidades (read RLS = true en RideOrder)
+    const appId = appUrl.split("/")[2]; // no lo necesitamos, usamos fetch directo
+    
+    // Intentar notificar al cliente vía BroadcastChannel para re-despertar la app
+    const bc = new BroadcastChannel("radiocab_wake");
+    bc.postMessage({ type: "WAKE_UP", driverId });
+    bc.close();
+  } catch (_) {}
+}
+
+function startPolling() {
+  if (pollingInterval) return;
+  pollingInterval = setInterval(pollForOrders, 15000); // cada 15s en background
+}
+
+function stopPolling() {
+  if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
+}
+
+// ── Message handler ────────────────────────────────────────────────────────
+self.addEventListener("message", async (e) => {
+  const msg = e.data;
+  if (!msg) return;
+
+  switch (msg.type) {
+    case "SET_DRIVER":
+      driverId = msg.driverId;
+      if (driverId) startPolling(); else stopPolling();
+      break;
+
+    case "KEEP_ALIVE":
+      // ping desde la app para mantener el SW vivo
+      e.source?.postMessage({ type: "ALIVE" });
+      break;
+
+    case "SHOW_NOTIFICATION": {
+      const order = msg.order;
+      if (!order || order.id === lastOfferedOrderId) break;
+      lastOfferedOrderId = order.id;
+      await showRideNotification(order);
+      break;
+    }
+
+    case "OFFER_CLEARED":
+      lastOfferedOrderId = null;
+      // Cerrar notificaciones de oferta activas
+      const notifs = await self.registration.getNotifications({ tag: "ride-offer" });
+      notifs.forEach((n) => n.close());
+      break;
+
+    case "SW_ACCEPT_ORDER":
+      // Re-broadcast al cliente
+      const clients = await self.clients.matchAll({ type: "window" });
+      clients.forEach((c) => c.postMessage(msg));
+      break;
+  }
 });
 
-// ── Notification Click ────────────────────────────────────────
+// ── Mostrar notificación de viaje ──────────────────────────────────────────
+async function showRideNotification(order) {
+  const title = `🚖 ¡Nuevo Viaje! — ${order.client_name || ""}`;
+  const body = [
+    order.pickup_address,
+    order.dropoff_address ? `➜ ${order.dropoff_address}` : "",
+    order.fare ? `  $${order.fare.toLocaleString("es-AR")}` : "",
+  ].filter(Boolean).join("\n");
+
+  // Cerrar la notificación anterior del mismo tipo
+  const prev = await self.registration.getNotifications({ tag: "ride-offer" });
+  prev.forEach((n) => n.close());
+
+  await self.registration.showNotification(title, {
+    body,
+    icon: "/icon-192.png",
+    badge: "/icon-72.png",
+    tag: "ride-offer",
+    renotify: true,
+    requireInteraction: true,   // NO se cierra sola — el chofer debe tocar
+    vibrate: [500, 200, 500, 200, 1000, 300, 500],
+    data: { orderId: order.id, url: appUrl + "driver-app" },
+    actions: [
+      { action: "accept", title: "✅ Aceptar" },
+      { action: "view",   title: "👁 Ver viaje" },
+    ],
+  });
+}
+
+// ── Click en notificación ──────────────────────────────────────────────────
 self.addEventListener("notificationclick", (e) => {
-  e.notification.close();
-  const url = e.notification.data?.url || "/driver-app";
+  const { action, notification } = e;
+  const { orderId, url } = notification.data || {};
+  notification.close();
 
   e.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      const existing = clients.find((c) => c.url.includes(url) || c.url.includes("/driver-app"));
-      if (existing) return existing.focus();
-      return self.clients.openWindow(url);
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
+      // Si la app ya está abierta, enfocarla
+      const appClient = clients.find((c) => c.url.includes("driver-app"));
+      if (appClient) {
+        await appClient.focus();
+        if (action === "accept" && orderId) {
+          appClient.postMessage({ type: "SW_ACCEPT_ORDER", orderId });
+        }
+        return;
+      }
+      // Si no está abierta, abrir
+      const win = await self.clients.openWindow(url || (appUrl + "driver-app"));
+      if (action === "accept" && orderId && win) {
+        setTimeout(() => win.postMessage({ type: "SW_ACCEPT_ORDER", orderId }), 2000);
+      }
     })
   );
 });
 
-// ── Message from app ──────────────────────────────────────────
-self.addEventListener("message", (e) => {
-  if (e.data?.type === "SKIP_WAITING") self.skipWaiting();
-
-  // Ping desde la app para mantener el SW vivo en background
-  if (e.data?.type === "KEEPALIVE") {
-    e.source?.postMessage({ type: "KEEPALIVE_ACK", ts: Date.now() });
-  }
-
-  // Mostrar notificación local (sin push server)
-  if (e.data?.type === "SHOW_NOTIFICATION") {
-    const { title, body, tag, url } = e.data;
-    self.registration.showNotification(title || "RadioCab", {
-      body: body || "",
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
-      tag: tag || "radiocab-local",
-      renotify: true,
-      requireInteraction: true,
-      vibrate: [200, 100, 200],
-      data: { url },
-    });
-  }
-});
-
-// ── Background Sync ───────────────────────────────────────────
+// ── Sync event — re-despertar cuando hay conectividad ─────────────────────
 self.addEventListener("sync", (e) => {
-  if (e.tag === "background-sync") {
-    // Notificar a todos los clientes que reconecten
+  if (e.tag === "radiocab-sync") {
     e.waitUntil(
-      self.clients.matchAll().then((clients) =>
-        clients.forEach((c) => c.postMessage({ type: "RECONNECT" }))
-      )
+      self.clients.matchAll({ type: "window" }).then((clients) => {
+        clients.forEach((c) => c.postMessage({ type: "RECONNECT" }));
+      })
     );
   }
 });

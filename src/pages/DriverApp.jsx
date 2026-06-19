@@ -8,7 +8,7 @@ import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer } from "lucide-react";
+import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle } from "lucide-react";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
 import RideMap from "@/components/map/RideMap";
 import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
@@ -16,6 +16,7 @@ import InstallBanner from "@/components/driver/InstallBanner";
 import DriverMessages from "@/components/driver/DriverMessages";
 import DriverMessageModal from "@/components/driver/DriverMessageModal";
 import { useDriverMessageAlert } from "@/hooks/useDriverMessageAlert";
+import DriverSetupGuide from "@/components/driver/DriverSetupGuide";
 
 // ── Audio & Notifications ─────────────────────────────────────────────────────
 
@@ -168,7 +169,7 @@ function LoginScreen({ drivers, onSelect }) {
               <button
                 key={d.id}
                 className="w-full p-4 rounded-xl border border-gray-700 text-left hover:border-blue-500 hover:bg-blue-500/5 transition-all active:scale-95"
-                onClick={() => { unlockAudio(); onSelect(d.id); }}
+                onClick={() => { unlockAudio(); onSelect(d.id, !localStorage.getItem(`setup_done_${d.id}`)); }}
               >
                 <p className="font-semibold text-white">{d.name}</p>
                 <p className="text-xs text-gray-400 mt-0.5 font-mono">
@@ -815,6 +816,7 @@ export default function DriverApp() {
   const [myDriverId, setMyDriverId] = useState(() => localStorage.getItem("my_driver_id") || "");
   const [selectedBase, setSelectedBase] = useState("");
   const [showMessages, setShowMessages] = useState(false);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
   const prevOfferedId = useRef(null);
   const offeredOrderRef = useRef(null);
@@ -825,6 +827,28 @@ export default function DriverApp() {
     registerSW();
     requestNotificationPermission();
   }, []);
+
+  // Keep-alive: ping al SW cada 20s para que no lo maten en background
+  useEffect(() => {
+    if (!myDriverId) return;
+    const interval = setInterval(() => {
+      notifySW({ type: "KEEP_ALIVE" });
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [myDriverId]);
+
+  // BroadcastChannel: el SW nos despierta cuando detecta que la app está dormida
+  useEffect(() => {
+    if (!("BroadcastChannel" in window)) return;
+    const bc = new BroadcastChannel("radiocab_wake");
+    bc.onmessage = (e) => {
+      if (e.data?.type === "WAKE_UP" && e.data.driverId === myDriverId) {
+        // La app se reactiva — las suscripciones en tiempo real se reconectan solas
+        console.log("[RadioCab] SW wake-up recibido");
+      }
+    };
+    return () => bc.close();
+  }, [myDriverId]);
 
   // Load dismissed broadcasts from localStorage per driver
   useEffect(() => {
@@ -1061,7 +1085,15 @@ export default function DriverApp() {
     return (
       <LoginScreen
         drivers={drivers}
-        onSelect={(id) => { setMyDriverId(id); localStorage.setItem("my_driver_id", id); setLoadTimeout(false); }}
+        onSelect={(id, isFirstTime) => {
+          setMyDriverId(id);
+          localStorage.setItem("my_driver_id", id);
+          setLoadTimeout(false);
+          if (isFirstTime) {
+            setShowSetupGuide(true);
+            localStorage.setItem(`setup_done_${id}`, "1");
+          }
+        }}
       />
     );
   }
@@ -1116,6 +1148,13 @@ export default function DriverApp() {
             onClick={() => setShowMessages(true)}
           >
             <MessageCircle className="w-4 h-4" />
+          </button>
+          <button
+            className="p-2 rounded-xl bg-gray-700/50 text-gray-400"
+            onClick={() => setShowSetupGuide(true)}
+            title="Ayuda de configuración"
+          >
+            <HelpCircle className="w-4 h-4" />
           </button>
           {myDriver.status !== "en_viaje" && (
             myDriver.status === "no_disponible" ? (
@@ -1175,6 +1214,10 @@ export default function DriverApp() {
 
       {showMessages && myDriver && (
         <DriverMessages driver={myDriver} onClose={() => setShowMessages(false)} />
+      )}
+
+      {showSetupGuide && (
+        <DriverSetupGuide onClose={() => setShowSetupGuide(false)} />
       )}
 
       {/* Bloqueante: se muestra de a uno, el más antiguo primero */}
