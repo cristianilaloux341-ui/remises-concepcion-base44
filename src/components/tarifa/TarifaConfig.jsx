@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,22 +17,26 @@ const DEFAULTS = {
 export default function TarifaConfigPanel() {
   const qc = useQueryClient();
   const [saved, setSaved] = useState(false);
+  const [form, setForm] = useState(DEFAULTS);
 
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ["tarifa_config"],
     queryFn: () => base44.entities.TarifaConfig.list(),
   });
 
-  const config = configs[0] || {};
-  const [form, setForm] = useState(null); // null = not yet initialized
+  const config = configs[0];
 
-  // Initialize form from fetched config (only once)
-  const currentForm = form || {
-    bajada_bandera: config.bajada_bandera ?? DEFAULTS.bajada_bandera,
-    precio_por_metro: config.precio_por_metro ?? DEFAULTS.precio_por_metro,
-    precio_por_minuto_espera: config.precio_por_minuto_espera ?? DEFAULTS.precio_por_minuto_espera,
-    tolerancia_espera_segundos: config.tolerancia_espera_segundos ?? DEFAULTS.tolerancia_espera_segundos,
-  };
+  // Sync form when config loads from DB
+  useEffect(() => {
+    if (config) {
+      setForm({
+        bajada_bandera: config.bajada_bandera ?? DEFAULTS.bajada_bandera,
+        precio_por_metro: config.precio_por_metro ?? DEFAULTS.precio_por_metro,
+        precio_por_minuto_espera: config.precio_por_minuto_espera ?? DEFAULTS.precio_por_minuto_espera,
+        tolerancia_espera_segundos: config.tolerancia_espera_segundos ?? DEFAULTS.tolerancia_espera_segundos,
+      });
+    }
+  }, [config?.id]);
 
   const saveMutation = useMutation({
     mutationFn: async (data) => {
@@ -42,7 +46,7 @@ export default function TarifaConfigPanel() {
         precio_por_minuto_espera: Number(data.precio_por_minuto_espera),
         tolerancia_espera_segundos: Number(data.tolerancia_espera_segundos),
       };
-      if (config.id) {
+      if (config?.id) {
         return base44.entities.TarifaConfig.update(config.id, numData);
       } else {
         return base44.entities.TarifaConfig.create(numData);
@@ -56,10 +60,14 @@ export default function TarifaConfigPanel() {
   });
 
   const handleChange = (field, value) => {
-    setForm(prev => ({ ...(prev || currentForm), [field]: value }));
+    setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+  if (isLoading) return (
+    <div className="flex justify-center py-8">
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+    </div>
+  );
 
   return (
     <Card>
@@ -76,7 +84,7 @@ export default function TarifaConfigPanel() {
             <Input
               type="number"
               min={0}
-              value={currentForm.bajada_bandera}
+              value={form.bajada_bandera}
               onChange={(e) => handleChange("bajada_bandera", e.target.value)}
             />
             <p className="text-xs text-muted-foreground">Importe fijo al iniciar el viaje</p>
@@ -86,8 +94,8 @@ export default function TarifaConfigPanel() {
             <Input
               type="number"
               min={0}
-              step={0.1}
-              value={currentForm.precio_por_metro}
+              step={0.01}
+              value={form.precio_por_metro}
               onChange={(e) => handleChange("precio_por_metro", e.target.value)}
             />
             <p className="text-xs text-muted-foreground">Se cobra por cada metro recorrido</p>
@@ -97,7 +105,8 @@ export default function TarifaConfigPanel() {
             <Input
               type="number"
               min={0}
-              value={currentForm.precio_por_minuto_espera}
+              step={1}
+              value={form.precio_por_minuto_espera}
               onChange={(e) => handleChange("precio_por_minuto_espera", e.target.value)}
             />
             <p className="text-xs text-muted-foreground">Cuando el auto va a menos de 5 km/h</p>
@@ -107,7 +116,8 @@ export default function TarifaConfigPanel() {
             <Input
               type="number"
               min={0}
-              value={currentForm.tolerancia_espera_segundos}
+              step={1}
+              value={form.tolerancia_espera_segundos}
               onChange={(e) => handleChange("tolerancia_espera_segundos", e.target.value)}
             />
             <p className="text-xs text-muted-foreground">Segundos de gracia antes de cobrar espera</p>
@@ -119,20 +129,20 @@ export default function TarifaConfigPanel() {
           <p className="font-semibold text-xs text-muted-foreground uppercase tracking-wide mb-2">Ejemplo: viaje de 3 km</p>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Bajada bandera</span>
-            <span className="font-mono">${Number(currentForm.bajada_bandera).toLocaleString()}</span>
+            <span className="font-mono">${Number(form.bajada_bandera).toLocaleString()}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">3.000 m × ${currentForm.precio_por_metro}/m</span>
-            <span className="font-mono">${(3000 * Number(currentForm.precio_por_metro)).toLocaleString()}</span>
+            <span className="text-muted-foreground">3.000 m × ${form.precio_por_metro}/m</span>
+            <span className="font-mono">${(3000 * Number(form.precio_por_metro)).toLocaleString()}</span>
           </div>
           <div className="flex justify-between font-semibold border-t pt-1 mt-1">
             <span>Total estimado</span>
-            <span className="text-green-600">${(Number(currentForm.bajada_bandera) + 3000 * Number(currentForm.precio_por_metro)).toLocaleString()}</span>
+            <span className="text-green-600">${(Number(form.bajada_bandera) + 3000 * Number(form.precio_por_metro)).toLocaleString()}</span>
           </div>
         </div>
 
         <Button
-          onClick={() => saveMutation.mutate(currentForm)}
+          onClick={() => saveMutation.mutate(form)}
           disabled={saveMutation.isPending}
           className={`gap-2 ${saved ? "bg-green-500 hover:bg-green-600" : ""}`}
         >
