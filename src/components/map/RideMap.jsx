@@ -82,11 +82,31 @@ function FitBounds({ bounds }) {
   return null;
 }
 
+function InvalidateSize() {
+  const map = useMap();
+  useEffect(() => {
+    // Forzar recálculo del tamaño en móviles con contenedores flex
+    const t = setTimeout(() => map.invalidateSize(), 100);
+    return () => clearTimeout(t);
+  }, [map]);
+  return null;
+}
+
 // Coordenadas de la central — Concepción del Uruguay, Entre Ríos
 const CENTRAL = { lat: -32.4847, lng: -58.2378, nombre: "Central Remisería" };
 
 export default function RideMap({ orders = [], drivers = [], center, zoom = 13, className = "" }) {
   const defaultCenter = center || [CENTRAL.lat, CENTRAL.lng];
+  const [mapKey, setMapKey] = useState(0);
+
+  // Re-montar el mapa si cambia visibilidad (vuelta de background en móvil)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setMapKey(k => k + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   const allPoints = [];
   orders.forEach(o => {
@@ -98,11 +118,12 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
   });
 
   return (
-    <div className={`rounded-xl overflow-hidden border ${className}`} style={{ height: "100%" }}>
+    <div className={`rounded-xl overflow-hidden border ${className}`} style={{ height: "100%", minHeight: "200px" }}>
       <MapContainer
+        key={mapKey}
         center={defaultCenter}
         zoom={zoom}
-        style={{ height: "100%", width: "100%" }}
+        style={{ height: "100%", width: "100%", minHeight: "200px" }}
         scrollWheelZoom={true}
       >
         <TileLayer
@@ -110,6 +131,7 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
+        <InvalidateSize />
         {allPoints.length > 1 && <FitBounds bounds={allPoints} />}
 
         {/* Marcador fijo de la central */}
