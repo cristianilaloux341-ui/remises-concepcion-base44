@@ -98,7 +98,7 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
   });
 
   return (
-    <div className={`rounded-xl overflow-hidden border ${className}`} style={{ height: "100%", minHeight: 400 }}>
+    <div className={`rounded-xl overflow-hidden border ${className}`} style={{ height: "100%" }}>
       <MapContainer
         center={defaultCenter}
         zoom={zoom}

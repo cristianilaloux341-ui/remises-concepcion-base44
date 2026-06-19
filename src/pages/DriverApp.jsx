@@ -709,11 +709,7 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
   if (isInBase) {
     return (
       <div className="flex-1 flex flex-col overflow-y-auto">
-      {/* Mini-mapa: posiciones en tiempo real */}
-      <div style={{ height: 220 }} className="shrink-0 border-b border-gray-200">
-        <RideMap orders={[]} drivers={drivers} />
-      </div>
-      <div className="flex flex-col items-center px-6 space-y-5 py-5">
+      <div className="flex flex-col items-center px-6 space-y-5 py-8">
         <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center relative">
           <div className="w-6 h-6 rounded-full bg-green-500 animate-ping absolute" />
           <Clock className="w-10 h-10 text-green-600 relative" />
@@ -768,6 +764,7 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
       </div>
     );
   }
+
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 space-y-6">
