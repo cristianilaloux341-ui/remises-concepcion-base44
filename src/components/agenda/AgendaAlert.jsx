@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { differenceInMinutes } from "date-fns";
-import { Bell, Clock, X } from "lucide-react";
+import { differenceInMinutes, format } from "date-fns";
+import { es } from "date-fns/locale";
+import { Bell, Clock, MapPin, X, Zap, Car } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 function minutesUntil(datetime) {
   return differenceInMinutes(new Date(datetime), new Date());
@@ -12,7 +14,9 @@ function minutesUntil(datetime) {
 export default function AgendaAlert() {
   const queryClient = useQueryClient();
   const notifiedRef = useRef(new Set());
-  const [alerts, setAlerts] = useState([]); // visible alerts on screen
+  const [alerts, setAlerts] = useState([]);
+  const audioCtxRef = useRef(null);
+  const repeatTimerRef = useRef(null);
 
   const { data: rides = [] } = useQuery({
     queryKey: ["scheduled"],
@@ -20,26 +24,47 @@ export default function AgendaAlert() {
     refetchInterval: 15000,
   });
 
+  const getAudioCtx = () => {
+    if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
+      audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtxRef.current;
+  };
+
   const playSound = () => {
     try {
       navigator.vibrate?.([400, 150, 400, 150, 800]);
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
-      resume.then(() => {
-        [0, 500, 1000].forEach(delay => {
+      const ctx = getAudioCtx();
+      const doPlay = () => {
+        // 3 beeps urgentes
+        [[0, 880], [400, 1100], [800, 880], [1200, 1100]].forEach(([delay, freq]) => {
           const o = ctx.createOscillator();
           const g = ctx.createGain();
           o.connect(g); g.connect(ctx.destination);
-          o.type = "sine"; o.frequency.value = 660;
+          o.type = "triangle";
+          o.frequency.value = freq;
           const t = ctx.currentTime + delay / 1000;
           g.gain.setValueAtTime(0, t);
-          g.gain.linearRampToValueAtTime(0.6, t + 0.05);
-          g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
-          o.start(t); o.stop(t + 0.5);
+          g.gain.linearRampToValueAtTime(0.7, t + 0.04);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+          o.start(t); o.stop(t + 0.45);
         });
-      });
+      };
+      if (ctx.state === "suspended") ctx.resume().then(doPlay);
+      else doPlay();
     } catch (_) {}
   };
+
+  // Repetir sonido mientras haya alertas activas
+  useEffect(() => {
+    if (alerts.length > 0) {
+      // Tocar inmediatamente y luego cada 5 segundos
+      repeatTimerRef.current = setInterval(playSound, 5000);
+    } else {
+      clearInterval(repeatTimerRef.current);
+    }
+    return () => clearInterval(repeatTimerRef.current);
+  }, [alerts.length]);
 
   useEffect(() => {
     const check = () => {
@@ -49,25 +74,24 @@ export default function AgendaAlert() {
         if (mins <= threshold && mins >= -5 && !notifiedRef.current.has(r.id)) {
           notifiedRef.current.add(r.id);
 
-          // Update status to notificado
           base44.entities.ScheduledRide.update(r.id, { status: "notificado" });
           queryClient.invalidateQueries({ queryKey: ["scheduled"] });
 
-          // Play sound
+          // Sonido inmediato
           playSound();
 
-          // Show on-screen alert
+          // Agregar a la lista de alertas activas
           setAlerts(prev => [...prev, { ...r, alertedAt: Date.now() }]);
 
-          // System notification
+          // Notificación del sistema
           if (typeof Notification !== "undefined") {
-            const notify = () => new Notification(`⏰ Agenda: ${r.client_name}`, {
-              body: `${r.pickup_address} — en ${Math.max(0, mins)} min`,
+            const notify = () => new Notification(`⏰ ¡AGENDA! ${r.client_name}`, {
+              body: `${r.pickup_address}${r.dropoff_address ? " → " + r.dropoff_address : ""} — en ${Math.max(0, mins)} min`,
               requireInteraction: true,
+              icon: "/icon-192.png",
             });
-            if (Notification.permission === "granted") {
-              notify();
-            } else if (Notification.permission !== "denied") {
+            if (Notification.permission === "granted") notify();
+            else if (Notification.permission !== "denied") {
               Notification.requestPermission().then(p => { if (p === "granted") notify(); });
             }
           }
@@ -81,37 +105,119 @@ export default function AgendaAlert() {
   }, [rides]);
 
   const dismiss = (id) => setAlerts(prev => prev.filter(a => a.id !== id));
+  const dismissAll = () => setAlerts([]);
 
   if (alerts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-3 max-w-sm w-full">
-      {alerts.map(alert => (
-        <div
-          key={alert.id}
-          className="bg-amber-500 text-white rounded-2xl shadow-2xl p-4 flex flex-col gap-2 animate-pulse border-2 border-amber-300"
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Bell className="w-5 h-5 shrink-0" />
-              <span className="font-bold text-sm">¡AGENDA PRÓXIMA!</span>
+    // Overlay bloqueante que aparece por encima de todo
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md space-y-3 max-h-screen overflow-y-auto py-2">
+
+        {alerts.map((alert) => {
+          const mins = minutesUntil(alert.scheduled_datetime);
+          const hora = format(new Date(alert.scheduled_datetime), "HH:mm", { locale: es });
+          return (
+            <div
+              key={alert.id}
+              className="bg-white rounded-3xl shadow-2xl overflow-hidden border-4 border-amber-400"
+            >
+              {/* Header llamativo */}
+              <div className="bg-amber-500 px-5 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center animate-bounce">
+                    <Bell className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-black text-white text-lg leading-tight">¡AGENDA PRÓXIMA!</p>
+                    <p className="text-amber-100 text-xs font-medium">
+                      {mins > 0 ? `En ${mins} minuto${mins !== 1 ? "s" : ""}` : "¡Ahora!"}
+                      {" — "}{hora}hs
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => dismiss(alert.id)}
+                  className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+
+              {/* Cuerpo */}
+              <div className="p-5 space-y-4">
+                <div>
+                  <p className="font-bold text-gray-900 text-xl">{alert.client_name}</p>
+                  {alert.client_phone && (
+                    <p className="text-sm text-gray-500">{alert.client_phone}</p>
+                  )}
+                </div>
+
+                <div className="bg-gray-50 rounded-2xl p-4 space-y-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-4 h-4 rounded-full bg-green-500 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Recogida</p>
+                      <p className="font-semibold text-sm text-gray-800">{alert.pickup_address}</p>
+                    </div>
+                  </div>
+                  {alert.dropoff_address && (
+                    <div className="flex items-start gap-2.5">
+                      <MapPin className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Destino</p>
+                        <p className="font-semibold text-sm text-gray-800">{alert.dropoff_address}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {(alert.fare || alert.preferred_driver_name) && (
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {alert.fare && (
+                      <span className="text-2xl font-black text-green-600">${alert.fare}</span>
+                    )}
+                    {alert.preferred_driver_name && (
+                      <span className="flex items-center gap-1 text-sm text-blue-600 font-medium bg-blue-50 px-2.5 py-1 rounded-lg">
+                        <Car className="w-3.5 h-3.5" /> {alert.preferred_driver_name}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {alert.notes && (
+                  <p className="text-sm text-gray-500 italic">"{alert.notes}"</p>
+                )}
+
+                {/* Acciones */}
+                <div className="flex gap-2 pt-1">
+                  <Link to="/agenda" className="flex-1" onClick={() => dismiss(alert.id)}>
+                    <Button className="w-full h-11 rounded-xl gap-2 bg-amber-500 hover:bg-amber-600 font-bold">
+                      <Zap className="w-4 h-4" /> Ver en Agenda
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    className="h-11 px-4 rounded-xl font-semibold"
+                    onClick={() => dismiss(alert.id)}
+                  >
+                    Cerrar
+                  </Button>
+                </div>
+              </div>
             </div>
-            <button onClick={() => dismiss(alert.id)} className="opacity-80 hover:opacity-100">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="text-sm font-semibold">{alert.client_name}</div>
-          <div className="text-xs opacity-90 flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {alert.pickup_address}
-          </div>
-          <Link to="/agenda" onClick={() => dismiss(alert.id)}>
-            <div className="mt-1 bg-white text-amber-700 font-bold text-xs rounded-lg py-1.5 px-3 text-center hover:bg-amber-50 transition-colors">
-              Ver Agenda →
-            </div>
-          </Link>
-        </div>
-      ))}
+          );
+        })}
+
+        {alerts.length > 1 && (
+          <button
+            onClick={dismissAll}
+            className="w-full py-2.5 text-sm text-white/80 hover:text-white font-medium text-center"
+          >
+            Cerrar todas ({alerts.length})
+          </button>
+        )}
+      </div>
     </div>
   );
 }
