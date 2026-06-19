@@ -708,59 +708,59 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
 
   if (isInBase) {
     return (
-      <div className="flex-1 flex flex-col overflow-y-auto">
-      <div className="flex flex-col items-center px-6 space-y-5 py-8">
-        <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center relative">
-          <div className="w-6 h-6 rounded-full bg-green-500 animate-ping absolute" />
-          <Clock className="w-10 h-10 text-green-600 relative" />
-        </div>
-        <div className="text-center">
-          <p className="text-xl font-bold text-gray-800">En Posición</p>
-          <p className="text-gray-500 mt-1">Base: <span className="font-semibold text-gray-700">{driver.current_base}</span></p>
-          <p className="text-gray-400 text-sm mt-1">Esperando asignación de viaje...</p>
+      <div className="flex-1 flex flex-col min-h-0">
+        {/* Mapa ocupa el espacio disponible */}
+        <div className="flex-1 min-h-0">
+          <RideMap orders={[]} drivers={[driver]} className="h-full" />
         </div>
 
-        {/* Queue info */}
-        <div className="w-full max-w-xs bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-3">
+        {/* Panel inferior fijo */}
+        <div className="bg-white rounded-t-3xl shadow-2xl px-5 pt-4 pb-5 space-y-4 shrink-0">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-600 flex items-center gap-1.5">
-              <Users className="w-4 h-4" /> Cola de la Base
-            </span>
-            <Badge className="bg-blue-100 text-blue-700 border-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center relative">
+                <div className="w-3 h-3 rounded-full bg-green-500 animate-ping absolute" />
+                <Clock className="w-5 h-5 text-green-600 relative" />
+              </div>
+              <div>
+                <p className="font-bold text-gray-800">En Posición</p>
+                <p className="text-sm text-gray-500">📍 {driver.current_base}</p>
+              </div>
+            </div>
+            <Badge className="bg-blue-100 text-blue-700 border-0 text-xs">
               {myPosition}° de {baseQueue.length}
             </Badge>
           </div>
-          <div className="space-y-1.5">
+
+          {/* Cola compacta */}
+          <div className="flex gap-1.5 flex-wrap">
             {baseQueue.map((d, i) => (
-              <div
+              <span
                 key={d.id}
-                className={`flex items-center gap-2 text-sm px-3 py-2 rounded-xl ${d.id === driver.id ? "bg-green-50 border border-green-200 font-semibold text-green-800" : "text-gray-500"}`}
+                className={`text-xs px-2.5 py-1 rounded-xl font-medium ${d.id === driver.id ? "bg-green-500 text-white" : "bg-gray-100 text-gray-500"}`}
               >
-                <span className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</span>
-                <span className="truncate">{d.name}</span>
-                {d.id === driver.id && <span className="ml-auto text-xs text-green-600">← vos</span>}
-              </div>
+                {i + 1}. {d.name.split(" ")[0]}
+              </span>
             ))}
           </div>
-        </div>
 
-        <div className="flex gap-3">
-          <Button
-            variant="outline"
-            className="gap-2 rounded-2xl border-gray-300"
-            onClick={() => setChangingBase(true)}
-          >
-            <ArrowRightLeft className="w-4 h-4" /> Cambiar Base
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2 rounded-2xl border-red-200 text-red-500 hover:bg-red-50"
-            onClick={onGoOffService}
-          >
-            <PowerOff className="w-4 h-4" /> Salir de Servicio
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1 gap-2 rounded-2xl border-gray-300 h-11"
+              onClick={() => setChangingBase(true)}
+            >
+              <ArrowRightLeft className="w-4 h-4" /> Cambiar Base
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1 gap-2 rounded-2xl border-red-200 text-red-500 hover:bg-red-50 h-11"
+              onClick={onGoOffService}
+            >
+              <PowerOff className="w-4 h-4" /> Salir
+            </Button>
+          </div>
         </div>
-      </div>
       </div>
     );
   }
