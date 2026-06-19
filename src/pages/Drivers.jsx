@@ -8,7 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Phone, Car, Trash2, Loader2, User } from "lucide-react";
+import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 function DriverForm({ onSubmit, isSubmitting }) {
   const [form, setForm] = useState({
@@ -54,9 +57,148 @@ function DriverForm({ onSubmit, isSubmitting }) {
   );
 }
 
+function DriverHistory({ driverId, driverName, onClose }) {
+  const queryClient = useQueryClient();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const { data: orders = [] } = useQuery({
+    queryKey: ["driver-history", driverId],
+    queryFn: () => base44.entities.RideOrder.filter({ driver_id: driverId }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (orderId) => base44.entities.RideOrder.delete(orderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["driver-history", driverId] });
+    },
+  });
+
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  const todayOrders = orders.filter(o => {
+    const orderDate = new Date(o.created_date);
+    orderDate.setHours(0, 0, 0, 0);
+    return orderDate.getTime() === today.getTime();
+  });
+
+  const statusColors = {
+    pendiente: "bg-amber-50 border-amber-200 text-amber-700",
+    ofrecido: "bg-blue-50 border-blue-200 text-blue-700",
+    aceptado: "bg-purple-50 border-purple-200 text-purple-700",
+    en_camino: "bg-purple-50 border-purple-200 text-purple-700",
+    en_viaje: "bg-cyan-50 border-cyan-200 text-cyan-700",
+    completado: "bg-green-50 border-green-200 text-green-700",
+    cancelado: "bg-red-50 border-red-200 text-red-700",
+    rechazado: "bg-red-50 border-red-200 text-red-700",
+  };
+
+  return (
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <History className="w-5 h-5" />
+            Historial de Viajes — {driverName}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-700 font-semibold">
+              Total hoy: <span className="text-lg">{todayOrders.length} viaje{todayOrders.length !== 1 ? 's' : ''}</span>
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Completados: {todayOrders.filter(o => o.status === 'completado').length}
+            </p>
+          </div>
+
+          {todayOrders.length === 0 ? (
+            <div className="text-center py-8">
+              <Car className="w-10 h-10 text-muted-foreground mx-auto mb-2 opacity-50" />
+              <p className="text-muted-foreground text-sm">Sin viajes hoy</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {todayOrders.map(order => (
+                <Card key={order.id} className={`border ${statusColors[order.status]}`}>
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">{order.client_name}</p>
+                        <p className="text-xs">{order.pickup_address}{order.dropoff_address ? ' → ' + order.dropoff_address : ''}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <Badge className={statusColors[order.status] + " border-0 text-xs"}>
+                          {order.status}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        {order.fare && <span className="font-semibold text-green-600">${order.fare}</span>}
+                      </span>
+                      <span>{format(new Date(order.created_date), "HH:mm")}</span>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive hover:bg-red-50 h-7 gap-1"
+                        onClick={() => setDeleteConfirm(order)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash className="w-3 h-3" /> Eliminar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                Eliminar Viaje
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                ¿Eliminar el viaje de {deleteConfirm?.client_name}? Esta acción no se puede deshacer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2 text-sm">
+              <p><strong>Dirección:</strong> {deleteConfirm?.pickup_address}</p>
+              {deleteConfirm?.fare && <p><strong>Tarifa:</strong> ${deleteConfirm.fare}</p>}
+            </div>
+            <div className="flex gap-3">
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  if (deleteConfirm?.id) {
+                    deleteMutation.mutate(deleteConfirm.id);
+                    setDeleteConfirm(null);
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+              >
+                Eliminar
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Drivers() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState(null);
 
   const { data: drivers = [], isLoading } = useQuery({
     queryKey: ["drivers"],
@@ -155,32 +297,49 @@ export default function Drivers() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Select
-                    value={driver.status}
-                    onValueChange={(val) => updateMutation.mutate({ id: driver.id, data: { status: val } })}
-                  >
-                    <SelectTrigger className="flex-1 h-9 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="disponible">Disponible</SelectItem>
-                      <SelectItem value="en_viaje">En Viaje</SelectItem>
-                      <SelectItem value="no_disponible">No Disponible</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 text-destructive hover:text-destructive"
-                    onClick={() => deleteMutation.mutate(driver.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                   <Select
+                     value={driver.status}
+                     onValueChange={(val) => updateMutation.mutate({ id: driver.id, data: { status: val } })}
+                   >
+                     <SelectTrigger className="flex-1 h-9 text-xs">
+                       <SelectValue />
+                     </SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="disponible">Disponible</SelectItem>
+                       <SelectItem value="en_viaje">En Viaje</SelectItem>
+                       <SelectItem value="no_disponible">No Disponible</SelectItem>
+                     </SelectContent>
+                   </Select>
+                   <Button
+                     variant="outline"
+                     size="icon"
+                     className="h-9 w-9"
+                     onClick={() => setSelectedDriver(driver)}
+                     title="Ver historial"
+                   >
+                     <History className="w-4 h-4" />
+                   </Button>
+                   <Button
+                     variant="ghost"
+                     size="icon"
+                     className="h-9 w-9 text-destructive hover:text-destructive"
+                     onClick={() => deleteMutation.mutate(driver.id)}
+                   >
+                     <Trash2 className="w-4 h-4" />
+                   </Button>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
+      )}
+
+      {selectedDriver && (
+        <DriverHistory
+          driverId={selectedDriver.id}
+          driverName={selectedDriver.name}
+          onClose={() => setSelectedDriver(null)}
+        />
       )}
     </div>
   );
