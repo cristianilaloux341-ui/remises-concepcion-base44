@@ -63,6 +63,10 @@
     "user_id": {
       "type": "string",
       "description": "ID del usuario vinculado al chofer"
+    },
+    "push_subscription": {
+      "type": "string",
+      "description": "JSON serializado de la PushSubscription del navegador"
     }
   },
   "required": [

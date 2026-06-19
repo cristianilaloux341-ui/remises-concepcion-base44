@@ -17,6 +17,7 @@ import DriverMessages from "@/components/driver/DriverMessages";
 import DriverMessageModal from "@/components/driver/DriverMessageModal";
 import { useDriverMessageAlert } from "@/hooks/useDriverMessageAlert";
 import DriverSetupGuide from "@/components/driver/DriverSetupGuide";
+import { usePushSubscription } from "@/hooks/usePushSubscription";
 
 // ── Audio & Notifications ─────────────────────────────────────────────────────
 
@@ -940,6 +941,9 @@ export default function DriverApp() {
 
   // Wake Lock — mantiene la pantalla activa mientras el chofer está en servicio
   useWakeLock(!!myDriverId);
+
+  // Push subscription — registra este dispositivo para recibir notificaciones push reales
+  usePushSubscription(myDriverId || null);
 
   // Alertas de mensajes entrantes (operador → este chofer)
   const { pendingMessages, dismissMessage } = useDriverMessageAlert(myDriverId || null);

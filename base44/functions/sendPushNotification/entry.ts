@@ -1,0 +1,240 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+
+// ── VAPID helpers (pure Web Crypto, no external libs) ─────────────────────────
+
+const toBase64Url = (buf) => {
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+};
+
+const fromBase64Url = (str) => {
+  const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(b64);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return buf.buffer;
+};
+
+// Build minimal VAPID JWT (ES256) using SubtleCrypto
+async function buildVapidJwt(audience, privateKeyB64, subject) {
+  const header = toBase64Url(new TextEncoder().encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
+  const now = Math.floor(Date.now() / 1000);
+  const payload = toBase64Url(new TextEncoder().encode(JSON.stringify({
+    aud: audience,
+    exp: now + 12 * 3600,
+    sub: subject,
+  })));
+
+  const sigInput = `${header}.${payload}`;
+
+  const privateKeyBuf = fromBase64Url(privateKeyB64);
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    privateKeyBuf,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign']
+  );
+
+  const sigBuf = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    cryptoKey,
+    new TextEncoder().encode(sigInput)
+  );
+
+  return `${sigInput}.${toBase64Url(sigBuf)}`;
+}
+
+// Encrypt the push payload using RFC 8188 / Web Push encryption
+async function encryptPayload(plaintext, auth, p256dh) {
+  const authBuf = fromBase64Url(auth);
+  const p256dhBuf = fromBase64Url(p256dh);
+
+  // Generate ephemeral key pair
+  const ephemeral = await crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' },
+    true,
+    ['deriveKey', 'deriveBits']
+  );
+
+  const ephPubBuf = await crypto.subtle.exportKey('raw', ephemeral.publicKey);
+
+  // Import recipient public key
+  const recipientKey = await crypto.subtle.importKey(
+    'raw',
+    p256dhBuf,
+    { name: 'ECDH', namedCurve: 'P-256' },
+    false,
+    []
+  );
+
+  // ECDH shared secret
+  const sharedBuf = await crypto.subtle.deriveBits(
+    { name: 'ECDH', public: recipientKey },
+    ephemeral.privateKey,
+    256
+  );
+
+  // HKDF — context strings per RFC 8291
+  const enc = new TextEncoder();
+  const prk = await hkdf(authBuf, new Uint8Array(sharedBuf), enc.encode('Content-Encoding: auth\0'), 32);
+
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+
+  const cek = await hkdf(salt, prk,
+    buildContext(enc.encode('aesgcm'), p256dhBuf, ephPubBuf), 16);
+  const nonce = await hkdf(salt, prk,
+    buildContext(enc.encode('nonce'), p256dhBuf, ephPubBuf), 12);
+
+  const cekKey = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt']);
+
+  // Pad plaintext with 2-byte length prefix (per draft-ietf-webpush-encryption)
+  const plaintextBytes = enc.encode(typeof plaintext === 'string' ? plaintext : JSON.stringify(plaintext));
+  const padded = new Uint8Array(plaintextBytes.length + 2);
+  padded[0] = 0; padded[1] = 0; // no padding
+  padded.set(plaintextBytes, 2);
+
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, cekKey, padded);
+
+  return { encrypted, salt, ephPubBuf };
+}
+
+function buildContext(label, receiverPub, senderPub) {
+  const enc = new TextEncoder();
+  const peerLen = new Uint8Array(2);
+  const rcvLen = new Uint8Array(2);
+  new DataView(peerLen.buffer).setUint16(0, receiverPub.byteLength, false);
+  new DataView(rcvLen.buffer).setUint16(0, senderPub.byteLength, false);
+
+  const ctx = new Uint8Array(
+    label.length + 1 +
+    enc.encode('P-256\0').length +
+    2 + receiverPub.byteLength +
+    2 + senderPub.byteLength
+  );
+  let offset = 0;
+  ctx.set(label, offset); offset += label.length;
+  ctx[offset++] = 0; // null terminator
+  const p256label = enc.encode('P-256\0');
+  ctx.set(p256label, offset); offset += p256label.length;
+  ctx.set(peerLen, offset); offset += 2;
+  ctx.set(new Uint8Array(receiverPub), offset); offset += receiverPub.byteLength;
+  ctx.set(rcvLen, offset); offset += 2;
+  ctx.set(new Uint8Array(senderPub), offset);
+  return ctx;
+}
+
+async function hkdf(salt, ikm, info, length) {
+  const saltKey = await crypto.subtle.importKey('raw', salt, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const prkBuf = await crypto.subtle.sign('HMAC', saltKey, ikm);
+
+  const prkKey = await crypto.subtle.importKey('raw', prkBuf, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const infoWithByte = new Uint8Array(info.length + 1);
+  infoWithByte.set(info); infoWithByte[info.length] = 1;
+  const okm = await crypto.subtle.sign('HMAC', prkKey, infoWithByte);
+  return new Uint8Array(okm).slice(0, length);
+}
+
+// ── Send a push message to a single subscription ─────────────────────────────
+async function sendWebPush(subscription, payload, vapidPublicKey, vapidPrivateKey) {
+  const url = new URL(subscription.endpoint);
+  const audience = `${url.protocol}//${url.host}`;
+
+  const jwt = await buildVapidJwt(audience, vapidPrivateKey, 'mailto:radiocab@app.com');
+
+  const { encrypted, salt, ephPubBuf } = await encryptPayload(
+    payload,
+    subscription.keys.auth,
+    subscription.keys.p256dh
+  );
+
+  const headers = {
+    'Authorization': `vapid t=${jwt},k=${vapidPublicKey}`,
+    'Content-Encoding': 'aesgcm',
+    'Encryption': `salt=${toBase64Url(salt)}`,
+    'Crypto-Key': `dh=${toBase64Url(ephPubBuf)}`,
+    'Content-Type': 'application/octet-stream',
+    'TTL': '60',
+  };
+
+  const res = await fetch(subscription.endpoint, {
+    method: 'POST',
+    headers,
+    body: encrypted,
+  });
+
+  return res.status;
+}
+
+// ── Entity to store push subscriptions ───────────────────────────────────────
+// We store subscriptions on the Driver entity under push_subscriptions field.
+// This function is called from the frontend when a driver registers their SW.
+
+Deno.serve(async (req) => {
+  const base44 = createClientFromRequest(req);
+
+  const { action, driverId, subscription, orderId, orderData } = await req.json();
+
+  const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
+  const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
+
+  // ── Register subscription ─────────────────────────────────────────────────
+  if (action === 'subscribe') {
+    if (!driverId || !subscription) {
+      return Response.json({ error: 'Missing driverId or subscription' }, { status: 400 });
+    }
+    // Store on driver record
+    await base44.asServiceRole.entities.Driver.update(driverId, {
+      push_subscription: JSON.stringify(subscription),
+    });
+    return Response.json({ ok: true });
+  }
+
+  // ── Send push to a driver ─────────────────────────────────────────────────
+  if (action === 'send') {
+    if (!driverId || !orderId) {
+      return Response.json({ error: 'Missing driverId or orderId' }, { status: 400 });
+    }
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+      return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
+    }
+
+    const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
+    const driver = drivers[0];
+    if (!driver?.push_subscription) {
+      return Response.json({ ok: false, reason: 'no_subscription' });
+    }
+
+    let sub;
+    try { sub = JSON.parse(driver.push_subscription); } catch (_) {
+      return Response.json({ ok: false, reason: 'invalid_subscription' });
+    }
+
+    const payload = JSON.stringify({
+      type: 'NEW_RIDE',
+      orderId,
+      title: '🚖 ¡Nuevo Viaje!',
+      body: orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}${orderData.fare ? ' · $' + orderData.fare : ''}` : 'Tenés un viaje asignado',
+      driverId,
+    });
+
+    const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+
+    // If subscription is expired/invalid, clean it
+    if (status === 410 || status === 404) {
+      await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: null });
+      return Response.json({ ok: false, reason: 'subscription_expired', status });
+    }
+
+    return Response.json({ ok: status >= 200 && status < 300, status });
+  }
+
+  // ── Get VAPID public key (for frontend subscription) ─────────────────────
+  if (action === 'vapid_public_key') {
+    return Response.json({ publicKey: VAPID_PUBLIC_KEY });
+  }
+
+  return Response.json({ error: 'Unknown action' }, { status: 400 });
+});

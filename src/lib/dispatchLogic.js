@@ -72,6 +72,18 @@ export async function assignDriverToOrder(order, driver) {
     assigned_base: driver.current_base,
     offered_driver_ids: [...(order.offered_driver_ids || []), driver.id],
   });
+
+  // Enviar notificación push real al dispositivo del chofer (no bloqueante)
+  base44.functions.invoke("sendPushNotification", {
+    action: "send",
+    driverId: driver.id,
+    orderId: order.id,
+    orderData: {
+      pickup_address: order.pickup_address,
+      dropoff_address: order.dropoff_address,
+      fare: order.fare,
+    },
+  }).catch(() => {}); // No bloquear si la push falla
 }
 
 // Reassign after rejection: next in same base queue (skipping already-offered),
