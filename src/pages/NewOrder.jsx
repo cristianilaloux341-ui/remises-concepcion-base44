@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrderForm from "@/components/orders/OrderForm";
-import { findBestDriver, assignDriverToOrder } from "@/lib/dispatchLogic";
+import { findBestDriver, findDriverInZone, assignDriverToOrder } from "@/lib/dispatchLogic";
 
 export default function NewOrder() {
   const navigate = useNavigate();
@@ -17,15 +17,24 @@ export default function NewOrder() {
       // 2. Si ya viene con driver asignado desde el formulario, no hacer nada más
       if (newOrder.driver_id) return newOrder;
 
-      // 3. Si está pendiente, intentar auto-despacho INMEDIATO
+      // 3. Auto-despacho: prioridad 1 = misma zona, prioridad 2 = proximidad (sin zona)
       if (newOrder.status === "pendiente") {
         const [drivers, bases] = await Promise.all([
           base44.entities.Driver.list(),
           base44.entities.Base.list(),
         ]);
-        const bestDriver = await findBestDriver(newOrder, drivers, bases);
-        if (bestDriver) {
-          await assignDriverToOrder(newOrder, bestDriver);
+
+        if (newOrder.zone) {
+          // Zona definida → buscar chofer libre en ESA zona (FIFO)
+          const zoneDriver = findDriverInZone(newOrder.zone, drivers);
+          if (zoneDriver) {
+            await assignDriverToOrder(newOrder, zoneDriver);
+          }
+          // Si no hay nadie en la zona → queda en "pendiente" → broadcast automático vía real-time
+        } else {
+          // Sin zona → fallback por proximidad
+          const bestDriver = await findBestDriver(newOrder, drivers, bases);
+          if (bestDriver) await assignDriverToOrder(newOrder, bestDriver);
         }
       }
 

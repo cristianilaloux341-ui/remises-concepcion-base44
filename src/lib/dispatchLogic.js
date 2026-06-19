@@ -55,6 +55,14 @@ export async function findBestDriver(order, drivers, bases) {
   return null;
 }
 
+// Find first available driver in the exact zone (FIFO queue by queue_entered_at)
+export function findDriverInZone(zone, drivers) {
+  if (!zone) return null;
+  return drivers
+    .filter(d => d.status === "disponible" && d.current_base === zone)
+    .sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at))[0] || null;
+}
+
 // Assign driver to order
 export async function assignDriverToOrder(order, driver) {
   await base44.entities.RideOrder.update(order.id, {

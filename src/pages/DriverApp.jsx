@@ -229,6 +229,63 @@ function IncomingAlert({ order, onAccept, onReject }) {
   );
 }
 
+// ── Broadcast alert (cross-zone offer) ───────────────────────────────────────
+function BroadcastAlert({ order, onAccept, onReject }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300">
+      <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
+        <div className="bg-blue-600 px-5 py-4 flex items-center gap-3">
+          <Bell className="w-6 h-6 text-white animate-pulse" />
+          <div>
+            <p className="font-bold text-white text-base leading-tight">📢 Viaje disponible en {order.zone}</p>
+            <p className="text-blue-100 text-xs">Sin móvil en esa zona · Podés tomarlo vos</p>
+          </div>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 rounded-full bg-green-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs text-gray-400 font-medium">RECOGIDA</p>
+                <p className="font-semibold text-sm">{order.pickup_address}</p>
+              </div>
+            </div>
+            {order.dropoff_address && (
+              <>
+                <div className="ml-2.5 w-px h-4 bg-gray-300" />
+                <div className="flex items-start gap-3">
+                  <MapPin className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-gray-400 font-medium">DESTINO</p>
+                    <p className="font-semibold text-sm">{order.dropoff_address}</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+          {order.fare && (
+            <div className="flex items-center justify-between px-1">
+              <span className="text-gray-500 text-sm">Tarifa</span>
+              <span className="text-2xl font-bold text-green-600">${order.fare.toLocaleString()}</span>
+            </div>
+          )}
+          {order.notes && (
+            <p className="text-sm text-gray-500 italic px-1">"{order.notes}"</p>
+          )}
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <Button size="lg" className="rounded-2xl h-14 bg-green-500 hover:bg-green-600 text-base font-bold gap-2 shadow-lg shadow-green-500/30" onClick={onAccept}>
+              <CheckCircle2 className="w-5 h-5" /> Aceptar
+            </Button>
+            <Button size="lg" variant="outline" className="rounded-2xl h-14 border-red-200 text-red-500 hover:bg-red-50 text-base font-bold gap-2" onClick={onReject}>
+              <XCircle className="w-5 h-5" /> Rechazar
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Active ride screen ────────────────────────────────────────────────────────
 function ActiveRideScreen({ order, driver, onStatusChange }) {
   const cfg = STATUS_CONFIG[order.status];
@@ -514,14 +571,23 @@ export default function DriverApp() {
   const [myDriverId, setMyDriverId] = useState(() => localStorage.getItem("my_driver_id") || "");
   const [selectedBase, setSelectedBase] = useState("");
   const [showMessages, setShowMessages] = useState(false);
+  const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
   const prevOfferedId = useRef(null);
   const offeredOrderRef = useRef(null);
+  const prevBroadcastId = useRef(null);
 
   // Register SW and request notification permission on load
   useEffect(() => {
     registerSW();
     requestNotificationPermission();
   }, []);
+
+  // Load dismissed broadcasts from localStorage per driver
+  useEffect(() => {
+    if (!myDriverId) { setDismissedBroadcasts([]); return; }
+    const dismissed = JSON.parse(localStorage.getItem(`dismissed_bc_${myDriverId}`) || "[]");
+    setDismissedBroadcasts(dismissed);
+  }, [myDriverId]);
 
   // Escuchar mensajes del SW (ej: usuario tocó "Aceptar" en la notificación)
   useEffect(() => {
@@ -576,6 +642,10 @@ export default function DriverApp() {
   const activeOrder = orders.find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
   const offeredOrder = orders.find(o => o.driver_id === myDriverId && o.status === "ofrecido");
   const availableOrders = orders.filter(o => o.status === "pendiente" && !o.driver_id);
+  // Broadcast: pedido pendiente en otra zona que este chofer no rechazó
+  const broadcastOrder = myDriver?.status === "disponible" && !activeOrder && !offeredOrder
+    ? orders.find(o => o.status === "pendiente" && !o.driver_id && o.zone && !dismissedBroadcasts.includes(o.id))
+    : null;
 
   // Inform SW which driver is active
   useEffect(() => {
@@ -602,6 +672,15 @@ export default function DriverApp() {
       notifySW({ type: "OFFER_CLEARED" });
     }
   }, [offeredOrder?.id]);
+
+  // Alerta de audio al recibir un broadcast nuevo
+  useEffect(() => {
+    if (broadcastOrder && broadcastOrder.id !== prevBroadcastId.current) {
+      prevBroadcastId.current = broadcastOrder.id;
+      playAlert();
+    }
+    if (!broadcastOrder) prevBroadcastId.current = null;
+  }, [broadcastOrder?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Las mutaciones ya no necesitan invalidar queries: la suscripción actualiza el estado automáticamente
   const updateOrder = useMutation({
@@ -649,8 +728,18 @@ export default function DriverApp() {
   };
 
   const handleGoOnService = () => {
-    // Re-enter idle so driver picks a base
     updateDriver.mutate({ id: myDriverId, data: { status: "disponible", current_base: null, queue_entered_at: null } });
+  };
+
+  const handleBroadcastAccept = (order) => {
+    updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
+    updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+  };
+
+  const handleBroadcastReject = (order) => {
+    const updated = [...dismissedBroadcasts, order.id];
+    setDismissedBroadcasts(updated);
+    localStorage.setItem(`dismissed_bc_${myDriverId}`, JSON.stringify(updated));
   };
 
   // Count unread messages for badge
@@ -763,6 +852,13 @@ export default function DriverApp() {
 
       {offeredOrder && (
         <IncomingAlert order={offeredOrder} onAccept={handleAccept} onReject={handleReject} />
+      )}
+      {broadcastOrder && !offeredOrder && (
+        <BroadcastAlert
+          order={broadcastOrder}
+          onAccept={() => handleBroadcastAccept(broadcastOrder)}
+          onReject={() => handleBroadcastReject(broadcastOrder)}
+        />
       )}
 
       {showMessages && myDriver && (
