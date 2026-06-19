@@ -1,21 +1,14 @@
-import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import RideMap from "@/components/map/RideMap";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
 import { Car, MapPin } from "lucide-react";
+import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
+import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 
 export default function MapView() {
-  const { data: orders = [] } = useQuery({
-    queryKey: ["orders"],
-    queryFn: () => base44.entities.RideOrder.list("-created_date", 50),
-  });
-
-  const { data: drivers = [] } = useQuery({
-    queryKey: ["drivers"],
-    queryFn: () => base44.entities.Driver.list(),
-  });
+  const { orders } = useRealtimeOrders({ limit: 100 });
+  const { drivers } = useRealtimeDrivers();
 
   const activeOrders = orders.filter(o =>
     ["pendiente", "asignado", "en_camino", "en_viaje"].includes(o.status)

@@ -26,12 +26,44 @@ const dropoffIcon = new L.DivIcon({
   iconAnchor: [7, 7],
 });
 
-const driverIcon = new L.DivIcon({
-  html: '<div style="background:#3b82f6;width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:10px;">🚗</div>',
-  className: "",
-  iconSize: [18, 18],
-  iconAnchor: [9, 9],
-});
+// Driver icons by status — color coded
+function makeDriverIcon(status, name) {
+  const colors = {
+    disponible:    { bg: "#22c55e", border: "#16a34a", label: "#166534" },
+    en_viaje:      { bg: "#3b82f6", border: "#1d4ed8", label: "#1e3a8a" },
+    no_disponible: { bg: "#94a3b8", border: "#64748b", label: "#475569" },
+  };
+  const c = colors[status] || colors.no_disponible;
+  const shortName = (name || "?").split(" ")[0].substring(0, 8);
+  return new L.DivIcon({
+    html: `<div style="
+      display:flex;flex-direction:column;align-items:center;gap:2px;
+    ">
+      <div style="
+        background:${c.bg};
+        border:2.5px solid ${c.border};
+        border-radius:50%;
+        width:32px;height:32px;
+        display:flex;align-items:center;justify-content:center;
+        box-shadow:0 2px 8px rgba(0,0,0,0.35);
+        font-size:16px;
+      ">🚗</div>
+      <div style="
+        background:${c.bg};
+        color:white;
+        font-size:10px;font-weight:700;
+        padding:1px 5px;border-radius:6px;
+        white-space:nowrap;
+        box-shadow:0 1px 4px rgba(0,0,0,0.25);
+        border:1.5px solid ${c.border};
+      ">${shortName}</div>
+    </div>`,
+    className: "",
+    iconSize: [50, 50],
+    iconAnchor: [25, 16],
+    popupAnchor: [0, -20],
+  });
+}
 
 function FitBounds({ bounds }) {
   const map = useMap();
@@ -109,12 +141,24 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
 
         {drivers.map((driver) =>
           driver.current_lat && driver.current_lng ? (
-            <Marker key={driver.id} position={[driver.current_lat, driver.current_lng]} icon={driverIcon}>
+            <Marker
+              key={driver.id}
+              position={[driver.current_lat, driver.current_lng]}
+              icon={makeDriverIcon(driver.status, driver.name)}
+            >
               <Popup>
-                <div className="text-sm">
-                  <p className="font-semibold">{driver.name}</p>
-                  <p className="text-gray-600">{driver.vehicle_model} · {driver.vehicle_plate}</p>
-                  <p className="text-gray-500 capitalize">{driver.status?.replace("_", " ")}</p>
+                <div className="text-sm space-y-1 min-w-[140px]">
+                  <p className="font-bold text-base">{driver.name}</p>
+                  {driver.vehicle_model && <p className="text-gray-600">{driver.vehicle_model} · {driver.vehicle_color || ""}</p>}
+                  <p className="text-gray-600 font-mono">{driver.vehicle_plate}</p>
+                  <p className={`font-semibold capitalize ${
+                    driver.status === "disponible" ? "text-green-600"
+                    : driver.status === "en_viaje" ? "text-blue-600"
+                    : "text-gray-500"
+                  }`}>
+                    {driver.status === "disponible" ? "🟢 Libre" : driver.status === "en_viaje" ? "🔵 En viaje" : "⚫ Fuera de servicio"}
+                  </p>
+                  {driver.current_base && <p className="text-gray-500 text-xs">📍 {driver.current_base}</p>}
                 </div>
               </Popup>
             </Marker>
