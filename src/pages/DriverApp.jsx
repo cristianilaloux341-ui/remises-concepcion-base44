@@ -917,17 +917,21 @@ export default function DriverApp() {
   // Alertas de mensajes entrantes (operador → este chofer)
   const { pendingMessages, dismissMessage } = useDriverMessageAlert(myDriverId || null);
 
-  // Estado local optimista — declarado ANTES de usarlo en myDriver
-  const [localBase, setLocalBase] = useState(null);
-  const [localStatus, setLocalStatus] = useState(null);
+  // Estado local optimista — se sobreescribe con datos reales cuando llegan
+  const [localOverride, setLocalOverride] = useState(null);
 
   const myDriverRaw = drivers.find(d => d.id === myDriverId);
-  // Estado optimista: aplicar cambios locales inmediatamente sin esperar la suscripción
-  const myDriver = myDriverRaw ? {
-    ...myDriverRaw,
-    ...(localStatus !== null ? { status: localStatus } : {}),
-    ...(localBase !== undefined && localBase !== null ? { current_base: localBase } : localBase === null && localStatus !== null ? { current_base: null } : {}),
-  } : myDriverRaw;
+  // Cuando llegan datos reales de la suscripción, limpiar override si ya coinciden
+  useEffect(() => {
+    if (!localOverride || !myDriverRaw) return;
+    if (myDriverRaw.status === localOverride.status && myDriverRaw.current_base === localOverride.current_base) {
+      setLocalOverride(null);
+    }
+  }, [myDriverRaw?.status, myDriverRaw?.current_base]);
+
+  const myDriver = myDriverRaw
+    ? { ...myDriverRaw, ...(localOverride || {}) }
+    : null;
 
   const activeOrder = orders.find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
   const offeredOrder = orders.find(o => o.driver_id === myDriverId && o.status === "ofrecido");
@@ -976,13 +980,10 @@ export default function DriverApp() {
   });
   const updateDriver = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Driver.update(id, data),
-    onSettled: () => {
-      // Limpiar estado optimista una vez que la suscripción confirmó el cambio
-      setTimeout(() => { setLocalBase(null); setLocalStatus(null); }, 3000);
-    },
   });
 
   const handleAccept = () => {
+    setLocalOverride({ status: "en_viaje" });
     updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado" } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
   };
@@ -995,43 +996,42 @@ export default function DriverApp() {
   const handleStatusChange = (newStatus) => {
     updateOrder.mutate({ id: activeOrder.id, data: { status: newStatus } });
     if (newStatus === "completado") {
+      setLocalOverride({ status: "disponible", current_base: null });
       updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
     }
   };
   const handleEnterBase = () => {
-    setLocalBase(selectedBase);
-    setLocalStatus("disponible");
+    setLocalOverride({ current_base: selectedBase, status: "disponible" });
     updateDriver.mutate({
       id: myDriverId,
       data: { current_base: selectedBase, status: "disponible", queue_entered_at: new Date().toISOString() },
     });
   };
   const handleChangeBase = (newBase) => {
-    setLocalBase(newBase);
-    setLocalStatus("disponible");
+    setLocalOverride({ current_base: newBase, status: "disponible" });
     updateDriver.mutate({
       id: myDriverId,
       data: { current_base: newBase, status: "disponible", queue_entered_at: new Date().toISOString() },
     });
   };
   const handleTakeOrder = (order) => {
+    setLocalOverride({ status: "en_viaje" });
     updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
   };
 
   const handleGoOffService = () => {
-    setLocalBase(null);
-    setLocalStatus("no_disponible");
+    setLocalOverride({ status: "no_disponible", current_base: null });
     updateDriver.mutate({ id: myDriverId, data: { status: "no_disponible", current_base: null } });
   };
 
   const handleGoOnService = () => {
-    setLocalBase(null);
-    setLocalStatus("disponible");
+    setLocalOverride({ status: "disponible", current_base: null });
     updateDriver.mutate({ id: myDriverId, data: { status: "disponible", current_base: null, queue_entered_at: null } });
   };
 
   const handleBroadcastAccept = (order) => {
+    setLocalOverride({ status: "en_viaje" });
     updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
   };
@@ -1051,13 +1051,13 @@ export default function DriverApp() {
   // Timeout de carga: si después de 8s no hay datos, volver al login
   const [loadTimeout, setLoadTimeout] = useState(false);
   useEffect(() => {
-    if (!myDriverId || myDriver) { setLoadTimeout(false); return; }
+    if (!myDriverId || myDriverRaw) { setLoadTimeout(false); return; }
     const t = setTimeout(() => setLoadTimeout(true), 8000);
     return () => clearTimeout(t);
-  }, [myDriverId, myDriver]);
+  }, [myDriverId, myDriverRaw]);
 
   // Show login if no driver selected, driver not found after load, or timeout
-  if (!myDriverId || (!myDriver && (drivers.length > 0 || loadTimeout))) {
+  if (!myDriverId || (!myDriverRaw && (drivers.length > 0 || loadTimeout))) {
     return (
       <LoginScreen
         drivers={drivers}
@@ -1067,7 +1067,7 @@ export default function DriverApp() {
   }
 
   // Loading state — mostrar spinner mientras llegan los datos (máx 8s)
-  if (!myDriver) {
+  if (!myDriverRaw) {
     return (
       <div className="h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center space-y-4">
