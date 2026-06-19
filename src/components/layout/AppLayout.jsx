@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import AgendaAlert from "@/components/agenda/AgendaAlert";
 import CancellationAlert from "@/components/alerts/CancellationAlert";
+import DriverMessageAlert from "@/components/alerts/DriverMessageAlert";
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -13,6 +14,7 @@ export default function AppLayout() {
     <div className="min-h-screen bg-background">
       <AgendaAlert />
       <CancellationAlert />
+      <DriverMessageAlert />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
       <div className="lg:pl-64">
