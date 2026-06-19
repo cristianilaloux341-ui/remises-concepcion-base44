@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Clock, Car, MapPin, Bell, BellOff, CheckCircle2, XCircle, Zap, Tag } from "lucide-react";
+import { Plus, Clock, Car, MapPin, Bell, BellOff, CheckCircle2, XCircle, Zap, Tag, ChevronDown } from "lucide-react";
 
 const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 import { format, formatDistanceToNow, isPast, differenceInMinutes } from "date-fns";
@@ -33,13 +33,63 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
     require_specific_driver: false, preferred_driver_id: "", preferred_driver_name: "",
     fare: "", notes: ""
   });
+  const [clients, setClients] = useState([]);
+  const [showClientSuggestions, setShowClientSuggestions] = useState(false);
+  const [filteredClients, setFilteredClients] = useState([]);
+  const [selectedClientId, setSelectedClientId] = useState(ride?.client_id || "");
+
+  // Cargar clientes
+  useEffect(() => {
+    base44.entities.Client.list().then(data => setClients(data)).catch(() => {});
+  }, []);
+
+  // Filtrar clientes cuando cambia el nombre o teléfono
+  useEffect(() => {
+    const query = (form.client_name + form.client_phone).toLowerCase().trim();
+    if (!query) {
+      setFilteredClients([]);
+      setShowClientSuggestions(false);
+      return;
+    }
+    const filtered = clients.filter(c =>
+      c.name.toLowerCase().includes(query) ||
+      (c.phone && c.phone.toLowerCase().includes(query))
+    ).slice(0, 5);
+    setFilteredClients(filtered);
+    setShowClientSuggestions(filtered.length > 0);
+  }, [form.client_name, form.client_phone, clients]);
+
+  const handleSelectClient = (client) => {
+    setForm({
+      ...form,
+      client_name: client.name,
+      client_phone: client.phone || "",
+      pickup_address: client.pickup_address || form.pickup_address,
+    });
+    setSelectedClientId(client.id);
+    setShowClientSuggestions(false);
+  };
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
+        <div className="space-y-1 relative">
           <Label>Cliente</Label>
           <Input value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} />
+          {showClientSuggestions && filteredClients.length > 0 && (
+            <div className="absolute top-[100%] left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-10 mt-1">
+              {filteredClients.map(client => (
+                <button
+                  key={client.id}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 border-b last:border-b-0 transition-colors"
+                  onClick={() => handleSelectClient(client)}
+                >
+                  <div className="font-medium">{client.name}</div>
+                  <div className="text-xs text-gray-500">{client.phone || "Sin teléfono"}</div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="space-y-1">
           <Label>Teléfono</Label>
