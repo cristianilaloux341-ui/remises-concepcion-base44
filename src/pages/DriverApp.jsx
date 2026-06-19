@@ -920,12 +920,18 @@ export default function DriverApp() {
   // Alertas de mensajes entrantes (operador → este chofer)
   const { pendingMessages, dismissMessage } = useDriverMessageAlert(myDriverId || null);
 
-  const myDriver = drivers.find(d => d.id === myDriverId);
+  const myDriverRaw = drivers.find(d => d.id === myDriverId);
+  // Estado optimista: aplicar cambios locales inmediatamente sin esperar la suscripción
+  const myDriver = myDriverRaw ? {
+    ...myDriverRaw,
+    ...(localStatus !== null ? { status: localStatus } : {}),
+    ...(localBase !== undefined && localBase !== null ? { current_base: localBase } : localBase === null && localStatus !== null ? { current_base: null } : {}),
+  } : myDriverRaw;
+
   const activeOrder = orders.find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
   const offeredOrder = orders.find(o => o.driver_id === myDriverId && o.status === "ofrecido");
-  const availableOrders = orders.filter(o => o.status === "pendiente" && !o.driver_id);
-  // Broadcast: pedido pendiente en otra zona que este chofer no rechazó
-  const broadcastOrder = myDriver?.status === "disponible" && !activeOrder && !offeredOrder
+  // Broadcast: pedido pendiente que este chofer no rechazó (solo si está libre y en base)
+  const broadcastOrder = myDriver?.status === "disponible" && myDriver?.current_base && !activeOrder && !offeredOrder
     ? orders.find(o => o.status === "pendiente" && !o.driver_id && o.zone && !dismissedBroadcasts.includes(o.id))
     : null;
 
@@ -965,11 +971,19 @@ export default function DriverApp() {
   }, [broadcastOrder?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Las mutaciones ya no necesitan invalidar queries: la suscripción actualiza el estado automáticamente
+  // Estado local optimista para la base — evita pantalla en blanco mientras llega la suscripción
+  const [localBase, setLocalBase] = useState(null);
+  const [localStatus, setLocalStatus] = useState(null);
+
   const updateOrder = useMutation({
     mutationFn: ({ id, data }) => base44.entities.RideOrder.update(id, data),
   });
   const updateDriver = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Driver.update(id, data),
+    onSettled: () => {
+      // Limpiar estado optimista una vez que la suscripción confirmó el cambio
+      setTimeout(() => { setLocalBase(null); setLocalStatus(null); }, 3000);
+    },
   });
 
   const handleAccept = () => {
@@ -989,12 +1003,16 @@ export default function DriverApp() {
     }
   };
   const handleEnterBase = () => {
+    setLocalBase(selectedBase);
+    setLocalStatus("disponible");
     updateDriver.mutate({
       id: myDriverId,
       data: { current_base: selectedBase, status: "disponible", queue_entered_at: new Date().toISOString() },
     });
   };
   const handleChangeBase = (newBase) => {
+    setLocalBase(newBase);
+    setLocalStatus("disponible");
     updateDriver.mutate({
       id: myDriverId,
       data: { current_base: newBase, status: "disponible", queue_entered_at: new Date().toISOString() },
@@ -1006,10 +1024,14 @@ export default function DriverApp() {
   };
 
   const handleGoOffService = () => {
+    setLocalBase(null);
+    setLocalStatus("no_disponible");
     updateDriver.mutate({ id: myDriverId, data: { status: "no_disponible", current_base: null } });
   };
 
   const handleGoOnService = () => {
+    setLocalBase(null);
+    setLocalStatus("disponible");
     updateDriver.mutate({ id: myDriverId, data: { status: "disponible", current_base: null, queue_entered_at: null } });
   };
 
@@ -1030,23 +1052,37 @@ export default function DriverApp() {
     return 0;
   })();
 
-  // Show login if no driver selected or driver not found (but only after drivers loaded)
-  if (!myDriverId || (!myDriver && drivers.length > 0)) {
+  // Timeout de carga: si después de 8s no hay datos, volver al login
+  const [loadTimeout, setLoadTimeout] = useState(false);
+  useEffect(() => {
+    if (!myDriverId || myDriver) { setLoadTimeout(false); return; }
+    const t = setTimeout(() => setLoadTimeout(true), 8000);
+    return () => clearTimeout(t);
+  }, [myDriverId, myDriver]);
+
+  // Show login if no driver selected, driver not found after load, or timeout
+  if (!myDriverId || (!myDriver && (drivers.length > 0 || loadTimeout))) {
     return (
       <LoginScreen
         drivers={drivers}
-        onSelect={(id) => { setMyDriverId(id); localStorage.setItem("my_driver_id", id); }}
+        onSelect={(id) => { setMyDriverId(id); localStorage.setItem("my_driver_id", id); setLoadTimeout(false); }}
       />
     );
   }
 
-  // Loading state — avoid blank screen while fetching
+  // Loading state — mostrar spinner mientras llegan los datos (máx 8s)
   if (!myDriver) {
     return (
       <div className="h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-center space-y-3">
+        <div className="text-center space-y-4">
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-gray-400 text-sm">Conectando...</p>
+          <button
+            className="text-xs text-gray-600 underline"
+            onClick={() => { localStorage.removeItem("my_driver_id"); setMyDriverId(""); }}
+          >
+            Volver al inicio
+          </button>
         </div>
       </div>
     );
@@ -1118,8 +1154,6 @@ export default function DriverApp() {
         <ActiveRideScreen order={activeOrder} driver={myDriver} onStatusChange={handleStatusChange} />
       ) : myDriver.status === "no_disponible" ? (
         <OffServiceScreen onGoOnService={handleGoOnService} />
-      ) : availableOrders.length > 0 && myDriver.status === "disponible" && !myDriver.current_base ? (
-        <AvailableOrders orders={availableOrders} onTake={handleTakeOrder} />
       ) : (
         <IdleScreen
           driver={myDriver}
