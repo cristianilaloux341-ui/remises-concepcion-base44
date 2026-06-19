@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 // base44 y useQuery se usan solo para bases (dato estático, no necesita tiempo real)
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
-import { Car, Clock, CheckCircle2, Users, ArrowRight, Zap, DollarSign } from "lucide-react";
+import { Car, Clock, CheckCircle2, Users, ArrowRight, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import StatCard from "@/components/dashboard/StatCard";
 import RideMap from "@/components/map/RideMap";
 import BaseQueueManager from "@/components/operator/BaseQueueManager";
 import DispatchPanel from "@/components/operator/DispatchPanel";
-import TarifaConfigPanel from "@/components/tarifa/TarifaConfig";
+
 
 export default function Dashboard() {
   // Suscripciones en tiempo real — actualizaciones instantáneas sin polling
@@ -109,14 +109,7 @@ export default function Dashboard() {
         <BaseQueueManager drivers={drivers} />
       </div>
 
-      {/* Tarifas */}
-      <div>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-green-600" />
-          Tarifas
-        </h2>
-        <TarifaConfigPanel />
-      </div>
+
     </div>
   );
 }
