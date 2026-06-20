@@ -23,6 +23,22 @@
       "type": "string",
       "description": "Direcci\u00f3n del titular"
     },
+    "dominio": {
+      "type": "string",
+      "description": "Dominio/patente del veh\u00edculo"
+    },
+    "marca": {
+      "type": "string",
+      "description": "Marca del veh\u00edculo"
+    },
+    "modelo": {
+      "type": "string",
+      "description": "Modelo del veh\u00edculo"
+    },
+    "color": {
+      "type": "string",
+      "description": "Color del veh\u00edculo"
+    },
     "carnet_categoria": {
       "type": "string",
       "enum": [

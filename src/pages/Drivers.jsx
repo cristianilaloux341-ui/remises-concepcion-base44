@@ -205,6 +205,17 @@ export default function Drivers() {
     queryFn: () => base44.entities.Driver.list(),
   });
 
+  const { data: moviles = [] } = useQuery({
+    queryKey: ["moviles"],
+    queryFn: () => base44.entities.Movil.list(),
+  });
+
+  // Busca el móvil por patente del chofer
+  const getMovil = (driver) =>
+    moviles.find(m => m.dominio && driver.vehicle_plate &&
+      m.dominio.replace(/\s/g,"").toUpperCase() === driver.vehicle_plate.replace(/\s/g,"").toUpperCase()
+    );
+
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Driver.create(data),
     onSuccess: () => {
@@ -283,18 +294,27 @@ export default function Drivers() {
                   </Badge>
                 </div>
 
-                <div className="flex items-center gap-2 p-3 bg-muted rounded-xl text-sm mb-4">
-                  <Car className="w-4 h-4 text-muted-foreground" />
-                  <span>{driver.vehicle_model || "Sin modelo"}</span>
-                  <span className="text-muted-foreground">·</span>
-                  <span className="font-mono font-semibold">{driver.vehicle_plate}</span>
-                  {driver.vehicle_color && (
-                    <>
-                      <span className="text-muted-foreground">·</span>
-                      <span>{driver.vehicle_color}</span>
-                    </>
-                  )}
-                </div>
+                {(() => {
+                  const movil = getMovil(driver);
+                  return (
+                    <div className="p-3 bg-muted rounded-xl text-sm mb-4 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Car className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="font-mono font-semibold">{movil?.dominio || driver.vehicle_plate || "—"}</span>
+                        {movil?.numero_movil && (
+                          <span className="ml-auto text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
+                            Móvil {movil.numero_movil}
+                          </span>
+                        )}
+                      </div>
+                      {(movil?.marca || movil?.modelo || driver.vehicle_model) && (
+                        <p className="text-xs text-muted-foreground pl-6">
+                          {[movil?.marca, movil?.modelo || driver.vehicle_model, movil?.color || driver.vehicle_color].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div className="flex items-center gap-2">
                    <Select

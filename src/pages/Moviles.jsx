@@ -16,6 +16,10 @@ const EMPTY_MOVIL = {
   dni: "",
   fecha_nacimiento: "",
   direccion: "",
+  dominio: "",
+  marca: "",
+  modelo: "",
+  color: "",
   carnet_categoria: "",
   vtv_vencimiento: "",
   seguro_riesgos_personales_vencimiento: "",
@@ -90,6 +94,28 @@ function MovilForm({ movil, onSave, onCancel, saving }) {
       <div>
         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Dirección</label>
         <Input value={form.direccion} onChange={e => set("direccion", e.target.value)} className="mt-1" placeholder="Ej: San Martín 1234, Concepción del Uruguay" />
+      </div>
+
+      <div className="border-t pt-4">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Datos del Vehículo</p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Dominio (Patente)</label>
+            <Input value={form.dominio} onChange={e => set("dominio", e.target.value.toUpperCase())} className="mt-1 font-mono" placeholder="Ej: AB 123 CD" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Marca</label>
+            <Input value={form.marca} onChange={e => set("marca", e.target.value)} className="mt-1" placeholder="Ej: Chevrolet" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Modelo</label>
+            <Input value={form.modelo} onChange={e => set("modelo", e.target.value)} className="mt-1" placeholder="Ej: Aveo" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Color</label>
+            <Input value={form.color} onChange={e => set("color", e.target.value)} className="mt-1" placeholder="Ej: Blanco" />
+          </div>
+        </div>
       </div>
 
       <div>
@@ -259,6 +285,7 @@ export default function Moviles() {
               <tr className="bg-muted/50 border-b border-border">
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">N° Móvil</th>
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Titular</th>
+                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Vehículo</th>
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">DNI</th>
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">VTV/RTO</th>
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Seg. Automotor</th>
@@ -285,6 +312,11 @@ export default function Moviles() {
                   <td className="px-4 py-3">
                     <p className="font-medium">{m.apellido_nombre}</p>
                     {m.direccion && <p className="text-xs text-muted-foreground">{m.direccion}</p>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {m.dominio && <p className="font-mono font-semibold text-sm">{m.dominio}</p>}
+                    {(m.marca || m.modelo) && <p className="text-xs text-muted-foreground">{[m.marca, m.modelo, m.color].filter(Boolean).join(" · ")}</p>}
+                    {!m.dominio && !m.marca && <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground font-mono">{m.dni || "—"}</td>
                   <td className="px-4 py-3"><VencimientoBadge fecha={m.vtv_vencimiento} /></td>
