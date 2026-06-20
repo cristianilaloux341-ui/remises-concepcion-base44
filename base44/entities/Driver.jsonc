@@ -48,6 +48,10 @@
     "vehicle_color": {
       "type": "string"
     },
+    "notas": {
+      "type": "string",
+      "description": "Notas internas de la comisi\u00f3n (recordatorios, faltantes, observaciones)"
+    },
     "status": {
       "type": "string",
       "enum": [

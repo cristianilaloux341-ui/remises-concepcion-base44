@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard } from "lucide-react";
+import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard, NotebookPen } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 function DriverForm({ onSubmit, isSubmitting, initial }) {
   const [form, setForm] = useState(initial || {
     name: "", phone: "", dni: "", direccion: "", photo_url: "", carnet_categoria: "",
-    vehicle_model: "", vehicle_plate: "", vehicle_color: "", status: "disponible",
+    vehicle_model: "", vehicle_plate: "", vehicle_color: "", status: "disponible", notas: "",
   });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -78,6 +78,18 @@ function DriverForm({ onSubmit, isSubmitting, initial }) {
       <div className="space-y-1">
         <Label>Dirección</Label>
         <Input value={form.direccion} onChange={e => set("direccion", e.target.value)} placeholder="Ej: San Martín 1234" />
+      </div>
+
+      {/* Notas internas */}
+      <div className="space-y-1">
+        <Label className="flex items-center gap-1"><NotebookPen className="w-3.5 h-3.5" /> Notas internas de la comisión</Label>
+        <textarea
+          value={form.notas}
+          onChange={e => set("notas", e.target.value)}
+          placeholder="Ej: Le falta renovar el carnet, revisar VTV en agosto..."
+          rows={3}
+          className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+        />
       </div>
 
       {/* Vehículo */}
@@ -409,6 +421,13 @@ export default function Drivers() {
                     </div>
                   );
                 })()}
+
+                {driver.notas && (
+                  <div className="mb-3 flex items-start gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+                    <NotebookPen className="w-3.5 h-3.5 text-yellow-600 mt-0.5 shrink-0" />
+                    <p className="text-xs text-yellow-800">{driver.notas}</p>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-2">
                    <Select
