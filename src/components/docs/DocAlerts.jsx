@@ -15,7 +15,7 @@ const DOCS_REINSCRIPCION_MOVIL = [
   { key: "seguro_automotor_vencimiento",            label: "Seguro Automotor vigente" },
   { key: "seguro_riesgos_personales_vencimiento",   label: "Seguro de Riesgos Personales vigente" },
   { key: "buena_conducta_vencimiento",              label: "Certificado de Buena Conducta" },
-  { key: "pago_mensual_al_dia",                     label: "Pago mensual al día", boolean: true },
+  { key: "pago_semanal_al_dia",                     label: "Pago semanal al día", boolean: true },
 ];
 
 // ─── Componente de alerta detallada de vencimientos ───────────────────────────

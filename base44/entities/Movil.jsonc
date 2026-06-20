@@ -67,15 +67,24 @@
       "format": "date",
       "description": "Vencimiento seguro automotor"
     },
-    "pago_mensual_al_dia": {
+    "pago_semanal_al_dia": {
       "type": "boolean",
       "default": true,
-      "description": "Pago mensual al d\u00eda"
+      "description": "Pago semanal al d\u00eda"
     },
-    "pago_mensual_fecha": {
+    "pago_semanal_fecha": {
       "type": "string",
       "format": "date",
-      "description": "Fecha \u00faltimo pago mensual"
+      "description": "Fecha \u00faltimo pago semanal"
+    },
+    "deuda_monto": {
+      "type": "number",
+      "default": 0,
+      "description": "Monto de deuda acumulada (en pesos)"
+    },
+    "deuda_notas": {
+      "type": "string",
+      "description": "Detalle de la deuda"
     },
     "buena_conducta": {
       "type": "boolean",
@@ -90,7 +99,31 @@
     "activo": {
       "type": "boolean",
       "default": true,
-      "description": "M\u00f3vil activo en la flota"
+      "description": "M\u00f3vil activo en la flota (habilitado por operador/comisi\u00f3n)"
+    },
+    "suspension_motivo": {
+      "type": "string",
+      "description": "Motivo de suspensi\u00f3n ingresado por el operador"
+    },
+    "fuera_de_servicio": {
+      "type": "boolean",
+      "default": false,
+      "description": "Fuera de servicio definitivo (solo comisi\u00f3n): falta de pago, papeles, etc."
+    },
+    "fuera_de_servicio_motivo": {
+      "type": "string",
+      "enum": [
+        "falta_de_pago",
+        "falta_de_papeles",
+        "baja_voluntaria",
+        "sancion_disciplinaria",
+        "otro"
+      ],
+      "description": "Motivo por el que la comisi\u00f3n lo sac\u00f3 de servicio"
+    },
+    "fuera_de_servicio_detalle": {
+      "type": "string",
+      "description": "Detalle adicional del motivo (comisi\u00f3n)"
     },
     "notas": {
       "type": "string",

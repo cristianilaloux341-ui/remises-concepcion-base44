@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Car, Plus, Edit, AlertTriangle, CheckCircle2, XCircle, Search, ClipboardList } from "lucide-react";
+import { Car, Plus, Edit, AlertTriangle, CheckCircle2, XCircle, Search, ClipboardList, Ban, PauseCircle } from "lucide-react";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
@@ -25,11 +25,17 @@ const EMPTY_MOVIL = {
   vtv_vencimiento: "",
   seguro_riesgos_personales_vencimiento: "",
   seguro_automotor_vencimiento: "",
-  pago_mensual_al_dia: true,
-  pago_mensual_fecha: "",
+  pago_semanal_al_dia: true,
+  pago_semanal_fecha: "",
+  deuda_monto: 0,
+  deuda_notas: "",
   buena_conducta: true,
   buena_conducta_vencimiento: "",
   activo: true,
+  suspension_motivo: "",
+  fuera_de_servicio: false,
+  fuera_de_servicio_motivo: "",
+  fuera_de_servicio_detalle: "",
   notas: "",
 };
 
@@ -65,14 +71,62 @@ function MovilForm({ movil, onSave, onCancel, saving }) {
           <Input type="number" value={form.numero_movil} onChange={e => set("numero_movil", e.target.value)} required className="mt-1" placeholder="Ej: 12" />
         </div>
         <div>
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado</label>
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Habilitado</label>
           <div className="mt-2 flex items-center gap-3">
             <button type="button" onClick={() => set("activo", !form.activo)}
               className={`w-10 h-6 rounded-full transition-colors relative ${form.activo ? "bg-green-500" : "bg-gray-300"}`}>
               <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.activo ? "left-5" : "left-1"}`} />
             </button>
-            <span className="text-sm text-gray-600">{form.activo ? "Activo" : "Inactivo"}</span>
+            <span className="text-sm text-gray-600">{form.activo ? "Habilitado" : "Suspendido"}</span>
           </div>
+          {!form.activo && (
+            <div className="mt-2">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Motivo de suspensión</label>
+              <Input value={form.suspension_motivo || ""} onChange={e => set("suspension_motivo", e.target.value)} className="mt-1" placeholder="Ej: Falta de documentación, solicitud del titular..." />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Fuera de servicio — solo comisión (admin) */}
+      <div className="border-t pt-4">
+        <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+          <Ban className="w-3.5 h-3.5" /> Fuera de Servicio (Comisión)
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Fuera de Servicio</label>
+            <div className="mt-2 flex items-center gap-3">
+              <button type="button" onClick={() => set("fuera_de_servicio", !form.fuera_de_servicio)}
+                className={`w-10 h-6 rounded-full transition-colors relative ${form.fuera_de_servicio ? "bg-red-600" : "bg-gray-300"}`}>
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.fuera_de_servicio ? "left-5" : "left-1"}`} />
+              </button>
+              <span className="text-sm text-gray-600">{form.fuera_de_servicio ? "Fuera de servicio" : "En servicio"}</span>
+            </div>
+          </div>
+          {form.fuera_de_servicio && (
+            <>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Motivo</label>
+                <Select value={form.fuera_de_servicio_motivo || ""} onValueChange={v => set("fuera_de_servicio_motivo", v)}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Seleccionar motivo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="falta_de_pago">Falta de pago</SelectItem>
+                    <SelectItem value="falta_de_papeles">Falta de papeles</SelectItem>
+                    <SelectItem value="baja_voluntaria">Baja voluntaria</SelectItem>
+                    <SelectItem value="sancion_disciplinaria">Sanción disciplinaria</SelectItem>
+                    <SelectItem value="otro">Otro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Detalle adicional</label>
+                <Input value={form.fuera_de_servicio_detalle || ""} onChange={e => set("fuera_de_servicio_detalle", e.target.value)} className="mt-1" placeholder="Descripción adicional..." />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -154,21 +208,29 @@ function MovilForm({ movil, onSave, onCancel, saving }) {
       </div>
 
       <div className="border-t pt-4">
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Pagos y Conducta</p>
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Pagos y Deudas</p>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Pago Mensual al Día</label>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Pago Semanal al Día</label>
             <div className="mt-2 flex items-center gap-3">
-              <button type="button" onClick={() => set("pago_mensual_al_dia", !form.pago_mensual_al_dia)}
-                className={`w-10 h-6 rounded-full transition-colors relative ${form.pago_mensual_al_dia ? "bg-green-500" : "bg-red-400"}`}>
-                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.pago_mensual_al_dia ? "left-5" : "left-1"}`} />
+              <button type="button" onClick={() => set("pago_semanal_al_dia", !form.pago_semanal_al_dia)}
+                className={`w-10 h-6 rounded-full transition-colors relative ${form.pago_semanal_al_dia ? "bg-green-500" : "bg-red-400"}`}>
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.pago_semanal_al_dia ? "left-5" : "left-1"}`} />
               </button>
-              <span className="text-sm text-gray-600">{form.pago_mensual_al_dia ? "Al día" : "Adeuda"}</span>
+              <span className="text-sm text-gray-600">{form.pago_semanal_al_dia ? "Al día" : "Adeuda"}</span>
             </div>
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Fecha Último Pago</label>
-            <Input type="date" value={form.pago_mensual_fecha} onChange={e => set("pago_mensual_fecha", e.target.value)} className="mt-1" />
+            <Input type="date" value={form.pago_semanal_fecha} onChange={e => set("pago_semanal_fecha", e.target.value)} className="mt-1" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Deuda ($ pesos)</label>
+            <Input type="number" min="0" value={form.deuda_monto || 0} onChange={e => set("deuda_monto", Number(e.target.value))} className="mt-1" placeholder="0" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Detalle de Deuda</label>
+            <Input value={form.deuda_notas || ""} onChange={e => set("deuda_notas", e.target.value)} className="mt-1" placeholder="Ej: 3 semanas impago" />
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Buena Conducta Vigente</label>
@@ -212,7 +274,7 @@ function getCamposMovil(m) {
     { key: "seguro_automotor_vencimiento",           label: "Seguro Automotor",              fecha: m.seguro_automotor_vencimiento },
     { key: "seguro_riesgos_personales_vencimiento",  label: "Seg. Riesgos Personales",       fecha: m.seguro_riesgos_personales_vencimiento },
     { key: "buena_conducta_vencimiento",             label: "Buena Conducta",                fecha: m.buena_conducta_vencimiento },
-    { key: "pago_mensual_al_dia",                    label: "Pago mensual al día",           boolean: true, valor: m.pago_mensual_al_dia },
+    { key: "pago_semanal_al_dia",                    label: "Pago semanal al día",           boolean: true, valor: m.pago_semanal_al_dia },
   ];
 }
 
@@ -309,7 +371,8 @@ export default function Moviles() {
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Seg. Automotor</th>
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Seg. Riesgos</th>
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Buena Conducta</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Pago Mensual</th>
+                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Pago Semanal</th>
+                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Deuda</th>
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Estado</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -317,7 +380,7 @@ export default function Moviles() {
             <tbody className="divide-y divide-border">
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={12} className="text-center py-12 text-muted-foreground">
                     No hay móviles registrados.
                   </td>
                 </tr>
@@ -346,12 +409,22 @@ export default function Moviles() {
                       : <span className="text-xs text-red-600 font-medium">Sin certificado</span>}
                   </td>
                   <td className="px-4 py-3">
-                    {m.pago_mensual_al_dia
+                    {m.pago_semanal_al_dia
                       ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full font-medium"><CheckCircle2 className="w-3 h-3" />Al día</span>
                       : <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full font-medium"><XCircle className="w-3 h-3" />Adeuda</span>}
                   </td>
                   <td className="px-4 py-3">
-                    <Badge variant={m.activo ? "default" : "secondary"}>{m.activo ? "Activo" : "Inactivo"}</Badge>
+                    {m.deuda_monto > 0
+                      ? <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full font-medium">${m.deuda_monto.toLocaleString("es-AR")}</span>
+                      : <span className="text-xs text-muted-foreground">—</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {m.fuera_de_servicio
+                      ? <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-100 border border-red-300 px-2 py-0.5 rounded-full font-bold"><Ban className="w-3 h-3" />Fuera de servicio</span>
+                      : m.activo
+                        ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full font-medium"><CheckCircle2 className="w-3 h-3" />Habilitado</span>
+                        : <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium"><PauseCircle className="w-3 h-3" />Suspendido{m.suspension_motivo ? ` — ${m.suspension_motivo}` : ""}</span>
+                    }
                   </td>
                   <td className="px-4 py-3 flex items-center gap-1">
                     <Button variant="ghost" size="icon" title="Editar" onClick={() => { setEditing(m); setDialogOpen(true); }}>
