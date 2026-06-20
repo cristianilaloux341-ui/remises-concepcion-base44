@@ -8,50 +8,100 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle } from "lucide-react";
+import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-function DriverForm({ onSubmit, isSubmitting }) {
-  const [form, setForm] = useState({
-    name: "", phone: "", vehicle_model: "", vehicle_plate: "", vehicle_color: "", status: "disponible",
+function DriverForm({ onSubmit, isSubmitting, initial }) {
+  const [form, setForm] = useState(initial || {
+    name: "", phone: "", dni: "", direccion: "", photo_url: "", carnet_categoria: "",
+    vehicle_model: "", vehicle_plate: "", vehicle_color: "", status: "disponible",
   });
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit(form);
+  const handlePhoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    set("photo_url", file_url);
+    setUploadingPhoto(false);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={e => { e.preventDefault(); onSubmit(form); }} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+      {/* Foto */}
+      <div className="flex items-center gap-4">
+        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center overflow-hidden shrink-0">
+          {form.photo_url
+            ? <img src={form.photo_url} alt="foto" className="w-full h-full object-cover" />
+            : <User className="w-7 h-7 text-muted-foreground" />}
+        </div>
+        <div>
+          <Label className="text-xs">Foto del conductor</Label>
+          <label className="mt-1 flex items-center gap-2 cursor-pointer text-sm text-primary hover:underline">
+            <Upload className="w-4 h-4" />
+            {uploadingPhoto ? "Subiendo..." : "Subir foto"}
+            <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} disabled={uploadingPhoto} />
+          </label>
+        </div>
+      </div>
+
+      {/* Datos personales */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label>Nombre</Label>
-          <Input value={form.name} onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))} required />
+        <div className="space-y-1">
+          <Label>Nombre *</Label>
+          <Input value={form.name} onChange={e => set("name", e.target.value)} required />
         </div>
-        <div className="space-y-2">
-          <Label>Teléfono</Label>
-          <Input value={form.phone} onChange={(e) => setForm(p => ({ ...p, phone: e.target.value }))} required />
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-2">
-          <Label>Modelo</Label>
-          <Input value={form.vehicle_model} onChange={(e) => setForm(p => ({ ...p, vehicle_model: e.target.value }))} />
-        </div>
-        <div className="space-y-2">
-          <Label>Patente</Label>
-          <Input value={form.vehicle_plate} onChange={(e) => setForm(p => ({ ...p, vehicle_plate: e.target.value }))} required />
-        </div>
-        <div className="space-y-2">
-          <Label>Color</Label>
-          <Input value={form.vehicle_color} onChange={(e) => setForm(p => ({ ...p, vehicle_color: e.target.value }))} />
+        <div className="space-y-1">
+          <Label>Teléfono *</Label>
+          <Input value={form.phone} onChange={e => set("phone", e.target.value)} required />
         </div>
       </div>
-      <Button type="submit" className="w-full rounded-xl" disabled={isSubmitting}>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>DNI</Label>
+          <Input value={form.dni} onChange={e => set("dni", e.target.value)} placeholder="Ej: 28.345.678" />
+        </div>
+        <div className="space-y-1">
+          <Label>Carnet Categoría</Label>
+          <Select value={form.carnet_categoria} onValueChange={v => set("carnet_categoria", v)}>
+            <SelectTrigger><SelectValue placeholder="Categoría..." /></SelectTrigger>
+            <SelectContent>
+              {["A","B","C","D","E","F","G"].map(c => <SelectItem key={c} value={c}>Categoría {c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="space-y-1">
+        <Label>Dirección</Label>
+        <Input value={form.direccion} onChange={e => set("direccion", e.target.value)} placeholder="Ej: San Martín 1234" />
+      </div>
+
+      {/* Vehículo */}
+      <div className="border-t pt-3">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Vehículo</p>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <Label>Modelo</Label>
+            <Input value={form.vehicle_model} onChange={e => set("vehicle_model", e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Patente *</Label>
+            <Input value={form.vehicle_plate} onChange={e => set("vehicle_plate", e.target.value.toUpperCase())} required className="font-mono" />
+          </div>
+          <div className="space-y-1">
+            <Label>Color</Label>
+            <Input value={form.vehicle_color} onChange={e => set("vehicle_color", e.target.value)} />
+          </div>
+        </div>
+      </div>
+
+      <Button type="submit" className="w-full rounded-xl" disabled={isSubmitting || uploadingPhoto}>
         {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-        Agregar Conductor
+        {initial ? "Guardar Cambios" : "Agregar Conductor"}
       </Button>
     </form>
   );
@@ -198,6 +248,7 @@ function DriverHistory({ driverId, driverName, onClose }) {
 export default function Drivers() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingDriver, setEditingDriver] = useState(null);
   const [selectedDriver, setSelectedDriver] = useState(null);
 
   const { data: drivers = [], isLoading } = useQuery({
@@ -221,6 +272,14 @@ export default function Drivers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
       setDialogOpen(false);
+    },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.Driver.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      setEditingDriver(null);
     },
   });
 
@@ -254,11 +313,25 @@ export default function Drivers() {
               Agregar
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Nuevo Conductor</DialogTitle>
             </DialogHeader>
             <DriverForm onSubmit={(data) => createMutation.mutate(data)} isSubmitting={createMutation.isPending} />
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog edición */}
+        <Dialog open={!!editingDriver} onOpenChange={(v) => !v && setEditingDriver(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Editar Conductor — {editingDriver?.name}</DialogTitle>
+            </DialogHeader>
+            <DriverForm
+              initial={editingDriver}
+              onSubmit={(data) => editMutation.mutate({ id: editingDriver.id, data })}
+              isSubmitting={editMutation.isPending}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -277,22 +350,43 @@ export default function Drivers() {
           {drivers.map(driver => (
             <Card key={driver.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <User className="w-5 h-5 text-primary" />
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden shrink-0">
+                      {driver.photo_url
+                        ? <img src={driver.photo_url} alt={driver.name} className="w-full h-full object-cover" />
+                        : <User className="w-6 h-6 text-primary" />}
                     </div>
                     <div>
                       <p className="font-semibold">{driver.name}</p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <Phone className="w-3 h-3" /> {driver.phone}
                       </p>
+                      {driver.dni && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <CreditCard className="w-3 h-3" /> DNI {driver.dni}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <Badge variant="outline" className={statusColors[driver.status]}>
                     {driver.status?.replace("_", " ")}
                   </Badge>
                 </div>
+                {(driver.direccion || driver.carnet_categoria) && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {driver.direccion && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {driver.direccion}
+                      </span>
+                    )}
+                    {driver.carnet_categoria && (
+                      <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-medium">
+                        Carnet Cat. {driver.carnet_categoria}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {(() => {
                   const movil = getMovil(driver);
@@ -330,6 +424,15 @@ export default function Drivers() {
                        <SelectItem value="no_disponible">No Disponible</SelectItem>
                      </SelectContent>
                    </Select>
+                   <Button
+                     variant="outline"
+                     size="icon"
+                     className="h-9 w-9"
+                     onClick={() => setEditingDriver(driver)}
+                     title="Editar conductor"
+                   >
+                     <User className="w-4 h-4" />
+                   </Button>
                    <Button
                      variant="outline"
                      size="icon"
