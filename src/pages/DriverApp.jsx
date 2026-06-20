@@ -8,7 +8,7 @@ import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle } from "lucide-react";
+import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2 } from "lucide-react";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
 import RideMap from "@/components/map/RideMap";
 import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
@@ -17,6 +17,7 @@ import DriverMessages from "@/components/driver/DriverMessages";
 import DriverMessageModal from "@/components/driver/DriverMessageModal";
 import { useDriverMessageAlert } from "@/hooks/useDriverMessageAlert";
 import DriverSetupGuide from "@/components/driver/DriverSetupGuide";
+import DriverStats from "@/components/driver/DriverStats";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
 
 // ── Audio & Notifications ─────────────────────────────────────────────────────
@@ -818,6 +819,7 @@ export default function DriverApp() {
   const [selectedBase, setSelectedBase] = useState("");
   const [showMessages, setShowMessages] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
   const prevOfferedId = useRef(null);
   const offeredOrderRef = useRef(null);
@@ -1168,6 +1170,13 @@ export default function DriverApp() {
             <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs">Fuera de Servicio</Badge>
           )}
           <button
+            className="p-2 rounded-xl bg-green-600/20 text-green-400"
+            onClick={() => setShowStats(true)}
+            title="Mis estadísticas"
+          >
+            <BarChart2 className="w-4 h-4" />
+          </button>
+          <button
             className="p-2 rounded-xl bg-blue-600/20 text-blue-400"
             onClick={() => setShowMessages(true)}
           >
@@ -1242,6 +1251,10 @@ export default function DriverApp() {
 
       {showSetupGuide && (
         <DriverSetupGuide onClose={() => setShowSetupGuide(false)} />
+      )}
+
+      {showStats && myDriver && (
+        <DriverStats driverId={myDriverId} driverName={myDriver.name} onClose={() => setShowStats(false)} />
       )}
 
       {/* Bloqueante: se muestra de a uno, el más antiguo primero */}
