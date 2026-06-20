@@ -22,12 +22,18 @@ export function getBaseQueue(drivers, baseName) {
     .sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at));
 }
 
-// Find best driver for an order: nearest base first, then first in queue
+// Find best driver for an order: zone-first (FIFO), then nearest base
 export async function findBestDriver(order, drivers, bases) {
   const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
   if (!availableDrivers.length) return null;
 
-  // If order has pickup coordinates, find nearest base with available drivers
+  // 1) If order has a zone, try that zone first (FIFO)
+  if (order.zone) {
+    const zoneQueue = getBaseQueue(availableDrivers, order.zone);
+    if (zoneQueue.length > 0) return zoneQueue[0];
+  }
+
+  // 2) If pickup coordinates available, find nearest base with available drivers
   if (order.pickup_lat && order.pickup_lng) {
     const basesWithDrivers = BASES.filter(b => availableDrivers.some(d => d.current_base === b));
     
@@ -42,12 +48,13 @@ export async function findBestDriver(order, drivers, bases) {
       }
     }
 
-    const targetBase = nearestBase || basesWithDrivers[0];
-    const queue = getBaseQueue(availableDrivers, targetBase);
-    return queue[0] || null;
+    if (nearestBase) {
+      const queue = getBaseQueue(availableDrivers, nearestBase);
+      if (queue.length > 0) return queue[0];
+    }
   }
 
-  // No coordinates: just take first in any queue
+  // 3) No zone / no coords: first in any queue (FIFO global)
   for (const baseName of BASES) {
     const queue = getBaseQueue(availableDrivers, baseName);
     if (queue.length > 0) return queue[0];
@@ -63,7 +70,7 @@ export function findDriverInZone(zone, drivers) {
     .sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at))[0] || null;
 }
 
-// Assign driver to order
+// Assign driver to order (direct / zone-based)
 export async function assignDriverToOrder(order, driver) {
   await base44.entities.RideOrder.update(order.id, {
     status: "ofrecido",
@@ -83,13 +90,68 @@ export async function assignDriverToOrder(order, driver) {
       dropoff_address: order.dropoff_address,
       fare: order.fare,
     },
-  }).catch(() => {}); // No bloquear si la push falla
+  }).catch(() => {});
 
   // Timeout automático: si el chofer NO acepta en 30s, reasignar a otro
   base44.functions.invoke("autoReassignOnTimeout", {
     orderId: order.id,
     timeoutSeconds: 30,
-  }).catch(() => {}); // No bloqueante
+  }).catch(() => {});
+}
+
+// Broadcast: marcar el pedido como "pendiente_broadcast" para que TODOS los disponibles lo vean
+// El primero en aceptar gana. Se usa cuando no hay nadie en la zona.
+export async function broadcastOrder(order) {
+  await base44.entities.RideOrder.update(order.id, {
+    status: "pendiente",
+    driver_id: null,
+    driver_name: null,
+    assigned_base: null,
+    // Prefijo especial para que DriverApp lo detecte como broadcast urgente
+    notes: order.notes ? `[BROADCAST] ${order.notes}` : "[BROADCAST]",
+  });
+}
+
+// Auto-dispatch: intenta asignar por zona; si no hay nadie → broadcast
+// Retorna: "assigned" | "broadcast" | "no_drivers"
+export async function autoDispatch(order, drivers, bases) {
+  const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
+
+  if (!availableDrivers.length) return "no_drivers";
+
+  // 1) Buscar primero en la zona del pedido (FIFO)
+  if (order.zone) {
+    const zoneQueue = getBaseQueue(availableDrivers, order.zone);
+    if (zoneQueue.length > 0) {
+      await assignDriverToOrder(order, zoneQueue[0]);
+      return "assigned";
+    }
+  }
+
+  // 2) Sin zona o zona vacía → buscar por coordenadas (base más cercana)
+  if (order.pickup_lat && order.pickup_lng) {
+    const basesWithDrivers = BASES.filter(b => availableDrivers.some(d => d.current_base === b));
+    let nearestBase = null;
+    let minDist = Infinity;
+    for (const baseName of basesWithDrivers) {
+      const baseInfo = bases.find(b => b.name === baseName);
+      if (baseInfo?.lat && baseInfo?.lng) {
+        const dist = getDistance(order.pickup_lat, order.pickup_lng, baseInfo.lat, baseInfo.lng);
+        if (dist < minDist) { minDist = dist; nearestBase = baseName; }
+      }
+    }
+    if (nearestBase) {
+      const queue = getBaseQueue(availableDrivers, nearestBase);
+      if (queue.length > 0) {
+        await assignDriverToOrder(order, queue[0]);
+        return "assigned";
+      }
+    }
+  }
+
+  // 3) Sin nadie en zona → broadcast a todos
+  await broadcastOrder(order);
+  return "broadcast";
 }
 
 // Reassign after rejection: next in same base queue (skipping already-offered),
@@ -99,7 +161,6 @@ export async function reassignAfterReject(order, drivers, bases) {
   const available = drivers.filter(d => d.status === "disponible" && d.current_base && !offeredIds.includes(d.id));
 
   if (!available.length) {
-    // No one left untried → reset to pendiente without driver
     await base44.entities.RideOrder.update(order.id, {
       status: "pendiente",
       driver_id: null,
@@ -108,28 +169,19 @@ export async function reassignAfterReject(order, drivers, bases) {
     return "sin_moviles";
   }
 
-  // Determine which base the order was assigned from
-  const lastBase = order.assigned_base;
+  // Next driver in same base (FIFO)
+  const lastBase = order.assigned_base || order.zone;
   const sameBaseQueue = available
     .filter(d => d.current_base === lastBase)
     .sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at));
 
   if (sameBaseQueue.length > 0) {
-    // Next driver in same base
-    const next = sameBaseQueue[0];
-    await assignDriverToOrder(order, next);
+    await assignDriverToOrder(order, sameBaseQueue[0]);
     return "next_in_queue";
   }
 
-  // No one in same zone → broadcast to ALL available (first to accept wins)
-  // We use status "pendiente" with no driver_id so all drivers see it as available,
-  // but set a special broadcast flag via notes prefix
-  await base44.entities.RideOrder.update(order.id, {
-    status: "pendiente",
-    driver_id: null,
-    driver_name: null,
-    assigned_base: null,
-  });
+  // No one in same zone → broadcast a todos disponibles
+  await broadcastOrder(order);
   return "broadcast";
 }
 

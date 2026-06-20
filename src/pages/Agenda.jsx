@@ -15,7 +15,7 @@ import { Plus, Clock, Car, MapPin, Bell, BellOff, CheckCircle2, XCircle, Zap, Ta
 const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 import { format, formatDistanceToNow, isPast, differenceInMinutes } from "date-fns";
 import { es } from "date-fns/locale";
-import { assignDriverToOrder, findBestDriver, detectZoneFromAddress } from "@/lib/dispatchLogic";
+import { autoDispatch, assignDriverToOrder, detectZoneFromAddress } from "@/lib/dispatchLogic";
 import { useTarifaConfig, calcularDistanciaRuta, calcularImporte } from "@/hooks/useTarifaConfig";
 
 const STATUS_COLORS = {
@@ -269,14 +269,7 @@ export default function Agenda() {
 
   const dispatchMutation = useMutation({
     mutationFn: async (ride) => {
-      let driver;
-      if (ride.preferred_driver_id) {
-        // Use the preferred driver regardless of their current status
-        driver = drivers.find(d => d.id === ride.preferred_driver_id);
-      } else {
-        driver = await findBestDriver({ pickup_address: ride.pickup_address }, drivers, bases);
-      }
-      // Create the order — if a driver is found, mark as "ofrecido" so the driver app shows the alert
+      // Crear el pedido como pendiente
       const order = await base44.entities.RideOrder.create({
         client_name: ride.client_name,
         client_phone: ride.client_phone || "",
@@ -285,15 +278,15 @@ export default function Agenda() {
         zone: ride.zone || undefined,
         fare: ride.fare && String(ride.fare).trim() !== "" && Number(ride.fare) > 0 ? Number(ride.fare) : undefined,
         notes: ride.notes || "",
-        status: driver ? "ofrecido" : "pendiente",
-        driver_id: driver?.id || undefined,
-        driver_name: driver?.name || undefined,
-        assigned_base: driver?.current_base || undefined,
-        offered_driver_ids: driver ? [driver.id] : [],
+        status: "pendiente",
       });
-      // Update driver status
-      if (driver) {
-        await base44.entities.Driver.update(driver.id, { status: "en_viaje" });
+      // Auto-asignar por zona (o broadcast si no hay nadie)
+      // Si tiene móvil preferido, asignar directo
+      if (ride.preferred_driver_id) {
+        const prefDriver = drivers.find(d => d.id === ride.preferred_driver_id);
+        if (prefDriver) await assignDriverToOrder(order, prefDriver);
+      } else {
+        await autoDispatch(order, drivers, bases);
       }
       await base44.entities.ScheduledRide.update(ride.id, { status: "despachado", order_id: order.id });
     },

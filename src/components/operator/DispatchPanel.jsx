@@ -3,36 +3,32 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Zap, User, MapPin, Loader2, ChevronRight, Car, CheckCircle2 } from "lucide-react";
+import { Zap, User, MapPin, Loader2, ChevronRight, Car, CheckCircle2, Radio } from "lucide-react";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
-import { findBestDriver, assignDriverToOrder, getBaseQueue, BASES } from "@/lib/dispatchLogic";
+import { autoDispatch, assignDriverToOrder, getBaseQueue, BASES } from "@/lib/dispatchLogic";
 
 function PendingOrderCard({ order, drivers, bases, onDispatched }) {
   const [dispatching, setDispatching] = useState(false);
   const [selectedDriverId, setSelectedDriverId] = useState("");
-  const [suggestedDriver, setSuggestedDriver] = useState(null);
-  const [loadingSuggestion, setLoadingSuggestion] = useState(false);
 
   const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
+  const isBroadcast = (order.notes || "").startsWith("[BROADCAST]");
 
-  // Load suggestion on mount
-  useEffect(() => {
-    setLoadingSuggestion(true);
-    findBestDriver(order, drivers, bases).then(d => {
-      setSuggestedDriver(d);
-      setLoadingSuggestion(false);
-    });
-  }, [order.id, drivers.length]);
+  // Zona del pedido → primera en cola
+  const zoneQueue = order.zone ? getBaseQueue(availableDrivers, order.zone) : [];
+  const suggestedDriver = zoneQueue[0] || null;
 
-  const handleAssign = async (driverIdOverride) => {
+  const handleAutoAssign = async () => {
     setDispatching(true);
-    const driverId = driverIdOverride || selectedDriverId;
-    let driver;
-    if (driverId) {
-      driver = drivers.find(d => d.id === driverId);
-    } else {
-      driver = suggestedDriver || (await findBestDriver(order, drivers, bases));
-    }
+    await autoDispatch(order, drivers, bases);
+    onDispatched();
+    setDispatching(false);
+  };
+
+  const handleManualAssign = async () => {
+    if (!selectedDriverId) return;
+    setDispatching(true);
+    const driver = drivers.find(d => d.id === selectedDriverId);
     if (driver) {
       await assignDriverToOrder(order, driver);
       onDispatched();
@@ -41,11 +37,18 @@ function PendingOrderCard({ order, drivers, bases, onDispatched }) {
   };
 
   return (
-    <div className="p-3 rounded-xl border bg-amber-50 border-amber-200 space-y-3">
-      {/* Order info */}
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="font-semibold text-sm">{order.client_name}</p>
+    <div className={`p-3 rounded-xl border space-y-3 ${isBroadcast ? "bg-orange-50 border-orange-300" : "bg-amber-50 border-amber-200"}`}>
+      {/* Orden info */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-sm truncate">{order.client_name}</p>
+            {isBroadcast && (
+              <Badge className="bg-orange-100 text-orange-700 border-0 text-xs gap-1 shrink-0">
+                <Radio className="w-2.5 h-2.5" /> broadcast
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
             <MapPin className="w-3 h-3 shrink-0 text-green-500" />{order.pickup_address}
           </p>
@@ -54,44 +57,55 @@ function PendingOrderCard({ order, drivers, bases, onDispatched }) {
               <MapPin className="w-3 h-3 shrink-0 text-red-500" />{order.dropoff_address}
             </p>
           )}
+          {order.zone && (
+            <p className="text-xs text-blue-600 font-medium mt-0.5">Zona: {order.zone}</p>
+          )}
         </div>
         <OrderStatusBadge status={order.status} />
       </div>
 
-      {/* Suggested driver */}
-      {loadingSuggestion ? (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="w-3 h-3 animate-spin" /> Buscando mejor chofer...
-        </div>
-      ) : suggestedDriver ? (
-        <div className="bg-white rounded-lg border border-amber-200 px-3 py-2 flex items-center gap-2">
-          <Car className="w-4 h-4 text-amber-500 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold truncate">{suggestedDriver.name}</p>
-            <p className="text-xs text-muted-foreground font-mono">{suggestedDriver.vehicle_plate} · {suggestedDriver.current_base}</p>
+      {/* Chofer sugerido (primero en zona) */}
+      {!isBroadcast && (
+        suggestedDriver ? (
+          <div className="bg-white rounded-lg border border-amber-200 px-3 py-2 flex items-center gap-2">
+            <Car className="w-4 h-4 text-amber-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold truncate">{suggestedDriver.name}</p>
+              <p className="text-xs text-muted-foreground font-mono">{suggestedDriver.vehicle_plate} · {suggestedDriver.current_base}</p>
+            </div>
+            <Badge className="text-xs bg-amber-100 text-amber-700 border-0 shrink-0">1° en zona</Badge>
           </div>
-          <Badge className="text-xs bg-amber-100 text-amber-700 border-0 shrink-0">sugerido</Badge>
-        </div>
-      ) : (
-        <p className="text-xs text-red-500">Sin chóferes disponibles</p>
+        ) : (
+          <div className="flex items-center gap-2 text-xs text-orange-600 bg-orange-50 rounded-lg px-3 py-2">
+            <Radio className="w-3 h-3" />
+            Sin móviles en zona · se enviará broadcast
+          </div>
+        )
       )}
 
-      {/* Auto assign button */}
+      {isBroadcast && (
+        <div className="flex items-center gap-2 text-xs text-orange-700 bg-orange-100 rounded-lg px-3 py-2">
+          <Radio className="w-3 h-3" />
+          Esperando que un móvil acepte...
+        </div>
+      )}
+
+      {/* Auto-asignar */}
       <Button
         size="sm"
         className="w-full gap-2 rounded-lg h-8"
-        onClick={() => handleAssign()}
-        disabled={dispatching || (!suggestedDriver && !selectedDriverId)}
+        onClick={handleAutoAssign}
+        disabled={dispatching}
       >
         {dispatching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-        Asignar {suggestedDriver ? suggestedDriver.name : "Auto"}
+        {suggestedDriver ? `Asignar a ${suggestedDriver.name}` : "Broadcast a todos"}
       </Button>
 
-      {/* Manual selector */}
+      {/* Selector manual */}
       <div className="flex gap-2">
         <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
           <SelectTrigger className="h-8 text-xs rounded-lg flex-1">
-            <SelectValue placeholder="Elegir otro chofer..." />
+            <SelectValue placeholder="Asignar manualmente..." />
           </SelectTrigger>
           <SelectContent>
             {availableDrivers.map(d => (
@@ -105,7 +119,7 @@ function PendingOrderCard({ order, drivers, bases, onDispatched }) {
           size="sm"
           variant="outline"
           className="h-8 px-3 rounded-lg shrink-0"
-          onClick={() => handleAssign(selectedDriverId)}
+          onClick={handleManualAssign}
           disabled={!selectedDriverId || dispatching}
         >
           <CheckCircle2 className="w-3 h-3" />
@@ -123,19 +137,11 @@ export default function DispatchPanel({ orders, drivers, bases, onOrderClick }) 
 
   const handleDispatchAll = async () => {
     setDispatchingAll(true);
-    // Despachar todos en paralelo para máxima velocidad
     await Promise.all(
-      pending.map(async (order) => {
-        const driver = await findBestDriver(order, drivers, bases);
-        if (driver) await assignDriverToOrder(order, driver);
-      })
+      pending.map(order => autoDispatch(order, drivers, bases))
     );
     setDispatchingAll(false);
-    // No necesita invalidateQueries — la suscripción en tiempo real actualiza el estado automáticamente
   };
-
-  // No necesita invalidateQueries — la suscripción en tiempo real actualiza automáticamente
-  const handleDispatched = () => {};
 
   return (
     <div className="space-y-4">
@@ -160,7 +166,7 @@ export default function DispatchPanel({ orders, drivers, bases, onOrderClick }) 
               order={order}
               drivers={drivers}
               bases={bases}
-              onDispatched={handleDispatched}
+              onDispatched={() => {}}
             />
           ))
         )}

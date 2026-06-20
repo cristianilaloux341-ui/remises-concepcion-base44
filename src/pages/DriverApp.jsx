@@ -265,19 +265,25 @@ function IncomingAlert({ order, onAccept, onReject }) {
   );
 }
 
-// ── Broadcast alert (cross-zone offer) ───────────────────────────────────────
+// ── Broadcast alert (sin zona / primero en aceptar gana) ─────────────────────
 function BroadcastAlert({ order, onAccept, onReject }) {
+  const cleanNotes = (order.notes || "").replace(/^\[BROADCAST\]\s*/, "").trim();
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300">
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
-        <div className="bg-blue-600 px-5 py-4 flex items-center gap-3">
-          <Bell className="w-6 h-6 text-white animate-pulse" />
+        <div className="bg-orange-500 px-5 py-4 flex items-center gap-3 animate-pulse">
+          <Bell className="w-6 h-6 text-white" />
           <div>
-            <p className="font-bold text-white text-base leading-tight">📢 Viaje disponible en {order.zone}</p>
-            <p className="text-blue-100 text-xs">Sin móvil en esa zona · Podés tomarlo vos</p>
+            <p className="font-bold text-white text-base leading-tight">📢 Viaje a todos los móviles</p>
+            <p className="text-orange-100 text-xs font-semibold">⚡ El primero en aceptar lo lleva</p>
           </div>
         </div>
         <div className="p-5 space-y-4">
+          {order.zone && (
+            <div className="bg-orange-50 rounded-xl px-3 py-2 text-xs text-orange-700 font-medium">
+              Zona solicitada: {order.zone}
+            </div>
+          )}
           <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
             <div className="flex items-start gap-3">
               <div className="w-5 h-5 rounded-full bg-green-500 mt-0.5 shrink-0" />
@@ -305,15 +311,15 @@ function BroadcastAlert({ order, onAccept, onReject }) {
               <span className="text-2xl font-bold text-green-600">${order.fare.toLocaleString()}</span>
             </div>
           )}
-          {order.notes && (
-            <p className="text-sm text-gray-500 italic px-1">"{order.notes}"</p>
+          {cleanNotes && (
+            <p className="text-sm text-gray-500 italic px-1">"{cleanNotes}"</p>
           )}
           <div className="grid grid-cols-2 gap-3 pt-1">
             <Button size="lg" className="rounded-2xl h-14 bg-green-500 hover:bg-green-600 text-base font-bold gap-2 shadow-lg shadow-green-500/30" onClick={onAccept}>
-              <CheckCircle2 className="w-5 h-5" /> Aceptar
+              <CheckCircle2 className="w-5 h-5" /> Tomar
             </Button>
-            <Button size="lg" variant="outline" className="rounded-2xl h-14 border-red-200 text-red-500 hover:bg-red-50 text-base font-bold gap-2" onClick={onReject}>
-              <XCircle className="w-5 h-5" /> Rechazar
+            <Button size="lg" variant="outline" className="rounded-2xl h-14 border-gray-200 text-gray-500 hover:bg-gray-50 text-base font-bold gap-2" onClick={onReject}>
+              <XCircle className="w-5 h-5" /> Ignorar
             </Button>
           </div>
         </div>
@@ -968,9 +974,13 @@ export default function DriverApp() {
 
   const activeOrder = orders.find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
   const offeredOrder = orders.find(o => o.driver_id === myDriverId && o.status === "ofrecido");
-  // Broadcast: pedido pendiente que este chofer no rechazó (solo si está libre y en base)
+  // Broadcast: pedido pendiente (sin chofer asignado) que este chofer no rechazó — solo si está libre y en base
   const broadcastOrder = myDriver?.status === "disponible" && myDriver?.current_base && !activeOrder && !offeredOrder
-    ? orders.find(o => o.status === "pendiente" && !o.driver_id && o.zone && !dismissedBroadcasts.includes(o.id))
+    ? orders.find(o =>
+        o.status === "pendiente" &&
+        !o.driver_id &&
+        !dismissedBroadcasts.includes(o.id)
+      )
     : null;
 
   // Inform SW which driver is active
@@ -999,13 +1009,19 @@ export default function DriverApp() {
     }
   }, [offeredOrder?.id]);
 
-  // Alerta de audio al recibir un broadcast nuevo
+  // Alerta de audio al recibir un broadcast — repite cada 4s hasta que se acepte o rechace
   useEffect(() => {
-    if (broadcastOrder && broadcastOrder.id !== prevBroadcastId.current) {
+    if (!broadcastOrder) {
+      prevBroadcastId.current = null;
+      return;
+    }
+    if (broadcastOrder.id !== prevBroadcastId.current) {
       prevBroadcastId.current = broadcastOrder.id;
       playAlert();
+      sendSystemNotification(broadcastOrder);
     }
-    if (!broadcastOrder) prevBroadcastId.current = null;
+    const interval = setInterval(() => playAlert(), 4000);
+    return () => clearInterval(interval);
   }, [broadcastOrder?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateOrder = useMutation({
