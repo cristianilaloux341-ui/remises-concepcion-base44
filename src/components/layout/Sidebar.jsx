@@ -46,19 +46,30 @@ export default function Sidebar({ open, onClose }) {
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="p-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
-              <Car className="w-5 h-5 text-sidebar-primary-foreground" />
+        <div className="p-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-sidebar-primary flex items-center justify-center shrink-0">
+              <UserCircle className="w-5 h-5 text-sidebar-primary-foreground" />
             </div>
-            <div>
-              <h1 className="font-bold text-lg text-sidebar-foreground">Remisería</h1>
-              <p className="text-xs text-sidebar-foreground/50">Sistema de despacho</p>
+            <div className="min-w-0">
+              <p className="font-semibold text-sm text-sidebar-foreground truncate">{user?.full_name || user?.email || "Usuario"}</p>
+              <p className="text-xs text-sidebar-foreground/50 capitalize">{user?.role === "admin" ? "Directivo" : "Operador"}</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="lg:hidden text-sidebar-foreground" onClick={onClose}>
-            <X className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-sidebar-foreground/50 hover:text-sidebar-foreground w-8 h-8"
+              onClick={() => setSwitchOpen(true)}
+              title="Cambiar usuario"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="lg:hidden text-sidebar-foreground w-8 h-8" onClick={onClose}>
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         <nav className="flex-1 px-3 space-y-1">
@@ -88,28 +99,13 @@ export default function Sidebar({ open, onClose }) {
           })}
         </nav>
 
-        <div className="p-4 space-y-2">
+        <div className="p-4">
           <Link to="/orders/new" onClick={onClose}>
             <Button className="w-full gap-2 rounded-xl h-11 bg-sidebar-primary hover:bg-sidebar-primary/90">
               <Plus className="w-4 h-4" />
               Nuevo Pedido
             </Button>
           </Link>
-          <div className="flex items-center justify-between px-1 pt-1">
-            <div className="flex items-center gap-2 min-w-0">
-              <UserCircle className="w-4 h-4 text-sidebar-foreground/50 shrink-0" />
-              <span className="text-xs text-sidebar-foreground/60 truncate">{user?.full_name || user?.email || "Usuario"}</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-sidebar-foreground/50 hover:text-sidebar-foreground h-7 px-2 text-xs gap-1 shrink-0"
-              onClick={() => setSwitchOpen(true)}
-            >
-              <RefreshCw className="w-3 h-3" />
-              Cambiar
-            </Button>
-          </div>
         </div>
 
       <SwitchUserModal
