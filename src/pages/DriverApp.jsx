@@ -19,6 +19,7 @@ import { useDriverMessageAlert } from "@/hooks/useDriverMessageAlert";
 import DriverSetupGuide from "@/components/driver/DriverSetupGuide";
 import DriverStats from "@/components/driver/DriverStats";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
+import BatteryOptimizationGuide from "@/components/driver/BatteryOptimizationGuide";
 
 // ── Audio & Notifications ─────────────────────────────────────────────────────
 
@@ -826,6 +827,7 @@ export default function DriverApp() {
   const [showMessages, setShowMessages] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showBatteryGuide, setShowBatteryGuide] = useState(false);
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
   const prevOfferedId = useRef(null);
   const offeredOrderRef = useRef(null);
@@ -836,6 +838,16 @@ export default function DriverApp() {
     registerSW();
     requestNotificationPermission();
   }, []);
+
+  // Keep-alive: envía un ping al SW cada 25s para mantenerlo activo
+  // y recibe PONG para confirmar que el SW sigue vivo
+  useEffect(() => {
+    if (!myDriverId) return;
+    const interval = setInterval(() => {
+      notifySW({ type: "SW_PING" });
+    }, 25000);
+    return () => clearInterval(interval);
+  }, [myDriverId]);
 
   // BroadcastChannel: el SW nos despierta cuando detecta que la app está dormida
   useEffect(() => {
@@ -983,10 +995,29 @@ export default function DriverApp() {
       )
     : null;
 
-  // Inform SW which driver is active
+  // Inform SW which driver is active + mostrar notificación persistente "En Servicio"
   useEffect(() => {
-    notifySW({ type: "SET_DRIVER", driverId: myDriverId || null });
-  }, [myDriverId]);
+    notifySW({
+      type: "SET_DRIVER",
+      driverId: myDriverId || null,
+      driverName: myDriver?.name || null,
+    });
+  }, [myDriverId, myDriver?.name]);
+
+  // Mostrar guía de batería la primera vez que el chofer entra en servicio
+  useEffect(() => {
+    if (!myDriverId || !myDriverRaw) return;
+    const alreadyDone = localStorage.getItem("battery_opt_done");
+    const shownBefore = localStorage.getItem(`battery_guide_shown_${myDriverId}`);
+    if (!alreadyDone && !shownBefore) {
+      // Mostrar tras 3s de haber cargado la app para no interrumpir el flujo
+      const t = setTimeout(() => {
+        localStorage.setItem(`battery_guide_shown_${myDriverId}`, "1");
+        setShowBatteryGuide(true);
+      }, 3000);
+      return () => clearTimeout(t);
+    }
+  }, [myDriverId, myDriverRaw]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Alert on new offer (audio + SW notification) — repeat every 4s
   useEffect(() => {
@@ -1278,6 +1309,14 @@ export default function DriverApp() {
         <DriverMessageModal
           message={pendingMessages[0]}
           onDismiss={() => dismissMessage(pendingMessages[0].id)}
+        />
+      )}
+
+      {/* Guía de optimización de batería (Android) */}
+      {showBatteryGuide && (
+        <BatteryOptimizationGuide
+          onClose={() => setShowBatteryGuide(false)}
+          onDone={() => setShowBatteryGuide(false)}
         />
       )}
     </div>

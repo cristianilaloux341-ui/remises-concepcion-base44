@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Battery, Bell, Phone, WifiOff, CheckCircle2, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import BatteryOptimizationGuide from "@/components/driver/BatteryOptimizationGuide";
 
 const STEPS = [
   {
@@ -21,9 +22,9 @@ const STEPS = [
   {
     icon: Battery,
     color: "bg-green-500",
-    title: "Optimización de batería",
-    desc: "Android a veces mata las apps para ahorrar batería. Desactivá eso para esta app.",
-    tip: "Ajustes → Batería → Optimización → Chrome → No optimizar",
+    title: "Desactivar optimización de batería",
+    desc: "⚠️ Este es el paso más importante. Android mata Chrome para ahorrar batería. Si no lo desactivás, podés perderte viajes con la pantalla apagada.",
+    tip: "La app va a mostrarte instrucciones paso a paso según tu teléfono (Samsung, Xiaomi, Huawei, etc.)",
   },
   {
     icon: Phone,
@@ -36,9 +37,20 @@ const STEPS = [
 
 export default function DriverSetupGuide({ onClose }) {
   const [step, setStep] = useState(0);
+  const [showBatteryDetail, setShowBatteryDetail] = useState(false);
   const isLast = step === STEPS.length - 1;
   const s = STEPS[step];
   const Icon = s.icon;
+  const isBatteryStep = step === 2; // índice 2 = batería
+
+  if (showBatteryDetail) {
+    return (
+      <BatteryOptimizationGuide
+        onClose={() => setShowBatteryDetail(false)}
+        onDone={() => { setShowBatteryDetail(false); setStep(s => s + 1 < STEPS.length ? s + 1 : s); }}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 pb-8">
@@ -77,6 +89,15 @@ export default function DriverSetupGuide({ onClose }) {
           <div className="bg-gray-50 rounded-2xl px-4 py-3 border border-gray-100">
             <p className="text-sm text-gray-500 font-medium">{s.tip}</p>
           </div>
+
+          {isBatteryStep && (
+            <Button
+              className="w-full rounded-2xl h-11 bg-amber-500 hover:bg-amber-600 gap-2 font-semibold"
+              onClick={() => setShowBatteryDetail(true)}
+            >
+              <Battery className="w-4 h-4" /> Ver instrucciones para mi teléfono
+            </Button>
+          )}
 
           <div className="flex gap-3 pt-1">
             {step > 0 && (
