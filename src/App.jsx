@@ -26,6 +26,7 @@ import Agenda from '@/pages/Agenda';
 import Messages from '@/pages/Messages';
 import ZoneSettings from '@/pages/ZoneSettings';
 import Tarifas from '@/pages/Tarifas';
+import Moviles from '@/pages/Moviles';
 
 function AdminRoute({ children }) {
   const { user } = useAuth();
@@ -86,6 +87,7 @@ const AuthenticatedApp = () => {
           <Route path="/driver-link" element={<AdminRoute><DriverLink /></AdminRoute>} />
           <Route path="/zone-settings" element={<AdminRoute><ZoneSettings /></AdminRoute>} />
           <Route path="/tarifas" element={<AdminRoute><Tarifas /></AdminRoute>} />
+          <Route path="/moviles" element={<AdminRoute><Moviles /></AdminRoute>} />
         </Route>
       </Route>
       

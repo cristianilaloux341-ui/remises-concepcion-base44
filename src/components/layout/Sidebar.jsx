@@ -17,6 +17,7 @@ const operadorItems = [
 
 const adminItems = [
   { label: "Chóferes", path: "/drivers", icon: Users },
+  { label: "Móviles", path: "/moviles", icon: Car },
   { label: "App Chófer", path: "/driver-link", icon: Smartphone },
   { label: "Zonas", path: "/zone-settings", icon: Map },
   { label: "Tarifas", path: "/tarifas", icon: DollarSign },

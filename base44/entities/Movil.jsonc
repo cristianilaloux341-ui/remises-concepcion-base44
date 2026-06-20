@@ -1,0 +1,88 @@
+{
+  "name": "Movil",
+  "type": "object",
+  "properties": {
+    "numero_movil": {
+      "type": "number",
+      "description": "N\u00famero de m\u00f3vil"
+    },
+    "apellido_nombre": {
+      "type": "string",
+      "description": "Apellido y nombre del titular"
+    },
+    "dni": {
+      "type": "string",
+      "description": "DNI del titular"
+    },
+    "fecha_nacimiento": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de nacimiento del titular"
+    },
+    "direccion": {
+      "type": "string",
+      "description": "Direcci\u00f3n del titular"
+    },
+    "carnet_categoria": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G"
+      ],
+      "description": "Categor\u00eda del carnet de conducir"
+    },
+    "vtv_vencimiento": {
+      "type": "string",
+      "format": "date",
+      "description": "Vencimiento VTV/RTO"
+    },
+    "seguro_riesgos_personales_vencimiento": {
+      "type": "string",
+      "format": "date",
+      "description": "Vencimiento seguro de riesgos personales"
+    },
+    "seguro_automotor_vencimiento": {
+      "type": "string",
+      "format": "date",
+      "description": "Vencimiento seguro automotor"
+    },
+    "pago_mensual_al_dia": {
+      "type": "boolean",
+      "default": true,
+      "description": "Pago mensual al d\u00eda"
+    },
+    "pago_mensual_fecha": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha \u00faltimo pago mensual"
+    },
+    "buena_conducta": {
+      "type": "boolean",
+      "default": true,
+      "description": "Certificado de buena conducta vigente"
+    },
+    "buena_conducta_vencimiento": {
+      "type": "string",
+      "format": "date",
+      "description": "Vencimiento buena conducta"
+    },
+    "activo": {
+      "type": "boolean",
+      "default": true,
+      "description": "M\u00f3vil activo en la flota"
+    },
+    "notas": {
+      "type": "string",
+      "description": "Observaciones adicionales"
+    }
+  },
+  "required": [
+    "numero_movil",
+    "apellido_nombre"
+  ]
+}
