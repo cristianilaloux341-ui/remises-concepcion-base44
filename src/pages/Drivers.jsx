@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard, NotebookPen } from "lucide-react";
+import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard, NotebookPen, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 function DriverForm({ onSubmit, isSubmitting, initial }) {
@@ -262,6 +263,7 @@ export default function Drivers() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState(null);
   const [selectedDriver, setSelectedDriver] = useState(null);
+  const [reinscripcionMovil, setReinscripcionMovil] = useState(null);
 
   const { data: drivers = [], isLoading } = useQuery({
     queryKey: ["drivers"],
@@ -429,6 +431,33 @@ export default function Drivers() {
                   </div>
                 )}
 
+                {/* Alertas de vencimiento del móvil vinculado */}
+                {(() => {
+                  const movil = getMovil(driver);
+                  if (!movil) return null;
+                  const campos = [
+                    { key: "vtv_vencimiento",                      label: "VTV / RTO",               fecha: movil.vtv_vencimiento },
+                    { key: "seguro_automotor_vencimiento",          label: "Seguro Automotor",        fecha: movil.seguro_automotor_vencimiento },
+                    { key: "seguro_riesgos_personales_vencimiento", label: "Seg. Riesgos Personales", fecha: movil.seguro_riesgos_personales_vencimiento },
+                    { key: "buena_conducta_vencimiento",            label: "Buena Conducta",          fecha: movil.buena_conducta_vencimiento },
+                    { key: "pago_mensual_al_dia",                   label: "Pago mensual al día",     boolean: true, valor: movil.pago_mensual_al_dia },
+                  ];
+                  return (
+                    <div className="mb-3">
+                      <DocVencimientosAlert nombre={`Móvil ${movil.numero_movil}`} campos={campos} />
+                      {reinscripcionMovil?.id === movil.id && (
+                        <div className="mt-2">
+                          <ReinscripcionPanel
+                            nombre={`${driver.name} — Móvil ${movil.numero_movil}`}
+                            campos={campos}
+                            onClose={() => setReinscripcionMovil(null)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <div className="flex items-center gap-2">
                    <Select
                      value={driver.status}
@@ -453,22 +482,33 @@ export default function Drivers() {
                      <User className="w-4 h-4" />
                    </Button>
                    <Button
-                     variant="outline"
-                     size="icon"
-                     className="h-9 w-9"
-                     onClick={() => setSelectedDriver(driver)}
-                     title="Ver historial"
-                   >
-                     <History className="w-4 h-4" />
-                   </Button>
-                   <Button
-                     variant="ghost"
-                     size="icon"
-                     className="h-9 w-9 text-destructive hover:text-destructive"
-                     onClick={() => deleteMutation.mutate(driver.id)}
-                   >
-                     <Trash2 className="w-4 h-4" />
-                   </Button>
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => setSelectedDriver(driver)}
+                      title="Ver historial"
+                    >
+                      <History className="w-4 h-4" />
+                    </Button>
+                    {getMovil(driver) && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 text-blue-500 border-blue-200"
+                        title="Lista reinscripción"
+                        onClick={() => setReinscripcionMovil(prev => prev?.id === getMovil(driver)?.id ? null : getMovil(driver))}
+                      >
+                        <ClipboardList className="w-4 h-4" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 text-destructive hover:text-destructive"
+                      onClick={() => deleteMutation.mutate(driver.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                 </div>
               </CardContent>
             </Card>

@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Car, Plus, Edit, AlertTriangle, CheckCircle2, XCircle, Search } from "lucide-react";
+import { Car, Plus, Edit, AlertTriangle, CheckCircle2, XCircle, Search, ClipboardList } from "lucide-react";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
+import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
 
 const EMPTY_MOVIL = {
   numero_movil: "",
@@ -204,11 +205,23 @@ function MovilForm({ movil, onSave, onCancel, saving }) {
   );
 }
 
+// Construye la lista de campos de vencimiento de un móvil para DocVencimientosAlert
+function getCamposMovil(m) {
+  return [
+    { key: "vtv_vencimiento",                       label: "VTV / RTO",                     fecha: m.vtv_vencimiento },
+    { key: "seguro_automotor_vencimiento",           label: "Seguro Automotor",              fecha: m.seguro_automotor_vencimiento },
+    { key: "seguro_riesgos_personales_vencimiento",  label: "Seg. Riesgos Personales",       fecha: m.seguro_riesgos_personales_vencimiento },
+    { key: "buena_conducta_vencimiento",             label: "Buena Conducta",                fecha: m.buena_conducta_vencimiento },
+    { key: "pago_mensual_al_dia",                    label: "Pago mensual al día",           boolean: true, valor: m.pago_mensual_al_dia },
+  ];
+}
+
 export default function Moviles() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [reinscripcionMovil, setReinscripcionMovil] = useState(null);
 
   const { data: moviles = [] } = useQuery({
     queryKey: ["moviles"],
@@ -253,17 +266,22 @@ export default function Moviles() {
         </Button>
       </div>
 
-      {/* Alertas de vencimientos */}
-      {vencidos.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold text-red-700 text-sm">Documentación vencida</p>
-            <p className="text-red-600 text-sm mt-0.5">
-              {vencidos.map(m => `Móvil ${m.numero_movil} (${m.apellido_nombre})`).join(" · ")}
-            </p>
-          </div>
-        </div>
+      {/* Alertas de vencimientos — una por cada móvil con problemas */}
+      {moviles.map(m => (
+        <DocVencimientosAlert
+          key={m.id}
+          nombre={`Móvil ${m.numero_movil} — ${m.apellido_nombre}`}
+          campos={getCamposMovil(m)}
+        />
+      ))}
+
+      {/* Panel de reinscripción si está abierto */}
+      {reinscripcionMovil && (
+        <ReinscripcionPanel
+          nombre={`Móvil ${reinscripcionMovil.numero_movil} — ${reinscripcionMovil.apellido_nombre}`}
+          campos={getCamposMovil(reinscripcionMovil)}
+          onClose={() => setReinscripcionMovil(null)}
+        />
       )}
 
       {/* Buscador */}
@@ -335,9 +353,12 @@ export default function Moviles() {
                   <td className="px-4 py-3">
                     <Badge variant={m.activo ? "default" : "secondary"}>{m.activo ? "Activo" : "Inactivo"}</Badge>
                   </td>
-                  <td className="px-4 py-3">
-                    <Button variant="ghost" size="icon" onClick={() => { setEditing(m); setDialogOpen(true); }}>
+                  <td className="px-4 py-3 flex items-center gap-1">
+                    <Button variant="ghost" size="icon" title="Editar" onClick={() => { setEditing(m); setDialogOpen(true); }}>
                       <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" title="Lista de reinscripción" onClick={() => setReinscripcionMovil(prev => prev?.id === m.id ? null : m)}>
+                      <ClipboardList className="w-4 h-4 text-blue-500" />
                     </Button>
                   </td>
                 </tr>
