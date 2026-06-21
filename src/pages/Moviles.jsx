@@ -59,7 +59,7 @@ function VencimientoBadge({ fecha, label }) {
   );
 }
 
-function MovilForm({ movil, onSave, onCancel, saving }) {
+function MovilForm({ movil, onSave, onCancel, saving, drivers = [] }) {
   const [form, setForm] = useState(movil || EMPTY_MOVIL);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -133,6 +133,33 @@ function MovilForm({ movil, onSave, onCancel, saving }) {
       <div>
         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Apellido y Nombre del Titular *</label>
         <Input value={form.apellido_nombre} onChange={e => set("apellido_nombre", e.target.value)} required className="mt-1" placeholder="Ej: García, Juan Carlos" />
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chofer Asignado</label>
+        <Select
+          value={form.driver_id || "ninguno"}
+          onValueChange={v => {
+            if (v === "ninguno") {
+              set("driver_id", ""); set("driver_name", "");
+            } else {
+              const d = drivers.find(x => x.id === v);
+              set("driver_id", v); set("driver_name", d?.name || "");
+            }
+          }}
+        >
+          <SelectTrigger className="mt-1">
+            <SelectValue placeholder="Sin chofer asignado..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ninguno">— Sin chofer —</SelectItem>
+            {drivers.map(d => (
+              <SelectItem key={d.id} value={d.id}>
+                {d.name}{d.vehicle_plate ? ` · ${d.vehicle_plate}` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -290,6 +317,11 @@ export default function Moviles() {
     queryFn: () => base44.entities.Movil.list(),
   });
 
+  const { data: drivers = [] } = useQuery({
+    queryKey: ["drivers-list"],
+    queryFn: () => base44.entities.Driver.list(),
+  });
+
   const saveMutation = useMutation({
     mutationFn: (form) => {
       const data = { ...form, numero_movil: Number(form.numero_movil) };
@@ -365,6 +397,7 @@ export default function Moviles() {
               <tr className="bg-muted/50 border-b border-border">
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">N° Móvil</th>
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Titular</th>
+                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Chofer</th>
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Vehículo</th>
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">DNI</th>
                 <th className="text-left px-4 py-3 font-semibold text-muted-foreground">VTV/RTO</th>
@@ -380,7 +413,7 @@ export default function Moviles() {
             <tbody className="divide-y divide-border">
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={13} className="text-center py-12 text-muted-foreground">
                     No hay móviles registrados.
                   </td>
                 </tr>
@@ -391,8 +424,13 @@ export default function Moviles() {
                     <span className="font-bold text-primary text-lg">{m.numero_movil}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <p className="font-medium">{m.apellido_nombre}</p>
-                    {m.direccion && <p className="text-xs text-muted-foreground">{m.direccion}</p>}
+                   <p className="font-medium">{m.apellido_nombre}</p>
+                   {m.direccion && <p className="text-xs text-muted-foreground">{m.direccion}</p>}
+                  </td>
+                  <td className="px-4 py-3">
+                   {m.driver_name
+                     ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">{m.driver_name}</span>
+                     : <span className="text-xs text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3">
                     {m.dominio && <p className="font-mono font-semibold text-sm">{m.dominio}</p>}
@@ -452,6 +490,7 @@ export default function Moviles() {
             onSave={data => saveMutation.mutate(data)}
             onCancel={() => { setDialogOpen(false); setEditing(null); }}
             saving={saveMutation.isPending}
+            drivers={drivers}
           />
         </DialogContent>
       </Dialog>

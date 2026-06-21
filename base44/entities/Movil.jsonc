@@ -10,6 +10,14 @@
       "type": "string",
       "description": "Apellido y nombre del titular"
     },
+    "driver_id": {
+      "type": "string",
+      "description": "ID del chofer asignado a este m\u00f3vil"
+    },
+    "driver_name": {
+      "type": "string",
+      "description": "Nombre del chofer asignado (cache)"
+    },
     "dni": {
       "type": "string",
       "description": "DNI del titular"
