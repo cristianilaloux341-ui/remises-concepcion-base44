@@ -52,10 +52,16 @@ export default function Messages() {
         setMessages(prev => [...prev, event.data]);
         // Toast + sonido solo para mensajes de móviles entrantes — UNA sola vez, sin loop
         if (event.data?.from_type === "movil") {
-          playMsgSound(); // se llama una sola vez, playMsgSound no loopea
+          playMsgSound();
           setToast({ from_name: event.data.from_name, content: event.data.content, id: event.id });
           clearTimeout(toastTimerRef.current);
           toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+          // Enviar push real a todos los operadores (para cuando tienen pantalla bloqueada)
+          base44.functions.invoke("sendPushNotification", {
+            action: "send_to_operators",
+            fromName: event.data.from_name,
+            messageContent: event.data.content,
+          }).catch(() => {});
         }
       } else if (event.type === "update") {
         setMessages(prev => prev.map(m => m.id === event.id ? event.data : m));

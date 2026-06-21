@@ -6,10 +6,13 @@
       "type": "string",
       "enum": [
         "admin",
-        "operador"
+        "user"
       ],
-      "default": "operador",
-      "description": "Rol del usuario: admin (directivo) u operador"
+      "default": "user"
+    },
+    "push_subscription": {
+      "type": "string",
+      "description": "JSON serializado de la PushSubscription del navegador (operadores)"
     }
   }
 }

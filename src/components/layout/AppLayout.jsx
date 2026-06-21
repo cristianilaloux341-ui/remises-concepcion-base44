@@ -6,9 +6,13 @@ import { Menu } from "lucide-react";
 import AgendaAlert from "@/components/agenda/AgendaAlert";
 import CancellationAlert from "@/components/alerts/CancellationAlert";
 import DriverMessageAlert from "@/components/alerts/DriverMessageAlert";
+import { useAuth } from "@/lib/AuthContext";
+import { useOperatorPushSubscription } from "@/hooks/useOperatorPushSubscription";
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user } = useAuth();
+  useOperatorPushSubscription(user);
 
   return (
     <div className="min-h-screen bg-background">

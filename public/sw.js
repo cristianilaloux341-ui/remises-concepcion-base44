@@ -1,147 +1,122 @@
-// ── RadioCab Service Worker ────────────────────────────────────────────────────
-// Versión con notificaciones push con botones Aceptar / Rechazar
+// ── Remises Concepción — Service Worker ───────────────────────────────────────
+const CACHE_NAME = 'remises-v2';
+const STATIC_ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+];
 
-const CACHE_NAME = "radiocab-v2";
-
-// ── Install & Activate ────────────────────────────────────────────────────────
-self.addEventListener("install", (e) => {
-  self.skipWaiting();
-});
-self.addEventListener("activate", (e) => {
-  e.waitUntil(self.clients.claim());
-});
-
-// ── Keep-alive ping ───────────────────────────────────────────────────────────
-self.addEventListener("message", (event) => {
-  const msg = event.data;
-  if (!msg) return;
-
-  if (msg.type === "SET_DRIVER") {
-    self._driverId = msg.driverId;
-    self._driverName = msg.driverName;
-  }
-
-  if (msg.type === "SW_PING" || msg.type === "KEEP_ALIVE") {
-    // Responder al ping para confirmar que el SW sigue vivo
-    event.source?.postMessage({ type: "SW_ALIVE" });
-  }
-
-  if (msg.type === "SHOW_NOTIFICATION") {
-    const order = msg.order;
-    if (!order) return;
-    const title = `🚖 ¡Nuevo Viaje! — ${order.client_name || ""}`;
-    const body = [
-      order.pickup_address,
-      order.dropoff_address ? `→ ${order.dropoff_address}` : null,
-      order.fare ? `💵 $${order.fare}` : null,
-    ].filter(Boolean).join("  ");
-
-    self.registration.showNotification(title, {
-      body,
-      icon: "/icon-192.png",
-      badge: "/icon-72.png",
-      vibrate: [500, 200, 500, 200, 1000],
-      requireInteraction: true,
-      tag: "ride-offer",
-      renotify: true,
-      data: { orderId: order.id, driverId: self._driverId },
-      actions: [
-        { action: "accept", title: "✅ Aceptar" },
-        { action: "reject", title: "❌ Rechazar" },
-      ],
-    });
-  }
-
-  if (msg.type === "OFFER_CLEARED") {
-    self.registration.getNotifications({ tag: "ride-offer" }).then((notifs) => {
-      notifs.forEach((n) => n.close());
-    });
-  }
-});
-
-// ── Push (desde servidor VAPID) ───────────────────────────────────────────────
-self.addEventListener("push", (event) => {
-  let data = {};
-  try { data = event.data?.json() || {}; } catch (_) {}
-
-  const order = data.order || {};
-  const title = data.title || `🚖 ¡Nuevo Viaje!`;
-  const body = data.body || [
-    order.pickup_address,
-    order.dropoff_address ? `→ ${order.dropoff_address}` : null,
-    order.fare ? `💵 $${order.fare}` : null,
-  ].filter(Boolean).join("  ") || "Nuevo pasaje disponible";
-
+// ── Install: pre-cache static assets ─────────────────────────────────────────
+self.addEventListener('install', (event) => {
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon: "/icon-192.png",
-      badge: "/icon-72.png",
-      vibrate: [500, 200, 500, 200, 1000],
-      requireInteraction: true,
-      tag: "ride-offer",
-      renotify: true,
-      data: {
-        orderId: order.id || data.orderId,
-        driverId: data.driverId,
-        url: "/driver-app",
-      },
-      actions: [
-        { action: "accept", title: "✅ Aceptar" },
-        { action: "reject", title: "❌ Rechazar" },
-      ],
-    })
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll(STATIC_ASSETS).catch(() => {
+        // Si algún asset falla, continuar igual
+      });
+    }).then(() => self.skipWaiting())
   );
 });
 
-// ── Notification click / action ───────────────────────────────────────────────
-self.addEventListener("notificationclick", (event) => {
-  const notification = event.notification;
-  const action = event.action; // "accept" | "reject" | "" (toque en el cuerpo)
-  const { orderId, driverId } = notification.data || {};
+// ── Activate: limpiar caches viejos ──────────────────────────────────────────
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
 
-  notification.close();
+// ── Fetch: network-first con fallback a cache ────────────────────────────────
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  // Solo interceptar GET, y no interceptar requests de la API
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.hostname !== location.hostname) return; // no cache de CDN externos
 
-  if (action === "accept" && orderId && driverId) {
-    // Aceptar desde pantalla bloqueada: avisar a la app si está abierta,
-    // o hacer la llamada a la API directamente desde el SW.
-    event.waitUntil(
-      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-        // Si la app está abierta, delegamos a ella
-        const appClient = clients.find((c) => c.url.includes("/driver-app"));
-        if (appClient) {
-          appClient.postMessage({ type: "SW_ACCEPT_ORDER", orderId, driverId });
-          return appClient.focus();
+  event.respondWith(
+    fetch(request)
+      .then(res => {
+        // Cachear respuestas exitosas de navegación
+        if (res.ok && (request.mode === 'navigate' || url.pathname.endsWith('.js') || url.pathname.endsWith('.css'))) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
         }
-        // App cerrada: abrir y pasar el mensaje para que lo procese al montar
-        return self.clients.openWindow(`/driver-app?accept=${orderId}`);
+        return res;
       })
-    );
-    return;
+      .catch(() => caches.match(request).then(cached => {
+        if (cached) return cached;
+        // Para navegación, devolver el index.html desde cache
+        if (request.mode === 'navigate') {
+          return caches.match('/index.html');
+        }
+      }))
+  );
+});
+
+// ── Push: mostrar notificación cuando llega un push ──────────────────────────
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_) {
+    data = { title: 'Remises', body: event.data ? event.data.text() : 'Nuevo mensaje' };
   }
 
-  if (action === "reject") {
-    // Solo cerrar la notificación; el timeout del servidor reasignará
-    return;
-  }
+  const title = data.title || 'Remises Concepción';
+  const options = {
+    body: data.body || 'Tenés un nuevo mensaje',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: data.tag || 'remises-msg-' + Date.now(),
+    renotify: true,
+    requireInteraction: true,
+    vibrate: [200, 100, 200, 100, 400],
+    data: {
+      url: data.url || '/messages',
+      type: data.type,
+      orderId: data.orderId,
+    },
+    actions: data.type === 'NEW_RIDE'
+      ? [
+          { action: 'accept', title: '✅ Aceptar' },
+          { action: 'reject', title: '❌ Rechazar' },
+        ]
+      : [
+          { action: 'open', title: '💬 Abrir chat' },
+        ],
+  };
 
-  // Toque en el cuerpo: abrir / enfocar la app
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// ── Notification click: abrir la app en la URL correcta ──────────────────────
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const targetUrl = event.notification.data?.url || '/messages';
+
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      const appClient = clients.find((c) => c.url.includes("/driver-app"));
-      if (appClient) return appClient.focus();
-      return self.clients.openWindow("/driver-app");
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
+      // Si ya hay una ventana abierta, enfocarla y navegar
+      for (const client of windowClients) {
+        if (client.url.includes(location.origin)) {
+          client.focus();
+          client.navigate(targetUrl);
+          return;
+        }
+      }
+      // Si no hay ventana, abrir una nueva
+      return clients.openWindow(targetUrl);
     })
   );
 });
 
-// ── Background sync (keep-alive) ──────────────────────────────────────────────
-self.addEventListener("periodicsync", (event) => {
-  if (event.tag === "radiocab-keepalive") {
-    event.waitUntil(
-      self.clients.matchAll({ type: "window" }).then((clients) => {
-        clients.forEach((c) => c.postMessage({ type: "RECONNECT" }));
-      })
-    );
+// ── Keep-alive ping-pong (25s) para evitar suspensión en Android ──────────────
+self.addEventListener('message', (event) => {
+  if (event.data === 'ping') {
+    event.source?.postMessage('pong');
   }
 });

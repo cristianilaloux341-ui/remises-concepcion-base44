@@ -196,6 +196,51 @@ Deno.serve(async (req) => {
     return Response.json({ ok: true });
   }
 
+  // ── Register operator push subscription ──────────────────────────────────
+  if (action === 'subscribe_operator') {
+    const { userId, subscription: opSub } = await req.clone().json().catch(() => ({}));
+    if (!userId || !opSub) {
+      return Response.json({ error: 'Missing userId or subscription' }, { status: 400 });
+    }
+    // Store on User record
+    await base44.asServiceRole.entities.User.update(userId, {
+      push_subscription: JSON.stringify(opSub),
+    });
+    return Response.json({ ok: true });
+  }
+
+  // ── Send push to all operators (new driver message) ───────────────────────
+  if (action === 'send_to_operators') {
+    const { fromName, messageContent } = await req.clone().json().catch(() => ({}));
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+      return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
+    }
+    try {
+      const users = await base44.asServiceRole.entities.User.filter({ role: 'admin' });
+      const results = [];
+      for (const u of users) {
+        if (!u.push_subscription) continue;
+        let sub;
+        try { sub = JSON.parse(u.push_subscription); } catch (_) { continue; }
+        const payload = JSON.stringify({
+          type: 'NEW_MESSAGE',
+          title: `📩 Mensaje de ${fromName || 'Móvil'}`,
+          body: messageContent || 'Nuevo mensaje en el chat',
+          url: '/messages',
+          tag: 'msg-' + Date.now(),
+        });
+        const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+        if (status === 410 || status === 404) {
+          await base44.asServiceRole.entities.User.update(u.id, { push_subscription: null });
+        }
+        results.push({ userId: u.id, status });
+      }
+      return Response.json({ ok: true, results });
+    } catch (err) {
+      return Response.json({ ok: false, error: err.message }, { status: 500 });
+    }
+  }
+
   // ── Send push to a driver ─────────────────────────────────────────────────
   if (action === 'send') {
     if (!driverId || !orderId) {
