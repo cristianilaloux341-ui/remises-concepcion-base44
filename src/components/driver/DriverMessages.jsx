@@ -35,9 +35,15 @@ export default function DriverMessages({ driver, onClose }) {
 
   // Load initial messages then subscribe to real-time updates
   useEffect(() => {
-    base44.entities.Message.list("created_date", 100).then(data => {
-      const msgs = data || [];
-      // Pre-populate seen IDs so we don't beep on initial load
+    base44.entities.Message.list("created_date", 200).then(data => {
+      const msgs = (data || []).filter(m => {
+        if (m.from_type === "operador") {
+          // Broadcast (sin destinatario) o dirigido específicamente a este chofer
+          return !m.to_driver_id || m.to_driver_id === driver.id;
+        }
+        // Solo mensajes enviados por este chofer
+        return m.driver_id === driver.id;
+      });
       msgs.forEach(m => seenIdsRef.current.add(m.id));
       setMessages(msgs);
       initializedRef.current = true;

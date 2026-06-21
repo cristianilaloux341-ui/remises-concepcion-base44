@@ -63,9 +63,18 @@ export default function Messages() {
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto space-y-2 px-1 pb-4">
-        {messages.map(msg => {
+        {messages.filter(msg => {
+          if (targetDriverId === "todos") {
+            // Vista broadcast: solo mensajes enviados a todos (sin destinatario específico)
+            // y mensajes de móviles sin destinatario (broadcasts de choferes)
+            return !msg.to_driver_id && !msg.driver_id;
+          }
+          // Conversación privada con un chofer: mensajes del operador a ese chofer
+          // + mensajes enviados por ese chofer
+          if (msg.from_type === "operador") return msg.to_driver_id === targetDriverId;
+          return msg.driver_id === targetDriverId;
+        }).map(msg => {
           const isOperator = msg.from_type === "operador";
-          const isToSpecific = msg.to_driver_id;
           return (
             <div key={msg.id} className={`flex ${isOperator ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 space-y-1 ${
@@ -76,14 +85,9 @@ export default function Messages() {
                 <div className="flex items-center gap-2 text-xs opacity-75">
                   <User className="w-3 h-3" />
                   <span className="font-semibold">{msg.from_name}</span>
-                  {isToSpecific && !isOperator && (
-                    <span>→ Operador</span>
-                  )}
-                  {isOperator && isToSpecific && (
+                  {isOperator && !msg.to_driver_id && <span>→ Todos</span>}
+                  {isOperator && msg.to_driver_id && (
                     <span>→ {drivers.find(d => d.id === msg.to_driver_id)?.name || msg.to_driver_id}</span>
-                  )}
-                  {isOperator && !isToSpecific && (
-                    <span>→ Todos</span>
                   )}
                 </div>
                 <p className="text-sm">{msg.content}</p>
