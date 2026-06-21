@@ -118,10 +118,14 @@ const STATUS_CONFIG = {
 };
 
 // ── Login screen ──────────────────────────────────────────────────────────────
-function LoginScreen({ drivers, onSelect }) {
+function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved }) {
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
+  const [remember, setRemember] = useState(true);
+  const [showChangeUser, setShowChangeUser] = useState(false);
   const [gpsStatus, setGpsStatus] = useState(null); // null | 'ok' | 'denied'
+  
+  const savedDriver = savedDriverId ? drivers.find(d => d.id === savedDriverId) : null;
 
   const requestGps = () => {
     if (!navigator.geolocation) { setGpsStatus("denied"); return; }
@@ -144,8 +148,56 @@ function LoginScreen({ drivers, onSelect }) {
       return;
     }
     unlockAudio();
+    if (remember) {
+      localStorage.setItem("remembered_driver_id", found.id);
+    } else {
+      localStorage.removeItem("remembered_driver_id");
+    }
     onSelect(found.id, !localStorage.getItem(`setup_done_${found.id}`));
   };
+
+  // Si hay un chofer recordado y no queremos cambiar, mostramos pantalla de bienvenida rápida
+  if (savedDriver && !showChangeUser) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-20 h-20 rounded-3xl bg-blue-600 flex items-center justify-center mx-auto shadow-xl shadow-blue-600/30">
+              <Car className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-3xl font-bold text-white">Remisería</h1>
+            <p className="text-gray-400">App del Chófer</p>
+          </div>
+
+          <div className="bg-gray-900 rounded-2xl p-5 space-y-4 border border-gray-800">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Último chofer</p>
+            <div className="flex items-center gap-3 p-3 bg-gray-800 rounded-xl">
+              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
+                <span className="text-white font-bold text-sm">{savedDriver.name.charAt(0)}</span>
+              </div>
+              <div>
+                <p className="font-semibold text-white">{savedDriver.name}</p>
+                <p className="text-xs text-gray-400 font-mono">{savedDriver.vehicle_plate}</p>
+              </div>
+            </div>
+            <button
+              className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-base py-3.5 rounded-xl transition-all"
+              onClick={() => { unlockAudio(); onSelect(savedDriver.id, false); }}
+            >
+              <LogIn className="inline w-4 h-4 mr-2" />
+              Entrar como {savedDriver.name.split(" ")[0]}
+            </button>
+            <button
+              className="w-full text-gray-500 text-sm underline py-1"
+              onClick={() => setShowChangeUser(true)}
+            >
+              Cambiar de usuario
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
@@ -192,6 +244,16 @@ function LoginScreen({ drivers, onSelect }) {
             className="w-full bg-gray-800 border border-gray-700 text-white text-lg rounded-xl px-4 py-3 outline-none focus:border-blue-500 placeholder-gray-600 tracking-wider"
           />
           {error && <p className="text-red-400 text-xs">{error}</p>}
+          {/* Recordar usuario */}
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div
+              className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${remember ? "bg-blue-600 border-blue-600" : "border-gray-600 bg-transparent"}`}
+              onClick={() => setRemember(r => !r)}
+            >
+              {remember && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+            </div>
+            <span className="text-sm text-gray-400">Recordar en este dispositivo</span>
+          </label>
           <button
             className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-base py-3.5 rounded-xl transition-all"
             onClick={handleLogin}
@@ -844,6 +906,7 @@ function notifySW(message) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function DriverApp() {
   const [myDriverId, setMyDriverId] = useState(() => localStorage.getItem("my_driver_id") || "");
+  const savedDriverId = localStorage.getItem("remembered_driver_id") || "";
   const [selectedBase, setSelectedBase] = useState("");
   const [showMessages, setShowMessages] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
@@ -1163,6 +1226,7 @@ export default function DriverApp() {
     return (
       <LoginScreen
         drivers={drivers}
+        savedDriverId={savedDriverId}
         onSelect={(id, isFirstTime) => {
           setMyDriverId(id);
           localStorage.setItem("my_driver_id", id);
@@ -1279,7 +1343,11 @@ export default function DriverApp() {
           )}
           <button
             className="text-xs text-gray-500 underline"
-            onClick={() => { localStorage.removeItem("my_driver_id"); setMyDriverId(""); }}
+            onClick={() => {
+              localStorage.removeItem("my_driver_id");
+              // NO borramos remembered_driver_id para que aparezca la pantalla de acceso rápido
+              setMyDriverId("");
+            }}
           >
             Salir
           </button>
