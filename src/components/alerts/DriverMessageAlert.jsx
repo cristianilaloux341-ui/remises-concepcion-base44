@@ -14,7 +14,7 @@ function getAudioCtx() {
   return audioCtx;
 }
 
-function playMessage() {
+function playOnce() {
   try { navigator.vibrate?.([200, 100, 200, 100, 400]); } catch (_) {}
   try {
     const ctx = getAudioCtx();
@@ -37,48 +37,65 @@ function playMessage() {
   } catch (_) {}
 }
 
+// Inicia loop de sonido; devuelve función para detenerlo
+function startLoop() {
+  let stopped = false;
+  playOnce();
+  const id = setInterval(() => { if (!stopped) playOnce(); }, 5000);
+  return () => {
+    stopped = true;
+    clearInterval(id);
+    try { navigator.vibrate?.(0); } catch (_) {}
+  };
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function DriverMessageAlert() {
   const [alerts, setAlerts] = useState([]);
   const seenIds = useRef(new Set());
-  const repeatRef = useRef(null);
+  const stopLoopRef = useRef(null);
   const location = useLocation();
   const onMessagesPage = location.pathname === "/messages";
 
-  // Parar sonido cuando el operador abre la página de mensajes, y dismiss todos
+  // Función centralizada para detener el sonido
+  const stopSound = () => {
+    if (stopLoopRef.current) {
+      stopLoopRef.current();
+      stopLoopRef.current = null;
+    }
+  };
+
+  // Parar sonido y limpiar alertas cuando el operador navega a /messages
   useEffect(() => {
-    if (onMessagesPage && alerts.length > 0) {
-      clearInterval(repeatRef.current);
+    if (onMessagesPage) {
+      stopSound();
       setAlerts([]);
     }
   }, [onMessagesPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Repetir sonido mientras haya alertas activas y no estemos en la página de mensajes
+  // Gestionar el loop de audio según haya alertas
   useEffect(() => {
     if (alerts.length > 0 && !onMessagesPage) {
-      repeatRef.current = setInterval(playMessage, 5000);
+      if (!stopLoopRef.current) {
+        stopLoopRef.current = startLoop();
+      }
     } else {
-      clearInterval(repeatRef.current);
+      stopSound();
     }
-    return () => clearInterval(repeatRef.current);
-  }, [alerts.length, onMessagesPage]);
+    return stopSound;
+  }, [alerts.length, onMessagesPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    // Suscribirse a mensajes nuevos de móviles en tiempo real
     const unsubscribe = base44.entities.Message.subscribe((event) => {
       if (event.type !== "create") return;
       const msg = event.data;
       if (!msg) return;
-      // Solo mensajes de móviles (choferes)
       if (msg.from_type !== "movil") return;
-      // No repetir
       if (seenIds.current.has(msg.id)) return;
 
       seenIds.current.add(msg.id);
       setAlerts(prev => [...prev, msg]);
-      playMessage();
 
-      // Notificación del sistema
       if (typeof Notification !== "undefined" && Notification.permission === "granted") {
         try {
           new Notification(`📩 Mensaje de ${msg.from_name}`, {
@@ -93,8 +110,14 @@ export default function DriverMessageAlert() {
     return () => unsubscribe();
   }, []);
 
-  const dismiss = (id) => setAlerts(prev => prev.filter(a => a.id !== id));
-  const dismissAll = () => setAlerts([]);
+  const dismiss = (id) => {
+    setAlerts(prev => {
+      const next = prev.filter(a => a.id !== id);
+      if (next.length === 0) stopSound();
+      return next;
+    });
+  };
+  const dismissAll = () => { stopSound(); setAlerts([]); };
 
   if (alerts.length === 0) return null;
 
