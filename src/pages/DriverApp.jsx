@@ -609,12 +609,13 @@ function ActiveRideScreen({ order, driver, onStatusChange }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col">
-      <div className="flex-1 min-h-0">
+    <div className="flex-1 flex flex-col overflow-y-auto">
+      {/* Mapa con altura fija para no tapar la info del viaje */}
+      <div className="shrink-0" style={{ height: "200px" }}>
         <RideMap orders={[order]} drivers={[]} className="h-full" />
       </div>
 
-      <div className="bg-white rounded-t-3xl shadow-2xl p-5 space-y-4">
+      <div className="bg-white p-5 space-y-4">
         <div className="flex items-center justify-between">
           <p className="font-bold text-lg">Viaje en Curso</p>
           <Badge className={`${cfg?.bg} text-white border-0 px-3`}>{cfg?.label}</Badge>
@@ -804,14 +805,14 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
 
   if (isInBase) {
     return (
-      <div className="flex-1 flex flex-col min-h-0">
-        {/* Mapa ocupa el espacio disponible */}
-        <div className="flex-1 min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+        {/* Mapa con altura fija — no empuja el panel de info */}
+        <div className="shrink-0" style={{ height: "220px" }}>
           <RideMap orders={[]} drivers={[driver]} className="h-full" />
         </div>
 
-        {/* Panel inferior fijo */}
-        <div className="bg-white rounded-t-3xl shadow-2xl px-5 pt-4 pb-5 space-y-4 shrink-0">
+        {/* Panel inferior siempre visible */}
+        <div className="bg-white px-5 pt-4 pb-5 space-y-4 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center relative">
