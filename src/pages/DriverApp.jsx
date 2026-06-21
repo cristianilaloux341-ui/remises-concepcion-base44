@@ -119,6 +119,8 @@ const STATUS_CONFIG = {
 
 // ── Login screen ──────────────────────────────────────────────────────────────
 function LoginScreen({ drivers, onSelect }) {
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState("");
   const [gpsStatus, setGpsStatus] = useState(null); // null | 'ok' | 'denied'
 
   const requestGps = () => {
@@ -128,6 +130,21 @@ function LoginScreen({ drivers, onSelect }) {
       () => setGpsStatus("denied"),
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  const handleLogin = () => {
+    const normalized = phone.replace(/\s|-|\(|\)/g, "");
+    if (!normalized) { setError("Ingresá tu número de celular"); return; }
+    const found = drivers.find(d => {
+      const dp = (d.phone || "").replace(/\s|-|\(|\)/g, "");
+      return dp === normalized || dp.endsWith(normalized) || normalized.endsWith(dp);
+    });
+    if (!found) {
+      setError("No se encontró ningún chofer con ese número. Verificá con el operador.");
+      return;
+    }
+    unlockAudio();
+    onSelect(found.id, !localStorage.getItem(`setup_done_${found.id}`));
   };
 
   return (
@@ -160,27 +177,30 @@ function LoginScreen({ drivers, onSelect }) {
           )}
         </div>
 
-        <div className="bg-gray-900 rounded-2xl p-5 space-y-3 border border-gray-800">
+        {/* Ingreso por número de celular */}
+        <div className="bg-gray-900 rounded-2xl p-5 space-y-4 border border-gray-800">
           <p className="text-sm font-semibold text-gray-300 flex items-center gap-2">
-            <LogIn className="w-4 h-4" /> Seleccioná tu perfil
+            <Phone className="w-4 h-4" /> Ingresá tu número de celular
           </p>
-          {drivers.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-6">
-              No hay chóferes registrados.<br />Pedile al operador que te agregue.
-            </p>
-          ) : (
-            drivers.map(d => (
-              <button
-                key={d.id}
-                className="w-full p-4 rounded-xl border border-gray-700 text-left hover:border-blue-500 hover:bg-blue-500/5 transition-all active:scale-95"
-                onClick={() => { unlockAudio(); onSelect(d.id, !localStorage.getItem(`setup_done_${d.id}`)); }}
-              >
-                <p className="font-semibold text-white">{d.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5 font-mono">
-                  {d.vehicle_plate}{d.vehicle_model ? ` · ${d.vehicle_model}` : ""}{d.vehicle_color ? ` · ${d.vehicle_color}` : ""}
-                </p>
-              </button>
-            ))
+          <input
+            type="tel"
+            inputMode="numeric"
+            value={phone}
+            onChange={e => { setPhone(e.target.value); setError(""); }}
+            onKeyDown={e => e.key === "Enter" && handleLogin()}
+            placeholder="Ej: 3442 123456"
+            className="w-full bg-gray-800 border border-gray-700 text-white text-lg rounded-xl px-4 py-3 outline-none focus:border-blue-500 placeholder-gray-600 tracking-wider"
+          />
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+          <button
+            className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-base py-3.5 rounded-xl transition-all"
+            onClick={handleLogin}
+          >
+            <LogIn className="inline w-4 h-4 mr-2" />
+            Ingresar
+          </button>
+          {drivers.length === 0 && (
+            <p className="text-xs text-gray-600 text-center">No hay chóferes registrados. Pedile al operador que te agregue.</p>
           )}
         </div>
       </div>
