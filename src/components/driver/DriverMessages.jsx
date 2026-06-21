@@ -49,8 +49,10 @@ export default function DriverMessages({ driver, onClose }) {
         if (seenIdsRef.current.has(event.id)) return;
         seenIdsRef.current.add(event.id);
         const msg = event.data;
-        // Only show messages relevant to this driver
-        const isForMe = !msg.to_driver_id || msg.to_driver_id === driver.id || msg.driver_id === driver.id;
+        // Solo mensajes relevantes: broadcast del operador, dirigidos a este chofer, o enviados por este chofer
+        const isForMe = msg.from_type === "operador"
+          ? (!msg.to_driver_id || msg.to_driver_id === driver.id)
+          : msg.driver_id === driver.id;
         if (!isForMe) return;
         if (msg.from_type === "operador") {
           playBeep("receive");
@@ -63,10 +65,18 @@ export default function DriverMessages({ driver, onClose }) {
     return () => unsubscribe();
   }, [driver.id]);
 
-  // Filter: messages for this driver or broadcast
-  const myMessages = messages.filter(m =>
-    !m.to_driver_id || m.to_driver_id === driver.id || m.driver_id === driver.id
-  );
+  // Filter: solo mensajes relevantes para este chofer:
+  // 1. Broadcast del operador (from_type === "operador" y sin to_driver_id)
+  // 2. Mensaje del operador dirigido a este chofer
+  // 3. Mensaje enviado por este chofer
+  const myMessages = messages.filter(m => {
+    if (m.from_type === "operador") {
+      // Broadcast (sin destinatario específico) o dirigido a este chofer
+      return !m.to_driver_id || m.to_driver_id === driver.id;
+    }
+    // Mensajes de móviles: solo los enviados por este chofer
+    return m.driver_id === driver.id;
+  });
 
   const unread = myMessages.filter(m => !m.read && m.from_type === "operador").length;
 
