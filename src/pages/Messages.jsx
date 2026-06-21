@@ -1,30 +1,48 @@
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Send, Radio, User } from "lucide-react";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
 
 export default function Messages() {
-  const queryClient = useQueryClient();
   const [content, setContent] = useState("");
   const [targetDriverId, setTargetDriverId] = useState("todos");
+  const [messages, setMessages] = useState([]);
   const bottomRef = useRef(null);
+  const seenIdsRef = useRef(new Set());
 
-  const { data: messages = [] } = useQuery({
-    queryKey: ["messages"],
-    queryFn: () => base44.entities.Message.list("created_date", 200),
-    refetchInterval: 3000,
-  });
+  // Carga inicial + suscripción en tiempo real
+  useEffect(() => {
+    base44.entities.Message.list("created_date", 200).then(data => {
+      const msgs = data || [];
+      msgs.forEach(m => seenIdsRef.current.add(m.id));
+      setMessages(msgs);
+    });
 
+    const unsubscribe = base44.entities.Message.subscribe((event) => {
+      if (event.type === "create") {
+        if (seenIdsRef.current.has(event.id)) return;
+        seenIdsRef.current.add(event.id);
+        setMessages(prev => [...prev, event.data]);
+      } else if (event.type === "update") {
+        setMessages(prev => prev.map(m => m.id === event.id ? event.data : m));
+      } else if (event.type === "delete") {
+        setMessages(prev => prev.filter(m => m.id !== event.id));
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Drivers en tiempo real
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
-    refetchInterval: 10000,
+    refetchInterval: 15000,
   });
 
   const sendMutation = useMutation({
@@ -35,10 +53,7 @@ export default function Messages() {
       content: content.trim(),
       read: false,
     }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-      setContent("");
-    }
+    onSuccess: () => setContent(""),
   });
 
   useEffect(() => {
