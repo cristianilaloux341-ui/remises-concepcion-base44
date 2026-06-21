@@ -287,7 +287,7 @@ export default function Moviles() {
 
   const { data: moviles = [] } = useQuery({
     queryKey: ["moviles"],
-    queryFn: () => base44.entities.Movil.list("-numero_movil"),
+    queryFn: () => base44.entities.Movil.list(),
   });
 
   const saveMutation = useMutation({
