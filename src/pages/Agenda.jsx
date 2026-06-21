@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Clock, Car, MapPin, Bell, BellOff, CheckCircle2, XCircle, Zap, Tag, ChevronDown } from "lucide-react";
+import AddressAutocomplete from "@/components/orders/AddressAutocomplete";
 
 const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 import { format, formatDistanceToNow, isPast, differenceInMinutes } from "date-fns";
@@ -136,11 +137,19 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
 
       <div className="space-y-1">
         <Label>Dirección de recogida</Label>
-        <Input value={form.pickup_address} onChange={e => setForm({ ...form, pickup_address: e.target.value })} />
+        <AddressAutocomplete
+          value={form.pickup_address}
+          onChange={v => setForm({ ...form, pickup_address: v })}
+          placeholder="Calle y altura..."
+        />
       </div>
       <div className="space-y-1">
         <Label>Destino (opcional)</Label>
-        <Input value={form.dropoff_address} onChange={e => setForm({ ...form, dropoff_address: e.target.value })} />
+        <AddressAutocomplete
+          value={form.dropoff_address}
+          onChange={v => setForm({ ...form, dropoff_address: v })}
+          placeholder="Destino..."
+        />
       </div>
 
       <div className="space-y-1">
