@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Phone, Car, MapPin } from "lucide-react";
+import { Plus, Search, Phone, Car, MapPin, BarChart2, UserCog } from "lucide-react";
+import ClientTripStats from "@/components/clients/ClientTripStats";
 
 function scoreColor(score) {
   if (score >= 8) return "text-green-600";
@@ -187,6 +188,7 @@ export default function Clients() {
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [modalTab, setModalTab] = useState("ficha");
 
   const { data: clients = [] } = useQuery({
     queryKey: ["clients"],
@@ -259,17 +261,42 @@ export default function Clients() {
         ))}
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setEditing(null); } }}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setEditing(null); setModalTab("ficha"); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? "Editar Cliente" : "Nuevo Cliente"}</DialogTitle>
+            <DialogTitle>{editing ? editing.name : "Nuevo Cliente"}</DialogTitle>
           </DialogHeader>
-          <ClientForm
-            client={editing}
-            drivers={drivers}
-            onSave={(form) => saveMutation.mutate(form)}
-            onClose={() => { setShowForm(false); setEditing(null); }}
-          />
+
+          {/* Tabs solo cuando estamos editando */}
+          {editing?.id && (
+            <div className="flex gap-1 bg-muted p-1 rounded-xl mb-2">
+              <button
+                onClick={() => setModalTab("ficha")}
+                className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg transition-all ${modalTab === "ficha" ? "bg-white shadow text-foreground" : "text-muted-foreground"}`}
+              >
+                <UserCog className="w-3.5 h-3.5" /> Ficha
+              </button>
+              <button
+                onClick={() => setModalTab("estadisticas")}
+                className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg transition-all ${modalTab === "estadisticas" ? "bg-white shadow text-foreground" : "text-muted-foreground"}`}
+              >
+                <BarChart2 className="w-3.5 h-3.5" /> Estadísticas
+              </button>
+            </div>
+          )}
+
+          {(!editing?.id || modalTab === "ficha") && (
+            <ClientForm
+              client={editing}
+              drivers={drivers}
+              onSave={(form) => saveMutation.mutate(form)}
+              onClose={() => { setShowForm(false); setEditing(null); setModalTab("ficha"); }}
+            />
+          )}
+
+          {editing?.id && modalTab === "estadisticas" && (
+            <ClientTripStats clientId={editing.id} clientName={editing.name} />
+          )}
         </DialogContent>
       </Dialog>
     </div>
