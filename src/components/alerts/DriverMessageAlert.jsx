@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { MessageCircle, X, Car } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,16 +42,26 @@ export default function DriverMessageAlert() {
   const [alerts, setAlerts] = useState([]);
   const seenIds = useRef(new Set());
   const repeatRef = useRef(null);
+  const location = useLocation();
+  const onMessagesPage = location.pathname === "/messages";
 
-  // Repetir sonido mientras haya alertas activas
+  // Parar sonido cuando el operador abre la página de mensajes, y dismiss todos
   useEffect(() => {
-    if (alerts.length > 0) {
+    if (onMessagesPage && alerts.length > 0) {
+      clearInterval(repeatRef.current);
+      setAlerts([]);
+    }
+  }, [onMessagesPage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Repetir sonido mientras haya alertas activas y no estemos en la página de mensajes
+  useEffect(() => {
+    if (alerts.length > 0 && !onMessagesPage) {
       repeatRef.current = setInterval(playMessage, 5000);
     } else {
       clearInterval(repeatRef.current);
     }
     return () => clearInterval(repeatRef.current);
-  }, [alerts.length]);
+  }, [alerts.length, onMessagesPage]);
 
   useEffect(() => {
     // Suscribirse a mensajes nuevos de móviles en tiempo real

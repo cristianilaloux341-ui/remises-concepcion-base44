@@ -1352,7 +1352,11 @@ export default function DriverApp() {
           </button>
           <button
             className="p-2 rounded-xl bg-blue-600/20 text-blue-400"
-            onClick={() => setShowMessages(true)}
+            onClick={() => {
+              setShowMessages(true);
+              // Parar alertas sonoras al abrir el chat
+              pendingMessages.forEach(m => dismissMessage(m.id));
+            }}
           >
             <MessageCircle className="w-4 h-4" />
           </button>
