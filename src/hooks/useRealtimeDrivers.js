@@ -21,7 +21,10 @@ export function useRealtimeDrivers() {
         setIsLoading(false);
         lastEventRef.current = Date.now();
       }
-    }).catch(() => {});
+    }).catch(() => {
+      // Aunque falle, salimos del estado loading para no bloquear la UI
+      if (mountedRef.current) setIsLoading(false);
+    });
   }, []);
 
   const connect = useCallback(() => {

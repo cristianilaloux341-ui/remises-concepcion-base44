@@ -85,10 +85,24 @@ function FitBounds({ bounds }) {
 function InvalidateSize() {
   const map = useMap();
   useEffect(() => {
-    // Forzar recálculo del tamaño en móviles con contenedores flex
-    const t = setTimeout(() => map.invalidateSize(), 100);
-    return () => clearTimeout(t);
+    // Forzar recálculo en móviles — inmediato + diferido para cubrir transiciones
+    map.invalidateSize();
+    const t1 = setTimeout(() => map.invalidateSize(), 200);
+    const t2 = setTimeout(() => map.invalidateSize(), 800);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [map]);
+
+  useEffect(() => {
+    // Re-invalidar cuando la pestaña vuelve al frente (background → foreground)
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        setTimeout(() => map.invalidateSize(), 300);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [map]);
+
   return null;
 }
 
@@ -97,16 +111,7 @@ const CENTRAL = { lat: -32.4847, lng: -58.2378, nombre: "Central Remisería" };
 
 export default function RideMap({ orders = [], drivers = [], center, zoom = 13, className = "" }) {
   const defaultCenter = center || [CENTRAL.lat, CENTRAL.lng];
-  const [mapKey, setMapKey] = useState(0);
-
-  // Re-montar el mapa si cambia visibilidad (vuelta de background en móvil)
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible") setMapKey(k => k + 1);
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, []);
+  // No re-montamos el mapa en cada visibilitychange — InvalidateSize lo maneja
 
   const allPoints = [];
   orders.forEach(o => {
@@ -118,9 +123,8 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
   });
 
   return (
-    <div className={`rounded-xl overflow-hidden border ${className}`} style={{ height: "100%", minHeight: "200px" }}>
+    <div className={`rounded-xl overflow-hidden border ${className}`} style={{ height: "100%", minHeight: "260px" }}>
       <MapContainer
-        key={mapKey}
         center={defaultCenter}
         zoom={zoom}
         style={{ height: "100%", width: "100%", minHeight: "200px" }}

@@ -21,7 +21,9 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
         setIsLoading(false);
         lastEventRef.current = Date.now();
       }
-    }).catch(() => {});
+    }).catch(() => {
+      if (mountedRef.current) setIsLoading(false);
+    });
   }, [limit, sort]);
 
   const connect = useCallback(() => {

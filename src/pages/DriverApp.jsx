@@ -766,26 +766,29 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
 
   if (changingBase) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-6 space-y-6">
-        <div className="text-center">
+      <div className="flex-1 flex flex-col px-4 py-6 overflow-y-auto">
+        <div className="text-center mb-4">
           <p className="text-xl font-bold text-gray-800">Cambiar de Base</p>
           <p className="text-gray-500 text-sm mt-1">Estás en: <span className="font-semibold text-gray-700">{driver.current_base}</span></p>
         </div>
-        <div className="w-full max-w-xs space-y-3">
-          <Select value={newBase} onValueChange={setNewBase}>
-            <SelectTrigger className="h-12 rounded-2xl text-base border-2">
-              <SelectValue placeholder="Seleccionar nueva base..." />
-            </SelectTrigger>
-            <SelectContent>
-              {BASES.filter(b => b !== driver.current_base).map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <div className="space-y-2 flex-1">
+          {BASES.filter(b => b !== driver.current_base).map(b => (
+            <button
+              key={b}
+              className={`w-full text-left px-4 py-4 rounded-2xl font-semibold text-base border-2 transition-all ${newBase === b ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-200 text-gray-800 active:bg-gray-100"}`}
+              onClick={() => setNewBase(b)}
+            >
+              {b}
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 space-y-2 shrink-0">
           <Button
-            className="w-full h-12 rounded-2xl text-base font-bold"
+            className="w-full h-14 rounded-2xl text-base font-bold"
             disabled={!newBase}
             onClick={() => { onChangeBase(newBase); setChangingBase(false); setNewBase(""); }}
           >
-            Moverme a {newBase || "esta base"}
+            Moverme a {newBase || "una base"}
           </Button>
           <Button
             variant="outline"
@@ -860,25 +863,28 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
 
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 space-y-6">
-      <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center">
-        <Car className="w-10 h-10 text-gray-400" />
-      </div>
-      <div className="text-center">
+    <div className="flex-1 flex flex-col px-4 py-6 overflow-y-auto">
+      <div className="text-center mb-5">
+        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
+          <Car className="w-8 h-8 text-gray-400" />
+        </div>
         <p className="text-xl font-bold text-gray-800">¿En qué base estás?</p>
-        <p className="text-gray-500 text-sm mt-1">Seleccioná tu base para quedar en posición</p>
+        <p className="text-gray-500 text-sm mt-1">Tocá tu base para quedar en posición</p>
       </div>
-      <div className="w-full max-w-xs space-y-3">
-        <Select value={selectedBase} onValueChange={onBaseChange}>
-          <SelectTrigger className="h-12 rounded-2xl text-base border-2">
-            <SelectValue placeholder="Seleccionar base..." />
-          </SelectTrigger>
-          <SelectContent>
-            {BASES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-          </SelectContent>
-        </Select>
+      <div className="space-y-2 flex-1">
+        {BASES.map(b => (
+          <button
+            key={b}
+            className={`w-full text-left px-4 py-4 rounded-2xl font-semibold text-base border-2 transition-all ${selectedBase === b ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-200 text-gray-800 active:bg-gray-100"}`}
+            onClick={() => onBaseChange(b)}
+          >
+            {b}
+          </button>
+        ))}
+      </div>
+      <div className="mt-4 shrink-0">
         <Button
-          className="w-full h-12 rounded-2xl text-base font-bold"
+          className="w-full h-14 rounded-2xl text-base font-bold"
           disabled={!selectedBase}
           onClick={onEnter}
         >
@@ -913,6 +919,7 @@ export default function DriverApp() {
   const [showStats, setShowStats] = useState(false);
   const [showBatteryGuide, setShowBatteryGuide] = useState(false);
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
+  const [loadTimeout, setLoadTimeout] = useState(false);
   const prevOfferedId = useRef(null);
   const offeredOrderRef = useRef(null);
   const prevBroadcastId = useRef(null);
@@ -1042,6 +1049,13 @@ export default function DriverApp() {
   // ── Tiempo real: suscripciones en lugar de polling ────────────────────────
   const { drivers, isLoading: driversLoading } = useRealtimeDrivers();
   const { orders } = useRealtimeOrders({ limit: 50 });
+
+  // Timeout de seguridad: si después de 8s sigue cargando, mostrar reintento
+  useEffect(() => {
+    if (!driversLoading) { setLoadTimeout(false); return; }
+    const t = setTimeout(() => setLoadTimeout(true), 8000);
+    return () => clearTimeout(t);
+  }, [driversLoading]);
 
   // Wake Lock — mantiene la pantalla activa mientras el chofer está en servicio
   useWakeLock(!!myDriverId);
@@ -1223,6 +1237,17 @@ export default function DriverApp() {
 
   // Show login if no driver selected
   if (!myDriverId) {
+    // Mientras cargamos los choferes, mostrar un spinner liviano
+    if (driversLoading) {
+      return (
+        <div className="h-screen bg-gray-950 flex items-center justify-center">
+          <div className="text-center space-y-3">
+            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-gray-400 text-sm">Cargando...</p>
+          </div>
+        </div>
+      );
+    }
     return (
       <LoginScreen
         drivers={drivers}
@@ -1244,11 +1269,27 @@ export default function DriverApp() {
     const canGoBack = !driversLoading && !myDriverRaw;
     return (
       <div className="h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-gray-400 text-sm">{canGoBack ? "Perfil no encontrado" : "Conectando..."}</p>
+        <div className="text-center space-y-4 px-6">
+          {!loadTimeout ? (
+            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-red-900/40 flex items-center justify-center mx-auto">
+              <span className="text-red-400 text-xl">⚠</span>
+            </div>
+          )}
+          <p className="text-gray-400 text-sm">
+            {canGoBack ? "Perfil no encontrado" : loadTimeout ? "Sin conexión — verificá tu internet" : "Conectando..."}
+          </p>
+          {loadTimeout && (
+            <button
+              className="w-full bg-blue-600 text-white text-sm font-bold py-3 rounded-xl"
+              onClick={() => { setLoadTimeout(false); window.location.reload(); }}
+            >
+              Reintentar
+            </button>
+          )}
           <button
-            className="text-xs text-gray-600 underline"
+            className="text-xs text-gray-600 underline block mx-auto"
             onClick={() => { localStorage.removeItem("my_driver_id"); setMyDriverId(""); }}
           >
             {canGoBack ? "Volver al inicio" : "Cancelar"}
