@@ -956,7 +956,7 @@ export default function DriverApp() {
   }, [myDriverId]);
 
   // ── Tiempo real: suscripciones en lugar de polling ────────────────────────
-  const { drivers } = useRealtimeDrivers();
+  const { drivers, isLoading: driversLoading } = useRealtimeDrivers();
   const { orders } = useRealtimeOrders({ limit: 50 });
 
   // Wake Lock — mantiene la pantalla activa mientras el chofer está en servicio
@@ -1128,23 +1128,14 @@ export default function DriverApp() {
     return 0;
   })();
 
-  // Timeout de carga: si después de 8s no hay datos, volver al login
-  const [loadTimeout, setLoadTimeout] = useState(false);
-  useEffect(() => {
-    if (!myDriverId || myDriverRaw) { setLoadTimeout(false); return; }
-    const t = setTimeout(() => setLoadTimeout(true), 8000);
-    return () => clearTimeout(t);
-  }, [myDriverId, myDriverRaw]);
-
-  // Show login if no driver selected, driver not found after load, or timeout
-  if (!myDriverId || (!myDriverRaw && (drivers.length > 0 || loadTimeout))) {
+  // Show login if no driver selected
+  if (!myDriverId) {
     return (
       <LoginScreen
         drivers={drivers}
         onSelect={(id, isFirstTime) => {
           setMyDriverId(id);
           localStorage.setItem("my_driver_id", id);
-          setLoadTimeout(false);
           if (isFirstTime) {
             setShowSetupGuide(true);
             localStorage.setItem(`setup_done_${id}`, "1");
@@ -1154,18 +1145,19 @@ export default function DriverApp() {
     );
   }
 
-  // Loading state — mostrar spinner mientras llegan los datos (máx 8s)
-  if (!myDriverRaw) {
+  // Spinner mientras carga — cuando termina de cargar y no encontró al chofer, volver al login
+  if (driversLoading || !myDriverRaw) {
+    const canGoBack = !driversLoading && !myDriverRaw;
     return (
       <div className="h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-gray-400 text-sm">Conectando...</p>
+          <p className="text-gray-400 text-sm">{canGoBack ? "Perfil no encontrado" : "Conectando..."}</p>
           <button
             className="text-xs text-gray-600 underline"
             onClick={() => { localStorage.removeItem("my_driver_id"); setMyDriverId(""); }}
           >
-            Volver al inicio
+            {canGoBack ? "Volver al inicio" : "Cancelar"}
           </button>
         </div>
       </div>
