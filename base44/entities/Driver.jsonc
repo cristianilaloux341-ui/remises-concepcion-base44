@@ -5,7 +5,7 @@
     "read": true,
     "create": false,
     "update": true,
-    "delete": false
+    "delete": true
   },
   "properties": {
     "name": {
