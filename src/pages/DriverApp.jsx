@@ -970,18 +970,25 @@ export default function DriverApp() {
 
   // Estado local optimista — se sobreescribe con datos reales cuando llegan
   const [localOverride, setLocalOverride] = useState(null);
+  const clearOverrideTimerRef = useRef(null);
 
   const myDriverRaw = drivers.find(d => d.id === myDriverId);
-  // Cuando llegan datos reales de la suscripción, limpiar override si ya coinciden
+
+  // Limpiar el override cuando los datos reales del servidor ya coinciden
+  // Usamos un pequeño delay para evitar flash si la suscripción llega antes de lo esperado
   useEffect(() => {
     if (!localOverride || !myDriverRaw) return;
-    if (myDriverRaw.status === localOverride.status && myDriverRaw.current_base === localOverride.current_base) {
-      setLocalOverride(null);
+    const statusMatch = !('status' in localOverride) || myDriverRaw.status === localOverride.status;
+    const baseMatch = !('current_base' in localOverride) || myDriverRaw.current_base === localOverride.current_base;
+    if (statusMatch && baseMatch) {
+      clearOverrideTimerRef.current = setTimeout(() => setLocalOverride(null), 500);
     }
-  }, [myDriverRaw?.status, myDriverRaw?.current_base]);
+    return () => clearTimeout(clearOverrideTimerRef.current);
+  }, [myDriverRaw?.status, myDriverRaw?.current_base]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Merge: datos del servidor + override local (el override gana hasta que el servidor confirme)
   const myDriver = myDriverRaw
-    ? { ...myDriverRaw, ...(localOverride || {}) }
+    ? { ...myDriverRaw, ...(localOverride ?? {}) }
     : null;
 
   const activeOrder = orders.find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
@@ -1081,17 +1088,19 @@ export default function DriverApp() {
     }
   };
   const handleEnterBase = () => {
-    setLocalOverride({ current_base: selectedBase, status: "disponible" });
+    const ts = new Date().toISOString();
+    setLocalOverride({ current_base: selectedBase, status: "disponible", queue_entered_at: ts });
     updateDriver.mutate({
       id: myDriverId,
-      data: { current_base: selectedBase, status: "disponible", queue_entered_at: new Date().toISOString() },
+      data: { current_base: selectedBase, status: "disponible", queue_entered_at: ts },
     });
   };
   const handleChangeBase = (newBase) => {
-    setLocalOverride({ current_base: newBase, status: "disponible" });
+    const ts = new Date().toISOString();
+    setLocalOverride({ current_base: newBase, status: "disponible", queue_entered_at: ts });
     updateDriver.mutate({
       id: myDriverId,
-      data: { current_base: newBase, status: "disponible", queue_entered_at: new Date().toISOString() },
+      data: { current_base: newBase, status: "disponible", queue_entered_at: ts },
     });
   };
   const handleTakeOrder = (order) => {

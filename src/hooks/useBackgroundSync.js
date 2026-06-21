@@ -8,7 +8,7 @@ import { useEffect, useRef, useCallback } from "react";
  * @param {Function} onResume — callback que se llama al volver al primer plano
  * @param {number}   pingInterval — ms entre pings al SW (default: 20s)
  */
-export function useBackgroundSync(onResume, pingInterval = 5_000) {
+export function useBackgroundSync(onResume, pingInterval = 20_000) {
   const onResumeRef = useRef(onResume);
   const pingTimerRef = useRef(null);
   const wasHiddenRef = useRef(false);

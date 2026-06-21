@@ -2,34 +2,38 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { useBackgroundSync } from "./useBackgroundSync";
 
-/**
- * Suscripción en tiempo real a órdenes con reconexión automática
- * cuando la app vuelve del background / pantalla desbloqueada.
- */
+const POLL_INTERVAL_MS = 15_000; // fallback poll cada 15s si la suscripción cae
+
 export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const mountedRef = useRef(true);
   const unsubRef = useRef(null);
+  const pollRef = useRef(null);
+  const lastEventRef = useRef(Date.now());
+
+  const fetchAll = useCallback(() => {
+    if (!mountedRef.current) return;
+    return base44.entities.RideOrder.list(sort, limit).then((data) => {
+      if (mountedRef.current) {
+        setOrders(data);
+        setIsLoading(false);
+        lastEventRef.current = Date.now();
+      }
+    }).catch(() => {});
+  }, [limit, sort]);
 
   const connect = useCallback(() => {
     if (!mountedRef.current) return;
 
-    // Desconectar suscripción anterior si existe
     unsubRef.current?.();
     unsubRef.current = null;
 
-    // Recargar datos frescos
-    base44.entities.RideOrder.list(sort, limit).then((data) => {
-      if (mountedRef.current) {
-        setOrders(data);
-        setIsLoading(false);
-      }
-    });
+    fetchAll();
 
-    // Nueva suscripción en tiempo real
     unsubRef.current = base44.entities.RideOrder.subscribe((event) => {
       if (!mountedRef.current) return;
+      lastEventRef.current = Date.now();
       setOrders((prev) => {
         if (event.type === "create") return [event.data, ...prev].slice(0, limit);
         if (event.type === "update") return prev.map((o) => (o.id === event.id ? event.data : o));
@@ -37,18 +41,26 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
         return prev;
       });
     });
-  }, [limit, sort]);
+  }, [fetchAll, limit]);
 
   useEffect(() => {
     mountedRef.current = true;
     connect();
+
+    // Poll de respaldo: si la suscripción cayó silenciosamente, re-fetch
+    pollRef.current = setInterval(() => {
+      if (Date.now() - lastEventRef.current > POLL_INTERVAL_MS * 2) {
+        fetchAll();
+      }
+    }, POLL_INTERVAL_MS);
+
     return () => {
       mountedRef.current = false;
       unsubRef.current?.();
+      clearInterval(pollRef.current);
     };
-  }, [connect]);
+  }, [connect, fetchAll]);
 
-  // Reconectar automáticamente al volver del background
   useBackgroundSync(connect);
 
   return { orders, isLoading };
