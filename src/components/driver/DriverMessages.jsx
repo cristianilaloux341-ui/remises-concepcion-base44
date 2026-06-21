@@ -31,29 +31,32 @@ export default function DriverMessages({ driver, onClose }) {
   const [messages, setMessages] = useState([]);
   const bottomRef = useRef(null);
   const initializedRef = useRef(false);
+  const seenIdsRef = useRef(new Set());
 
   // Load initial messages then subscribe to real-time updates
   useEffect(() => {
     base44.entities.Message.list("created_date", 100).then(data => {
-      setMessages(data || []);
+      const msgs = data || [];
+      // Pre-populate seen IDs so we don't beep on initial load
+      msgs.forEach(m => seenIdsRef.current.add(m.id));
+      setMessages(msgs);
       initializedRef.current = true;
     });
 
     const unsubscribe = base44.entities.Message.subscribe((event) => {
       if (!initializedRef.current) return;
       if (event.type === "create") {
-        setMessages(prev => {
-          if (prev.some(m => m.id === event.id)) return prev;
-          const msg = event.data;
-          // Only show messages relevant to this driver
-          const isForMe = !msg.to_driver_id || msg.to_driver_id === driver.id || msg.driver_id === driver.id;
-          if (!isForMe) return prev;
-          if (msg.from_type === "operador") {
-            playBeep("receive");
-            try { navigator.vibrate?.([200]); } catch (_) {}
-          }
-          return [...prev, msg];
-        });
+        if (seenIdsRef.current.has(event.id)) return;
+        seenIdsRef.current.add(event.id);
+        const msg = event.data;
+        // Only show messages relevant to this driver
+        const isForMe = !msg.to_driver_id || msg.to_driver_id === driver.id || msg.driver_id === driver.id;
+        if (!isForMe) return;
+        if (msg.from_type === "operador") {
+          playBeep("receive");
+          try { navigator.vibrate?.([200]); } catch (_) {}
+        }
+        setMessages(prev => [...prev, msg]);
       }
     });
 

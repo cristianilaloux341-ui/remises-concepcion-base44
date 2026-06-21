@@ -9,17 +9,63 @@ import { Send, Radio, User } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
+    resume.then(() => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = "sine";
+      o.frequency.value = 880;
+      g.gain.setValueAtTime(0, ctx.currentTime);
+      g.gain.linearRampToValueAtTime(0.35, ctx.currentTime + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      o.start(ctx.currentTime);
+      o.stop(ctx.currentTime + 0.25);
+    });
+  } catch (_) {}
+}
+
 export default function Messages() {
   const queryClient = useQueryClient();
   const [content, setContent] = useState("");
   const [targetDriverId, setTargetDriverId] = useState("todos");
   const bottomRef = useRef(null);
+  const seenIdsRef = useRef(new Set());
+  const initializedRef = useRef(false);
 
   const { data: messages = [] } = useQuery({
     queryKey: ["messages"],
     queryFn: () => base44.entities.Message.list("created_date", 200),
     refetchInterval: 3000,
   });
+
+  // Pre-populate seen IDs on first load so we don't beep on existing messages
+  useEffect(() => {
+    if (!initializedRef.current && messages.length > 0) {
+      messages.forEach(m => seenIdsRef.current.add(m.id));
+      initializedRef.current = true;
+    }
+  }, [messages]);
+
+  // Subscribe to new messages and beep only for new ones from drivers
+  useEffect(() => {
+    const unsubscribe = base44.entities.Message.subscribe((event) => {
+      if (!initializedRef.current) return;
+      if (event.type === "create") {
+        if (seenIdsRef.current.has(event.id)) return;
+        seenIdsRef.current.add(event.id);
+        const msg = event.data;
+        if (msg.from_type === "movil") {
+          playBeep();
+        }
+        queryClient.invalidateQueries({ queryKey: ["messages"] });
+      }
+    });
+    return () => unsubscribe();
+  }, [queryClient]);
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
