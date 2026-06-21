@@ -5,13 +5,35 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Radio, User } from "lucide-react";
+import { Send, Radio, User, MessageCircle, X } from "lucide-react";
 import { format } from "date-fns";
+
+function playMsgSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const doPlay = () => {
+      [[0, 520], [120, 780]].forEach(([delay, freq]) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = "sine"; o.frequency.value = freq;
+        const t = ctx.currentTime + delay / 1000;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.5, t + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+        o.start(t); o.stop(t + 0.3);
+      });
+    };
+    if (ctx.state === "suspended") ctx.resume().then(doPlay); else doPlay();
+  } catch (_) {}
+}
 
 export default function Messages() {
   const [content, setContent] = useState("");
   const [targetDriverId, setTargetDriverId] = useState("todos");
   const [messages, setMessages] = useState([]);
+  const [toast, setToast] = useState(null); // { from_name, content, id }
+  const toastTimerRef = useRef(null);
   const bottomRef = useRef(null);
   const seenIdsRef = useRef(new Set());
 
@@ -28,6 +50,13 @@ export default function Messages() {
         if (seenIdsRef.current.has(event.id)) return;
         seenIdsRef.current.add(event.id);
         setMessages(prev => [...prev, event.data]);
+        // Toast + sonido solo para mensajes de móviles entrantes
+        if (event.data?.from_type === "movil") {
+          playMsgSound();
+          setToast({ from_name: event.data.from_name, content: event.data.content, id: event.id });
+          clearTimeout(toastTimerRef.current);
+          toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+        }
       } else if (event.type === "update") {
         setMessages(prev => prev.map(m => m.id === event.id ? event.data : m));
       } else if (event.type === "delete") {
@@ -65,7 +94,27 @@ export default function Messages() {
     : drivers.find(d => d.id === targetDriverId)?.name || "Móvil";
 
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)]">
+    <div className="flex flex-col h-[calc(100vh-120px)] relative">
+      {/* Toast de mensaje entrante */}
+      {toast && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-2 animate-in slide-in-from-top-3 fade-in duration-300">
+          <div className="bg-gray-900 text-white rounded-2xl shadow-2xl overflow-hidden flex items-start gap-3 px-4 py-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+              <MessageCircle className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-blue-300 mb-0.5">{toast.from_name}</p>
+              <p className="text-sm leading-snug truncate">{toast.content}</p>
+            </div>
+            <button
+              className="text-gray-400 hover:text-white shrink-0 mt-0.5"
+              onClick={() => { clearTimeout(toastTimerRef.current); setToast(null); }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Mensajes</h1>
