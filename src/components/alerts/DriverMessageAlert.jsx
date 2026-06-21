@@ -37,53 +37,24 @@ function playOnce() {
   } catch (_) {}
 }
 
-// Inicia loop de sonido; devuelve función para detenerlo
-function startLoop() {
-  let stopped = false;
+// Toca UNA sola vez (sin loop)
+function playAlert() {
   playOnce();
-  const id = setInterval(() => { if (!stopped) playOnce(); }, 5000);
-  return () => {
-    stopped = true;
-    clearInterval(id);
-    try { navigator.vibrate?.(0); } catch (_) {}
-  };
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function DriverMessageAlert() {
   const [alerts, setAlerts] = useState([]);
   const seenIds = useRef(new Set());
-  const stopLoopRef = useRef(null);
   const location = useLocation();
   const onMessagesPage = location.pathname === "/messages";
-
-  // Función centralizada para detener el sonido
-  const stopSound = () => {
-    if (stopLoopRef.current) {
-      stopLoopRef.current();
-      stopLoopRef.current = null;
-    }
-  };
 
   // Parar sonido y limpiar alertas cuando el operador navega a /messages
   useEffect(() => {
     if (onMessagesPage) {
-      stopSound();
       setAlerts([]);
     }
   }, [onMessagesPage]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Gestionar el loop de audio según haya alertas
-  useEffect(() => {
-    if (alerts.length > 0 && !onMessagesPage) {
-      if (!stopLoopRef.current) {
-        stopLoopRef.current = startLoop();
-      }
-    } else {
-      stopSound();
-    }
-    return stopSound;
-  }, [alerts.length, onMessagesPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const unsubscribe = base44.entities.Message.subscribe((event) => {
@@ -92,9 +63,14 @@ export default function DriverMessageAlert() {
       if (!msg) return;
       if (msg.from_type !== "movil") return;
       if (seenIds.current.has(msg.id)) return;
+      // No alertar si ya estamos en la página de mensajes
+      if (onMessagesPage) { seenIds.current.add(msg.id); return; }
 
       seenIds.current.add(msg.id);
       setAlerts(prev => [...prev, msg]);
+
+      // Sonido una sola vez por mensaje nuevo
+      playAlert();
 
       if (typeof Notification !== "undefined" && Notification.permission === "granted") {
         try {
@@ -108,16 +84,12 @@ export default function DriverMessageAlert() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [onMessagesPage]);
 
   const dismiss = (id) => {
-    setAlerts(prev => {
-      const next = prev.filter(a => a.id !== id);
-      if (next.length === 0) stopSound();
-      return next;
-    });
+    setAlerts(prev => prev.filter(a => a.id !== id));
   };
-  const dismissAll = () => { stopSound(); setAlerts([]); };
+  const dismissAll = () => { setAlerts([]); };
 
   if (alerts.length === 0) return null;
 

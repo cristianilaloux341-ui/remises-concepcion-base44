@@ -50,9 +50,9 @@ export default function Messages() {
         if (seenIdsRef.current.has(event.id)) return;
         seenIdsRef.current.add(event.id);
         setMessages(prev => [...prev, event.data]);
-        // Toast + sonido solo para mensajes de móviles entrantes
+        // Toast + sonido solo para mensajes de móviles entrantes — UNA sola vez, sin loop
         if (event.data?.from_type === "movil") {
-          playMsgSound();
+          playMsgSound(); // se llama una sola vez, playMsgSound no loopea
           setToast({ from_name: event.data.from_name, content: event.data.content, id: event.id });
           clearTimeout(toastTimerRef.current);
           toastTimerRef.current = setTimeout(() => setToast(null), 5000);

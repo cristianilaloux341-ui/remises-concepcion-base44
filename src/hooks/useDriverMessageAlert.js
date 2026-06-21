@@ -26,33 +26,15 @@ function playBlip(ctx) {
   });
 }
 
-// Starts continuous alert loop; returns stopFn
-function startAlertLoop() {
-  let stopped = false;
-  let intervalId = null;
-
-  const loop = () => {
-    if (stopped) return;
-    try {
-      const ctx = getCtx();
-      const doPlay = () => { if (!stopped) playBlip(ctx); };
-      if (ctx.state === "suspended") ctx.resume().then(doPlay);
-      else doPlay();
-    } catch (_) {}
-
-    try {
-      if (!stopped) navigator.vibrate?.([400, 200, 400, 200, 600]);
-    } catch (_) {}
-  };
-
-  loop(); // immediate first play
-  intervalId = setInterval(loop, 2200);
-
-  return () => {
-    stopped = true;
-    clearInterval(intervalId);
-    try { navigator.vibrate?.(0); } catch (_) {}
-  };
+// Toca UNA sola vez (sin loop)
+function playAlertOnce() {
+  try {
+    const ctx = getCtx();
+    const doPlay = () => playBlip(ctx);
+    if (ctx.state === "suspended") ctx.resume().then(doPlay);
+    else doPlay();
+  } catch (_) {}
+  try { navigator.vibrate?.([400, 200, 400]); } catch (_) {}
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────────
@@ -61,9 +43,8 @@ function startAlertLoop() {
 export function useDriverMessageAlert(driverId) {
   const [pendingMessages, setPendingMessages] = useState([]);
   const seenIds = useRef(new Set());
-  const stopAlertRef = useRef(null);
 
-  // Subscribe to new messages in real-time
+  // Subscribe to new messages in real-time — suena UNA sola vez por mensaje nuevo
   useEffect(() => {
     if (!driverId) return;
 
@@ -79,28 +60,12 @@ export function useDriverMessageAlert(driverId) {
 
       seenIds.current.add(msg.id);
       setPendingMessages(prev => [...prev, msg]);
+      // Sonido una sola vez por mensaje nuevo
+      playAlertOnce();
     });
 
     return () => unsubscribe();
   }, [driverId]);
-
-  // Start/stop audio loop based on pending messages
-  useEffect(() => {
-    if (pendingMessages.length > 0) {
-      if (!stopAlertRef.current) {
-        stopAlertRef.current = startAlertLoop();
-      }
-    } else {
-      if (stopAlertRef.current) {
-        stopAlertRef.current();
-        stopAlertRef.current = null;
-      }
-    }
-    // Cleanup on unmount
-    return () => {
-      if (stopAlertRef.current) { stopAlertRef.current(); stopAlertRef.current = null; }
-    };
-  }, [pendingMessages.length]);
 
   const dismissMessage = (msgId) => {
     // Mark as read in DB (fire and forget)
