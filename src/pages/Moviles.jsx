@@ -10,6 +10,7 @@ import { Car, Plus, Edit, AlertTriangle, CheckCircle2, XCircle, Search, Clipboar
 import { format, differenceInDays, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
+import MovilAlertBanner from "@/components/moviles/MovilAlertBanner";
 
 const EMPTY_MOVIL = {
   numero_movil: "",
@@ -65,6 +66,7 @@ function MovilForm({ movil, onSave, onCancel, saving, drivers = [] }) {
 
   return (
     <form onSubmit={e => { e.preventDefault(); onSave(form); }} className="space-y-5">
+      <MovilAlertBanner movil={form} />
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">N° Móvil *</label>
