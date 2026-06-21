@@ -928,7 +928,17 @@ export default function DriverApp() {
   useEffect(() => {
     registerSW();
     requestNotificationPermission();
-  }, []);
+
+    // Si la app fue abierta desde un tap de "Aceptar" en pantalla bloqueada
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoAcceptOrderId = urlParams.get("accept");
+    if (autoAcceptOrderId && myDriverId) {
+      base44.entities.RideOrder.update(autoAcceptOrderId, { status: "aceptado" }).catch(() => {});
+      base44.entities.Driver.update(myDriverId, { status: "en_viaje" }).catch(() => {});
+      // Limpiar el parámetro de la URL
+      window.history.replaceState({}, "", "/driver-app");
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep-alive: envía un ping al SW cada 25s para mantenerlo activo
   // y recibe PONG para confirmar que el SW sigue vivo
