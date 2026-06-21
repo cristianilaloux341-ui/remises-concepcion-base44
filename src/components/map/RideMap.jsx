@@ -109,6 +109,18 @@ function InvalidateSize() {
 // Coordenadas de la central — Concepción del Uruguay, Entre Ríos
 const CENTRAL = { lat: -32.4847, lng: -58.2378, nombre: "Central Remisería" };
 
+// Coordenadas aproximadas de las bases para drivers sin GPS
+const BASE_COORDS = {
+  "1-Puerto":      { lat: -32.4796, lng: -58.2421 },
+  "2-Plaza":       { lat: -32.4847, lng: -58.2378 },
+  "3-Columna":     { lat: -32.4820, lng: -58.2340 },
+  "4-Base":        { lat: -32.4865, lng: -58.2410 },
+  "5-Cementerio":  { lat: -32.4900, lng: -58.2350 },
+  "6-Díaz Vélez":  { lat: -32.4780, lng: -58.2300 },
+  "7-Don Bosco":   { lat: -32.4830, lng: -58.2450 },
+  "8-Monumento":   { lat: -32.4760, lng: -58.2390 },
+};
+
 export default function RideMap({ orders = [], drivers = [], center, zoom = 13, className = "" }) {
   const defaultCenter = center || [CENTRAL.lat, CENTRAL.lng];
   // No re-montamos el mapa en cada visibilitychange — InvalidateSize lo maneja
