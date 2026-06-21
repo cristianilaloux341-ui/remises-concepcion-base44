@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2 } from "lucide-react";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
+import { withRetry } from "@/lib/retryFetch";
 import RideMap from "@/components/map/RideMap";
 import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
@@ -923,10 +924,10 @@ export default function DriverApp() {
       }
       gpsIdRef.current = navigator.geolocation.watchPosition(
         (pos) => {
-          base44.entities.Driver.update(myDriverId, {
+          withRetry(() => base44.entities.Driver.update(myDriverId, {
             current_lat: pos.coords.latitude,
             current_lng: pos.coords.longitude,
-          }).catch(() => {});
+          })).catch(() => {});
         },
         (err) => {
           // Si el GPS falla, reintentar en 5s

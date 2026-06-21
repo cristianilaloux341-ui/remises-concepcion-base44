@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { useBackgroundSync } from "./useBackgroundSync";
+import { withRetry } from "@/lib/retryFetch";
 
 const POLL_INTERVAL_MS = 15_000; // fallback poll cada 15s si la suscripción cae
 
@@ -14,7 +15,7 @@ export function useRealtimeDrivers() {
 
   const fetchAll = useCallback(() => {
     if (!mountedRef.current) return;
-    return base44.entities.Driver.list().then((data) => {
+    return withRetry(() => base44.entities.Driver.list()).then((data) => {
       if (mountedRef.current) {
         setDrivers(data);
         setIsLoading(false);
