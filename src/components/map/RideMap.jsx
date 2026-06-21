@@ -195,11 +195,14 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
           </div>
         ))}
 
-        {drivers.map((driver) =>
-          driver.current_lat && driver.current_lng ? (
+        {drivers.map((driver) => {
+          const lat = driver.current_lat || BASE_COORDS[driver.current_base]?.lat;
+          const lng = driver.current_lng || BASE_COORDS[driver.current_base]?.lng;
+          if (!lat || !lng) return null;
+          return (
             <Marker
               key={driver.id}
-              position={[driver.current_lat, driver.current_lng]}
+              position={[lat, lng]}
               icon={makeDriverIcon(driver.status, driver.name)}
             >
               <Popup>
@@ -215,11 +218,12 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
                     {driver.status === "disponible" ? "🟢 Libre" : driver.status === "en_viaje" ? "🔵 En viaje" : "⚫ Fuera de servicio"}
                   </p>
                   {driver.current_base && <p className="text-gray-500 text-xs">📍 {driver.current_base}</p>}
+                  {!driver.current_lat && driver.current_base && <p className="text-gray-400 text-xs">📌 Posición aproximada (base)</p>}
                 </div>
               </Popup>
             </Marker>
-          ) : null
-        )}
+          );
+        })}
       </MapContainer>
     </div>
   );

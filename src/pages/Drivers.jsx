@@ -264,6 +264,7 @@ export default function Drivers() {
   const [editingDriver, setEditingDriver] = useState(null);
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [reinscripcionMovil, setReinscripcionMovil] = useState(null);
+  const [deleteConfirmDriver, setDeleteConfirmDriver] = useState(null);
 
   const { data: drivers = [], isLoading } = useQuery({
     queryKey: ["drivers"],
@@ -505,7 +506,7 @@ export default function Drivers() {
                       variant="ghost"
                       size="icon"
                       className="h-9 w-9 text-destructive hover:text-destructive"
-                      onClick={() => deleteMutation.mutate(driver.id)}
+                      onClick={() => setDeleteConfirmDriver(driver)}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -523,6 +524,32 @@ export default function Drivers() {
           onClose={() => setSelectedDriver(null)}
         />
       )}
+
+      <AlertDialog open={!!deleteConfirmDriver} onOpenChange={(v) => !v && setDeleteConfirmDriver(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-500" />
+              Eliminar Conductor
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Eliminar a <strong>{deleteConfirmDriver?.name}</strong>? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex gap-3 mt-2">
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                deleteMutation.mutate(deleteConfirmDriver.id);
+                setDeleteConfirmDriver(null);
+              }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
