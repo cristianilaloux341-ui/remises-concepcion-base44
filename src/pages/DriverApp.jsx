@@ -162,10 +162,12 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved }) {
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-sm space-y-6">
           <div className="text-center space-y-2">
-            <div className="w-20 h-20 rounded-3xl bg-blue-600 flex items-center justify-center mx-auto shadow-xl shadow-blue-600/30">
-              <Car className="w-10 h-10 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-white">Remisería</h1>
+            <img
+              src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg"
+              alt="Remises Concepción"
+              className="w-24 h-24 rounded-3xl mx-auto object-cover shadow-xl"
+            />
+            <h1 className="text-3xl font-bold text-white">Remises Concepción</h1>
             <p className="text-gray-400">App del Chófer</p>
           </div>
 
@@ -203,10 +205,12 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved }) {
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <div className="w-20 h-20 rounded-3xl bg-blue-600 flex items-center justify-center mx-auto shadow-xl shadow-blue-600/30">
-            <Car className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-white">Remisería</h1>
+          <img
+            src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg"
+            alt="Remises Concepción"
+            className="w-24 h-24 rounded-3xl mx-auto object-cover shadow-xl"
+          />
+          <h1 className="text-3xl font-bold text-white">Remises Concepción</h1>
           <p className="text-gray-400">App del Chófer</p>
         </div>
 
@@ -1317,9 +1321,11 @@ export default function DriverApp() {
       {/* Header */}
       <div className="bg-gray-950 text-white px-5 py-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
-            <Car className="w-4 h-4 text-white" />
-          </div>
+          <img
+            src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg"
+            alt="RC"
+            className="w-9 h-9 rounded-xl object-cover"
+          />
           <div>
             <p className="font-bold text-sm leading-tight">{myDriver.name}</p>
             <p className="text-xs text-gray-400 font-mono">{myDriver.vehicle_plate}</p>
