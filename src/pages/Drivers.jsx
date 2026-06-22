@@ -64,7 +64,45 @@ function DriverForm({ onSubmit, isSubmitting, initial, moviles = [] }) {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>Nombre *</Label>
-          <Input value={form.name} onChange={e => set("name", e.target.value)} required />
+          <Input
+            value={form.name}
+            onChange={e => {
+              const nombre = e.target.value;
+              set("name", nombre);
+              // Autocompletar desde móvil si el nombre coincide con el titular
+              if (nombre.length >= 3) {
+                const normalizar = s => s?.toLowerCase().replace(/\s+/g, " ").trim() || "";
+                const match = moviles.find(m =>
+                  normalizar(m.apellido_nombre).includes(normalizar(nombre)) ||
+                  normalizar(nombre).includes(normalizar(m.apellido_nombre))
+                );
+                if (match) {
+                  setMovilNumero(String(match.numero_movil));
+                  setForm(p => ({
+                    ...p,
+                    name: nombre,
+                    vehicle_model: match.id,
+                    vehicle_plate: match.dominio || p.vehicle_plate,
+                    vehicle_color: match.color || p.vehicle_color,
+                    dni: match.dni || p.dni,
+                    fecha_nacimiento: match.fecha_nacimiento || p.fecha_nacimiento,
+                    direccion: match.direccion || p.direccion,
+                  }));
+                }
+              }
+            }}
+            required
+          />
+          {form.name.length >= 3 && (() => {
+            const normalizar = s => s?.toLowerCase().replace(/\s+/g, " ").trim() || "";
+            const match = moviles.find(m =>
+              normalizar(m.apellido_nombre).includes(normalizar(form.name)) ||
+              normalizar(form.name).includes(normalizar(m.apellido_nombre))
+            );
+            return match ? (
+              <p className="text-xs text-green-600">✓ Coincide con Móvil {match.numero_movil} — {match.apellido_nombre}</p>
+            ) : null;
+          })()}
         </div>
         <div className="space-y-1">
           <Label>Teléfono *</Label>
