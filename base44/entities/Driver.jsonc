@@ -14,6 +14,15 @@
     "phone": {
       "type": "string"
     },
+    "phone2": {
+      "type": "string",
+      "description": "Tel\u00e9fono de contacto secundario"
+    },
+    "fecha_nacimiento": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de nacimiento del conductor"
+    },
     "dni": {
       "type": "string",
       "description": "N\u00famero de DNI"
@@ -53,6 +62,16 @@
       "type": "string",
       "format": "date",
       "description": "Vencimiento seguro de riesgos personales del conductor"
+    },
+    "buena_conducta": {
+      "type": "boolean",
+      "default": true,
+      "description": "Certificado de buena conducta vigente"
+    },
+    "buena_conducta_vencimiento": {
+      "type": "string",
+      "format": "date",
+      "description": "Vencimiento buena conducta"
     },
     "notas": {
       "type": "string",

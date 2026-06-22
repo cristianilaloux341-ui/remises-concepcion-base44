@@ -8,17 +8,26 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard, NotebookPen, ClipboardList } from "lucide-react";
+import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard, NotebookPen, ClipboardList, Cake, ShieldCheck, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 function DriverForm({ onSubmit, isSubmitting, initial, moviles = [] }) {
+  const [movilNumero, setMovilNumero] = useState(() => {
+    if (initial?.vehicle_model && moviles.length) {
+      const m = moviles.find(x => x.id === initial.vehicle_model);
+      return m ? String(m.numero_movil) : "";
+    }
+    return "";
+  });
   const [form, setForm] = useState(initial || {
-    name: "", phone: "", dni: "", direccion: "", photo_url: "", carnet_categoria: "",
+    name: "", phone: "", phone2: "", fecha_nacimiento: "", dni: "", direccion: "",
+    photo_url: "", carnet_categoria: "",
     vehicle_model: "", vehicle_plate: "", vehicle_color: "", status: "disponible", notas: "",
     seguro_riesgos_personales_vencimiento: "",
+    buena_conducta: true, buena_conducta_vencimiento: "",
   });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -64,6 +73,16 @@ function DriverForm({ onSubmit, isSubmitting, initial, moviles = [] }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
+          <Label>Teléfono secundario</Label>
+          <Input value={form.phone2 || ""} onChange={e => set("phone2", e.target.value)} placeholder="Alternativo / familiar" />
+        </div>
+        <div className="space-y-1">
+          <Label>Fecha de nacimiento</Label>
+          <Input type="date" value={form.fecha_nacimiento || ""} onChange={e => set("fecha_nacimiento", e.target.value)} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
           <Label>DNI</Label>
           <Input value={form.dni} onChange={e => set("dni", e.target.value)} placeholder="Ej: 28.345.678" />
         </div>
@@ -99,30 +118,32 @@ function DriverForm({ onSubmit, isSubmitting, initial, moviles = [] }) {
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Vehículo</p>
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1">
-            <Label>Móvil asignado</Label>
-            <Select
-              value={form.vehicle_model || "ninguno"}
-              onValueChange={v => {
-                if (v === "ninguno") {
-                  set("vehicle_model", "");
+            <Label>N° Móvil</Label>
+            <Input
+              type="number"
+              min="1"
+              placeholder="Ej: 12"
+              value={movilNumero}
+              onChange={e => {
+                const val = e.target.value;
+                setMovilNumero(val);
+                const num = parseInt(val, 10);
+                const m = moviles.find(x => x.numero_movil === num);
+                if (m) {
+                  set("vehicle_model", m.id);
+                  if (m.dominio) set("vehicle_plate", m.dominio);
+                  if (m.color) set("vehicle_color", m.color);
                 } else {
-                  const m = moviles.find(x => x.id === v);
-                  set("vehicle_model", v);
-                  if (m?.dominio) set("vehicle_plate", m.dominio);
-                  if (m?.color) set("vehicle_color", m.color);
+                  set("vehicle_model", "");
                 }
               }}
-            >
-              <SelectTrigger><SelectValue placeholder="Sin móvil..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ninguno">— Sin móvil —</SelectItem>
-                {moviles.map(m => (
-                  <SelectItem key={m.id} value={m.id}>
-                    Móvil {m.numero_movil}{m.dominio ? ` · ${m.dominio}` : ""}{m.apellido_nombre ? ` — ${m.apellido_nombre}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
+            {movilNumero && (() => {
+              const m = moviles.find(x => x.numero_movil === parseInt(movilNumero, 10));
+              return m
+                ? <p className="text-xs text-green-600">✓ {m.dominio}{m.apellido_nombre ? ` — ${m.apellido_nombre}` : ""}</p>
+                : <p className="text-xs text-red-500">No encontrado</p>;
+            })()}
           </div>
           <div className="space-y-1">
             <Label>Patente *</Label>
@@ -135,12 +156,29 @@ function DriverForm({ onSubmit, isSubmitting, initial, moviles = [] }) {
         </div>
       </div>
 
-      {/* Seguros */}
+      {/* Documentación */}
       <div className="border-t pt-3">
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Documentación</p>
-        <div className="space-y-1">
-          <Label>Seg. Riesgos Personales — Vencimiento</Label>
-          <Input type="date" value={form.seguro_riesgos_personales_vencimiento || ""} onChange={e => set("seguro_riesgos_personales_vencimiento", e.target.value)} />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label>Seg. Riesgos Personales — Vto.</Label>
+            <Input type="date" value={form.seguro_riesgos_personales_vencimiento || ""} onChange={e => set("seguro_riesgos_personales_vencimiento", e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Buena Conducta — Vto.</Label>
+            <Input type="date" value={form.buena_conducta_vencimiento || ""} onChange={e => set("buena_conducta_vencimiento", e.target.value)} />
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-3">
+          <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+            <input
+              type="checkbox"
+              checked={!!form.buena_conducta}
+              onChange={e => set("buena_conducta", e.target.checked)}
+              className="w-4 h-4 rounded"
+            />
+            Buena conducta vigente
+          </label>
         </div>
       </div>
 
@@ -346,6 +384,31 @@ export default function Drivers() {
     no_disponible: "bg-gray-100 text-gray-700 border-gray-200",
   };
 
+  const getBirthdayAlert = (fecha_nacimiento) => {
+    if (!fecha_nacimiento) return null;
+    try {
+      const today = new Date();
+      const bday = new Date(fecha_nacimiento);
+      const thisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
+      const diff = Math.round((thisYear - today) / (1000 * 60 * 60 * 24));
+      if (diff === 0) return { label: "🎂 ¡Hoy es su cumpleaños!", color: "bg-pink-100 text-pink-700 border-pink-200" };
+      if (diff > 0 && diff <= 7) return { label: `🎂 Cumpleaños en ${diff} día${diff > 1 ? "s" : ""}`, color: "bg-yellow-100 text-yellow-700 border-yellow-200" };
+    } catch (_) {}
+    return null;
+  };
+
+  const getDocAlert = (fecha, label) => {
+    if (!fecha) return null;
+    try {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const vto = new Date(fecha); vto.setHours(0,0,0,0);
+      const diff = Math.round((vto - today) / (1000 * 60 * 60 * 24));
+      if (diff < 0) return { label: `⚠ ${label} vencido`, color: "bg-red-100 text-red-700 border-red-200" };
+      if (diff <= 30) return { label: `⚠ ${label} vence en ${diff}d`, color: "bg-orange-100 text-orange-700 border-orange-200" };
+    } catch (_) {}
+    return null;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -464,6 +527,24 @@ export default function Drivers() {
                     <p className="text-xs text-yellow-800">{driver.notas}</p>
                   </div>
                 )}
+
+                {/* Alertas: cumpleaños y documentos del conductor */}
+                {(() => {
+                  const alerts = [
+                    getBirthdayAlert(driver.fecha_nacimiento),
+                    getDocAlert(driver.seguro_riesgos_personales_vencimiento, "Seg. Riesgos"),
+                    getDocAlert(driver.buena_conducta_vencimiento, "Buena Conducta"),
+                    driver.buena_conducta === false ? { label: "⚠ Sin buena conducta vigente", color: "bg-red-100 text-red-700 border-red-200" } : null,
+                  ].filter(Boolean);
+                  if (!alerts.length) return null;
+                  return (
+                    <div className="mb-3 flex flex-col gap-1">
+                      {alerts.map((a, i) => (
+                        <div key={i} className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium ${a.color}`}>{a.label}</div>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {/* Alertas de vencimiento del móvil vinculado */}
                 {(() => {
