@@ -24,7 +24,7 @@ function DriverForm({ onSubmit, isSubmitting, initial, moviles = [] }) {
   });
   const [form, setForm] = useState(initial || {
     name: "", phone: "", phone2: "", fecha_nacimiento: "", dni: "", direccion: "",
-    photo_url: "", carnet_categoria: "",
+    photo_url: "", carnet_categoria: "", carnet_vencimiento: "",
     vehicle_model: "", vehicle_plate: "", vehicle_color: "", status: "disponible", notas: "",
     seguro_riesgos_personales_vencimiento: "",
     buena_conducta: true, buena_conducta_vencimiento: "",
@@ -87,7 +87,13 @@ function DriverForm({ onSubmit, isSubmitting, initial, moviles = [] }) {
           <Input value={form.dni} onChange={e => set("dni", e.target.value)} placeholder="Ej: 28.345.678" />
         </div>
         <div className="space-y-1">
-          <Label>Carnet Categoría</Label>
+          <Label>Dirección</Label>
+          <Input value={form.direccion} onChange={e => set("direccion", e.target.value)} placeholder="Ej: San Martín 1234" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>Carnet — Categoría</Label>
           <Select value={form.carnet_categoria} onValueChange={v => set("carnet_categoria", v)}>
             <SelectTrigger><SelectValue placeholder="Categoría..." /></SelectTrigger>
             <SelectContent>
@@ -95,10 +101,10 @@ function DriverForm({ onSubmit, isSubmitting, initial, moviles = [] }) {
             </SelectContent>
           </Select>
         </div>
-      </div>
-      <div className="space-y-1">
-        <Label>Dirección</Label>
-        <Input value={form.direccion} onChange={e => set("direccion", e.target.value)} placeholder="Ej: San Martín 1234" />
+        <div className="space-y-1">
+          <Label>Carnet — Vencimiento</Label>
+          <Input type="date" value={form.carnet_vencimiento || ""} onChange={e => set("carnet_vencimiento", e.target.value)} />
+        </div>
       </div>
 
       {/* Notas internas */}
@@ -532,6 +538,7 @@ export default function Drivers() {
                 {(() => {
                   const alerts = [
                     getBirthdayAlert(driver.fecha_nacimiento),
+                    getDocAlert(driver.carnet_vencimiento, "Carnet"),
                     getDocAlert(driver.seguro_riesgos_personales_vencimiento, "Seg. Riesgos"),
                     getDocAlert(driver.buena_conducta_vencimiento, "Buena Conducta"),
                     driver.buena_conducta === false ? { label: "⚠ Sin buena conducta vigente", color: "bg-red-100 text-red-700 border-red-200" } : null,
