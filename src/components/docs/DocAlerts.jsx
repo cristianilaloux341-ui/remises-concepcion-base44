@@ -5,8 +5,12 @@ import { AlertTriangle, CheckSquare, Square, ChevronDown, ChevronUp, XCircle, Cl
 // Evalúa una fecha de vencimiento: retorna null si no hay fecha, o { dias, vencido, porVencer }
 export function evalVencimiento(fecha) {
   if (!fecha) return null;
-  const dias = differenceInDays(parseISO(fecha), new Date());
-  return { dias, vencido: dias < 0, porVencer: dias >= 0 && dias <= 30 };
+  try {
+    const dias = differenceInDays(parseISO(fecha), new Date());
+    return { dias, vencido: dias < 0, porVencer: dias >= 0 && dias <= 30 };
+  } catch (_) {
+    return null;
+  }
 }
 
 // Documentos requeridos para reinscripción (Móvil)

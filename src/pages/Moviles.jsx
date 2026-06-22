@@ -42,10 +42,14 @@ const EMPTY_MOVIL = {
 
 function vencimientoStatus(fecha) {
   if (!fecha) return null;
-  const dias = differenceInDays(parseISO(fecha), new Date());
-  if (dias < 0) return { color: "text-red-600 bg-red-50 border-red-200", label: "Vencido", icon: XCircle };
-  if (dias <= 30) return { color: "text-amber-600 bg-amber-50 border-amber-200", label: `Vence en ${dias}d`, icon: AlertTriangle };
-  return { color: "text-green-600 bg-green-50 border-green-200", label: format(parseISO(fecha), "dd/MM/yyyy"), icon: CheckCircle2 };
+  try {
+    const dias = differenceInDays(parseISO(fecha), new Date());
+    if (dias < 0) return { color: "text-red-600 bg-red-50 border-red-200", label: "Vencido", icon: XCircle };
+    if (dias <= 30) return { color: "text-amber-600 bg-amber-50 border-amber-200", label: `Vence en ${dias}d`, icon: AlertTriangle };
+    return { color: "text-green-600 bg-green-50 border-green-200", label: format(parseISO(fecha), "dd/MM/yyyy"), icon: CheckCircle2 };
+  } catch (_) {
+    return null;
+  }
 }
 
 function VencimientoBadge({ fecha, label }) {
