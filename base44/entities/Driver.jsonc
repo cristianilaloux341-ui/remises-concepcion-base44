@@ -40,13 +40,19 @@
       "description": "Categor\u00eda del carnet de conducir"
     },
     "vehicle_model": {
-      "type": "string"
+      "type": "string",
+      "description": "ID del m\u00f3vil asignado"
     },
     "vehicle_plate": {
       "type": "string"
     },
     "vehicle_color": {
       "type": "string"
+    },
+    "seguro_riesgos_personales_vencimiento": {
+      "type": "string",
+      "format": "date",
+      "description": "Vencimiento seguro de riesgos personales del conductor"
     },
     "notas": {
       "type": "string",

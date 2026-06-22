@@ -14,10 +14,11 @@ import { es } from "date-fns/locale";
 import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-function DriverForm({ onSubmit, isSubmitting, initial }) {
+function DriverForm({ onSubmit, isSubmitting, initial, moviles = [] }) {
   const [form, setForm] = useState(initial || {
     name: "", phone: "", dni: "", direccion: "", photo_url: "", carnet_categoria: "",
     vehicle_model: "", vehicle_plate: "", vehicle_color: "", status: "disponible", notas: "",
+    seguro_riesgos_personales_vencimiento: "",
   });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -98,8 +99,30 @@ function DriverForm({ onSubmit, isSubmitting, initial }) {
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Vehículo</p>
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1">
-            <Label>Modelo</Label>
-            <Input value={form.vehicle_model} onChange={e => set("vehicle_model", e.target.value)} />
+            <Label>Móvil asignado</Label>
+            <Select
+              value={form.vehicle_model || "ninguno"}
+              onValueChange={v => {
+                if (v === "ninguno") {
+                  set("vehicle_model", "");
+                } else {
+                  const m = moviles.find(x => x.id === v);
+                  set("vehicle_model", v);
+                  if (m?.dominio) set("vehicle_plate", m.dominio);
+                  if (m?.color) set("vehicle_color", m.color);
+                }
+              }}
+            >
+              <SelectTrigger><SelectValue placeholder="Sin móvil..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ninguno">— Sin móvil —</SelectItem>
+                {moviles.map(m => (
+                  <SelectItem key={m.id} value={m.id}>
+                    Móvil {m.numero_movil}{m.dominio ? ` · ${m.dominio}` : ""}{m.apellido_nombre ? ` — ${m.apellido_nombre}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1">
             <Label>Patente *</Label>
@@ -109,6 +132,15 @@ function DriverForm({ onSubmit, isSubmitting, initial }) {
             <Label>Color</Label>
             <Input value={form.vehicle_color} onChange={e => set("vehicle_color", e.target.value)} />
           </div>
+        </div>
+      </div>
+
+      {/* Seguros */}
+      <div className="border-t pt-3">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Documentación</p>
+        <div className="space-y-1">
+          <Label>Seg. Riesgos Personales — Vencimiento</Label>
+          <Input type="date" value={form.seguro_riesgos_personales_vencimiento || ""} onChange={e => set("seguro_riesgos_personales_vencimiento", e.target.value)} />
         </div>
       </div>
 
@@ -332,7 +364,7 @@ export default function Drivers() {
             <DialogHeader>
               <DialogTitle>Nuevo Conductor</DialogTitle>
             </DialogHeader>
-            <DriverForm onSubmit={(data) => createMutation.mutate(data)} isSubmitting={createMutation.isPending} />
+            <DriverForm onSubmit={(data) => createMutation.mutate(data)} isSubmitting={createMutation.isPending} moviles={moviles} />
           </DialogContent>
         </Dialog>
 
@@ -346,6 +378,7 @@ export default function Drivers() {
               initial={editingDriver}
               onSubmit={(data) => editMutation.mutate({ id: editingDriver.id, data })}
               isSubmitting={editMutation.isPending}
+              moviles={moviles}
             />
           </DialogContent>
         </Dialog>
