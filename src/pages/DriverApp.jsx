@@ -19,6 +19,7 @@ import DriverMessageModal from "@/components/driver/DriverMessageModal";
 import { useDriverMessageAlert } from "@/hooks/useDriverMessageAlert";
 import DriverSetupGuide from "@/components/driver/DriverSetupGuide";
 import DriverStats from "@/components/driver/DriverStats";
+import DailyStats from "@/components/driver/DailyStats";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
 import BatteryOptimizationGuide from "@/components/driver/BatteryOptimizationGuide";
 
@@ -757,7 +758,7 @@ function OffServiceScreen({ onGoOnService }) {
 }
 
 // ── Idle / waiting screen ─────────────────────────────────────────────────────
-function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onChangeBase, onGoOffService }) {
+function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onChangeBase, onGoOffService, driverId }) {
   const [changingBase, setChangingBase] = useState(false);
   const [newBase, setNewBase] = useState("");
 
@@ -861,6 +862,7 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
               <PowerOff className="w-4 h-4" /> Salir
             </Button>
           </div>
+          <DailyStats driverId={driverId} />
         </div>
       </div>
     );
@@ -1320,16 +1322,23 @@ export default function DriverApp() {
 
       {/* Header */}
       <div className="bg-gray-950 text-white px-5 py-4 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <img
             src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg"
             alt="RC"
             className="w-9 h-9 rounded-xl object-cover"
           />
-          <div>
-            <p className="font-bold text-sm leading-tight">{myDriver.name}</p>
-            <p className="text-xs text-gray-400 font-mono">{myDriver.vehicle_plate}</p>
-          </div>
+          {myDriver.current_base && myDriver.status === "disponible" && (
+            <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
+              📍 {myDriver.current_base}
+            </Badge>
+          )}
+          {myDriver.status === "en_viaje" && (
+            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">En Viaje</Badge>
+          )}
+          {myDriver.status === "no_disponible" && (
+            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs">Fuera de Servicio</Badge>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -1349,17 +1358,6 @@ export default function DriverApp() {
           >
             <AlertCircle className="w-4 h-4" />
           </button>
-          {myDriver.current_base && myDriver.status === "disponible" && (
-            <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
-              📍 {myDriver.current_base}
-            </Badge>
-          )}
-          {myDriver.status === "en_viaje" && (
-            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">En Viaje</Badge>
-          )}
-          {myDriver.status === "no_disponible" && (
-            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs">Fuera de Servicio</Badge>
-          )}
           <button
             className="p-2 rounded-xl bg-green-600/20 text-green-400"
             onClick={() => setShowStats(true)}
@@ -1430,6 +1428,7 @@ export default function DriverApp() {
           onEnter={handleEnterBase}
           onChangeBase={handleChangeBase}
           onGoOffService={handleGoOffService}
+          driverId={myDriverId}
         />
       )}
 
