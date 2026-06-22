@@ -6,6 +6,7 @@ import { Menu } from "lucide-react";
 import AgendaAlert from "@/components/agenda/AgendaAlert";
 import CancellationAlert from "@/components/alerts/CancellationAlert";
 import DriverMessageAlert from "@/components/alerts/DriverMessageAlert";
+import PanicAlertBanner from "@/components/alerts/PanicAlertBanner";
 import { useAuth } from "@/lib/AuthContext";
 import { useOperatorPushSubscription } from "@/hooks/useOperatorPushSubscription";
 
@@ -19,6 +20,7 @@ export default function AppLayout() {
       <AgendaAlert />
       <CancellationAlert />
       <DriverMessageAlert />
+      <PanicAlertBanner />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
       <div className="lg:pl-64">

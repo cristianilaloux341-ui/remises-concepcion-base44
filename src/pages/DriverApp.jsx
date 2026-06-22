@@ -1352,7 +1352,6 @@ export default function DriverApp() {
                 current_lng: myDriver.current_lng,
               });
               navigator.vibrate?.([500, 200, 500, 200, 500]);
-              playAlert();
             }}
             title="Activar alerta de pánico"
           >
