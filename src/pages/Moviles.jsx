@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Car, Plus, Edit, AlertTriangle, CheckCircle2, XCircle, Search, ClipboardList, Ban, PauseCircle } from "lucide-react";
+import { Car, Plus, Edit, AlertTriangle, CheckCircle2, XCircle, Search, ClipboardList, Ban, PauseCircle, X } from "lucide-react";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
@@ -329,6 +329,7 @@ export default function Moviles() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [reinscripcionMovil, setReinscripcionMovil] = useState(null);
+  const [alertMovil, setAlertMovil] = useState(null); // móvil cuyas alertas se muestran en popup previo
 
   const { data: moviles = [] } = useQuery({
     queryKey: ["moviles"],
@@ -510,7 +511,7 @@ export default function Moviles() {
                     }
                   </td>
                   <td className="px-4 py-3 flex items-center gap-1">
-                    <Button variant="ghost" size="icon" title="Editar" onClick={() => { setEditing(m); setDialogOpen(true); }}>
+                    <Button variant="ghost" size="icon" title="Editar" onClick={() => { setAlertMovil(m); setEditing(m); }}>
                       <Edit className="w-4 h-4" />
                     </Button>
                     <Button variant="ghost" size="icon" title="Lista de reinscripción" onClick={() => setReinscripcionMovil(prev => prev?.id === m.id ? null : m)}>
@@ -523,6 +524,47 @@ export default function Moviles() {
           </table>
         </div>
       </div>
+
+      {/* Popup de alertas previo — se muestra al abrir un móvil con problemas */}
+      {alertMovil && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="flex items-center justify-between bg-red-600 px-5 py-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-white" />
+                <span className="text-white font-bold text-base uppercase tracking-wide">
+                  Alertas — Móvil {alertMovil.numero_movil}
+                </span>
+              </div>
+              <button onClick={() => { setAlertMovil(null); setEditing(null); }} className="text-white/80 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              <MovilAlertBanner movil={alertMovil} />
+              {!alertMovil.vtv_vencimiento && !alertMovil.seguro_automotor_vencimiento && !alertMovil.seguro_riesgos_personales_vencimiento && !alertMovil.buena_conducta_vencimiento && alertMovil.pago_semanal_al_dia !== false && !alertMovil.deuda_monto && !alertMovil.suspension_motivo && !alertMovil.fuera_de_servicio && !alertMovil.notas?.trim() && (
+                <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                  ✅ Sin alertas pendientes para este móvil.
+                </p>
+              )}
+            </div>
+            <div className="px-4 pb-4 flex gap-3">
+              <button
+                onClick={() => { setAlertMovil(null); setDialogOpen(true); }}
+                className="flex-1 bg-primary text-white rounded-lg py-2.5 font-semibold text-sm hover:bg-primary/90 transition-colors"
+              >
+                Continuar a edición
+              </button>
+              <button
+                onClick={() => { setAlertMovil(null); setEditing(null); }}
+                className="flex-1 border border-border rounded-lg py-2.5 font-semibold text-sm text-muted-foreground hover:bg-muted transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={v => { if (!v) { setDialogOpen(false); setEditing(null); } }}>
