@@ -335,7 +335,7 @@ export default function Moviles() {
     queryFn: () => base44.entities.Movil.list(),
   });
 
-  const { data: drivers = [] } = useQuery({
+  const { data: drivers = [], isSuccess: driversLoaded } = useQuery({
     queryKey: ["drivers-list"],
     queryFn: () => base44.entities.Driver.list(),
   });
@@ -507,13 +507,20 @@ export default function Moviles() {
           <DialogHeader>
             <DialogTitle>{editing ? `Editar Móvil ${editing.numero_movil}` : "Nuevo Móvil"}</DialogTitle>
           </DialogHeader>
-          <MovilForm
-            movil={editing}
-            onSave={data => saveMutation.mutate(data)}
-            onCancel={() => { setDialogOpen(false); setEditing(null); }}
-            saving={saveMutation.isPending}
-            drivers={drivers}
-          />
+          {driversLoaded ? (
+            <MovilForm
+              key={editing?.id || "nuevo"}
+              movil={editing}
+              onSave={data => saveMutation.mutate(data)}
+              onCancel={() => { setDialogOpen(false); setEditing(null); }}
+              saving={saveMutation.isPending}
+              drivers={drivers}
+            />
+          ) : (
+            <div className="flex justify-center py-8">
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
