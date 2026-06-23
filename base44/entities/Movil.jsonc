@@ -12,11 +12,25 @@
     },
     "driver_id": {
       "type": "string",
-      "description": "ID del chofer asignado a este m\u00f3vil"
+      "description": "ID del chofer principal asignado (legacy)"
     },
     "driver_name": {
       "type": "string",
-      "description": "Nombre del chofer asignado (cache)"
+      "description": "Nombre del chofer principal (cache legacy)"
+    },
+    "driver_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs de todos los choferes asignados a este m\u00f3vil"
+    },
+    "driver_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Nombres de los choferes asignados (cache)"
     },
     "dni": {
       "type": "string",

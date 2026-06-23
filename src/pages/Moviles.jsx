@@ -142,30 +142,33 @@ function MovilForm({ movil, onSave, onCancel, saving, drivers = [] }) {
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chofer Asignado</label>
-        <Select
-          value={form.driver_id || "ninguno"}
-          onValueChange={v => {
-            if (v === "ninguno") {
-              set("driver_id", ""); set("driver_name", "");
-            } else {
-              const d = drivers.find(x => x.id === v);
-              set("driver_id", v); set("driver_name", d?.name || "");
-            }
-          }}
-        >
-          <SelectTrigger className="mt-1">
-            <SelectValue placeholder="Sin chofer asignado..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ninguno">— Sin chofer —</SelectItem>
-            {drivers.map(d => (
-              <SelectItem key={d.id} value={d.id}>
-                {d.name}{d.vehicle_plate ? ` · ${d.vehicle_plate}` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Choferes Asignados</label>
+        <div className="mt-2 space-y-2">
+          {drivers.map(d => {
+            const ids = form.driver_ids || [];
+            const checked = ids.includes(d.id);
+            return (
+              <label key={d.id} className="flex items-center gap-2 cursor-pointer select-none text-sm">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => {
+                    const newIds = checked ? ids.filter(x => x !== d.id) : [...ids, d.id];
+                    const newNames = newIds.map(id => drivers.find(x => x.id === id)?.name).filter(Boolean);
+                    set("driver_ids", newIds);
+                    set("driver_names", newNames);
+                    // mantener campo legacy con el primer chofer
+                    set("driver_id", newIds[0] || "");
+                    set("driver_name", newNames[0] || "");
+                  }}
+                  className="w-4 h-4 rounded"
+                />
+                <span>{d.name}{d.vehicle_plate ? ` · ${d.vehicle_plate}` : ""}</span>
+              </label>
+            );
+          })}
+          {drivers.length === 0 && <p className="text-xs text-muted-foreground">No hay choferes registrados.</p>}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -434,9 +437,13 @@ export default function Moviles() {
                    {m.direccion && <p className="text-xs text-muted-foreground">{m.direccion}</p>}
                   </td>
                   <td className="px-4 py-3">
-                   {m.driver_name
-                     ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">{m.driver_name}</span>
-                     : <span className="text-xs text-muted-foreground">—</span>}
+                  {(m.driver_names?.length > 0 ? m.driver_names : m.driver_name ? [m.driver_name] : []).length > 0
+                    ? <div className="flex flex-wrap gap-1">
+                        {(m.driver_names?.length > 0 ? m.driver_names : [m.driver_name]).map((n, i) => (
+                          <span key={i} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">{n}</span>
+                        ))}
+                      </div>
+                    : <span className="text-xs text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3">
                     {m.dominio && <p className="font-mono font-semibold text-sm">{m.dominio}</p>}
