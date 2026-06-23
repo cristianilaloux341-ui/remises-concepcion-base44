@@ -350,6 +350,29 @@ export default function Moviles() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["moviles"] }); setDialogOpen(false); setEditing(null); },
   });
 
+  // Build a map: movil_id -> drivers that have this movil assigned (by driver_ids or legacy driver_id)
+  const driversByMovil = {};
+  for (const d of drivers) {
+    // Check if driver is linked to this movil via its own vehicle_plate or vehicle_model field
+    // The link is stored on the Movil entity (driver_ids array). We invert it here.
+    // Also support drivers who have vehicle_plate matching the movil's dominio
+  }
+  // Primary: group by driver_ids stored on each movil
+  const driversByMovilId = {};
+  for (const m of moviles) {
+    const ids = Array.isArray(m.driver_ids) ? m.driver_ids : (m.driver_id ? [m.driver_id] : []);
+    driversByMovilId[m.id] = drivers.filter(d => ids.includes(d.id));
+    // Also auto-match by vehicle_plate if driver has the same plate and isn't already listed
+    if (m.dominio) {
+      const plate = m.dominio.replace(/\s/g, "").toUpperCase();
+      const autoMatched = drivers.filter(d => {
+        const dp = (d.vehicle_plate || "").replace(/\s/g, "").toUpperCase();
+        return dp && dp === plate && !ids.includes(d.id);
+      });
+      driversByMovilId[m.id] = [...driversByMovilId[m.id], ...autoMatched];
+    }
+  }
+
   const filtered = moviles.filter(m =>
     !search ||
     String(m.numero_movil).includes(search) ||
@@ -446,13 +469,13 @@ export default function Moviles() {
                    {m.direccion && <p className="text-xs text-muted-foreground">{m.direccion}</p>}
                   </td>
                   <td className="px-4 py-3">
-                  {(m.driver_names?.length > 0 ? m.driver_names : m.driver_name ? [m.driver_name] : []).length > 0
-                    ? <div className="flex flex-wrap gap-1">
-                        {(m.driver_names?.length > 0 ? m.driver_names : [m.driver_name]).map((n, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">{n}</span>
-                        ))}
-                      </div>
-                    : <span className="text-xs text-muted-foreground">—</span>}
+                    {(driversByMovilId[m.id] || []).length > 0
+                      ? <div className="flex flex-wrap gap-1">
+                          {(driversByMovilId[m.id]).map((d) => (
+                            <span key={d.id} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">{d.name}</span>
+                          ))}
+                        </div>
+                      : <span className="text-xs text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3">
                     {m.dominio && <p className="font-mono font-semibold text-sm">{m.dominio}</p>}
