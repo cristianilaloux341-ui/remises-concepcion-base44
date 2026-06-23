@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Phone, Car, MapPin, BarChart2, UserCog } from "lucide-react";
+import { Plus, Search, Phone, Car, MapPin, BarChart2, UserCog, Trash2 } from "lucide-react";
 import ClientTripStats from "@/components/clients/ClientTripStats";
 
 function scoreColor(score) {
@@ -200,6 +200,15 @@ export default function Clients() {
     queryFn: () => base44.entities.Driver.list(),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.Client.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      setShowForm(false);
+      setEditing(null);
+    }
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (form) => {
       if (editing?.id) {
@@ -286,12 +295,27 @@ export default function Clients() {
           )}
 
           {(!editing?.id || modalTab === "ficha") && (
-            <ClientForm
-              client={editing}
-              drivers={drivers}
-              onSave={(form) => saveMutation.mutate(form)}
-              onClose={() => { setShowForm(false); setEditing(null); setModalTab("ficha"); }}
-            />
+            <>
+              <ClientForm
+                client={editing}
+                drivers={drivers}
+                onSave={(form) => saveMutation.mutate(form)}
+                onClose={() => { setShowForm(false); setEditing(null); setModalTab("ficha"); }}
+              />
+              {editing?.id && (
+                <div className="border-t pt-3 mt-1">
+                  <Button
+                    variant="destructive"
+                    className="w-full gap-2"
+                    onClick={() => { if (confirm(`¿Eliminar a ${editing.name}? Esta acción no se puede deshacer.`)) deleteMutation.mutate(editing.id); }}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {deleteMutation.isPending ? "Eliminando..." : "Eliminar cliente"}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
 
           {editing?.id && modalTab === "estadisticas" && (
