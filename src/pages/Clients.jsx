@@ -211,6 +211,12 @@ export default function Clients() {
 
   const saveMutation = useMutation({
     mutationFn: async (form) => {
+      if (form.phone && form.phone.trim()) {
+        const existing = clients.find(c =>
+          c.phone && c.phone.trim() === form.phone.trim() && c.id !== editing?.id
+        );
+        if (existing) throw new Error(`El teléfono ya está registrado para el cliente "${existing.name}".`);
+      }
       if (editing?.id) {
         await base44.entities.Client.update(editing.id, form);
       } else {
@@ -296,6 +302,9 @@ export default function Clients() {
 
           {(!editing?.id || modalTab === "ficha") && (
             <>
+              {saveMutation.isError && (
+                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{saveMutation.error?.message}</p>
+              )}
               <ClientForm
                 client={editing}
                 drivers={drivers}
