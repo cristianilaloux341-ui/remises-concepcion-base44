@@ -236,32 +236,40 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       learnZoneMapping(data.pickup_address, data.zone).catch(() => {});
     }
 
-    // Save/update ClientAddress relationship
-    if (data.pickup_address && data.client_id) {
-      const addrNorm = data.pickup_address.trim().toLowerCase();
-      const existingCA = clientAddresses.find(ca =>
-        ca.client_id === data.client_id &&
-        (ca.full_address || "").trim().toLowerCase() === addrNorm
-      );
-      if (existingCA) {
-        base44.entities.ClientAddress.update(existingCA.id, {
-          usage_count: (existingCA.usage_count || 0) + 1,
-          last_used: new Date().toISOString(),
-          client_name: data.client_name,
-          client_phone: data.client_phone || "",
-        }).catch(() => {});
-      } else {
-        const parsed = parseAddress(data.pickup_address);
-        base44.entities.ClientAddress.create({
-          client_id: data.client_id,
-          client_name: data.client_name,
-          client_phone: data.client_phone || "",
-          street: parsed.street || data.pickup_address,
-          height: parsed.number ? String(parsed.number) : "",
-          full_address: data.pickup_address,
-          usage_count: 1,
-          last_used: new Date().toISOString(),
-        }).catch(() => {});
+    // Save/update ClientAddress for all addresses linked to this client
+    if (data.client_id) {
+      const allAddresses = [
+        data.pickup_address,
+        data.dropoff_address,
+        ...(data.dropoff_addresses || []),
+      ].filter(a => a && a.trim().length >= 3);
+
+      for (const addr of allAddresses) {
+        const addrNorm = addr.trim().toLowerCase();
+        const existingCA = clientAddresses.find(ca =>
+          ca.client_id === data.client_id &&
+          (ca.full_address || "").trim().toLowerCase() === addrNorm
+        );
+        if (existingCA) {
+          base44.entities.ClientAddress.update(existingCA.id, {
+            usage_count: (existingCA.usage_count || 0) + 1,
+            last_used: new Date().toISOString(),
+            client_name: data.client_name,
+            client_phone: data.client_phone || "",
+          }).catch(() => {});
+        } else {
+          const parsed = parseAddress(addr);
+          base44.entities.ClientAddress.create({
+            client_id: data.client_id,
+            client_name: data.client_name,
+            client_phone: data.client_phone || "",
+            street: parsed.street || addr,
+            height: parsed.number ? String(parsed.number) : "",
+            full_address: addr,
+            usage_count: 1,
+            last_used: new Date().toISOString(),
+          }).catch(() => {});
+        }
       }
       queryClient.invalidateQueries({ queryKey: ["client_addresses"] });
     }
