@@ -28,6 +28,7 @@ import ZoneSettings from '@/pages/ZoneSettings';
 import Tarifas from '@/pages/Tarifas';
 import Moviles from '@/pages/Moviles';
 import TiempoEspera from '@/pages/TiempoEspera';
+import Usuarios from '@/pages/Usuarios';
 
 function AdminRoute({ children }) {
   const { user } = useAuth();
@@ -90,6 +91,7 @@ const AuthenticatedApp = () => {
           <Route path="/tarifas" element={<AdminRoute><Tarifas /></AdminRoute>} />
           <Route path="/moviles" element={<AdminRoute><Moviles /></AdminRoute>} />
           <Route path="/tiempo-espera" element={<AdminRoute><TiempoEspera /></AdminRoute>} />
+          <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
         </Route>
       </Route>
       

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw, Timer } from "lucide-react";
+import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw, Timer, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
@@ -16,6 +16,7 @@ const operadorItems = [
 ];
 
 const adminItems = [
+  { label: "Usuarios", path: "/usuarios", icon: UserCog },
   { label: "Chóferes", path: "/drivers", icon: Users },
   { label: "Tiempo Espera", path: "/tiempo-espera", icon: Timer },
   { label: "Móviles", path: "/moviles", icon: Car },
