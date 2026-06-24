@@ -697,58 +697,60 @@ export default function Drivers() {
       )}
 
       {/* Modal resetear PIN */}
-      <AlertDialog open={!!resetPinDriver} onOpenChange={(v) => !v && setResetPinDriver(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <KeyRound className="w-5 h-5 text-amber-500" />
-              {resetPinDriver?.pin ? "Resetear PIN" : "Estado del PIN"} — {resetPinDriver?.name}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {resetPinDriver?.pin
-                ? "Se generará un PIN temporal de 4 dígitos y se le enviará al chofer por mensaje interno de la app."
-                : "Este chofer todavía no creó su PIN. Se lo asignará la primera vez que ingrese con su número de celular."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {resetPinSuccess?.driver?.id === resetPinDriver?.id && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
-              ✓ PIN temporal enviado por mensaje: <strong className="text-lg font-mono">{resetPinSuccess.pin}</strong>
-              <p className="text-xs mt-1 text-green-600">El chofer lo verá en su chat de la app.</p>
-            </div>
-          )}
-          <div className="flex gap-3 mt-2">
-            <AlertDialogCancel onClick={() => { setResetPinDriver(null); setResetPinSuccess(null); }}>Cerrar</AlertDialogCancel>
-            {resetPinDriver?.pin && (
-              <AlertDialogAction
-                className="bg-amber-500 text-white hover:bg-amber-600"
-                disabled={resetPinLoading}
-                onClick={async (e) => {
-                  e.preventDefault();
-                  const tempPin = String(Math.floor(1000 + Math.random() * 9000));
-                  setResetPinLoading(true);
-                  try {
-                    await base44.entities.Driver.update(resetPinDriver.id, { pin: tempPin });
-                    await base44.entities.Message.create({
-                      from_type: "operador",
-                      from_name: "Sistema",
-                      to_driver_id: resetPinDriver.id,
-                      driver_id: resetPinDriver.id,
-                      content: `🔑 Tu nuevo PIN de acceso es: ${tempPin}\nEl operador lo reinició. Ingresá con este PIN.`,
-                      read: false,
-                    });
-                    setResetPinSuccess({ driver: resetPinDriver, pin: tempPin });
-                    queryClient.invalidateQueries({ queryKey: ["drivers"] });
-                  } catch (_) {}
-                  setResetPinLoading(false);
-                }}
-              >
-                {resetPinLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Generar y enviar nuevo PIN
-              </AlertDialogAction>
+      {resetPinDriver && (
+        <AlertDialog open={true} onOpenChange={(v) => { if (!v) { setResetPinDriver(null); setResetPinSuccess(null); } }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-amber-500" />
+                {resetPinDriver.pin ? "Resetear PIN" : "Estado del PIN"} — {resetPinDriver.name}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {resetPinDriver.pin
+                  ? "Se generará un PIN temporal de 4 dígitos y se le enviará al chofer por mensaje interno de la app."
+                  : "Este chofer todavía no creó su PIN. Se lo asignará la primera vez que ingrese con su número de celular."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {resetPinSuccess?.driver?.id === resetPinDriver.id && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
+                ✓ PIN temporal enviado por mensaje: <strong className="text-lg font-mono">{resetPinSuccess.pin}</strong>
+                <p className="text-xs mt-1 text-green-600">El chofer lo verá en su chat de la app.</p>
+              </div>
             )}
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
+            <div className="flex gap-3 mt-2">
+              <AlertDialogCancel onClick={() => { setResetPinDriver(null); setResetPinSuccess(null); }}>Cerrar</AlertDialogCancel>
+              {resetPinDriver.pin && (
+                <AlertDialogAction
+                  className="bg-amber-500 text-white hover:bg-amber-600"
+                  disabled={resetPinLoading}
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    const tempPin = String(Math.floor(1000 + Math.random() * 9000));
+                    setResetPinLoading(true);
+                    try {
+                      await base44.entities.Driver.update(resetPinDriver.id, { pin: tempPin });
+                      await base44.entities.Message.create({
+                        from_type: "operador",
+                        from_name: "Sistema",
+                        to_driver_id: resetPinDriver.id,
+                        driver_id: resetPinDriver.id,
+                        content: `🔑 Tu nuevo PIN de acceso es: ${tempPin}\nEl operador lo reinició. Ingresá con este PIN.`,
+                        read: false,
+                      });
+                      setResetPinSuccess({ driver: resetPinDriver, pin: tempPin });
+                      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+                    } catch (_) {}
+                    setResetPinLoading(false);
+                  }}
+                >
+                  {resetPinLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Generar y enviar nuevo PIN
+                </AlertDialogAction>
+              )}
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       <AlertDialog open={!!deleteConfirmDriver} onOpenChange={(v) => !v && setDeleteConfirmDriver(null)}>
         <AlertDialogContent>
