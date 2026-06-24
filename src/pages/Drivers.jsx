@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard, NotebookPen, ClipboardList, Cake, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard, NotebookPen, ClipboardList, KeyRound } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
@@ -379,6 +379,9 @@ export default function Drivers() {
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [reinscripcionMovil, setReinscripcionMovil] = useState(null);
   const [deleteConfirmDriver, setDeleteConfirmDriver] = useState(null);
+  const [resetPinDriver, setResetPinDriver] = useState(null);
+  const [resetPinLoading, setResetPinLoading] = useState(false);
+  const [resetPinSuccess, setResetPinSuccess] = useState(null); // { driver, pin }
 
   const { data: drivers = [], isLoading } = useQuery({
     queryKey: ["drivers"],
@@ -619,56 +622,65 @@ export default function Drivers() {
                 })()}
 
                 <div className="flex items-center gap-2">
-                   <Select
-                     value={driver.status}
-                     onValueChange={(val) => updateMutation.mutate({ id: driver.id, data: { status: val } })}
-                   >
-                     <SelectTrigger className="flex-1 h-9 text-xs">
-                       <SelectValue />
-                     </SelectTrigger>
-                     <SelectContent>
-                       <SelectItem value="disponible">Disponible</SelectItem>
-                       <SelectItem value="en_viaje">En Viaje</SelectItem>
-                       <SelectItem value="no_disponible">No Disponible</SelectItem>
-                     </SelectContent>
-                   </Select>
-                   <Button
+                  <Select
+                    value={driver.status}
+                    onValueChange={(val) => updateMutation.mutate({ id: driver.id, data: { status: val } })}
+                  >
+                    <SelectTrigger className="flex-1 h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="disponible">Disponible</SelectItem>
+                      <SelectItem value="en_viaje">En Viaje</SelectItem>
+                      <SelectItem value="no_disponible">No Disponible</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => setEditingDriver(driver)}
+                    title="Editar conductor"
+                  >
+                    <User className="w-4 h-4" />
+                  </Button>
+                  <Button
                      variant="outline"
                      size="icon"
                      className="h-9 w-9"
-                     onClick={() => setEditingDriver(driver)}
-                     title="Editar conductor"
+                     onClick={() => setSelectedDriver(driver)}
+                     title="Ver historial"
                    >
-                     <User className="w-4 h-4" />
+                     <History className="w-4 h-4" />
+                   </Button>
+                   {getMovil(driver) && (
+                     <Button
+                       variant="outline"
+                       size="icon"
+                       className="h-9 w-9 text-blue-500 border-blue-200"
+                       title="Lista reinscripción"
+                       onClick={() => setReinscripcionMovil(prev => prev?.id === getMovil(driver)?.id ? null : getMovil(driver))}
+                     >
+                       <ClipboardList className="w-4 h-4" />
+                     </Button>
+                   )}
+                   <Button
+                     variant="outline"
+                     size="icon"
+                     className="h-9 w-9 text-amber-600 border-amber-200"
+                     title={driver.pin ? "Resetear PIN de acceso" : "El chofer aún no creó su PIN"}
+                     onClick={() => setResetPinDriver(driver)}
+                   >
+                     <KeyRound className="w-4 h-4" />
                    </Button>
                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-9 w-9"
-                      onClick={() => setSelectedDriver(driver)}
-                      title="Ver historial"
-                    >
-                      <History className="w-4 h-4" />
-                    </Button>
-                    {getMovil(driver) && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9 text-blue-500 border-blue-200"
-                        title="Lista reinscripción"
-                        onClick={() => setReinscripcionMovil(prev => prev?.id === getMovil(driver)?.id ? null : getMovil(driver))}
-                      >
-                        <ClipboardList className="w-4 h-4" />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 text-destructive hover:text-destructive"
-                      onClick={() => setDeleteConfirmDriver(driver)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                     variant="ghost"
+                     size="icon"
+                     className="h-9 w-9 text-destructive hover:text-destructive"
+                     onClick={() => setDeleteConfirmDriver(driver)}
+                   >
+                     <Trash2 className="w-4 h-4" />
+                   </Button>
                 </div>
               </CardContent>
             </Card>
@@ -683,6 +695,60 @@ export default function Drivers() {
           onClose={() => setSelectedDriver(null)}
         />
       )}
+
+      {/* Modal resetear PIN */}
+      <AlertDialog open={!!resetPinDriver} onOpenChange={(v) => !v && setResetPinDriver(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-amber-500" />
+              {resetPinDriver?.pin ? "Resetear PIN" : "Estado del PIN"} — {resetPinDriver?.name}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {resetPinDriver?.pin
+                ? "Se generará un PIN temporal de 4 dígitos y se le enviará al chofer por mensaje interno de la app."
+                : "Este chofer todavía no creó su PIN. Se lo asignará la primera vez que ingrese con su número de celular."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {resetPinSuccess?.driver?.id === resetPinDriver?.id && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
+              ✓ PIN temporal enviado por mensaje: <strong className="text-lg font-mono">{resetPinSuccess.pin}</strong>
+              <p className="text-xs mt-1 text-green-600">El chofer lo verá en su chat de la app.</p>
+            </div>
+          )}
+          <div className="flex gap-3 mt-2">
+            <AlertDialogCancel onClick={() => { setResetPinDriver(null); setResetPinSuccess(null); }}>Cerrar</AlertDialogCancel>
+            {resetPinDriver?.pin && (
+              <AlertDialogAction
+                className="bg-amber-500 text-white hover:bg-amber-600"
+                disabled={resetPinLoading}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  const tempPin = String(Math.floor(1000 + Math.random() * 9000));
+                  setResetPinLoading(true);
+                  try {
+                    await base44.entities.Driver.update(resetPinDriver.id, { pin: tempPin });
+                    await base44.entities.Message.create({
+                      from_type: "operador",
+                      from_name: "Sistema",
+                      to_driver_id: resetPinDriver.id,
+                      driver_id: resetPinDriver.id,
+                      content: `🔑 Tu nuevo PIN de acceso es: ${tempPin}\nEl operador lo reinició. Ingresá con este PIN.`,
+                      read: false,
+                    });
+                    setResetPinSuccess({ driver: resetPinDriver, pin: tempPin });
+                    queryClient.invalidateQueries({ queryKey: ["drivers"] });
+                  } catch (_) {}
+                  setResetPinLoading(false);
+                }}
+              >
+                {resetPinLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Generar y enviar nuevo PIN
+              </AlertDialogAction>
+            )}
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteConfirmDriver} onOpenChange={(v) => !v && setDeleteConfirmDriver(null)}>
         <AlertDialogContent>

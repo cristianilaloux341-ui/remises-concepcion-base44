@@ -120,12 +120,18 @@ const STATUS_CONFIG = {
 
 // ── Login screen ──────────────────────────────────────────────────────────────
 function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {} }) {
+  // step: 'phone' | 'create_pin' | 'enter_pin' | 'forgot_sent'
+  const [step, setStep] = useState("phone");
   const [phone, setPhone] = useState("");
+  const [pin, setPin] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
+  const [foundDriver, setFoundDriver] = useState(null);
   const [error, setError] = useState("");
   const [remember, setRemember] = useState(true);
   const [showChangeUser, setShowChangeUser] = useState(false);
-  const [gpsStatus, setGpsStatus] = useState(null); // null | 'ok' | 'denied'
-  
+  const [loading, setLoading] = useState(false);
+  const [gpsStatus, setGpsStatus] = useState(null);
+
   const savedDriver = savedDriverId ? drivers.find(d => d.id === savedDriverId) : null;
 
   const requestGps = () => {
@@ -137,7 +143,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
     );
   };
 
-  const handleLogin = () => {
+  const handlePhoneSubmit = () => {
     const normalized = phone.replace(/\s|-|\(|\)/g, "");
     if (!normalized) { setError("Ingresá tu número de celular"); return; }
     const found = drivers.find(d => {
@@ -148,30 +154,82 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
       setError("No se encontró ningún chofer con ese número. Verificá con el operador.");
       return;
     }
-    unlockAudio();
-    if (remember) {
-      localStorage.setItem("remembered_driver_id", found.id);
+    setFoundDriver(found);
+    setError("");
+    // Si no tiene PIN → crear uno; si tiene → ingresar
+    if (!found.pin) {
+      setStep("create_pin");
     } else {
-      localStorage.removeItem("remembered_driver_id");
+      setStep("enter_pin");
     }
-    onSelect(found.id, !localStorage.getItem(`setup_done_${found.id}`));
   };
 
-  // Si hay un chofer recordado y no queremos cambiar, mostramos pantalla de bienvenida rápida
+  const handleCreatePin = async () => {
+    if (pin.length < 4) { setError("El PIN debe tener al menos 4 dígitos"); return; }
+    if (!/^\d+$/.test(pin)) { setError("El PIN solo puede contener números"); return; }
+    if (pin !== pinConfirm) { setError("Los PINs no coinciden"); return; }
+    setLoading(true);
+    try {
+      await base44.entities.Driver.update(foundDriver.id, { pin });
+      unlockAudio();
+      if (remember) localStorage.setItem("remembered_driver_id", foundDriver.id);
+      else localStorage.removeItem("remembered_driver_id");
+      onSelect(foundDriver.id, !localStorage.getItem(`setup_done_${foundDriver.id}`));
+    } catch (_) {
+      setError("Error al guardar el PIN. Intentá de nuevo.");
+    }
+    setLoading(false);
+  };
+
+  const handlePinLogin = () => {
+    if (!pin) { setError("Ingresá tu PIN"); return; }
+    if (pin !== foundDriver.pin) { setError("PIN incorrecto"); return; }
+    unlockAudio();
+    if (remember) localStorage.setItem("remembered_driver_id", foundDriver.id);
+    else localStorage.removeItem("remembered_driver_id");
+    onSelect(foundDriver.id, !localStorage.getItem(`setup_done_${foundDriver.id}`));
+  };
+
+  const handleForgotPin = async () => {
+    // Genera un PIN temporal de 4 dígitos y lo envía como mensaje interno
+    const tempPin = String(Math.floor(1000 + Math.random() * 9000));
+    setLoading(true);
+    try {
+      await base44.entities.Driver.update(foundDriver.id, { pin: tempPin });
+      await base44.entities.Message.create({
+        from_type: "operador",
+        from_name: "Sistema",
+        to_driver_id: foundDriver.id,
+        driver_id: foundDriver.id,
+        content: `🔑 Tu nuevo PIN de acceso es: ${tempPin}\nCambialo la próxima vez que ingreses desde Ajustes.`,
+        read: false,
+      });
+      setStep("forgot_sent");
+      setError("");
+    } catch (_) {
+      setError("Error al enviar el PIN. Intentá de nuevo.");
+    }
+    setLoading(false);
+  };
+
+  const headerLogo = (
+    <div className="text-center space-y-2">
+      <img
+        src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg"
+        alt="Remises Concepción"
+        className="w-24 h-24 rounded-3xl mx-auto object-cover shadow-xl"
+      />
+      <h1 className="text-3xl font-bold text-white">Remises Concepción</h1>
+      <p className="text-gray-400">App del Chófer</p>
+    </div>
+  );
+
+  // Pantalla acceso rápido (chofer recordado)
   if (savedDriver && !showChangeUser) {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-sm space-y-6">
-          <div className="text-center space-y-2">
-            <img
-              src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg"
-              alt="Remises Concepción"
-              className="w-24 h-24 rounded-3xl mx-auto object-cover shadow-xl"
-            />
-            <h1 className="text-3xl font-bold text-white">Remises Concepción</h1>
-            <p className="text-gray-400">App del Chófer</p>
-          </div>
-
+          {headerLogo}
           <div className="bg-gray-900 rounded-2xl p-5 space-y-4 border border-gray-800">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Último chofer</p>
             <div className="flex items-center gap-3 p-3 bg-gray-800 rounded-xl">
@@ -192,10 +250,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
             </button>
             <button
               className="w-full text-gray-500 text-sm underline py-1"
-              onClick={() => {
-                onClearSaved();
-                setShowChangeUser(true);
-              }}
+              onClick={() => { onClearSaved(); setShowChangeUser(true); }}
             >
               Cambiar de usuario
             </button>
@@ -205,18 +260,153 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
     );
   }
 
+  // Pantalla PIN enviado
+  if (step === "forgot_sent") {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-6">
+          {headerLogo}
+          <div className="bg-gray-900 rounded-2xl p-5 space-y-4 border border-gray-800 text-center">
+            <div className="w-16 h-16 rounded-full bg-green-900/40 flex items-center justify-center mx-auto">
+              <MessageCircle className="w-8 h-8 text-green-400" />
+            </div>
+            <p className="text-white font-semibold">PIN enviado por mensaje</p>
+            <p className="text-gray-400 text-sm">Se envió un PIN temporal al chat de la app. Ingresá a la app y revisá tus mensajes del operador.</p>
+            <button
+              className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl"
+              onClick={() => { setStep("enter_pin"); setPin(""); setError(""); }}
+            >
+              Ingresar PIN
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Pantalla ingresar PIN
+  if (step === "enter_pin") {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-6">
+          {headerLogo}
+          <div className="bg-gray-900 rounded-2xl p-5 space-y-4 border border-gray-800">
+            <div className="flex items-center gap-3 p-3 bg-gray-800 rounded-xl">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
+                <span className="text-white font-bold text-xs">{foundDriver?.name?.charAt(0)}</span>
+              </div>
+              <div>
+                <p className="text-white font-semibold text-sm">{foundDriver?.name}</p>
+                <p className="text-xs text-gray-500">{foundDriver?.vehicle_plate}</p>
+              </div>
+            </div>
+            <p className="text-sm font-semibold text-gray-300">Ingresá tu PIN</p>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={pin}
+              onChange={e => { setPin(e.target.value.replace(/\D/g, "")); setError(""); }}
+              onKeyDown={e => e.key === "Enter" && handlePinLogin()}
+              placeholder="••••"
+              className="w-full bg-gray-800 border border-gray-700 text-white text-2xl rounded-xl px-4 py-3 outline-none focus:border-blue-500 tracking-[0.5em] text-center"
+            />
+            {error && <p className="text-red-400 text-xs">{error}</p>}
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <div
+                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${remember ? "bg-blue-600 border-blue-600" : "border-gray-600 bg-transparent"}`}
+                onClick={() => setRemember(r => !r)}
+              >
+                {remember && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+              </div>
+              <span className="text-sm text-gray-400">Recordar en este dispositivo</span>
+            </label>
+            <button
+              className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-base py-3.5 rounded-xl transition-all"
+              onClick={handlePinLogin}
+            >
+              <LogIn className="inline w-4 h-4 mr-2" /> Ingresar
+            </button>
+            <button
+              disabled={loading}
+              className="w-full text-gray-500 text-sm underline py-1 disabled:opacity-50"
+              onClick={handleForgotPin}
+            >
+              {loading ? "Enviando..." : "Olvidé mi PIN — enviar nuevo por mensaje"}
+            </button>
+            <button
+              className="w-full text-gray-600 text-xs underline py-1"
+              onClick={() => { setStep("phone"); setPhone(""); setPin(""); setFoundDriver(null); setError(""); }}
+            >
+              ← Volver
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Pantalla crear PIN (primer acceso)
+  if (step === "create_pin") {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-6">
+          {headerLogo}
+          <div className="bg-gray-900 rounded-2xl p-5 space-y-4 border border-gray-800">
+            <div className="flex items-center gap-3 p-3 bg-gray-800 rounded-xl">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
+                <span className="text-white font-bold text-xs">{foundDriver?.name?.charAt(0)}</span>
+              </div>
+              <div>
+                <p className="text-white font-semibold text-sm">{foundDriver?.name}</p>
+                <p className="text-xs text-gray-500">Primer acceso — creá tu PIN</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-400">Elegí un PIN numérico de 4 a 6 dígitos para proteger tu cuenta.</p>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={pin}
+              onChange={e => { setPin(e.target.value.replace(/\D/g, "")); setError(""); }}
+              placeholder="PIN (4-6 dígitos)"
+              className="w-full bg-gray-800 border border-gray-700 text-white text-2xl rounded-xl px-4 py-3 outline-none focus:border-blue-500 tracking-[0.5em] text-center"
+            />
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={pinConfirm}
+              onChange={e => { setPinConfirm(e.target.value.replace(/\D/g, "")); setError(""); }}
+              onKeyDown={e => e.key === "Enter" && handleCreatePin()}
+              placeholder="Repetí el PIN"
+              className="w-full bg-gray-800 border border-gray-700 text-white text-2xl rounded-xl px-4 py-3 outline-none focus:border-blue-500 tracking-[0.5em] text-center"
+            />
+            {error && <p className="text-red-400 text-xs">{error}</p>}
+            <button
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-base py-3.5 rounded-xl transition-all disabled:opacity-50"
+              onClick={handleCreatePin}
+            >
+              {loading ? "Guardando..." : "Crear PIN e Ingresar"}
+            </button>
+            <button
+              className="w-full text-gray-600 text-xs underline py-1"
+              onClick={() => { setStep("phone"); setPhone(""); setPin(""); setPinConfirm(""); setFoundDriver(null); setError(""); }}
+            >
+              ← Volver
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Pantalla ingreso por teléfono (default)
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <img
-            src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg"
-            alt="Remises Concepción"
-            className="w-24 h-24 rounded-3xl mx-auto object-cover shadow-xl"
-          />
-          <h1 className="text-3xl font-bold text-white">Remises Concepción</h1>
-          <p className="text-gray-400">App del Chófer</p>
-        </div>
+        {headerLogo}
 
         {/* Permiso GPS */}
         <div className={`rounded-2xl p-4 border flex items-center gap-3 ${gpsStatus === "ok" ? "bg-green-900/30 border-green-700" : gpsStatus === "denied" ? "bg-red-900/30 border-red-700" : "bg-gray-800 border-gray-700"}`}>
@@ -247,27 +437,17 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
             inputMode="numeric"
             value={phone}
             onChange={e => { setPhone(e.target.value); setError(""); }}
-            onKeyDown={e => e.key === "Enter" && handleLogin()}
+            onKeyDown={e => e.key === "Enter" && handlePhoneSubmit()}
             placeholder="Ej: 3442 123456"
             className="w-full bg-gray-800 border border-gray-700 text-white text-lg rounded-xl px-4 py-3 outline-none focus:border-blue-500 placeholder-gray-600 tracking-wider"
           />
           {error && <p className="text-red-400 text-xs">{error}</p>}
-          {/* Recordar usuario */}
-          <label className="flex items-center gap-3 cursor-pointer select-none">
-            <div
-              className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${remember ? "bg-blue-600 border-blue-600" : "border-gray-600 bg-transparent"}`}
-              onClick={() => setRemember(r => !r)}
-            >
-              {remember && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
-            </div>
-            <span className="text-sm text-gray-400">Recordar en este dispositivo</span>
-          </label>
           <button
             className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-base py-3.5 rounded-xl transition-all"
-            onClick={handleLogin}
+            onClick={handlePhoneSubmit}
           >
             <LogIn className="inline w-4 h-4 mr-2" />
-            Ingresar
+            Continuar
           </button>
           {drivers.length === 0 && (
             <p className="text-xs text-gray-600 text-center">No hay chóferes registrados. Pedile al operador que te agregue.</p>
