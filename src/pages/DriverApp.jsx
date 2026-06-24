@@ -119,7 +119,7 @@ const STATUS_CONFIG = {
 };
 
 // ── Login screen ──────────────────────────────────────────────────────────────
-function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved }) {
+function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {} }) {
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [remember, setRemember] = useState(true);
@@ -192,7 +192,10 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved }) {
             </button>
             <button
               className="w-full text-gray-500 text-sm underline py-1"
-              onClick={() => setShowChangeUser(true)}
+              onClick={() => {
+                onClearSaved();
+                setShowChangeUser(true);
+              }}
             >
               Cambiar de usuario
             </button>
@@ -919,7 +922,7 @@ function notifySW(message) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function DriverApp() {
   const [myDriverId, setMyDriverId] = useState(() => localStorage.getItem("my_driver_id") || "");
-  const savedDriverId = localStorage.getItem("remembered_driver_id") || "";
+  const [savedDriverId, setSavedDriverId] = useState(() => localStorage.getItem("remembered_driver_id") || "");
   const [selectedBase, setSelectedBase] = useState("");
   const [showMessages, setShowMessages] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
@@ -1276,6 +1279,12 @@ export default function DriverApp() {
             setShowSetupGuide(true);
             localStorage.setItem(`setup_done_${id}`, "1");
           }
+        }}
+        onClearSaved={() => {
+          localStorage.removeItem("remembered_driver_id");
+          localStorage.removeItem("my_driver_id");
+          setSavedDriverId("");
+          setMyDriverId("");
         }}
       />
     );
