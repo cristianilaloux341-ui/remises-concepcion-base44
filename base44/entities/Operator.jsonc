@@ -1,0 +1,40 @@
+{
+  "name": "Operator",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nombre completo del operador"
+    },
+    "phone": {
+      "type": "string",
+      "description": "N\u00famero de celular (usado para ingresar)"
+    },
+    "pin": {
+      "type": "string",
+      "description": "PIN num\u00e9rico de 4-6 d\u00edgitos"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "operador"
+      ],
+      "default": "operador",
+      "description": "Rol en el sistema"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Habilitado para ingresar"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notas internas"
+    }
+  },
+  "required": [
+    "name",
+    "phone"
+  ]
+}
