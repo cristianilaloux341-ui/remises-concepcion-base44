@@ -84,31 +84,56 @@ export default function Sidebar({ open, onClose }) {
           </div>
         </div>
 
-        <nav className="flex-1 px-3 space-y-1">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={onClose}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                  isActive
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-sidebar-primary/25"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                )}
-              >
-                <item.icon className="w-5 h-5" />
-                {item.label}
-                {item.path === "/driver-link" && (
-                  <span className="ml-auto text-xs bg-sidebar-primary/30 text-sidebar-primary-foreground px-2 py-0.5 rounded-full">
-                    Móvil
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 px-3 overflow-y-auto">
+          <div className="space-y-1 pb-2">
+            {operadorItems.map((item) => {
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={onClose}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-sidebar-primary/25"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  )}
+                >
+                  <item.icon className="w-4 h-4 shrink-0" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+
+          {isAdmin && (
+            <>
+              <div className="border-t border-sidebar-border my-2" />
+              <p className="px-4 py-1 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">Administración</p>
+              <div className="space-y-1 pb-2">
+                {adminItems.map((item) => {
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={onClose}
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                        isActive
+                          ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-sidebar-primary/25"
+                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                      )}
+                    >
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </nav>
 
         <div className="p-4">
