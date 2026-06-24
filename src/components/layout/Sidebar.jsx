@@ -34,7 +34,9 @@ export default function Sidebar({ open, onClose }) {
   });
 
   const displayUser = localOperator || user;
-  const isAdmin = user?.role === "admin"; // permisos de ruta siguen siendo del usuario de plataforma
+  // Si hay un operador local logueado, usar su rol; sino el rol de plataforma
+  const effectiveRole = localOperator ? localOperator.role : user?.role;
+  const isAdmin = effectiveRole === "admin";
   const navItems = isAdmin ? [...operadorItems, ...adminItems] : operadorItems;
   const [switchOpen, setSwitchOpen] = useState(false);
 

@@ -32,7 +32,12 @@ import Usuarios from '@/pages/Usuarios';
 
 function AdminRoute({ children }) {
   const { user } = useAuth();
-  if (user?.role !== "admin") return <Navigate to="/" replace />;
+  // Verificar también el operador local (login por celular+PIN)
+  const localOperator = (() => {
+    try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; }
+  })();
+  const effectiveRole = localOperator ? localOperator.role : user?.role;
+  if (effectiveRole !== "admin") return <Navigate to="/" replace />;
   return children;
 }
 
