@@ -28,13 +28,20 @@ const adminItems = [
 export default function Sidebar({ open, onClose }) {
   const location = useLocation();
   const { user, checkUserAuth } = useAuth();
-  const isAdmin = user?.role === "admin";
+  // Operador local (login por celular+PIN, sobrescribe el nombre mostrado)
+  const [localOperator, setLocalOperator] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; }
+  });
+
+  const displayUser = localOperator || user;
+  const isAdmin = user?.role === "admin"; // permisos de ruta siguen siendo del usuario de plataforma
   const navItems = isAdmin ? [...operadorItems, ...adminItems] : operadorItems;
   const [switchOpen, setSwitchOpen] = useState(false);
 
-  const handleSwitchSuccess = async (newUser) => {
+  const handleSwitchSuccess = (op) => {
+    setLocalOperator(op);
+    localStorage.setItem("local_operator", JSON.stringify(op));
     setSwitchOpen(false);
-    await checkUserAuth();
     onClose();
   };
 
@@ -55,8 +62,8 @@ export default function Sidebar({ open, onClose }) {
               <UserCircle className="w-5 h-5 text-sidebar-primary-foreground" />
             </div>
             <div className="min-w-0">
-              <p className="font-semibold text-sm text-sidebar-foreground truncate">{user?.full_name || user?.email || "Usuario"}</p>
-              <p className="text-xs text-sidebar-foreground/50 capitalize">{user?.role === "admin" ? "Directivo" : "Operador"}</p>
+              <p className="font-semibold text-sm text-sidebar-foreground truncate">{displayUser?.name || displayUser?.full_name || displayUser?.email || "Usuario"}</p>
+              <p className="text-xs text-sidebar-foreground/50 capitalize">{localOperator ? (localOperator.role === "admin" ? "Directivo" : "Operador") : (user?.role === "admin" ? "Directivo" : "Operador")}</p>
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
