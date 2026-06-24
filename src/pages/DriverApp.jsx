@@ -8,7 +8,7 @@ import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, Users, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2 } from "lucide-react";
+import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2 } from "lucide-react";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
 import { withRetry } from "@/lib/retryFetch";
 import RideMap from "@/components/map/RideMap";
@@ -601,7 +601,7 @@ function BroadcastAlert({ order, onAccept, onReject }) {
 }
 
 // ── Active ride screen ────────────────────────────────────────────────────────
-function ActiveRideScreen({ order, driver, onStatusChange }) {
+function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
   const cfg = STATUS_CONFIG[order.status];
 
   // ── Taxímetro en tiempo real (solo cuando status === "en_viaje") ────────────
@@ -864,9 +864,14 @@ function ActiveRideScreen({ order, driver, onStatusChange }) {
         </Button>
 
         {order.status === "aceptado" && (
-          <Button className="w-full h-14 rounded-2xl gap-2 bg-purple-500 hover:bg-purple-600 text-base font-bold shadow-lg shadow-purple-500/20" onClick={() => onStatusChange("en_camino")}>
-            <Navigation className="w-5 h-5" /> Saliendo a Buscar
-          </Button>
+          <div className="space-y-2">
+            <Button className="w-full h-14 rounded-2xl gap-2 bg-purple-500 hover:bg-purple-600 text-base font-bold shadow-lg shadow-purple-500/20" onClick={() => onStatusChange("en_camino")}>
+              <Navigation className="w-5 h-5" /> Saliendo a Buscar
+            </Button>
+            <Button variant="outline" className="w-full h-11 rounded-2xl gap-2 border-red-200 text-red-500 hover:bg-red-50 font-semibold text-sm" onClick={onCancelRide}>
+              <XCircle className="w-4 h-4" /> Anular — volver a mi base
+            </Button>
+          </div>
         )}
         {order.status === "en_camino" && (
           <Button className="w-full h-14 rounded-2xl gap-2 bg-cyan-500 hover:bg-cyan-600 text-base font-bold shadow-lg shadow-cyan-500/20" onClick={() => onStatusChange("en_viaje")}>
@@ -941,7 +946,7 @@ function OffServiceScreen({ onGoOnService }) {
 }
 
 // ── Idle / waiting screen ─────────────────────────────────────────────────────
-function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onChangeBase, onGoOffService, driverId }) {
+function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onChangeBase, onGoOffService, driverId, libreBlockedSegs = 0 }) {
   const [changingBase, setChangingBase] = useState(false);
   const [newBase, setNewBase] = useState("");
 
@@ -1034,16 +1039,24 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
               variant="outline"
               className="flex-1 gap-2 rounded-2xl border-gray-300 h-11"
               onClick={() => setChangingBase(true)}
+              disabled={libreBlockedSegs > 0}
             >
               <ArrowRightLeft className="w-4 h-4" /> Cambiar Base
             </Button>
-            <Button
-              variant="outline"
-              className="flex-1 gap-2 rounded-2xl border-red-200 text-red-500 hover:bg-red-50 h-11"
-              onClick={onGoOffService}
-            >
-              <PowerOff className="w-4 h-4" /> Salir
-            </Button>
+            {libreBlockedSegs > 0 ? (
+              <div className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-orange-100 border border-orange-300 text-orange-600 text-sm font-bold h-11">
+                <Timer className="w-4 h-4" />
+                Libre en {Math.floor(libreBlockedSegs / 60)}:{String(libreBlockedSegs % 60).padStart(2, "0")}
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                className="flex-1 gap-2 rounded-2xl border-red-200 text-red-500 hover:bg-red-50 h-11"
+                onClick={onGoOffService}
+              >
+                <PowerOff className="w-4 h-4" /> Salir
+              </Button>
+            )}
           </div>
           <DailyStats driverId={driverId} />
         </div>
@@ -1110,6 +1123,10 @@ export default function DriverApp() {
   const [showBatteryGuide, setShowBatteryGuide] = useState(false);
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
   const [loadTimeout, setLoadTimeout] = useState(false);
+  // Bloqueo post-viaje: segundos restantes para poder ponerse libre
+  const [libreBlockedSegs, setLibreBlockedSegs] = useState(0);
+  // Base del viaje que acaba de completar (para volver ahí si anula)
+  const lastRideBaseRef = useRef(null);
   const prevOfferedId = useRef(null);
   const offeredOrderRef = useRef(null);
   const prevBroadcastId = useRef(null);
@@ -1378,9 +1395,33 @@ export default function DriverApp() {
     await reassignAfterReject(currentOrder, drivers, []);
     // No necesita invalidateQueries — la suscripción actualiza instantáneamente
   };
+  // Cargar config de minutos de bloqueo post-viaje
+  const tarifaMinutosRef = useRef(0);
+  useEffect(() => {
+    base44.entities.TarifaConfig.list().then(configs => {
+      if (configs[0]) tarifaMinutosRef.current = configs[0].minutos_libre_post_viaje ?? 0;
+    }).catch(() => {});
+  }, []);
+
+  // Countdown del bloqueo post-viaje
+  useEffect(() => {
+    if (libreBlockedSegs <= 0) return;
+    const t = setInterval(() => {
+      setLibreBlockedSegs(s => {
+        if (s <= 1) { clearInterval(t); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [libreBlockedSegs > 0]);
+
   const handleStatusChange = (newStatus) => {
     updateOrder.mutate({ id: activeOrder.id, data: { status: newStatus } });
     if (newStatus === "completado") {
+      // Guardar la base del viaje para poder volver si se anula
+      lastRideBaseRef.current = activeOrder.assigned_base || myDriver?.current_base || null;
+      const secs = (tarifaMinutosRef.current || 0) * 60;
+      if (secs > 0) setLibreBlockedSegs(secs);
       setLocalOverride({ status: "disponible", current_base: null });
       updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
     }
@@ -1408,8 +1449,20 @@ export default function DriverApp() {
   };
 
   const handleGoOffService = () => {
+    if (libreBlockedSegs > 0) return; // bloqueado
     setLocalOverride({ status: "no_disponible", current_base: null });
     updateDriver.mutate({ id: myDriverId, data: { status: "no_disponible", current_base: null } });
+  };
+
+  // Anular viaje aceptado: vuelve al principio de la base asignada
+  const handleCancelRide = async () => {
+    if (!activeOrder) return;
+    const base = activeOrder.assigned_base || myDriver?.current_base || null;
+    await updateOrder.mutateAsync({ id: activeOrder.id, data: { status: "cancelado", driver_id: null, driver_name: null } });
+    const ts = new Date(0).toISOString(); // timestamp en el pasado → queda primero en la cola
+    setLocalOverride({ status: "disponible", current_base: base, queue_entered_at: ts });
+    updateDriver.mutate({ id: myDriverId, data: { status: "disponible", current_base: base, queue_entered_at: ts } });
+    setLibreBlockedSegs(0); // al anular no aplica bloqueo
   };
 
   const handleGoOnService = () => {
@@ -1579,6 +1632,11 @@ export default function DriverApp() {
               >
                 <Wifi className="w-4 h-4" />
               </button>
+            ) : libreBlockedSegs > 0 ? (
+              <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-orange-900/30 text-orange-400 text-xs font-bold">
+                <Timer className="w-3.5 h-3.5" />
+                {Math.floor(libreBlockedSegs / 60)}:{String(libreBlockedSegs % 60).padStart(2, "0")}
+              </div>
             ) : (
               <button
                 className="p-2 rounded-xl bg-red-600/20 text-red-400"
@@ -1604,7 +1662,7 @@ export default function DriverApp() {
 
       {/* Body */}
       {activeOrder ? (
-        <ActiveRideScreen order={activeOrder} driver={myDriver} onStatusChange={handleStatusChange} />
+        <ActiveRideScreen order={activeOrder} driver={myDriver} onStatusChange={handleStatusChange} onCancelRide={handleCancelRide} />
       ) : myDriver.status === "no_disponible" ? (
         <OffServiceScreen onGoOnService={handleGoOnService} />
       ) : (
@@ -1617,6 +1675,7 @@ export default function DriverApp() {
           onChangeBase={handleChangeBase}
           onGoOffService={handleGoOffService}
           driverId={myDriverId}
+          libreBlockedSegs={libreBlockedSegs}
         />
       )}
 

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { DollarSign, Save, Loader2, Lock, Moon, Sun, KeyRound } from "lucide-react";
+import { DollarSign, Save, Loader2, Lock, Moon, Sun, KeyRound, Timer } from "lucide-react";
 
 const DEFAULTS = {
   bajada_bandera: 500,
@@ -19,6 +19,7 @@ const DEFAULTS = {
   nocturna_precio_por_minuto_espera: 70,
   nocturna_hora_inicio: 22,
   nocturna_hora_fin: 6,
+  minutos_libre_post_viaje: 0,
 };
 
 function CampoMoneda({ label, description, field, form, onChange }) {
@@ -73,6 +74,7 @@ export default function TarifaConfigPanel() {
          nocturna_precio_por_minuto_espera: config.nocturna_precio_por_minuto_espera ?? DEFAULTS.nocturna_precio_por_minuto_espera,
          nocturna_hora_inicio: config.nocturna_hora_inicio ?? DEFAULTS.nocturna_hora_inicio,
          nocturna_hora_fin: config.nocturna_hora_fin ?? DEFAULTS.nocturna_hora_fin,
+         minutos_libre_post_viaje: config.minutos_libre_post_viaje ?? DEFAULTS.minutos_libre_post_viaje,
        });
     }
   }, [config?.id]);
@@ -318,6 +320,36 @@ export default function TarifaConfigPanel() {
             <CampoMoneda label="Precio por metro" field="nocturna_precio_por_metro" form={form} onChange={handleChange} />
             <CampoMoneda label="Tiempo corrido (por min)" field="nocturna_precio_por_minuto_corrido" form={form} onChange={handleChange} />
             <CampoMoneda label="Tiempo de espera (por min)" field="nocturna_precio_por_minuto_espera" form={form} onChange={handleChange} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Restricción post-viaje */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Timer className="w-5 h-5 text-orange-500" />
+            Tiempo de espera post-viaje
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Minutos que debe esperar el chofer antes de poder ponerse libre luego de completar un viaje. <strong>0 = sin restricción</strong>.
+          </p>
+          <div className="space-y-1.5 max-w-xs">
+            <Label className="text-sm font-semibold">Minutos de espera obligatoria</Label>
+            <div className="relative">
+              <Input
+                type="number"
+                min={0}
+                max={60}
+                step={1}
+                className="pr-14"
+                value={form.minutos_libre_post_viaje}
+                onChange={(e) => handleChange("minutos_libre_post_viaje", e.target.value)}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">min</span>
+            </div>
           </div>
         </CardContent>
       </Card>
