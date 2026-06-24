@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
+import ManualInstructivo from "@/components/manual/ManualInstructivo";
 import Sidebar from "./Sidebar";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
@@ -33,6 +34,7 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <ManualInstructivo />
     </div>
   );
 }
