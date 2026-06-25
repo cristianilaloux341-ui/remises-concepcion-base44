@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useAddressSuggestions } from "@/hooks/useAddressSuggestions";
-import { MapPin, Clock } from "lucide-react";
+import { MapPin, Clock, Globe } from "lucide-react";
 
 export default function AddressAutocomplete({ value, onChange, placeholder, className, icon, required }) {
   const [open, setOpen] = useState(false);
@@ -27,7 +27,7 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
     const val = e.target.value;
     setInputValue(val);
     onChange(val);
-    setOpen(val.length >= 2);
+    setOpen(val.length >= 3);
   };
 
   const handleSelect = (address) => {
@@ -50,7 +50,7 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
         placeholder={placeholder}
         value={inputValue}
         onChange={handleChange}
-        onFocus={() => inputValue.length >= 2 && setOpen(true)}
+        onFocus={() => inputValue.length >= 3 && setOpen(true)}
         required={required}
         autoComplete="off"
       />
@@ -65,14 +65,20 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
               onClick={() => handleSelect(s.address)}
             >
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                {s.source === "osm"
+                  ? <Globe className="w-4 h-4 text-blue-400 shrink-0" />
+                  : <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                }
                 <span className="text-sm truncate">{s.address}</span>
               </div>
-              {s.usage_count > 1 && (
+              {s.source === "history" && s.usage_count > 1 && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                   <Clock className="w-3 h-3" />
                   {s.usage_count}x
                 </span>
+              )}
+              {s.source === "osm" && (
+                <span className="text-xs text-blue-400 shrink-0">Maps</span>
               )}
             </button>
           ))}
