@@ -8,21 +8,36 @@ import { cn } from "@/lib/utils";
 const CITY = "Concepción del Uruguay";
 const PROVINCE = "Entre Ríos";
 const COUNTRY = "Argentina";
+const VIEWBOX = "-58.35,-33.15,-58.15,-32.95";
 const nominatimCache = new Map();
 
 async function fetchNominatim(query) {
   if (nominatimCache.has(query)) return nominatimCache.get(query);
   const q = `${query}, ${CITY}, ${PROVINCE}, ${COUNTRY}`;
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&countrycodes=ar&accept-language=es`;
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=8&countrycodes=ar&accept-language=es&viewbox=${VIEWBOX}&bounded=1&addressdetails=1`;
   const res = await fetch(url, { headers: { "Accept-Language": "es" } });
   const data = await res.json();
-  const results = data.map(d => {
-    const parts = d.display_name.split(",").map(p => p.trim());
-    return parts.slice(0, 2).join(", ") || d.display_name;
-  });
-  nominatimCache.set(query, results);
+  const results = data
+    .filter(d => {
+      const city = (d.address?.city || d.address?.town || d.address?.village || "").toLowerCase();
+      return city.includes("concepci") || city === "";
+    })
+    .map(d => {
+      const a = d.address || {};
+      const road = a.road || a.pedestrian || a.footway || "";
+      const number = a.house_number || "";
+      if (road) return number ? `${road} ${number}` : road;
+      const parts = d.display_name.split(",").map(p => p.trim());
+      return parts.slice(0, 2).join(", ");
+    })
+    .filter(Boolean);
+
+  const seen = new Set();
+  const unique = results.filter(r => { if (seen.has(r)) return false; seen.add(r); return true; });
+
+  nominatimCache.set(query, unique);
   if (nominatimCache.size > 100) nominatimCache.delete(nominatimCache.keys().next().value);
-  return results;
+  return unique;
 }
 
 const normalize = (s) =>

@@ -18,26 +18,40 @@ const COUNTRY = "Argentina";
 // Cache simple para no repetir llamadas idénticas
 const nominatimCache = new Map();
 
+// Bounding box de Concepción del Uruguay (lat/lng aprox)
+const VIEWBOX = "-58.35,-33.15,-58.15,-32.95";
+
 async function fetchNominatim(query) {
   if (nominatimCache.has(query)) return nominatimCache.get(query);
   const q = `${query}, ${CITY}, ${PROVINCE}, ${COUNTRY}`;
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&countrycodes=ar&accept-language=es`;
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=8&countrycodes=ar&accept-language=es&viewbox=${VIEWBOX}&bounded=1&addressdetails=1`;
   const res = await fetch(url, { headers: { "Accept-Language": "es" } });
   const data = await res.json();
-  const results = data.map(d => {
-    // Extraer calle + altura del display_name devuelto
-    const parts = d.display_name.split(",").map(p => p.trim());
-    // Nominatim pone calle y número primero; tomamos los primeros 2 segmentos
-    const short = parts.slice(0, 2).join(", ");
-    return short || d.display_name;
-  });
-  nominatimCache.set(query, results);
-  // Limpiar cache viejo si crece mucho
-  if (nominatimCache.size > 100) {
-    const firstKey = nominatimCache.keys().next().value;
-    nominatimCache.delete(firstKey);
-  }
-  return results;
+  const results = data
+    .filter(d => {
+      // Solo resultados dentro de Concepción del Uruguay
+      const city = (d.address?.city || d.address?.town || d.address?.village || "").toLowerCase();
+      return city.includes("concepci") || city === "";
+    })
+    .map(d => {
+      const a = d.address || {};
+      // Armar "Calle Número" limpio
+      const road = a.road || a.pedestrian || a.footway || "";
+      const number = a.house_number || "";
+      if (road) return number ? `${road} ${number}` : road;
+      // Fallback: tomar los primeros 2 segmentos del display_name
+      const parts = d.display_name.split(",").map(p => p.trim());
+      return parts.slice(0, 2).join(", ");
+    })
+    .filter(Boolean);
+
+  // Deduplicar
+  const seen = new Set();
+  const unique = results.filter(r => { if (seen.has(r)) return false; seen.add(r); return true; });
+
+  nominatimCache.set(query, unique);
+  if (nominatimCache.size > 100) nominatimCache.delete(nominatimCache.keys().next().value);
+  return unique;
 }
 
 export function useAddressSuggestions(query) {
