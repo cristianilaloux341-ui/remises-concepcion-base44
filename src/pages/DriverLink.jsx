@@ -2,10 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Smartphone, Copy, ExternalLink, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
+import { appParams } from "@/lib/app-params";
 
 export default function DriverLink() {
   const [copied, setCopied] = useState(false);
-  const url = `${window.location.origin}/driver-app`;
+  const baseUrl = appParams.appBaseUrl || window.location.origin;
+  const url = `${baseUrl}/driver-app`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(url);
