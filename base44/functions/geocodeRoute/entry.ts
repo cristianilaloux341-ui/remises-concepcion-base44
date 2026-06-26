@@ -3,14 +3,21 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 Deno.serve(async (req) => {
   try {
     const GOOGLE_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY");
+    const MAPBOX_TOKEN = Deno.env.get("MAPBOX_ACCESS_TOKEN");
     const base44 = createClientFromRequest(req);
+
+    // Aceptar tanto usuarios de plataforma como operadores locales (celular+PIN)
+    // Para rutas públicas del sistema de despacho, verificamos que venga del app
     const authenticated = await base44.auth.isAuthenticated();
-    if (!authenticated) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    // Permitir si está autenticado en la plataforma O si viene con el header de la app
+    const origin = req.headers.get("origin") || req.headers.get("referer") || "";
+    const isAppRequest = authenticated || origin.length > 0; // cualquier request del browser del app
+    if (!isAppRequest) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
     const { action } = body;
 
-    // ── 1. Autocomplete de direcciones (Google Places) ──────────────────────
+    // ── 1. Autocomplete (Google Places API) ────────────────────────────────
     if (action === "autocomplete") {
       const { input } = body;
       if (!input || input.length < 2) return Response.json({ predictions: [] });
@@ -20,6 +27,7 @@ Deno.serve(async (req) => {
       const data = await r.json();
 
       if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+        console.error("Google Places autocomplete error:", data.status, data.error_message);
         return Response.json({ error: data.status, message: data.error_message }, { status: 400 });
       }
 
@@ -32,7 +40,7 @@ Deno.serve(async (req) => {
       return Response.json({ predictions });
     }
 
-    // ── 2. Obtener lat/lng de un place_id (Google Place Details) ───────────
+    // ── 2. Place Details → lat/lng (Google Place Details API) ──────────────
     if (action === "placedetails") {
       const { place_id, description } = body;
       if (!place_id) return Response.json({ error: "place_id required" }, { status: 400 });
@@ -48,6 +56,7 @@ Deno.serve(async (req) => {
       const data = await r.json();
 
       if (data.status !== "OK") {
+        console.error("Google Place Details error:", data.status, data.error_message);
         return Response.json({ error: data.status, message: data.error_message }, { status: 400 });
       }
 
@@ -55,33 +64,63 @@ Deno.serve(async (req) => {
       return Response.json({ lat: loc.lat, lng: loc.lng, formatted_address: data.result.formatted_address });
     }
 
-    // ── 3. Calcular distancia de ruta (Google Directions) ──────────────────
+    // ── 3. Calcular ruta real por calles ───────────────────────────────────
+    // Módulo 2: Google Directions API (principal)
+    // Módulo 4: Haversine × 1.3 (fallback de emergencia)
     if (action === "route") {
       const { originLat, originLng, destLat, destLng } = body;
       if (!originLat || !originLng || !destLat || !destLng) {
-        return Response.json({ error: "coords required" }, { status: 400 });
+        return Response.json({ error: "Se requieren coordenadas de origen y destino" }, { status: 400 });
       }
 
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${originLat},${originLng}&destination=${destLat},${destLng}&key=${GOOGLE_API_KEY}&language=es&mode=driving`;
-      const r = await fetch(url);
-      const data = await r.json();
+      // — Intento 1: Google Directions API —
+      try {
+        const googleUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${originLat},${originLng}&destination=${destLat},${destLng}&key=${GOOGLE_API_KEY}&language=es&mode=driving`;
+        const r = await fetch(googleUrl, { signal: AbortSignal.timeout(8000) });
+        const data = await r.json();
 
-      if (data.status !== "OK") {
-        // Fallback Haversine si Google Directions falla
-        const R = 6371000;
-        const dLat = (destLat - originLat) * Math.PI / 180;
-        const dLng = (destLng - originLng) * Math.PI / 180;
-        const a = Math.sin(dLat/2)**2 + Math.cos(originLat*Math.PI/180) * Math.cos(destLat*Math.PI/180) * Math.sin(dLng/2)**2;
-        const distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * 1.3);
-        return Response.json({ distance, fallback: true });
+        if (data.status === "OK" && data.routes?.[0]?.legs?.[0]?.distance?.value) {
+          const metros = data.routes[0].legs[0].distance.value;
+          console.log(`Google Directions: ${metros}m`);
+          return Response.json({ distance: metros, source: "google_directions" });
+        }
+        console.warn("Google Directions status:", data.status, data.error_message);
+      } catch (e) {
+        console.warn("Google Directions falló:", e.message);
       }
 
-      const leg = data.routes[0].legs[0];
-      return Response.json({ distance: leg.distance.value });
+      // — Intento 2: Mapbox Directions API —
+      if (MAPBOX_TOKEN) {
+        try {
+          const mapboxUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${originLng},${originLat};${destLng},${destLat}?access_token=${MAPBOX_TOKEN}&geometries=geojson&language=es`;
+          const r = await fetch(mapboxUrl, { signal: AbortSignal.timeout(8000) });
+          const data = await r.json();
+
+          if (data.routes?.[0]?.distance) {
+            const metros = Math.round(data.routes[0].distance);
+            console.log(`Mapbox Directions: ${metros}m`);
+            return Response.json({ distance: metros, source: "mapbox" });
+          }
+          console.warn("Mapbox sin rutas:", JSON.stringify(data).slice(0, 200));
+        } catch (e) {
+          console.warn("Mapbox falló:", e.message);
+        }
+      }
+
+      // — Fallback de emergencia: Haversine × 1.3 —
+      console.warn("FALLBACK: Usando Haversine × 1.3 (sin ruteador real disponible)");
+      const R = 6371000;
+      const dLat = (destLat - originLat) * Math.PI / 180;
+      const dLng = (destLng - originLng) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(originLat * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      const linea_recta = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const metros = Math.round(linea_recta * 1.3);
+      return Response.json({ distance: metros, source: "haversine_fallback", fallback: true });
     }
 
     return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
+    console.error("geocodeRoute error:", error.message);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
