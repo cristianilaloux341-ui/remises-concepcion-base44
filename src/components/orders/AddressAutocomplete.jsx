@@ -1,19 +1,20 @@
 import { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { useAddressSuggestions } from "@/hooks/useAddressSuggestions";
 import { MapPin, Clock, Globe } from "lucide-react";
+import { useGooglePlaces } from "@/hooks/useGooglePlaces";
+import { base44 } from "@/api/base44Client";
+import { useQuery } from "@tanstack/react-query";
+
+const normalize = (s) =>
+  (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
 export default function AddressAutocomplete({ value, onChange, placeholder, className, icon, required }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value || "");
   const containerRef = useRef(null);
-  const suggestions = useAddressSuggestions(inputValue);
 
-  // Sync external value changes (e.g. client auto-fill)
-  useEffect(() => {
-    setInputValue(value || "");
-  }, [value]);
+  useEffect(() => { setInputValue(value || ""); }, [value]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -23,6 +24,33 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const { data: addressHistory = [] } = useQuery({
+    queryKey: ["address_history"],
+    queryFn: () => base44.entities.AddressHistory.list("-usage_count"),
+    staleTime: 30_000,
+  });
+
+  const { predictions, getPlaceDetails } = useGooglePlaces(inputValue);
+
+  // Combinar historial local + Google Places
+  const suggestions = (() => {
+    if (!inputValue || inputValue.length < 3) return [];
+    const norm = normalize(inputValue);
+
+    const historyItems = addressHistory
+      .filter((a) => normalize(a.address).includes(norm))
+      .slice(0, 3)
+      .map((a) => ({ id: a.id, address: a.address, source: "history", usage_count: a.usage_count, lat: null, lng: null }));
+
+    const historyNorms = new Set(historyItems.map(h => normalize(h.address)));
+    const googleItems = predictions
+      .filter(p => !historyNorms.has(normalize(p.description)))
+      .slice(0, 4)
+      .map((p) => ({ id: p.place_id, address: p.description, place_id: p.place_id, source: "google", usage_count: 0 }));
+
+    return [...historyItems, ...googleItems];
+  })();
+
   const handleChange = (e) => {
     const val = e.target.value;
     setInputValue(val);
@@ -30,10 +58,22 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
     setOpen(val.length >= 3);
   };
 
-  const handleSelect = (s) => {
+  const handleSelect = async (s) => {
     setInputValue(s.address);
-    onChange(s.address, s.lat && s.lng ? { lat: s.lat, lng: s.lng } : null);
     setOpen(false);
+
+    let coords = s.lat && s.lng ? { lat: s.lat, lng: s.lng } : null;
+
+    if (s.source === "google" && s.place_id) {
+      try {
+        const details = await getPlaceDetails(s.place_id);
+        if (details?.lat && details?.lng) {
+          coords = { lat: details.lat, lng: details.lng };
+        }
+      } catch (_) {}
+    }
+
+    onChange(s.address, coords);
   };
 
   const showDropdown = open && suggestions.length > 0;
@@ -65,7 +105,7 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
               onClick={() => handleSelect(s)}
             >
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                {s.source === "osm"
+                {s.source === "google"
                   ? <Globe className="w-4 h-4 text-blue-400 shrink-0" />
                   : <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
                 }
@@ -77,8 +117,8 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
                   {s.usage_count}x
                 </span>
               )}
-              {s.source === "osm" && (
-                <span className="text-xs text-blue-400 shrink-0">Maps</span>
+              {s.source === "google" && (
+                <span className="text-xs text-blue-400 shrink-0">Google</span>
               )}
             </button>
           ))}

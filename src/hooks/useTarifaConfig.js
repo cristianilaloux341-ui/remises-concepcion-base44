@@ -18,7 +18,6 @@ const DEFAULTS = {
 function esHorarioNocturno(horaInicio, horaFin) {
   const hora = new Date().getHours();
   if (horaInicio > horaFin) {
-    // Rango nocturno cruza medianoche (ej: 22 → 6)
     return hora >= horaInicio || hora < horaFin;
   }
   return hora >= horaInicio && hora < horaFin;
@@ -59,7 +58,7 @@ export function useTarifaConfig() {
 }
 
 /**
- * Calcula distancia en metros entre dos pares lat/lng usando Haversine.
+ * Haversine: distancia en línea recta entre dos coordenadas (metros).
  */
 export function haversineMetros(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -71,58 +70,21 @@ export function haversineMetros(lat1, lng1, lat2, lng2) {
 }
 
 /**
- * Llama a OSRM (open source, sin API key) para obtener distancia de ruta real entre dos direcciones.
- * Primero geocodifica con Nominatim, luego obtiene ruta con OSRM.
+ * Calcula distancia de ruta real usando Mapbox Directions API (via backend proxy).
+ * Requiere coordenadas exactas de Google Places.
  * Retorna metros (number) o null si falla.
  */
-const CIUDAD = "Concepción del Uruguay, Entre Ríos, Argentina";
-// Bounding box de Concepción del Uruguay (viewbox para Nominatim)
-const VIEWBOX = "-58.35,-33.20,-58.15,-33.08";
-
 export async function calcularDistanciaRuta(origen, destino, origenCoords = null, destinoCoords = null) {
+  if (!origenCoords || !destinoCoords) return null;
   try {
-    const geocode = async (addr) => {
-      const query = `${addr}, ${CIUDAD}`;
-      try {
-        const r = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=ar&bounded=1&viewbox=${VIEWBOX}`,
-          { headers: { "Accept-Language": "es", "User-Agent": "remiseria-app/1.0" }, signal: AbortSignal.timeout(5000) }
-        );
-        const data = await r.json();
-        if (data.length) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-        // Fallback sin bounded
-        const r2 = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=ar&viewbox=${VIEWBOX}`,
-          { headers: { "Accept-Language": "es", "User-Agent": "remiseria-app/1.0" }, signal: AbortSignal.timeout(5000) }
-        );
-        const data2 = await r2.json();
-        if (data2.length) return { lat: parseFloat(data2[0].lat), lng: parseFloat(data2[0].lon) };
-      } catch (_) {}
-      return null;
-    };
-
-    // Usar coords ya conocidas; geocodificar solo las que faltan
-    const [o, d] = await Promise.all([
-      origenCoords ? Promise.resolve(origenCoords) : geocode(origen),
-      destinoCoords ? Promise.resolve(destinoCoords) : geocode(destino),
-    ]);
-    if (!o || !d) return null;
-
-    // OSRM: ruta real por calles
-    try {
-      const osrm = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=false`,
-        { signal: AbortSignal.timeout(6000) }
-      );
-      const routeData = await osrm.json();
-      if (routeData.code === "Ok" && routeData.routes?.length) {
-        return Math.round(routeData.routes[0].distance);
-      }
-    } catch (_) {}
-
-    // Fallback: haversine × 1.3 si OSRM no responde
-    const lineal = haversineMetros(o.lat, o.lng, d.lat, d.lng);
-    return Math.round(lineal * 1.3);
+    const res = await base44.functions.invoke("geocodeRoute", {
+      action: "route",
+      originLat: origenCoords.lat,
+      originLng: origenCoords.lng,
+      destLat: destinoCoords.lat,
+      destLng: destinoCoords.lng,
+    });
+    return res.data?.distance ?? null;
   } catch (_) {
     return null;
   }
