@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw, Timer, UserCog, HardDriveDownload } from "lucide-react";
+import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw, Timer, UserCog, HardDriveDownload, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
@@ -137,11 +137,17 @@ export default function Sidebar({ open, onClose }) {
           )}
         </nav>
 
-        <div className="p-4">
+        <div className="p-4 space-y-2">
           <Link to="/orders/new" onClick={onClose}>
             <Button className="w-full gap-2 rounded-xl h-11 bg-sidebar-primary hover:bg-sidebar-primary/90">
               <Plus className="w-4 h-4" />
               Nuevo Pedido
+            </Button>
+          </Link>
+          <Link to="/profile" onClick={onClose}>
+            <Button variant="ghost" className="w-full gap-2 rounded-xl h-9 text-sidebar-foreground/60 hover:text-sidebar-foreground justify-start">
+              <Settings className="w-4 h-4" />
+              Perfil y Ajustes
             </Button>
           </Link>
         </div>

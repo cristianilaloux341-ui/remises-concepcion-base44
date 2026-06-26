@@ -84,5 +84,10 @@
   }
   body {
     @apply bg-background text-foreground font-inter;
+    overscroll-behavior-y: none;
+  }
+  button, a, [role="tab"], nav, header {
+    user-select: none;
+    -webkit-user-select: none;
   }
 }

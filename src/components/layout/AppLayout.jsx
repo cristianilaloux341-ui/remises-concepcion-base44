@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import ManualInstructivo from "@/components/manual/ManualInstructivo";
 import Sidebar from "./Sidebar";
-import { Button } from "@/components/ui/button";
-import { Menu } from "lucide-react";
+import BottomTabBar from "./BottomTabBar";
 import AgendaAlert from "@/components/agenda/AgendaAlert";
 import CancellationAlert from "@/components/alerts/CancellationAlert";
 import DriverMessageAlert from "@/components/alerts/DriverMessageAlert";
@@ -11,9 +11,18 @@ import PanicAlertBanner from "@/components/alerts/PanicAlertBanner";
 import { useAuth } from "@/lib/AuthContext";
 import { useOperatorPushSubscription } from "@/hooks/useOperatorPushSubscription";
 
+const pageVariants = {
+  initial: { opacity: 0, x: 16 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -16 },
+};
+
+const pageTransition = { duration: 0.18, ease: "easeInOut" };
+
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user } = useAuth();
+  const location = useLocation();
   useOperatorPushSubscription(user);
 
   return (
@@ -23,17 +32,25 @@ export default function AppLayout() {
       <DriverMessageAlert />
       <PanicAlertBanner />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      
-      <div className="lg:pl-64">
-        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border px-4 py-3 lg:hidden">
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
-            <Menu className="w-5 h-5" />
-          </Button>
-        </header>
+
+      <div className="lg:pl-64 pb-16 lg:pb-0">
         <main className="p-4 md:p-8">
-          <Outlet />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={pageTransition}
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
+
+      <BottomTabBar />
       <ManualInstructivo />
     </div>
   );
