@@ -1502,24 +1502,29 @@ export default function DriverApp() {
       );
     }
     return (
-      <LoginScreen
-        drivers={drivers}
-        savedDriverId={savedDriverId}
-        onSelect={(id, isFirstTime) => {
-          setMyDriverId(id);
-          localStorage.setItem("my_driver_id", id);
-          if (isFirstTime) {
-            setShowSetupGuide(true);
-            localStorage.setItem(`setup_done_${id}`, "1");
-          }
-        }}
-        onClearSaved={() => {
-          localStorage.removeItem("remembered_driver_id");
-          localStorage.removeItem("my_driver_id");
-          setSavedDriverId("");
-          setMyDriverId("");
-        }}
-      />
+      <div className="flex flex-col h-screen bg-gray-950">
+        <InstallBanner />
+        <div className="flex-1 overflow-y-auto">
+          <LoginScreen
+            drivers={drivers}
+            savedDriverId={savedDriverId}
+            onSelect={(id, isFirstTime) => {
+              setMyDriverId(id);
+              localStorage.setItem("my_driver_id", id);
+              if (isFirstTime) {
+                setShowSetupGuide(true);
+                localStorage.setItem(`setup_done_${id}`, "1");
+              }
+            }}
+            onClearSaved={() => {
+              localStorage.removeItem("remembered_driver_id");
+              localStorage.removeItem("my_driver_id");
+              setSavedDriverId("");
+              setMyDriverId("");
+            }}
+          />
+        </div>
+      </div>
     );
   }
 

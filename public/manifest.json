@@ -1,14 +1,14 @@
 {
-  "name": "Remises Concepción",
-  "short_name": "Remises",
-  "description": "Sistema de despacho y gestión de remises",
-  "start_url": "/",
+  "name": "Remises Concepción — Chófer",
+  "short_name": "RC Chófer",
+  "description": "App del chófer para Remises Concepción del Uruguay",
+  "start_url": "/driver-app",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#030712",
   "theme_color": "#1d6ef7",
-  "lang": "es",
-  "scope": "/",
+  "lang": "es-AR",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -25,14 +25,10 @@
   ],
   "shortcuts": [
     {
-      "name": "Mensajes",
-      "url": "/messages",
-      "description": "Ver mensajes de móviles"
-    },
-    {
-      "name": "Pedidos",
-      "url": "/orders",
-      "description": "Ver pedidos activos"
+      "name": "Abrir App Chófer",
+      "short_name": "Chófer",
+      "url": "/driver-app",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ],
   "categories": ["transportation", "utilities"]
