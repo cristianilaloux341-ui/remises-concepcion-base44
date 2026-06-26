@@ -20,6 +20,28 @@ import OrderDetail from '@/pages/OrderDetail';
 import MapView from '@/pages/MapView';
 import Drivers from '@/pages/Drivers';
 import DriverApp from '@/pages/DriverApp';
+import { Component } from 'react';
+
+class DriverAppErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen bg-gray-950 flex items-center justify-center p-6">
+          <div className="text-center space-y-4">
+            <p className="text-red-400 font-bold">Error al cargar la app</p>
+            <p className="text-gray-500 text-xs">{this.state.error?.message}</p>
+            <button className="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold" onClick={() => window.location.reload()}>
+              Reintentar
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import DriverLink from '@/pages/DriverLink';
 import Clients from '@/pages/Clients';
 import Agenda from '@/pages/Agenda';
@@ -45,11 +67,11 @@ function AdminRoute({ children }) {
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
-  // Driver app is fully public - render immediately without auth checks
-  if (window.location.pathname === '/driver-app') {
+  // Driver app is fully public - render immediately without any auth checks
+  if (window.location.pathname === '/driver-app' || window.location.pathname.startsWith('/driver-app')) {
     return (
       <Routes>
-        <Route path="/driver-app" element={<DriverApp />} />
+        <Route path="/driver-app" element={<DriverAppErrorBoundary><DriverApp /></DriverAppErrorBoundary>} />
       </Routes>
     );
   }
@@ -69,6 +91,8 @@ const AuthenticatedApp = () => {
       navigateToLogin();
       return null;
     }
+    // Para cualquier otro error (unknown, timeout, etc.) dejamos que las rutas se rendericen
+    // para que el usuario vea la página de login en lugar de una pantalla en blanco
   }
 
   return (
