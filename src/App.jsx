@@ -29,6 +29,7 @@ import Tarifas from '@/pages/Tarifas';
 import Moviles from '@/pages/Moviles';
 import TiempoEspera from '@/pages/TiempoEspera';
 import Usuarios from '@/pages/Usuarios';
+import Backup from '@/pages/Backup';
 
 function AdminRoute({ children }) {
   const { user } = useAuth();
@@ -97,6 +98,7 @@ const AuthenticatedApp = () => {
           <Route path="/moviles" element={<AdminRoute><Moviles /></AdminRoute>} />
           <Route path="/tiempo-espera" element={<AdminRoute><TiempoEspera /></AdminRoute>} />
           <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
+          <Route path="/backup" element={<AdminRoute><Backup /></AdminRoute>} />
         </Route>
       </Route>
       

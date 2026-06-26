@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw, Timer, UserCog } from "lucide-react";
+import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw, Timer, UserCog, HardDriveDownload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
@@ -23,6 +23,7 @@ const adminItems = [
   { label: "App Chófer", path: "/driver-link", icon: Smartphone },
   { label: "Zonas", path: "/zone-settings", icon: Map },
   { label: "Tarifas", path: "/tarifas", icon: DollarSign },
+  { label: "Backup", path: "/backup", icon: HardDriveDownload },
 ];
 
 export default function Sidebar({ open, onClose }) {
