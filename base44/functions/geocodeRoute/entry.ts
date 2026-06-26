@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
       const { input } = body;
       if (!input || input.length < 2) return Response.json({ predictions: [] });
 
-      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input + ", Gualeguaychú, Entre Ríos, Argentina")}&key=${GOOGLE_API_KEY}&language=es&components=country:ar&location=-33.01,-58.51&radius=15000`;
+      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input + ", Concepción del Uruguay, Entre Ríos, Argentina")}&key=${GOOGLE_API_KEY}&language=es&components=country:ar&location=-32.4853,-58.2375&radius=15000`;
       const r = await fetch(url);
       const data = await r.json();
 
