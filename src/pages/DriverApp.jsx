@@ -797,92 +797,99 @@ function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto">
-      {/* Mapa con altura fija para no tapar la info del viaje */}
-      <div className="shrink-0" style={{ height: "200px" }}>
-        <RideMap orders={[order]} drivers={[]} className="h-full" />
-      </div>
-
-      <div className="bg-white p-5 space-y-4">
+    <div className="flex-1 flex flex-col bg-gray-950">
+      {/* Panel superior: info + acciones */}
+      <div className="shrink-0 px-4 pt-4 pb-3 space-y-3">
+        {/* Header estado */}
         <div className="flex items-center justify-between">
-          <p className="font-bold text-lg">Viaje en Curso</p>
-          <Badge className={`${cfg?.bg} text-white border-0 px-3`}>{cfg?.label}</Badge>
+          <p className="font-bold text-white text-base">Viaje en Curso</p>
+          <span className={`${cfg?.bg} text-white text-xs font-bold px-3 py-1 rounded-full`}>{cfg?.label}</span>
         </div>
 
         {/* Taxímetro en tiempo real — solo en_viaje */}
         {order.status === "en_viaje" && (
-          <div className={`rounded-2xl p-4 flex items-center justify-between ${enEspera ? "bg-amber-50 border border-amber-200" : "bg-green-50 border border-green-200"}`}>
+          <div className={`rounded-2xl p-4 flex items-center justify-between ${enEspera ? "bg-amber-500/20 border border-amber-500/30" : "bg-green-500/20 border border-green-500/30"}`}>
             <div className="flex items-center gap-2">
-              {enEspera ? <Timer className="w-5 h-5 text-amber-500" /> : <Navigation className="w-5 h-5 text-green-600" />}
+              {enEspera ? <Timer className="w-5 h-5 text-amber-400" /> : <Navigation className="w-5 h-5 text-green-400" />}
               <div>
-                <p className="text-xs font-semibold text-gray-500">{enEspera ? "EN ESPERA" : "EN MOVIMIENTO"}</p>
+                <p className="text-xs font-semibold text-gray-400">{enEspera ? "EN ESPERA" : "EN MOVIMIENTO"}</p>
                 {metrosRecorridos > 0 && (
-                  <p className="text-xs text-gray-400">{(metrosRecorridos / 1000).toFixed(2)} km recorridos</p>
+                  <p className="text-xs text-gray-500">{(metrosRecorridos / 1000).toFixed(2)} km</p>
                 )}
               </div>
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-400">Tarifa actual</p>
-              <p className="text-2xl font-black text-green-600">${importeActual.toLocaleString()}</p>
+              <p className="text-xs text-gray-500">Tarifa actual</p>
+              <p className="text-2xl font-black text-green-400">${importeActual.toLocaleString()}</p>
             </div>
           </div>
         )}
 
-        <div className="space-y-3">
+        {/* Direcciones */}
+        <div className="bg-gray-900 rounded-2xl p-3 space-y-2 border border-gray-800">
           <div className="flex items-start gap-3">
-            <div className="w-5 h-5 rounded-full bg-green-500 mt-0.5 shrink-0" />
+            <div className="w-4 h-4 rounded-full bg-green-500 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-gray-400">RECOGIDA</p>
-              <p className="font-semibold text-sm">{order.pickup_address}</p>
+              <p className="text-xs text-gray-500">RECOGIDA</p>
+              <p className="font-semibold text-sm text-white">{order.pickup_address}</p>
             </div>
           </div>
           {order.dropoff_address && (
-            <div className="flex items-start gap-3">
-              <MapPin className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-400">DESTINO</p>
-                <p className="font-semibold text-sm">{order.dropoff_address}</p>
+            <>
+              <div className="ml-2 w-px h-3 bg-gray-700" />
+              <div className="flex items-start gap-3">
+                <MapPin className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-500">DESTINO</p>
+                  <p className="font-semibold text-sm text-white">{order.dropoff_address}</p>
+                </div>
               </div>
-            </div>
+            </>
           )}
-          <div className="flex items-center gap-2 text-gray-500 text-sm">
-            <Phone className="w-4 h-4" />
+          <div className="flex items-center gap-2 text-gray-500 text-xs pt-1 border-t border-gray-800">
+            <Phone className="w-3 h-3" />
             <span>{order.client_name}</span>
             {(order.importe_estimado > 0) && (
-              <span className="ml-auto font-semibold text-gray-700">${Math.round(order.importe_estimado).toLocaleString()} est.</span>
+              <span className="ml-auto font-semibold text-gray-400">${Math.round(order.importe_estimado).toLocaleString()} est.</span>
             )}
           </div>
         </div>
 
-        <Button
-          variant="outline"
-          className="w-full h-11 rounded-2xl gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 font-semibold"
+        {/* Botón navegación */}
+        <button
+          className="w-full h-11 rounded-2xl gap-2 border border-blue-500/40 text-blue-400 bg-blue-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all"
           onClick={handleNavigate}
         >
           <Navigation className="w-4 h-4" />
           Navegar con Google Maps
-        </Button>
+        </button>
 
+        {/* Botones de acción */}
         {order.status === "aceptado" && (
           <div className="space-y-2">
-            <Button className="w-full h-14 rounded-2xl gap-2 bg-purple-500 hover:bg-purple-600 text-base font-bold shadow-lg shadow-purple-500/20" onClick={() => onStatusChange("en_camino")}>
+            <button className="w-full h-14 rounded-2xl gap-2 bg-purple-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_camino")}>
               <Navigation className="w-5 h-5" /> Saliendo a Buscar
-            </Button>
-            <Button variant="outline" className="w-full h-11 rounded-2xl gap-2 border-red-200 text-red-500 hover:bg-red-50 font-semibold text-sm" onClick={onCancelRide}>
+            </button>
+            <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all" onClick={onCancelRide}>
               <XCircle className="w-4 h-4" /> Anular — volver a mi base
-            </Button>
+            </button>
           </div>
         )}
         {order.status === "en_camino" && (
-          <Button className="w-full h-14 rounded-2xl gap-2 bg-cyan-500 hover:bg-cyan-600 text-base font-bold shadow-lg shadow-cyan-500/20" onClick={() => onStatusChange("en_viaje")}>
+          <button className="w-full h-14 rounded-2xl gap-2 bg-cyan-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_viaje")}>
             <Car className="w-5 h-5" /> Pasajero a Bordo
-          </Button>
+          </button>
         )}
         {order.status === "en_viaje" && (
-          <Button className="w-full h-14 rounded-2xl gap-2 bg-green-500 hover:bg-green-600 text-base font-bold shadow-lg shadow-green-500/20" onClick={handleCompletar}>
+          <button className="w-full h-14 rounded-2xl gap-2 bg-green-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={handleCompletar}>
             <CheckCircle2 className="w-5 h-5" /> Terminar Viaje · ${importeActual.toLocaleString()}
-          </Button>
+          </button>
         )}
+      </div>
+
+      {/* Mapa abajo, ocupa el espacio restante */}
+      <div className="flex-1 min-h-0 rounded-t-3xl overflow-hidden">
+        <RideMap orders={[order]} drivers={[]} className="h-full w-full" />
       </div>
     </div>
   );
@@ -998,28 +1005,25 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
 
   if (isInBase) {
     return (
-      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-        {/* Mapa con altura fija — no empuja el panel de info */}
-        <div className="shrink-0" style={{ height: "220px" }}>
-          <RideMap orders={[]} drivers={[driver]} className="h-full" />
-        </div>
-
-        {/* Panel inferior siempre visible */}
-        <div className="bg-white px-5 pt-4 pb-5 space-y-4 shrink-0">
+      <div className="flex-1 flex flex-col min-h-0 bg-gray-950">
+        {/* Panel superior: info + acciones */}
+        <div className="shrink-0 px-4 pt-4 pb-3 space-y-3">
+          {/* Estado y posición */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center relative">
-                <div className="w-3 h-3 rounded-full bg-green-500 animate-ping absolute" />
-                <Clock className="w-5 h-5 text-green-600 relative" />
+              <div className="w-11 h-11 rounded-2xl bg-green-500/20 border border-green-500/30 flex items-center justify-center relative">
+                <div className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping absolute top-1.5 right-1.5" />
+                <Clock className="w-5 h-5 text-green-400" />
               </div>
               <div>
-                <p className="font-bold text-gray-800">En Posición</p>
-                <p className="text-sm text-gray-500">📍 {driver.current_base}</p>
+                <p className="font-bold text-white text-base">En Posición</p>
+                <p className="text-xs text-gray-400">📍 {driver.current_base}</p>
               </div>
             </div>
-            <Badge className="bg-blue-100 text-blue-700 border-0 text-xs">
-              {myPosition}° de {baseQueue.length}
-            </Badge>
+            <div className="text-right">
+              <p className="text-2xl font-black text-white">{myPosition}°</p>
+              <p className="text-xs text-gray-500">de {baseQueue.length} en cola</p>
+            </div>
           </div>
 
           {/* Cola compacta */}
@@ -1027,38 +1031,43 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
             {baseQueue.map((d, i) => (
               <span
                 key={d.id}
-                className={`text-xs px-2.5 py-1 rounded-xl font-medium ${d.id === driver.id ? "bg-green-500 text-white" : "bg-gray-100 text-gray-500"}`}
+                className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${d.id === driver.id ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"}`}
               >
                 {i + 1}.{d.vehicle_model ? ` #${d.vehicle_model}` : ""} {d.name.split(" ")[0]}
               </span>
             ))}
           </div>
 
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              className="flex-1 gap-2 rounded-2xl border-gray-300 h-11"
-              onClick={() => setChangingBase(true)}
+          {/* Botones */}
+          <div className="flex gap-2">
+            <button
+              className={`flex-1 flex items-center justify-center gap-2 h-12 rounded-2xl font-semibold text-sm transition-all ${libreBlockedSegs > 0 ? "bg-gray-800 text-gray-600 cursor-not-allowed" : "bg-gray-800 text-gray-300 active:scale-95"}`}
+              onClick={() => !libreBlockedSegs && setChangingBase(true)}
               disabled={libreBlockedSegs > 0}
             >
               <ArrowRightLeft className="w-4 h-4" /> Cambiar Base
-            </Button>
+            </button>
             {libreBlockedSegs > 0 ? (
-              <div className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-orange-100 border border-orange-300 text-orange-600 text-sm font-bold h-11">
+              <div className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-orange-500/20 border border-orange-500/30 text-orange-400 text-sm font-bold h-12">
                 <Timer className="w-4 h-4" />
-                Libre en {Math.floor(libreBlockedSegs / 60)}:{String(libreBlockedSegs % 60).padStart(2, "0")}
+                {Math.floor(libreBlockedSegs / 60)}:{String(libreBlockedSegs % 60).padStart(2, "0")}
               </div>
             ) : (
-              <Button
-                variant="outline"
-                className="flex-1 gap-2 rounded-2xl border-red-200 text-red-500 hover:bg-red-50 h-11"
+              <button
+                className="flex-1 flex items-center justify-center gap-2 h-12 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-400 font-semibold text-sm active:scale-95 transition-all"
                 onClick={onGoOffService}
               >
                 <PowerOff className="w-4 h-4" /> Salir
-              </Button>
+              </button>
             )}
           </div>
+
           <DailyStats driverId={driverId} />
+        </div>
+
+        {/* Mapa abajo, ocupa el resto */}
+        <div className="flex-1 min-h-0 rounded-t-3xl overflow-hidden">
+          <RideMap orders={[]} drivers={[driver]} className="h-full w-full" />
         </div>
       </div>
     );
@@ -1564,11 +1573,11 @@ export default function DriverApp() {
   }
 
   return (
-    <div className="h-screen bg-gray-100 flex flex-col max-w-md mx-auto relative overflow-hidden" onTouchStart={unlockAudio} onClick={unlockAudio}>
+    <div className="h-screen bg-gray-950 flex flex-col max-w-md mx-auto relative overflow-hidden" onTouchStart={unlockAudio} onClick={unlockAudio}>
       <InstallBanner />
 
       {/* Header */}
-      <div className="bg-gray-950 text-white px-5 py-4 flex items-center justify-between shrink-0">
+      <div className="bg-gray-900 border-b border-gray-800 text-white px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <img
             src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg"
