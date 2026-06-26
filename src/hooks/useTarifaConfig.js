@@ -79,38 +79,49 @@ const CIUDAD = "Concepción del Uruguay, Entre Ríos, Argentina";
 // Bounding box de Concepción del Uruguay (viewbox para Nominatim)
 const VIEWBOX = "-58.35,-33.20,-58.15,-33.08";
 
-export async function calcularDistanciaRuta(origen, destino) {
+export async function calcularDistanciaRuta(origen, destino, origenCoords = null, destinoCoords = null) {
   try {
     const geocode = async (addr) => {
-      // Siempre agregar ciudad para forzar contexto local
       const query = `${addr}, ${CIUDAD}`;
-      // Intentar primero con bounded=1 (solo resultados dentro del viewbox)
-      const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=ar&bounded=1&viewbox=${VIEWBOX}`,
-        { headers: { "Accept-Language": "es", "User-Agent": "remiseria-app/1.0" } }
-      );
-      const data = await r.json();
-      if (data.length) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-
-      // Fallback: sin bounded pero con viewbox como sugerencia
-      const r2 = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=ar&viewbox=${VIEWBOX}`,
-        { headers: { "Accept-Language": "es", "User-Agent": "remiseria-app/1.0" } }
-      );
-      const data2 = await r2.json();
-      if (!data2.length) return null;
-      return { lat: parseFloat(data2[0].lat), lng: parseFloat(data2[0].lon) };
+      try {
+        const r = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=ar&bounded=1&viewbox=${VIEWBOX}`,
+          { headers: { "Accept-Language": "es", "User-Agent": "remiseria-app/1.0" }, signal: AbortSignal.timeout(5000) }
+        );
+        const data = await r.json();
+        if (data.length) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+        // Fallback sin bounded
+        const r2 = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=ar&viewbox=${VIEWBOX}`,
+          { headers: { "Accept-Language": "es", "User-Agent": "remiseria-app/1.0" }, signal: AbortSignal.timeout(5000) }
+        );
+        const data2 = await r2.json();
+        if (data2.length) return { lat: parseFloat(data2[0].lat), lng: parseFloat(data2[0].lon) };
+      } catch (_) {}
+      return null;
     };
 
-    const [o, d] = await Promise.all([geocode(origen), geocode(destino)]);
+    const [o, d] = await Promise.all([
+      origenCoords || geocode(origen),
+      destinoCoords || geocode(destino),
+    ]);
     if (!o || !d) return null;
 
-    const osrm = await fetch(
-      `https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=false`
-    );
-    const routeData = await osrm.json();
-    if (routeData.code !== "Ok" || !routeData.routes?.length) return null;
-    return Math.round(routeData.routes[0].distance);
+    // Intentar OSRM para distancia de ruta real
+    try {
+      const osrm = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=false`,
+        { signal: AbortSignal.timeout(6000) }
+      );
+      const routeData = await osrm.json();
+      if (routeData.code === "Ok" && routeData.routes?.length) {
+        return Math.round(routeData.routes[0].distance);
+      }
+    } catch (_) {}
+
+    // Fallback: haversine * 1.3 (factor de tortuosidad urbana)
+    const lineal = haversineMetros(o.lat, o.lng, d.lat, d.lng);
+    return Math.round(lineal * 1.3);
   } catch (_) {
     return null;
   }

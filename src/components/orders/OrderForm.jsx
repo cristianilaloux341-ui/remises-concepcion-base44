@@ -49,7 +49,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     if (!pickup || pickup.length < 4 || !dropoff || dropoff.length < 4) return;
     const timeout = setTimeout(async () => {
       setCalculandoTarifa(true);
-      const metros = await calcularDistanciaRuta(pickup, dropoff);
+      const origenCoords = (form.pickup_lat && form.pickup_lng) ? { lat: form.pickup_lat, lng: form.pickup_lng } : null;
+      const metros = await calcularDistanciaRuta(pickup, dropoff, origenCoords, null);
       setCalculandoTarifa(false);
       if (metros) {
         setDistanciaCalculada(metros);
@@ -61,6 +62,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
           importe_estimado: importe,
           importe_real_actual: importe,
         }));
+      } else {
+        setDistanciaCalculada(-1); // señal de fallo
       }
     }, 800);
     return () => clearTimeout(timeout);
@@ -167,7 +170,9 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
   const handleCalcularTarifa = async () => {
     if (!form.pickup_address || !form.dropoff_address) return;
     setCalculandoTarifa(true);
-    const metros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address);
+    setDistanciaCalculada(null);
+    const origenCoords = (form.pickup_lat && form.pickup_lng) ? { lat: form.pickup_lat, lng: form.pickup_lng } : null;
+    const metros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address, origenCoords, null);
     setCalculandoTarifa(false);
     if (metros) {
       setDistanciaCalculada(metros);
@@ -179,6 +184,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
         importe_estimado: importe,
         importe_real_actual: importe,
       }));
+    } else {
+      setDistanciaCalculada(-1);
     }
   };
 
@@ -503,9 +510,14 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
                   Calcular
                 </Button>
               </div>
-              {distanciaCalculada && (
+              {distanciaCalculada > 0 && (
                 <p className="text-xs text-green-600">
-                  📍 {(distanciaCalculada / 1000).toFixed(1)} km · Bandera ${tarifa.bajada_bandera} + ${tarifa.precio_por_km}/km {tarifa.es_nocturna ? "🌙 nocturna" : ""}
+                  📍 {(distanciaCalculada / 1000).toFixed(1)} km · Bandera ${tarifa.bajada_bandera} + ${tarifa.precio_por_metro}/m {tarifa.es_nocturna ? "🌙 nocturna" : ""}
+                </p>
+              )}
+              {distanciaCalculada === -1 && (
+                <p className="text-xs text-amber-600">
+                  ⚠ No se pudo calcular la distancia — ingresá el monto manualmente
                 </p>
               )}
               {calculandoTarifa && (
