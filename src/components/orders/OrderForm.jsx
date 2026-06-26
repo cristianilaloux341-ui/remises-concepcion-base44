@@ -42,18 +42,46 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
   const [distanciaCalculada, setDistanciaCalculada] = useState(null);
   const tarifa = useTarifaConfig();
 
-  // Auto-calcular tarifa cuando ambas direcciones Y sus coordenadas estén disponibles
+  // Geocodifica una dirección de texto si no tiene coords, usando Google Places
+  const geocodeAddress = async (address) => {
+    try {
+      const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address });
+      const predictions = res.data?.predictions;
+      if (!predictions || predictions.length === 0) return null;
+      const details = await base44.functions.invoke("geocodeRoute", {
+        action: "placedetails",
+        place_id: predictions[0].place_id,
+        description: predictions[0].description,
+      });
+      if (details.data?.lat && details.data?.lng) return { lat: details.data.lat, lng: details.data.lng };
+    } catch (_) {}
+    return null;
+  };
+
+  // Auto-calcular tarifa cuando ambas direcciones estén completas
   useEffect(() => {
     const pickup = form.pickup_address?.trim();
     const dropoff = form.dropoff_address?.trim();
     if (!pickup || pickup.length < 4 || !dropoff || dropoff.length < 4) return;
-    // Esperar a que las coordenadas estén cargadas antes de calcular
-    if (!form.pickup_lat || !form.pickup_lng || !form.dropoff_lat || !form.dropoff_lng) return;
 
     const timeout = setTimeout(async () => {
       setCalculandoTarifa(true);
-      const origenCoords = { lat: form.pickup_lat, lng: form.pickup_lng };
-      const destinoCoords = { lat: form.dropoff_lat, lng: form.dropoff_lng };
+
+      // Usar coords del form si están disponibles, si no geocodificar
+      let origenCoords = (form.pickup_lat && form.pickup_lng) ? { lat: form.pickup_lat, lng: form.pickup_lng } : await geocodeAddress(pickup);
+      let destinoCoords = (form.dropoff_lat && form.dropoff_lng) ? { lat: form.dropoff_lat, lng: form.dropoff_lng } : await geocodeAddress(dropoff);
+
+      // Guardar coords en el form si las obtuvimos por geocodificación
+      if (origenCoords || destinoCoords) {
+        setForm(prev => ({
+          ...prev,
+          pickup_lat: origenCoords?.lat ?? prev.pickup_lat,
+          pickup_lng: origenCoords?.lng ?? prev.pickup_lng,
+          dropoff_lat: destinoCoords?.lat ?? prev.dropoff_lat,
+          dropoff_lng: destinoCoords?.lng ?? prev.dropoff_lng,
+        }));
+      }
+
       const metros = await calcularDistanciaRuta(pickup, dropoff, origenCoords, destinoCoords);
       setCalculandoTarifa(false);
       if (metros) {
@@ -69,9 +97,9 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       } else {
         setDistanciaCalculada(-1);
       }
-    }, 400);
+    }, 1000);
     return () => clearTimeout(timeout);
-  }, [form.pickup_lat, form.pickup_lng, form.dropoff_lat, form.dropoff_lng]);
+  }, [form.pickup_address, form.dropoff_address]);
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
@@ -175,8 +203,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     if (!form.pickup_address || !form.dropoff_address) return;
     setCalculandoTarifa(true);
     setDistanciaCalculada(null);
-    const origenCoords = (form.pickup_lat && form.pickup_lng) ? { lat: form.pickup_lat, lng: form.pickup_lng } : null;
-    const destinoCoords = (form.dropoff_lat && form.dropoff_lng) ? { lat: form.dropoff_lat, lng: form.dropoff_lng } : null;
+    let origenCoords = (form.pickup_lat && form.pickup_lng) ? { lat: form.pickup_lat, lng: form.pickup_lng } : await geocodeAddress(form.pickup_address.trim());
+    let destinoCoords = (form.dropoff_lat && form.dropoff_lng) ? { lat: form.dropoff_lat, lng: form.dropoff_lng } : await geocodeAddress(form.dropoff_address.trim());
     const metros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address, origenCoords, destinoCoords);
     setCalculandoTarifa(false);
     if (metros) {
