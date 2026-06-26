@@ -12,7 +12,7 @@
     },
     "email": {
       "type": "string",
-      "description": "Correo electr\u00f3nico (para env\u00edo de acceso)"
+      "description": "Correo electr\u00f3nico (para env\u00edo de acceso y login)"
     },
     "pin": {
       "type": "string",
@@ -22,7 +22,9 @@
       "type": "string",
       "enum": [
         "admin",
-        "operador"
+        "operador",
+        "caja",
+        "supervisor"
       ],
       "default": "operador",
       "description": "Rol en el sistema"

@@ -54,14 +54,13 @@ import Usuarios from '@/pages/Usuarios';
 import Backup from '@/pages/Backup';
 import Profile from '@/pages/Profile';
 
-function AdminRoute({ children }) {
+function AdminRoute({ children, allowRoles = ["admin"] }) {
   const { user } = useAuth();
-  // Verificar también el operador local (login por celular+PIN)
   const localOperator = (() => {
     try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; }
   })();
   const effectiveRole = localOperator ? localOperator.role : user?.role;
-  if (effectiveRole !== "admin") return <Navigate to="/" replace />;
+  if (!allowRoles.includes(effectiveRole)) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -113,14 +112,14 @@ const AuthenticatedApp = () => {
           <Route path="/clients" element={<Clients />} />
           <Route path="/agenda" element={<Agenda />} />
           <Route path="/messages" element={<Messages />} />
-          <Route path="/drivers" element={<AdminRoute><Drivers /></AdminRoute>} />
-          <Route path="/driver-link" element={<AdminRoute><DriverLink /></AdminRoute>} />
-          <Route path="/zone-settings" element={<AdminRoute><ZoneSettings /></AdminRoute>} />
-          <Route path="/tarifas" element={<AdminRoute><Tarifas /></AdminRoute>} />
-          <Route path="/moviles" element={<AdminRoute><Moviles /></AdminRoute>} />
-          <Route path="/tiempo-espera" element={<AdminRoute><TiempoEspera /></AdminRoute>} />
-          <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
-          <Route path="/backup" element={<AdminRoute><Backup /></AdminRoute>} />
+          <Route path="/drivers" element={<AdminRoute allowRoles={["admin","supervisor"]}><Drivers /></AdminRoute>} />
+          <Route path="/driver-link" element={<AdminRoute allowRoles={["admin"]}><DriverLink /></AdminRoute>} />
+          <Route path="/zone-settings" element={<AdminRoute allowRoles={["admin"]}><ZoneSettings /></AdminRoute>} />
+          <Route path="/tarifas" element={<AdminRoute allowRoles={["admin"]}><Tarifas /></AdminRoute>} />
+          <Route path="/moviles" element={<AdminRoute allowRoles={["admin","supervisor"]}><Moviles /></AdminRoute>} />
+          <Route path="/tiempo-espera" element={<AdminRoute allowRoles={["admin"]}><TiempoEspera /></AdminRoute>} />
+          <Route path="/usuarios" element={<AdminRoute allowRoles={["admin"]}><Usuarios /></AdminRoute>} />
+          <Route path="/backup" element={<AdminRoute allowRoles={["admin"]}><Backup /></AdminRoute>} />
           <Route path="/profile" element={<Profile />} />
         </Route>
       </Route>

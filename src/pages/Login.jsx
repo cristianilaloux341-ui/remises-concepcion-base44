@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Phone, Lock, Loader2, Car } from "lucide-react";
 
 export default function Login() {
-  const [phone, setPhone] = useState("");
+  const [identifier, setIdentifier] = useState(""); // teléfono o email
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,9 +16,18 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const operators = await base44.entities.Operator.filter({ phone: phone.trim(), active: true });
+      const val = identifier.trim();
+      const isEmail = val.includes("@");
+
+      let operators = [];
+      if (isEmail) {
+        operators = await base44.entities.Operator.filter({ email: val, active: true });
+      } else {
+        operators = await base44.entities.Operator.filter({ phone: val, active: true });
+      }
+
       if (!operators || operators.length === 0) {
-        setError("Número de celular no encontrado o usuario deshabilitado.");
+        setError("Usuario no encontrado o deshabilitado.");
         setLoading(false);
         return;
       }
@@ -45,22 +54,21 @@ export default function Login() {
             <Car className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-2xl font-bold">Central de Despacho</h1>
-          <p className="text-muted-foreground text-sm mt-1">Ingresá con tu número y PIN</p>
+          <p className="text-muted-foreground text-sm mt-1">Ingresá con tu celular o email y PIN</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="phone">Número de celular</Label>
+            <Label htmlFor="identifier">Celular o Email</Label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                id="phone"
-                type="tel"
-                inputMode="numeric"
+                id="identifier"
+                type="text"
                 autoFocus
-                placeholder="3442 123456"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                placeholder="3442 123456 o email@ejemplo.com"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 className="pl-10 h-12"
                 required
               />

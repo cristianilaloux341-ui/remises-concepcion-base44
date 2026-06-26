@@ -8,20 +8,30 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Users, UserPlus, Phone, Shield, User, Loader2, CheckCircle2, AlertCircle, Trash2, KeyRound, Pencil, PowerOff, Power, Mail } from "lucide-react";
+import { Users, UserPlus, Phone, Shield, User, Loader2, CheckCircle2, AlertCircle, Trash2, KeyRound, Pencil, PowerOff, Power, Mail, ShoppingBag, Eye } from "lucide-react";
+import { ROLE_LABELS, ROLE_COLORS } from "@/lib/permissions";
 
 const ROLES = [
-  { value: "admin", label: "Administrador", color: "bg-purple-100 text-purple-700 border-purple-200" },
-  { value: "operador", label: "Operador", color: "bg-blue-100 text-blue-700 border-blue-200" },
+  { value: "admin",      label: "Administrador",          icon: Shield,      desc: "Acceso total" },
+  { value: "supervisor", label: "Supervisor",              icon: Eye,         desc: "Ve todo, no configura" },
+  { value: "operador",   label: "Operador de Despacho",   icon: User,        desc: "Despacho y clientes" },
+  { value: "caja",       label: "Administrativo de Caja", icon: ShoppingBag, desc: "Caja y estadísticas" },
 ];
+
+const PERMISOS_POR_ROL = {
+  admin:      ["Dashboard", "Órdenes", "Mapa", "Clientes", "Agenda", "Mensajes", "Choferes", "Móviles", "Tarifas", "Zonas", "Usuarios", "Backup"],
+  supervisor: ["Dashboard", "Órdenes", "Mapa", "Clientes", "Agenda", "Mensajes", "Choferes", "Móviles"],
+  operador:   ["Dashboard", "Órdenes", "Mapa", "Clientes", "Agenda", "Mensajes"],
+  caja:       ["Dashboard", "Clientes", "Agenda", "Estadísticas financieras"],
+};
 
 function OperatorForm({ initial, onSubmit, isSubmitting }) {
   const [form, setForm] = useState({
-    name: initial?.name || "",
+    name:  initial?.name  || "",
     phone: initial?.phone || "",
     email: initial?.email || "",
-    pin: "",
-    role: initial?.role || "operador",
+    pin:   "",
+    role:  initial?.role  || "operador",
     notes: initial?.notes || "",
   });
   const [error, setError] = useState("");
@@ -29,7 +39,7 @@ function OperatorForm({ initial, onSubmit, isSubmitting }) {
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setError(""); };
 
   const handleSubmit = () => {
-    if (!form.name.trim()) { setError("El nombre es obligatorio"); return; }
+    if (!form.name.trim())  { setError("El nombre es obligatorio"); return; }
     if (!form.phone.trim()) { setError("El teléfono es obligatorio"); return; }
     if (!initial && (!form.pin || form.pin.length < 4)) { setError("El PIN debe tener al menos 4 dígitos"); return; }
     if (!initial && !/^\d+$/.test(form.pin)) { setError("El PIN solo puede contener números"); return; }
@@ -38,6 +48,8 @@ function OperatorForm({ initial, onSubmit, isSubmitting }) {
     if (form.pin) data.pin = form.pin;
     onSubmit(data);
   };
+
+  const selectedRole = ROLES.find(r => r.value === form.role);
 
   return (
     <div className="space-y-4">
@@ -50,33 +62,55 @@ function OperatorForm({ initial, onSubmit, isSubmitting }) {
         <Input type="tel" inputMode="numeric" placeholder="3442 123456" value={form.phone} onChange={e => set("phone", e.target.value)} />
       </div>
       <div className="space-y-1">
-        <Label>Email (para envío de acceso)</Label>
+        <Label>Email (para login y envío de acceso)</Label>
         <Input type="email" placeholder="ejemplo@correo.com" value={form.email} onChange={e => set("email", e.target.value)} />
       </div>
       <div className="space-y-1">
         <Label>{initial ? "Nuevo PIN (dejar vacío para no cambiar)" : "PIN de acceso (4-6 dígitos)"}</Label>
         <Input type="password" inputMode="numeric" maxLength={6} placeholder="••••" value={form.pin} onChange={e => set("pin", e.target.value.replace(/\D/g, ""))} />
       </div>
-      <div className="space-y-1">
-        <Label>Rol</Label>
-        <div className="flex gap-2">
-          {ROLES.map(r => (
-            <button
-              key={r.value}
-              type="button"
-              onClick={() => set("role", r.value)}
-              className={`flex-1 py-2.5 rounded-xl border-2 font-semibold text-sm transition-all flex items-center justify-center gap-2 ${form.role === r.value ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
-            >
-              {r.value === "admin" ? <Shield className="w-4 h-4" /> : <User className="w-4 h-4" />}
-              {r.label}
-            </button>
-          ))}
+
+      {/* Selector de rol */}
+      <div className="space-y-2">
+        <Label>Rol y permisos</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {ROLES.map(r => {
+            const Icon = r.icon;
+            return (
+              <button
+                key={r.value}
+                type="button"
+                onClick={() => set("role", r.value)}
+                className={`p-3 rounded-xl border-2 text-left transition-all ${form.role === r.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon className={`w-4 h-4 ${form.role === r.value ? "text-primary" : "text-muted-foreground"}`} />
+                  <span className={`font-semibold text-xs ${form.role === r.value ? "text-primary" : "text-foreground"}`}>{r.label}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">{r.desc}</p>
+              </button>
+            );
+          })}
         </div>
+
+        {/* Permisos del rol seleccionado */}
+        {selectedRole && (
+          <div className="bg-muted/50 rounded-xl p-3">
+            <p className="text-xs font-semibold text-muted-foreground mb-2">Acceso del rol seleccionado:</p>
+            <div className="flex flex-wrap gap-1">
+              {(PERMISOS_POR_ROL[form.role] || []).map(p => (
+                <span key={p} className="text-xs bg-background border border-border rounded-full px-2 py-0.5">{p}</span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
       <div className="space-y-1">
         <Label>Notas (opcional)</Label>
         <Input placeholder="Turno mañana, etc." value={form.notes} onChange={e => set("notes", e.target.value)} />
       </div>
+
       {error && (
         <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
           <AlertCircle className="w-4 h-4 shrink-0" /> {error}
@@ -92,9 +126,9 @@ function OperatorForm({ initial, onSubmit, isSubmitting }) {
 
 export default function Usuarios() {
   const qc = useQueryClient();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingOp, setEditingOp] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [dialogOpen, setDialogOpen]       = useState(false);
+  const [editingOp, setEditingOp]         = useState(null);
+  const [deleteTarget, setDeleteTarget]   = useState(null);
   const [resetPinTarget, setResetPinTarget] = useState(null);
   const [resetPinSuccess, setResetPinSuccess] = useState(null);
   const [resetPinLoading, setResetPinLoading] = useState(false);
@@ -113,7 +147,7 @@ export default function Usuarios() {
         await base44.integrations.Core.SendEmail({
           to: data.email,
           subject: "Tus datos de acceso — Central de Despacho",
-          body: `Hola ${data.name},\n\nTu cuenta de acceso a la Central de Despacho fue creada.\n\n📱 Celular: ${data.phone}\n🔑 PIN: ${data.pin}\n\nIngresá desde:\n${appUrl}\n\nPor seguridad, te recomendamos no compartir tu PIN con nadie.\n\nSaludos,\nEquipo de la Central`
+          body: `Hola ${data.name},\n\nTu cuenta de acceso a la Central de Despacho fue creada.\n\n📱 Celular: ${data.phone}\n📧 Email: ${data.email}\n🔑 PIN: ${data.pin}\n👤 Rol: ${ROLE_LABELS[data.role] || data.role}\n\nPodés ingresar con tu celular o email desde:\n${appUrl}\n\nPor seguridad, no compartas tu PIN.\n\nSaludos,\nEquipo de la Central`
         });
       }
       return op;
@@ -136,7 +170,11 @@ export default function Usuarios() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["operators"] }); setDeleteTarget(null); },
   });
 
-  const roleInfo = (r) => ROLES.find(x => x.value === r) || ROLES[1];
+  // Agrupar por rol
+  const grouped = ROLES.map(r => ({
+    ...r,
+    ops: operators.filter(op => op.role === r.value),
+  })).filter(g => g.ops.length > 0);
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -144,10 +182,10 @@ export default function Usuarios() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Users className="w-6 h-6 text-primary" />
-            Operadores y Admins
+            Operadores y Roles
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Ingresarán con su número de celular y PIN.
+            Hasta 6 usuarios trabajando en simultáneo. Login por celular o email + PIN.
           </p>
         </div>
         <Button onClick={() => setDialogOpen(true)} className="gap-2">
@@ -157,7 +195,7 @@ export default function Usuarios() {
 
       {/* Dialog crear */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nuevo operador</DialogTitle></DialogHeader>
           <OperatorForm onSubmit={(data) => createMutation.mutate(data)} isSubmitting={createMutation.isPending} />
         </DialogContent>
@@ -165,13 +203,13 @@ export default function Usuarios() {
 
       {/* Dialog editar */}
       <Dialog open={!!editingOp} onOpenChange={(v) => !v && setEditingOp(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Editar — {editingOp?.name}</DialogTitle></DialogHeader>
           <OperatorForm initial={editingOp} onSubmit={(data) => editMutation.mutate({ id: editingOp.id, data })} isSubmitting={editMutation.isPending} />
         </DialogContent>
       </Dialog>
 
-      {/* Lista */}
+      {/* Lista agrupada por rol */}
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -182,59 +220,69 @@ export default function Usuarios() {
           No hay operadores registrados aún.
         </div>
       ) : (
-        <div className="space-y-2">
-          {operators.map((op) => {
-            const ri = roleInfo(op.role);
+        <div className="space-y-5">
+          {grouped.map(group => {
+            const Icon = group.icon;
             return (
-              <Card key={op.id} className={`transition-shadow ${op.active === false ? "opacity-60" : "hover:shadow-sm"}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      {op.role === "admin" ? <Shield className="w-5 h-5 text-purple-500" /> : <User className="w-5 h-5 text-blue-500" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm">{op.name}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Phone className="w-3 h-3" /> {op.phone}
-                        {op.pin ? <span className="ml-2 text-green-600 font-medium">· PIN creado</span> : <span className="ml-2 text-amber-500 font-medium">· Sin PIN</span>}
-                      </p>
-                      {op.email && <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="w-3 h-3" /> {op.email}</p>}
-                    </div>
-                    <Badge variant="outline" className={`text-xs shrink-0 ${ri.color}`}>{ri.label}</Badge>
-                    <div className="flex items-center gap-1">
-                      <button
-                        title="Editar"
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                        onClick={() => setEditingOp(op)}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        title="Resetear PIN"
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-50 transition-colors"
-                        onClick={() => { setResetPinTarget(op); setResetPinSuccess(null); }}
-                      >
-                        <KeyRound className="w-4 h-4" />
-                      </button>
-                      <button
-                        title={op.active === false ? "Habilitar" : "Deshabilitar"}
-                        className={`p-1.5 rounded-lg transition-colors ${op.active === false ? "text-green-600 hover:bg-green-50" : "text-muted-foreground hover:text-orange-600 hover:bg-orange-50"}`}
-                        onClick={() => toggleMutation.mutate({ id: op.id, active: op.active === false ? true : false })}
-                      >
-                        {op.active === false ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
-                      </button>
-                      <button
-                        title="Eliminar"
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
-                        onClick={() => setDeleteTarget(op)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                  {op.notes && <p className="mt-2 text-xs text-muted-foreground pl-13 ml-[52px]">{op.notes}</p>}
-                </CardContent>
-              </Card>
+              <div key={group.value}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Icon className="w-4 h-4 text-muted-foreground" />
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">{group.label}</h3>
+                  <span className="text-xs text-muted-foreground">({group.ops.length})</span>
+                </div>
+                <div className="space-y-2">
+                  {group.ops.map((op) => (
+                    <Card key={op.id} className={`transition-shadow ${op.active === false ? "opacity-60" : "hover:shadow-sm"}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <Icon className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-sm">{op.name}</p>
+                              {op.active === false && <span className="text-xs text-orange-500 font-medium">Deshabilitado</span>}
+                            </div>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Phone className="w-3 h-3" /> {op.phone}
+                              {op.pin
+                                ? <span className="ml-2 text-green-600 font-medium">· PIN creado</span>
+                                : <span className="ml-2 text-amber-500 font-medium">· Sin PIN</span>}
+                            </p>
+                            {op.email && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Mail className="w-3 h-3" /> {op.email}
+                              </p>
+                            )}
+                          </div>
+                          <Badge variant="outline" className={`text-xs shrink-0 ${ROLE_COLORS[op.role] || ""}`}>
+                            {ROLE_LABELS[op.role] || op.role}
+                          </Badge>
+                          <div className="flex items-center gap-1">
+                            <button title="Editar" className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors" onClick={() => setEditingOp(op)}>
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button title="Resetear PIN" className="p-1.5 rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-50 transition-colors" onClick={() => { setResetPinTarget(op); setResetPinSuccess(null); }}>
+                              <KeyRound className="w-4 h-4" />
+                            </button>
+                            <button
+                              title={op.active === false ? "Habilitar" : "Deshabilitar"}
+                              className={`p-1.5 rounded-lg transition-colors ${op.active === false ? "text-green-600 hover:bg-green-50" : "text-muted-foreground hover:text-orange-600 hover:bg-orange-50"}`}
+                              onClick={() => toggleMutation.mutate({ id: op.id, active: op.active === false ? true : false })}
+                            >
+                              {op.active === false ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
+                            </button>
+                            <button title="Eliminar" className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors" onClick={() => setDeleteTarget(op)}>
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        {op.notes && <p className="mt-2 text-xs text-muted-foreground ml-[52px]">{op.notes}</p>}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
             );
           })}
         </div>
@@ -249,14 +297,14 @@ export default function Usuarios() {
               Resetear PIN — {resetPinTarget?.name}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Se generará un PIN temporal de 4 dígitos. Dáselo al operador para que ingrese.
+              Se generará un PIN temporal de 4 dígitos.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {resetPinSuccess && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
               <p className="text-sm text-green-700">PIN temporal generado:</p>
               <p className="text-3xl font-mono font-black text-green-800 tracking-[0.3em] mt-1">{resetPinSuccess}</p>
-              <p className="text-xs text-green-600 mt-1">Entregáselo al operador en persona.</p>
+              <p className="text-xs text-green-600 mt-1">Entregáselo al operador en persona o fue enviado por email.</p>
             </div>
           )}
           <div className="flex gap-3 mt-2">
