@@ -1,7 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 Deno.serve(async (req) => {
-  const MAPBOX_TOKEN = Deno.env.get("MAPBOX_ACCESS_TOKEN");
   try {
     const base44 = createClientFromRequest(req);
     const authenticated = await base44.auth.isAuthenticated();
@@ -15,7 +14,6 @@ Deno.serve(async (req) => {
       const { input } = body;
       if (!input || input.length < 2) return Response.json({ predictions: [] });
 
-      // Nominatim biased a Gualeguaychú, Entre Ríos, Argentina
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(input + ", Gualeguaychú, Entre Ríos, Argentina")}&format=json&limit=8&countrycodes=ar&addressdetails=1`;
       const r = await fetch(url, { headers: { "User-Agent": "TaxiDispatchApp/1.0", "Accept-Language": "es" } });
       const data = await r.json();
@@ -41,12 +39,11 @@ Deno.serve(async (req) => {
       return Response.json({ predictions });
     }
 
-    // ── 2. Obtener lat/lng de un place_id (coordenadas ya embedidas en el ID) ──
+    // ── 2. Obtener lat/lng de un place_id (coords embebidas en el ID) ───────
     if (action === "placedetails") {
       const { place_id, description } = body;
       if (!place_id) return Response.json({ error: "place_id required" }, { status: 400 });
 
-      // Si el place_id tiene coords embebidas (photon_lat_lng), extraerlas directamente
       if (place_id.startsWith("photon_") || place_id.startsWith("osm_")) {
         const parts = place_id.replace("photon_", "").replace("osm_", "").split("_");
         const lat = parseFloat(parts[0]);
