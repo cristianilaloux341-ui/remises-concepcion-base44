@@ -26,7 +26,12 @@ export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthe
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     }
-    return unauthenticatedElement;
+    // auth_required on public app = just not logged in, show unauthenticated
+    if (authError.type === 'auth_required') {
+      return unauthenticatedElement;
+    }
+    // Other errors (network, unknown): let through so user sees something
+    return <Outlet />;
   }
 
   if (!isAuthenticated) {
