@@ -1061,8 +1061,8 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
           <DailyStats driverId={driverId} />
         </div>
 
-        {/* Mapa abajo, ocupa el resto */}
-        <div className="flex-1 min-h-0 rounded-t-3xl overflow-hidden">
+        {/* Mapa compacto — solo referencia visual */}
+        <div className="mx-4 mb-4 h-36 rounded-2xl overflow-hidden border border-gray-800 pointer-events-none opacity-70">
           <RideMap orders={[]} drivers={[driver]} className="h-full w-full" />
         </div>
       </div>
