@@ -797,9 +797,9 @@ function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-gray-950">
+    <div className="flex-1 overflow-y-auto bg-gray-950">
       {/* Panel superior: info + acciones */}
-      <div className="shrink-0 px-4 pt-4 pb-3 space-y-3">
+      <div className="px-4 pt-4 pb-6 space-y-3">
         {/* Header estado */}
         <div className="flex items-center justify-between">
           <p className="font-bold text-white text-base">Viaje en Curso</p>
@@ -887,10 +887,6 @@ function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
         )}
       </div>
 
-      {/* Mapa abajo, ocupa el espacio restante */}
-      <div className="flex-1 min-h-0 rounded-t-3xl overflow-hidden">
-        <RideMap orders={[order]} drivers={[]} className="h-full w-full" />
-      </div>
     </div>
   );
 }
