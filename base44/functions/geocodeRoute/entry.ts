@@ -1,9 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-const GOOGLE_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY");
-const MAPBOX_TOKEN = Deno.env.get("MAPBOX_ACCESS_TOKEN");
-
 Deno.serve(async (req) => {
+  const GOOGLE_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY");
+  const MAPBOX_TOKEN = Deno.env.get("MAPBOX_ACCESS_TOKEN");
   try {
     const base44 = createClientFromRequest(req);
     const authenticated = await base44.auth.isAuthenticated();
