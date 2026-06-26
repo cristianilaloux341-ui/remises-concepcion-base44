@@ -101,13 +101,14 @@ export async function calcularDistanciaRuta(origen, destino, origenCoords = null
       return null;
     };
 
+    // Usar coords ya conocidas; geocodificar solo las que faltan
     const [o, d] = await Promise.all([
-      origenCoords || geocode(origen),
-      destinoCoords || geocode(destino),
+      origenCoords ? Promise.resolve(origenCoords) : geocode(origen),
+      destinoCoords ? Promise.resolve(destinoCoords) : geocode(destino),
     ]);
     if (!o || !d) return null;
 
-    // Intentar OSRM para distancia de ruta real
+    // OSRM: ruta real por calles
     try {
       const osrm = await fetch(
         `https://router.project-osrm.org/route/v1/driving/${o.lng},${o.lat};${d.lng},${d.lat}?overview=false`,
@@ -119,7 +120,7 @@ export async function calcularDistanciaRuta(origen, destino, origenCoords = null
       }
     } catch (_) {}
 
-    // Fallback: haversine * 1.3 (factor de tortuosidad urbana)
+    // Fallback: haversine × 1.3 si OSRM no responde
     const lineal = haversineMetros(o.lat, o.lng, d.lat, d.lng);
     return Math.round(lineal * 1.3);
   } catch (_) {

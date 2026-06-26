@@ -50,7 +50,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     const timeout = setTimeout(async () => {
       setCalculandoTarifa(true);
       const origenCoords = (form.pickup_lat && form.pickup_lng) ? { lat: form.pickup_lat, lng: form.pickup_lng } : null;
-      const metros = await calcularDistanciaRuta(pickup, dropoff, origenCoords, null);
+      const destinoCoords = (form.dropoff_lat && form.dropoff_lng) ? { lat: form.dropoff_lat, lng: form.dropoff_lng } : null;
+      const metros = await calcularDistanciaRuta(pickup, dropoff, origenCoords, destinoCoords);
       setCalculandoTarifa(false);
       if (metros) {
         setDistanciaCalculada(metros);
@@ -172,7 +173,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     setCalculandoTarifa(true);
     setDistanciaCalculada(null);
     const origenCoords = (form.pickup_lat && form.pickup_lng) ? { lat: form.pickup_lat, lng: form.pickup_lng } : null;
-    const metros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address, origenCoords, null);
+    const destinoCoords = (form.dropoff_lat && form.dropoff_lng) ? { lat: form.dropoff_lat, lng: form.dropoff_lng } : null;
+    const metros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address, origenCoords, destinoCoords);
     setCalculandoTarifa(false);
     if (metros) {
       setDistanciaCalculada(metros);
@@ -306,7 +308,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
               <Label>Recogida</Label>
               <PickupAutocomplete
                 value={form.pickup_address}
-                onChange={(v) => handleChange("pickup_address", v)}
+                onChange={(v, coords) => setForm(prev => ({ ...prev, pickup_address: v, pickup_lat: coords?.lat ?? prev.pickup_lat, pickup_lng: coords?.lng ?? prev.pickup_lng }))}
                 onClientSelect={handleAddressClientSelect}
                 required
               />
@@ -396,7 +398,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
               <Label>Destino Principal</Label>
               <AddressAutocomplete
                 value={form.dropoff_address}
-                onChange={(v) => handleChange("dropoff_address", v)}
+                onChange={(v, coords) => setForm(prev => ({ ...prev, dropoff_address: v, dropoff_lat: coords?.lat ?? prev.dropoff_lat, dropoff_lng: coords?.lng ?? prev.dropoff_lng }))}
                 placeholder="Calle y número de destino"
                 icon={<MapPin className="w-4 h-4 text-red-500" />}
               />

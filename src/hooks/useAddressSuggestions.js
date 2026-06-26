@@ -29,25 +29,26 @@ async function fetchNominatim(query) {
   const data = await res.json();
   const results = data
     .filter(d => {
-      // Solo resultados dentro de Concepción del Uruguay
       const city = (d.address?.city || d.address?.town || d.address?.village || "").toLowerCase();
       return city.includes("concepci") || city === "";
     })
     .map(d => {
       const a = d.address || {};
-      // Armar "Calle Número" limpio
       const road = a.road || a.pedestrian || a.footway || "";
       const number = a.house_number || "";
-      if (road) return number ? `${road} ${number}` : road;
-      // Fallback: tomar los primeros 2 segmentos del display_name
-      const parts = d.display_name.split(",").map(p => p.trim());
-      return parts.slice(0, 2).join(", ");
+      let label;
+      if (road) label = number ? `${road} ${number}` : road;
+      else {
+        const parts = d.display_name.split(",").map(p => p.trim());
+        label = parts.slice(0, 2).join(", ");
+      }
+      return label ? { address: label, lat: parseFloat(d.lat), lng: parseFloat(d.lon) } : null;
     })
     .filter(Boolean);
 
-  // Deduplicar
+  // Deduplicar por label
   const seen = new Set();
-  const unique = results.filter(r => { if (seen.has(r)) return false; seen.add(r); return true; });
+  const unique = results.filter(r => { if (seen.has(r.address)) return false; seen.add(r.address); return true; });
 
   nominatimCache.set(query, unique);
   if (nominatimCache.size > 100) nominatimCache.delete(nominatimCache.keys().next().value);
@@ -81,12 +82,12 @@ export function useAddressSuggestions(query) {
     .slice(0, 4)
     .map(a => ({ id: `h_${a.id}`, address: a.address, usage_count: a.usage_count, source: "history" }));
 
-  // Sugerencias OSM — deduplicar contra historial
+  // Sugerencias OSM — deduplicar contra historial (osmSuggestions ahora son { address, lat, lng })
   const historialNorms = new Set(historial.map(h => normalize(h.address)));
   const osmItems = osmSuggestions
-    .filter(addr => !historialNorms.has(normalize(addr)))
+    .filter(item => !historialNorms.has(normalize(item.address)))
     .slice(0, 6)
-    .map((addr, i) => ({ id: `osm_${i}`, address: addr, usage_count: 0, source: "osm" }));
+    .map((item, i) => ({ id: `osm_${i}`, address: item.address, lat: item.lat, lng: item.lng, usage_count: 0, source: "osm" }));
 
   return [...historial, ...osmItems].slice(0, 8);
 }

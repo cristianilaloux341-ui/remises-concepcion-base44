@@ -26,14 +26,18 @@ async function fetchNominatim(query) {
       const a = d.address || {};
       const road = a.road || a.pedestrian || a.footway || "";
       const number = a.house_number || "";
-      if (road) return number ? `${road} ${number}` : road;
-      const parts = d.display_name.split(",").map(p => p.trim());
-      return parts.slice(0, 2).join(", ");
+      let label;
+      if (road) label = number ? `${road} ${number}` : road;
+      else {
+        const parts = d.display_name.split(",").map(p => p.trim());
+        label = parts.slice(0, 2).join(", ");
+      }
+      return label ? { address: label, lat: parseFloat(d.lat), lng: parseFloat(d.lon) } : null;
     })
     .filter(Boolean);
 
   const seen = new Set();
-  const unique = results.filter(r => { if (seen.has(r)) return false; seen.add(r); return true; });
+  const unique = results.filter(r => { if (seen.has(r.address)) return false; seen.add(r.address); return true; });
 
   nominatimCache.set(query, unique);
   if (nominatimCache.size > 100) nominatimCache.delete(nominatimCache.keys().next().value);
@@ -105,12 +109,12 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
       .map((a) => ({ ...a, type: "history", full_address: a.address }))
       .slice(0, 3);
 
-    // OSM results — deduplicate
+    // OSM results — deduplicate (osmResults ahora son { address, lat, lng })
     const localNorms = new Set([...clientResults, ...historyResults].map(r => normalize(r.full_address)));
     const osmItems = osmResults
-      .filter(addr => !localNorms.has(normalize(addr)))
+      .filter(item => !localNorms.has(normalize(item.address)))
       .slice(0, 4)
-      .map((addr, i) => ({ id: `osm_${i}`, full_address: addr, type: "osm", usage_count: 0 }));
+      .map((item, i) => ({ id: `osm_${i}`, full_address: item.address, lat: item.lat, lng: item.lng, type: "osm", usage_count: 0 }));
 
     return [...clientResults, ...historyResults, ...osmItems];
   }, [debouncedQuery, clientAddresses, addressHistory, osmResults]);
@@ -124,7 +128,8 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
 
   const handleSelect = (s) => {
     setInputValue(s.full_address);
-    onChange(s.full_address);
+    const coords = s.lat && s.lng ? { lat: s.lat, lng: s.lng } : null;
+    onChange(s.full_address, coords);
     setOpen(false);
     if (s.type === "client") {
       onClientSelect?.({

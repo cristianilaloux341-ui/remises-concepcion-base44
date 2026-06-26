@@ -30,9 +30,9 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
     setOpen(val.length >= 3);
   };
 
-  const handleSelect = (address) => {
-    setInputValue(address);
-    onChange(address);
+  const handleSelect = (s) => {
+    setInputValue(s.address);
+    onChange(s.address, s.lat && s.lng ? { lat: s.lat, lng: s.lng } : null);
     setOpen(false);
   };
 
@@ -62,7 +62,7 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
               type="button"
               className="w-full px-4 py-2.5 text-left hover:bg-muted flex items-center gap-3 transition-colors"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => handleSelect(s.address)}
+              onClick={() => handleSelect(s)}
             >
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 {s.source === "osm"
