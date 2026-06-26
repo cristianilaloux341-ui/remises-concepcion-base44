@@ -946,7 +946,7 @@ function OffServiceScreen({ onGoOnService }) {
 }
 
 // ── Idle / waiting screen ─────────────────────────────────────────────────────
-function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onChangeBase, onGoOffService, driverId, libreBlockedSegs = 0 }) {
+function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onChangeBase, onGoOffService, driverId, libreBlockedSegs = 0, movilByPlate = {} }) {
   const [changingBase, setChangingBase] = useState(false);
   const [newBase, setNewBase] = useState("");
 
@@ -1024,14 +1024,17 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
 
           {/* Cola compacta */}
           <div className="flex gap-1.5 flex-wrap">
-            {baseQueue.map((d, i) => (
-              <span
-                key={d.id}
-                className={`text-xs px-2.5 py-1 rounded-xl font-medium ${d.id === driver.id ? "bg-green-500 text-white" : "bg-gray-100 text-gray-500"}`}
-              >
-                {i + 1}. {d.name.split(" ")[0]}
-              </span>
-            ))}
+            {baseQueue.map((d, i) => {
+              const nro = movilByPlate[d.vehicle_plate?.toUpperCase()];
+              return (
+                <span
+                  key={d.id}
+                  className={`text-xs px-2.5 py-1 rounded-xl font-medium ${d.id === driver.id ? "bg-green-500 text-white" : "bg-gray-100 text-gray-500"}`}
+                >
+                  {i + 1}.{nro ? ` #${nro}` : ""} {d.name.split(" ")[0]}
+                </span>
+              );
+            })}
           </div>
 
           <div className="flex gap-3">
@@ -1262,6 +1265,13 @@ export default function DriverApp() {
       if (gpsIdRef.current !== null) navigator.geolocation.clearWatch(gpsIdRef.current);
     };
   }, [myDriverId]);
+
+  // Móviles — para cruzar número de móvil por patente
+  const [moviles, setMoviles] = useState([]);
+  useEffect(() => {
+    base44.entities.Movil.list().then(setMoviles).catch(() => {});
+  }, []);
+  const movilByPlate = Object.fromEntries(moviles.map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
 
   // ── Tiempo real: suscripciones en lugar de polling ────────────────────────
   const { drivers, isLoading: driversLoading } = useRealtimeDrivers();
@@ -1676,6 +1686,7 @@ export default function DriverApp() {
           onGoOffService={handleGoOffService}
           driverId={myDriverId}
           libreBlockedSegs={libreBlockedSegs}
+          movilByPlate={movilByPlate}
         />
       )}
 
