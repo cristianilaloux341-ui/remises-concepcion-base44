@@ -9,14 +9,26 @@ const DefaultFallback = () => (
   </div>
 );
 
+function getLocalOperator() {
+  try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; }
+}
+
 export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthenticatedElement }) {
   const { isAuthenticated, isLoadingAuth, authChecked, authError, checkUserAuth } = useAuth();
+
+  const localOperator = getLocalOperator();
+  const isLocallyAuthenticated = !!(localOperator && localOperator.active !== false);
 
   useEffect(() => {
     if (!authChecked && !isLoadingAuth) {
       checkUserAuth();
     }
   }, [authChecked, isLoadingAuth, checkUserAuth]);
+
+  // Si hay operador local válido, dejar pasar siempre
+  if (isLocallyAuthenticated) {
+    return <Outlet />;
+  }
 
   if (isLoadingAuth || !authChecked) {
     return fallback;
@@ -26,11 +38,9 @@ export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthe
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     }
-    // auth_required on public app = just not logged in, show unauthenticated
     if (authError.type === 'auth_required') {
       return unauthenticatedElement;
     }
-    // Other errors (network, unknown): let through so user sees something
     return <Outlet />;
   }
 
