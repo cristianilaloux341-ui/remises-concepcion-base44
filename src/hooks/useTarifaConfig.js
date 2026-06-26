@@ -76,19 +76,30 @@ export function haversineMetros(lat1, lng1, lat2, lng2) {
  * Retorna metros (number) o null si falla.
  */
 const CIUDAD = "Concepción del Uruguay, Entre Ríos, Argentina";
+// Bounding box de Concepción del Uruguay (viewbox para Nominatim)
+const VIEWBOX = "-58.35,-33.20,-58.15,-33.08";
 
 export async function calcularDistanciaRuta(origen, destino) {
   try {
     const geocode = async (addr) => {
-      // Si la dirección ya tiene ciudad incluida, no la duplicamos
-      const query = addr.toLowerCase().includes("rufino") ? addr : `${addr}, ${CIUDAD}`;
+      // Siempre agregar ciudad para forzar contexto local
+      const query = `${addr}, ${CIUDAD}`;
+      // Intentar primero con bounded=1 (solo resultados dentro del viewbox)
       const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=ar`,
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=ar&bounded=1&viewbox=${VIEWBOX}`,
         { headers: { "Accept-Language": "es", "User-Agent": "remiseria-app/1.0" } }
       );
       const data = await r.json();
-      if (!data.length) return null;
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      if (data.length) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+
+      // Fallback: sin bounded pero con viewbox como sugerencia
+      const r2 = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=ar&viewbox=${VIEWBOX}`,
+        { headers: { "Accept-Language": "es", "User-Agent": "remiseria-app/1.0" } }
+      );
+      const data2 = await r2.json();
+      if (!data2.length) return null;
+      return { lat: parseFloat(data2[0].lat), lng: parseFloat(data2[0].lon) };
     };
 
     const [o, d] = await Promise.all([geocode(origen), geocode(destino)]);
