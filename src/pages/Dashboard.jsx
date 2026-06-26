@@ -36,6 +36,12 @@ export default function Dashboard() {
     queryFn: () => base44.entities.Base.list(),
   });
 
+  const { data: moviles = [] } = useQuery({
+    queryKey: ["moviles"],
+    queryFn: () => base44.entities.Movil.list(),
+    staleTime: 60_000,
+  });
+
   const [panicAlerts, setPanicAlerts] = useState([]);
   const [showPanicPanel, setShowPanicPanel] = useState(false);
 
@@ -150,7 +156,7 @@ export default function Dashboard() {
           <Users className="w-5 h-5" />
           Colas por Base
         </h2>
-        <BaseQueueManager drivers={drivers} />
+        <BaseQueueManager drivers={drivers} moviles={moviles} />
       </div>
 
       {/* Panic Alerts */}

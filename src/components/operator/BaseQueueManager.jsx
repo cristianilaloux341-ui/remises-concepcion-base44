@@ -17,7 +17,7 @@ const BASE_COLORS = {
   "7-Don Bosco": "bg-orange-500", "8-Monumento": "bg-cyan-500",
 };
 
-function QueueEditor({ baseName, queue, drivers, onClose }) {
+function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
   const queryClient = useQueryClient();
   const [addingDriver, setAddingDriver] = useState("");
 
@@ -78,14 +78,18 @@ function QueueEditor({ baseName, queue, drivers, onClose }) {
       <div className="space-y-2">
         {queue.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">Cola vacía</p>
-        ) : queue.map((driver, idx) => (
+        ) : queue.map((driver, idx) => {
+          const nroMovil = movilByPlate[driver.vehicle_plate?.toUpperCase()];
+          return (
           <div key={driver.id} className="flex items-center gap-2 p-3 bg-muted/50 rounded-xl">
             <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
               {idx + 1}
             </span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{driver.name}</p>
-              <p className="text-xs text-muted-foreground font-mono">{driver.vehicle_plate}</p>
+              <p className="text-sm font-medium truncate">
+                {nroMovil && <span className="text-primary font-bold mr-1">#{nroMovil}</span>}
+                {driver.name}
+              </p>
             </div>
             {driver.queue_entered_at && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -110,7 +114,8 @@ function QueueEditor({ baseName, queue, drivers, onClose }) {
               </Button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {notInQueue.length > 0 && (
@@ -138,7 +143,9 @@ function QueueEditor({ baseName, queue, drivers, onClose }) {
   );
 }
 
-export default function BaseQueueManager({ drivers }) {
+export default function BaseQueueManager({ drivers, moviles = [] }) {
+  // Mapa patente → número de móvil para lookup rápido
+  const movilByPlate = Object.fromEntries(moviles.map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
   const [editingBase, setEditingBase] = useState(null);
 
   return (
@@ -167,17 +174,22 @@ export default function BaseQueueManager({ drivers }) {
               <CardContent className="px-4 pb-4 space-y-1.5">
                 {queue.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-2">Vacía</p>
-                ) : queue.slice(0, 4).map((driver, idx) => (
-                  <div key={driver.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-muted/50">
-                    <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-                      {idx + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{driver.name}</p>
-                      <p className="text-xs text-muted-foreground font-mono truncate">{driver.vehicle_plate}</p>
+                ) : queue.slice(0, 4).map((driver, idx) => {
+                  const nroMovil = movilByPlate[driver.vehicle_plate?.toUpperCase()];
+                  return (
+                    <div key={driver.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-muted/50">
+                      <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">
+                          {nroMovil && <span className="text-primary font-bold mr-1">#{nroMovil}</span>}
+                          {driver.name}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {queue.length > 4 && (
                   <p className="text-xs text-muted-foreground text-center">+{queue.length - 4} más</p>
                 )}
@@ -198,6 +210,7 @@ export default function BaseQueueManager({ drivers }) {
               queue={getBaseQueue(drivers, editingBase)}
               drivers={drivers}
               onClose={() => setEditingBase(null)}
+              movilByPlate={movilByPlate}
             />
           )}
         </DialogContent>

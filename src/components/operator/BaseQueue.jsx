@@ -45,8 +45,10 @@ export default function BaseQueue({ baseName, drivers, onDriverClick }) {
                 {idx + 1}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate">{driver.name}</p>
-                <p className="text-xs text-muted-foreground font-mono">{driver.vehicle_plate}</p>
+                <p className="text-xs font-medium truncate">
+                  <span className="text-primary font-bold mr-1">{driver.vehicle_model || driver.vehicle_plate}</span>
+                  {driver.name}
+                </p>
               </div>
               {driver.queue_entered_at && (
                 <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
