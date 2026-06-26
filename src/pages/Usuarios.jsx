@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Users, UserPlus, Phone, Shield, User, Loader2, CheckCircle2, AlertCircle, Trash2, KeyRound, Pencil, PowerOff, Power } from "lucide-react";
+import { Users, UserPlus, Phone, Shield, User, Loader2, CheckCircle2, AlertCircle, Trash2, KeyRound, Pencil, PowerOff, Power, Mail } from "lucide-react";
 
 const ROLES = [
   { value: "admin", label: "Administrador", color: "bg-purple-100 text-purple-700 border-purple-200" },
@@ -19,6 +19,7 @@ function OperatorForm({ initial, onSubmit, isSubmitting }) {
   const [form, setForm] = useState({
     name: initial?.name || "",
     phone: initial?.phone || "",
+    email: initial?.email || "",
     pin: "",
     role: initial?.role || "operador",
     notes: initial?.notes || "",
@@ -33,6 +34,7 @@ function OperatorForm({ initial, onSubmit, isSubmitting }) {
     if (!initial && (!form.pin || form.pin.length < 4)) { setError("El PIN debe tener al menos 4 dígitos"); return; }
     if (!initial && !/^\d+$/.test(form.pin)) { setError("El PIN solo puede contener números"); return; }
     const data = { name: form.name.trim(), phone: form.phone.trim(), role: form.role, notes: form.notes };
+    if (form.email.trim()) data.email = form.email.trim();
     if (form.pin) data.pin = form.pin;
     onSubmit(data);
   };
@@ -46,6 +48,10 @@ function OperatorForm({ initial, onSubmit, isSubmitting }) {
       <div className="space-y-1">
         <Label>Teléfono</Label>
         <Input type="tel" inputMode="numeric" placeholder="3442 123456" value={form.phone} onChange={e => set("phone", e.target.value)} />
+      </div>
+      <div className="space-y-1">
+        <Label>Email (para envío de acceso)</Label>
+        <Input type="email" placeholder="ejemplo@correo.com" value={form.email} onChange={e => set("email", e.target.value)} />
       </div>
       <div className="space-y-1">
         <Label>{initial ? "Nuevo PIN (dejar vacío para no cambiar)" : "PIN de acceso (4-6 dígitos)"}</Label>
@@ -98,8 +104,20 @@ export default function Usuarios() {
     queryFn: () => base44.entities.Operator.list(),
   });
 
+  const appUrl = window.location.origin;
+
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.Operator.create(data),
+    mutationFn: async (data) => {
+      const op = await base44.entities.Operator.create(data);
+      if (data.email && data.pin) {
+        await base44.integrations.Core.SendEmail({
+          to: data.email,
+          subject: "Tus datos de acceso — Central de Despacho",
+          body: `Hola ${data.name},\n\nTu cuenta de acceso a la Central de Despacho fue creada.\n\n📱 Celular: ${data.phone}\n🔑 PIN: ${data.pin}\n\nIngresá desde:\n${appUrl}\n\nPor seguridad, te recomendamos no compartir tu PIN con nadie.\n\nSaludos,\nEquipo de la Central`
+        });
+      }
+      return op;
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["operators"] }); setDialogOpen(false); },
   });
 
@@ -180,6 +198,7 @@ export default function Usuarios() {
                         <Phone className="w-3 h-3" /> {op.phone}
                         {op.pin ? <span className="ml-2 text-green-600 font-medium">· PIN creado</span> : <span className="ml-2 text-amber-500 font-medium">· Sin PIN</span>}
                       </p>
+                      {op.email && <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="w-3 h-3" /> {op.email}</p>}
                     </div>
                     <Badge variant="outline" className={`text-xs shrink-0 ${ri.color}`}>{ri.label}</Badge>
                     <div className="flex items-center gap-1">
@@ -250,6 +269,13 @@ export default function Usuarios() {
                 const tempPin = String(Math.floor(1000 + Math.random() * 9000));
                 setResetPinLoading(true);
                 await base44.entities.Operator.update(resetPinTarget.id, { pin: tempPin });
+                if (resetPinTarget.email) {
+                  await base44.integrations.Core.SendEmail({
+                    to: resetPinTarget.email,
+                    subject: "Tu PIN fue reseteado — Central de Despacho",
+                    body: `Hola ${resetPinTarget.name},\n\nTu PIN de acceso fue reseteado.\n\n📱 Celular: ${resetPinTarget.phone}\n🔑 Nuevo PIN: ${tempPin}\n\nIngresá desde:\n${window.location.origin}\n\nSaludos,\nEquipo de la Central`
+                  });
+                }
                 setResetPinSuccess(tempPin);
                 setResetPinLoading(false);
               }}

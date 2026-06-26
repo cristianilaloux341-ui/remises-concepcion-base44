@@ -10,6 +10,10 @@
       "type": "string",
       "description": "N\u00famero de celular (usado para ingresar)"
     },
+    "email": {
+      "type": "string",
+      "description": "Correo electr\u00f3nico (para env\u00edo de acceso)"
+    },
     "pin": {
       "type": "string",
       "description": "PIN num\u00e9rico de 4-6 d\u00edgitos"
