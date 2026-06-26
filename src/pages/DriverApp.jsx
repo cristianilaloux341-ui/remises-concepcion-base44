@@ -1112,6 +1112,18 @@ async function registerSW() {
   if (!("serviceWorker" in navigator)) return null;
   try {
     const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    // Forzar activación inmediata del nuevo SW si hay una actualización pendiente
+    reg.addEventListener("updatefound", () => {
+      const newWorker = reg.installing;
+      if (!newWorker) return;
+      newWorker.addEventListener("statechange", () => {
+        if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+          // Nuevo SW instalado — forzar skip waiting y recargar
+          newWorker.postMessage({ type: "SKIP_WAITING" });
+          window.location.reload();
+        }
+      });
+    });
     return reg;
   } catch (_) { return null; }
 }
