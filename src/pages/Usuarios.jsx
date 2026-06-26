@@ -140,16 +140,19 @@ export default function Usuarios() {
 
   const appUrl = window.location.origin;
 
+  const sendCredentials = async (op, pin) => {
+    if (!op.email || !pin) return;
+    await base44.functions.invoke("sendEmail", {
+      to: op.email,
+      subject: "Tus datos de acceso — Central de Despacho",
+      body: `Hola ${op.name},\n\nTu cuenta de acceso a la Central de Despacho fue creada.\n\n📱 Celular: ${op.phone}\n📧 Email: ${op.email}\n🔑 PIN: ${pin}\n👤 Rol: ${ROLE_LABELS[op.role] || op.role}\n\nPodés ingresar con tu celular o email desde:\n${appUrl}\n\nPor seguridad, no compartas tu PIN.\n\nSaludos,\nEquipo de la Central`,
+    });
+  };
+
   const createMutation = useMutation({
     mutationFn: async (data) => {
       const op = await base44.entities.Operator.create(data);
-      if (data.email && data.pin) {
-        await base44.integrations.Core.SendEmail({
-          to: data.email,
-          subject: "Tus datos de acceso — Central de Despacho",
-          body: `Hola ${data.name},\n\nTu cuenta de acceso a la Central de Despacho fue creada.\n\n📱 Celular: ${data.phone}\n📧 Email: ${data.email}\n🔑 PIN: ${data.pin}\n👤 Rol: ${ROLE_LABELS[data.role] || data.role}\n\nPodés ingresar con tu celular o email desde:\n${appUrl}\n\nPor seguridad, no compartas tu PIN.\n\nSaludos,\nEquipo de la Central`
-        });
-      }
+      await sendCredentials(op, data.pin);
       return op;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["operators"] }); setDialogOpen(false); },
@@ -318,10 +321,10 @@ export default function Usuarios() {
                 setResetPinLoading(true);
                 await base44.entities.Operator.update(resetPinTarget.id, { pin: tempPin });
                 if (resetPinTarget.email) {
-                  await base44.integrations.Core.SendEmail({
+                  await base44.functions.invoke("sendEmail", {
                     to: resetPinTarget.email,
                     subject: "Tu PIN fue reseteado — Central de Despacho",
-                    body: `Hola ${resetPinTarget.name},\n\nTu PIN de acceso fue reseteado.\n\n📱 Celular: ${resetPinTarget.phone}\n🔑 Nuevo PIN: ${tempPin}\n\nIngresá desde:\n${window.location.origin}\n\nSaludos,\nEquipo de la Central`
+                    body: `Hola ${resetPinTarget.name},\n\nTu PIN de acceso fue reseteado.\n\n📱 Celular: ${resetPinTarget.phone}\n🔑 Nuevo PIN: ${tempPin}\n\nIngresá desde:\n${window.location.origin}\n\nSaludos,\nEquipo de la Central`,
                   });
                 }
                 setResetPinSuccess(tempPin);
