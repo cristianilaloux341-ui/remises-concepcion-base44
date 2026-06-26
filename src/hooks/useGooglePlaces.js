@@ -1,18 +1,13 @@
 /**
- * Hook para autocompletar direcciones usando Google Places API (via backend proxy).
- * Maneja session tokens para agrupar calls Autocomplete + PlaceDetails en una sola facturación.
+ * Hook para autocompletar direcciones usando Photon (OpenStreetMap) via backend proxy.
+ * No requiere API key ni billing — funciona inmediatamente.
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 
-function generateSessionToken() {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36);
-}
-
 export function useGooglePlaces(inputValue) {
   const [predictions, setPredictions] = useState([]);
   const [loading, setLoading] = useState(false);
-  const sessionTokenRef = useRef(generateSessionToken());
   const debounceRef = useRef(null);
   const cacheRef = useRef(new Map());
 
@@ -32,7 +27,6 @@ export function useGooglePlaces(inputValue) {
         const res = await base44.functions.invoke("geocodeRoute", {
           action: "autocomplete",
           input: inputValue,
-          sessiontoken: sessionTokenRef.current,
         });
         const preds = res.data?.predictions || [];
         cacheRef.current.set(inputValue, preds);
@@ -43,20 +37,31 @@ export function useGooglePlaces(inputValue) {
       } finally {
         setLoading(false);
       }
-    }, 300);
+    }, 350);
 
     return () => clearTimeout(debounceRef.current);
   }, [inputValue]);
 
-  const getPlaceDetails = useCallback(async (place_id) => {
+  // Las predicciones de Photon ya traen _lat/_lng embebidos
+  // Solo necesita llamar al backend si el place_id no empieza por "photon_"
+  const getPlaceDetails = useCallback(async (place_id, description) => {
+    // Si las coordenadas vienen directo del place_id, extraerlas localmente
+    if (place_id?.startsWith("photon_") || place_id?.startsWith("osm_")) {
+      const parts = place_id.replace("photon_", "").replace("osm_", "").split("_");
+      return {
+        lat: parseFloat(parts[0]),
+        lng: parseFloat(parts[1]),
+        formatted_address: description || "",
+      };
+    }
+
+    // Fallback al backend (Nominatim)
     const res = await base44.functions.invoke("geocodeRoute", {
       action: "placedetails",
       place_id,
-      sessiontoken: sessionTokenRef.current,
+      description,
     });
-    // Después de PlaceDetails, renovar session token (nueva sesión de facturación)
-    sessionTokenRef.current = generateSessionToken();
-    return res.data; // { lat, lng, formatted_address }
+    return res.data;
   }, []);
 
   return { predictions, loading, getPlaceDetails };
