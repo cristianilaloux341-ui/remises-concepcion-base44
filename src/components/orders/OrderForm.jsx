@@ -42,15 +42,18 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
   const [distanciaCalculada, setDistanciaCalculada] = useState(null);
   const tarifa = useTarifaConfig();
 
-  // Auto-calcular tarifa cuando ambas direcciones estén completas
+  // Auto-calcular tarifa cuando ambas direcciones Y sus coordenadas estén disponibles
   useEffect(() => {
     const pickup = form.pickup_address?.trim();
     const dropoff = form.dropoff_address?.trim();
     if (!pickup || pickup.length < 4 || !dropoff || dropoff.length < 4) return;
+    // Esperar a que las coordenadas estén cargadas antes de calcular
+    if (!form.pickup_lat || !form.pickup_lng || !form.dropoff_lat || !form.dropoff_lng) return;
+
     const timeout = setTimeout(async () => {
       setCalculandoTarifa(true);
-      const origenCoords = (form.pickup_lat && form.pickup_lng) ? { lat: form.pickup_lat, lng: form.pickup_lng } : null;
-      const destinoCoords = (form.dropoff_lat && form.dropoff_lng) ? { lat: form.dropoff_lat, lng: form.dropoff_lng } : null;
+      const origenCoords = { lat: form.pickup_lat, lng: form.pickup_lng };
+      const destinoCoords = { lat: form.dropoff_lat, lng: form.dropoff_lng };
       const metros = await calcularDistanciaRuta(pickup, dropoff, origenCoords, destinoCoords);
       setCalculandoTarifa(false);
       if (metros) {
@@ -64,11 +67,11 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
           importe_real_actual: importe,
         }));
       } else {
-        setDistanciaCalculada(-1); // señal de fallo
+        setDistanciaCalculada(-1);
       }
-    }, 800);
+    }, 400);
     return () => clearTimeout(timeout);
-  }, [form.pickup_address, form.dropoff_address]);
+  }, [form.pickup_lat, form.pickup_lng, form.dropoff_lat, form.dropoff_lng]);
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
