@@ -43,7 +43,7 @@ export function useRealtimeDrivers() {
       lastEventRef.current = Date.now();
       setDrivers((prev) => {
         if (event.type === "create") return [...prev, event.data];
-        if (event.type === "update") return prev.map((d) => (d.id === event.id ? event.data : d));
+        if (event.type === "update") return prev.map((d) => (d.id === event.id ? { ...d, ...event.data } : d));
         if (event.type === "delete") return prev.filter((d) => d.id !== event.id);
         return prev;
       });

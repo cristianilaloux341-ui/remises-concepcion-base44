@@ -64,7 +64,7 @@ export default function Messages() {
           }).catch(() => {});
         }
       } else if (event.type === "update") {
-        setMessages(prev => prev.map(m => m.id === event.id ? event.data : m));
+        setMessages(prev => prev.map(m => m.id === event.id ? { ...m, ...event.data } : m));
       } else if (event.type === "delete") {
         setMessages(prev => prev.filter(m => m.id !== event.id));
       }

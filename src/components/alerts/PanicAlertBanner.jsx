@@ -79,7 +79,7 @@ export default function PanicAlertBanner() {
         if (event.data?.status !== "activo") {
           setPanics(prev => prev.filter(p => p.id !== event.id));
         } else {
-          setPanics(prev => prev.map(p => p.id === event.id ? event.data : p));
+          setPanics(prev => prev.map(p => p.id === event.id ? { ...p, ...event.data } : p));
         }
       }
     });
