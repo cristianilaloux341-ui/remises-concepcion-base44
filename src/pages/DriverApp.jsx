@@ -228,7 +228,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
   // Pantalla acceso rápido (chofer recordado)
   if (savedDriver && !showChangeUser) {
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
+      <div className="min-h-[100dvh] bg-gray-950 flex flex-col items-center justify-center p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="w-full max-w-sm space-y-6">
           {headerLogo}
           <div className="bg-gray-900 rounded-2xl p-5 space-y-4 border border-gray-800">
@@ -264,7 +264,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
   // Pantalla PIN enviado
   if (step === "forgot_sent") {
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
+      <div className="min-h-[100dvh] bg-gray-950 flex flex-col items-center justify-center p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="w-full max-w-sm space-y-6">
           {headerLogo}
           <div className="bg-gray-900 rounded-2xl p-5 space-y-4 border border-gray-800 text-center">
@@ -288,7 +288,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
   // Pantalla ingresar PIN
   if (step === "enter_pin") {
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
+      <div className="min-h-[100dvh] bg-gray-950 flex flex-col items-center justify-center p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="w-full max-w-sm space-y-6">
           {headerLogo}
           <div className="bg-gray-900 rounded-2xl p-5 space-y-4 border border-gray-800">
@@ -350,7 +350,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
   // Pantalla crear PIN (primer acceso)
   if (step === "create_pin") {
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
+      <div className="min-h-[100dvh] bg-gray-950 flex flex-col items-center justify-center p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="w-full max-w-sm space-y-6">
           {headerLogo}
           <div className="bg-gray-900 rounded-2xl p-5 space-y-4 border border-gray-800">
@@ -405,7 +405,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
 
   // Pantalla ingreso por teléfono (default)
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6">
+    <div className="min-h-[100dvh] bg-gray-950 flex flex-col items-center justify-center p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm space-y-6">
         {headerLogo}
 
@@ -462,7 +462,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
 // ── Incoming ride alert ───────────────────────────────────────────────────────
 function IncomingAlert({ order, onAccept, onReject }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
         <div className="bg-amber-500 px-5 py-4 flex items-center gap-3 animate-pulse">
           <Bell className="w-6 h-6 text-white" />
@@ -542,7 +542,7 @@ function IncomingAlert({ order, onAccept, onReject }) {
 function BroadcastAlert({ order, onAccept, onReject }) {
   const cleanNotes = (order.notes || "").replace(/^\[BROADCAST\]\s*/, "").trim();
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
         <div className="bg-orange-500 px-5 py-4 flex items-center gap-3 animate-pulse">
           <Bell className="w-6 h-6 text-white" />
@@ -1535,7 +1535,7 @@ export default function DriverApp() {
     // Mientras cargamos los choferes, mostrar un spinner liviano
     if (driversLoading) {
       return (
-        <div className="h-screen bg-gray-950 flex items-center justify-center">
+        <div className="h-[100dvh] bg-gray-950 flex items-center justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
           <div className="text-center space-y-3">
             <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
             <p className="text-gray-400 text-sm">Cargando...</p>
@@ -1544,7 +1544,7 @@ export default function DriverApp() {
       );
     }
     return (
-      <div className="flex flex-col h-screen bg-gray-950">
+      <div className="flex flex-col h-[100dvh] bg-gray-950" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
         <InstallBanner />
         <div className="flex-1 overflow-y-auto">
           <LoginScreen
@@ -1574,7 +1574,7 @@ export default function DriverApp() {
   if (driversLoading || !myDriverRaw) {
     const canGoBack = !driversLoading && !myDriverRaw;
     return (
-      <div className="h-screen bg-gray-950 flex items-center justify-center">
+      <div className="h-[100dvh] bg-gray-950 flex items-center justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="text-center space-y-4 px-6">
           {!loadTimeout ? (
             <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
@@ -1606,7 +1606,7 @@ export default function DriverApp() {
   }
 
   return (
-    <div className="h-screen bg-gray-950 flex flex-col max-w-md mx-auto relative overflow-hidden" onTouchStart={unlockAudio} onClick={unlockAudio}>
+    <div className="h-[100dvh] bg-gray-950 flex flex-col max-w-md mx-auto relative overflow-hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }} onTouchStart={unlockAudio} onClick={unlockAudio}>
       <InstallBanner />
 
       {/* Header */}

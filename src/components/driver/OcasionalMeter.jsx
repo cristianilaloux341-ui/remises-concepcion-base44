@@ -148,7 +148,7 @@ export default function OcasionalMeter({ onClose }) {
     const km = (metrosRecorridos / 1000).toFixed(2);
     const minutos = (segundosTotales / 60).toFixed(1);
     return (
-      <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col items-center justify-center p-6">
+      <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col items-center justify-center p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="w-full max-w-sm space-y-5 text-center">
           <div className="w-24 h-24 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
             <DollarSign className="w-12 h-12 text-green-400" />
@@ -266,7 +266,7 @@ export default function OcasionalMeter({ onClose }) {
 
   // ── Pantalla: inicio (idle) ───────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col items-center justify-center p-6">
+    <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col items-center justify-center p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm space-y-5">
         <div className="text-center space-y-2">
           <div className="w-20 h-20 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto">

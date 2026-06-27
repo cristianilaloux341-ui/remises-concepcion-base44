@@ -84,7 +84,7 @@ export default function BatteryOptimizationGuide({ onClose, onDone }) {
 
   if (done) {
     return (
-      <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6">
+      <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="bg-white rounded-3xl p-8 text-center space-y-4 max-w-xs w-full">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
             <CheckCircle2 className="w-8 h-8 text-green-600" />

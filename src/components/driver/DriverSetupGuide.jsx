@@ -53,7 +53,7 @@ export default function DriverSetupGuide({ onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 pb-8">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 pb-8" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">

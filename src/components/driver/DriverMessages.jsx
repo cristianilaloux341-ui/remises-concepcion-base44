@@ -106,7 +106,7 @@ export default function DriverMessages({ driver, onClose }) {
   }, [messages.length]);
 
   return (
-    <div className="fixed inset-0 bg-white flex flex-col z-[9999]">
+    <div className="fixed inset-0 bg-white flex flex-col z-[9999]" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
       {/* Header */}
       <div className="bg-gray-950 text-white px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">

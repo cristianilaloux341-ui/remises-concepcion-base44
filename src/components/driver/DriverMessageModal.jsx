@@ -9,7 +9,7 @@ export default function DriverMessageModal({ message, onDismiss }) {
   const isBroadcast = !message.to_driver_id;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-5 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-5 animate-in fade-in duration-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
 
         {/* Header */}
