@@ -148,7 +148,7 @@ export default function DriverMessages({ driver, onClose }) {
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t bg-white flex gap-2">
+      <div className="px-4 pt-4 pb-8 border-t bg-white flex gap-2" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
         <Input
           className="flex-1 rounded-xl"
           placeholder="Mensaje a la base..."
