@@ -3,9 +3,9 @@
   "type": "object",
   "rls": {
     "read": true,
-    "create": false,
+    "create": true,
     "update": true,
-    "delete": false
+    "delete": true
   },
   "properties": {
     "client_name": {
