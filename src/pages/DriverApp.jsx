@@ -8,7 +8,7 @@ import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2 } from "lucide-react";
+import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2, Zap } from "lucide-react";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
 import { withRetry } from "@/lib/retryFetch";
 import RideMap from "@/components/map/RideMap";
@@ -22,6 +22,7 @@ import DriverStats from "@/components/driver/DriverStats";
 import DailyStats from "@/components/driver/DailyStats";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
 import BatteryOptimizationGuide from "@/components/driver/BatteryOptimizationGuide";
+import OcasionalMeter from "@/components/driver/OcasionalMeter";
 
 // ── Audio & Notifications ─────────────────────────────────────────────────────
 
@@ -1138,6 +1139,7 @@ export default function DriverApp() {
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showBatteryGuide, setShowBatteryGuide] = useState(false);
+  const [showOcasional, setShowOcasional] = useState(false);
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
   const [loadTimeout, setLoadTimeout] = useState(false);
   // Bloqueo post-viaje: segundos restantes para poder ponerse libre
@@ -1628,6 +1630,15 @@ export default function DriverApp() {
           >
             <BarChart2 className="w-4 h-4" />
           </button>
+          {myDriver.status !== "en_viaje" && (
+            <button
+              className="p-2 rounded-xl bg-yellow-500/20 text-yellow-400"
+              onClick={() => setShowOcasional(true)}
+              title="Viaje ocasional"
+            >
+              <Zap className="w-4 h-4" />
+            </button>
+          )}
           <button
             className="p-2 rounded-xl bg-blue-600/20 text-blue-400"
             onClick={() => {
@@ -1738,6 +1749,11 @@ export default function DriverApp() {
           onClose={() => setShowBatteryGuide(false)}
           onDone={() => setShowBatteryGuide(false)}
         />
+      )}
+
+      {/* Taxímetro ocasional */}
+      {showOcasional && (
+        <OcasionalMeter onClose={() => setShowOcasional(false)} />
       )}
     </div>
   );
