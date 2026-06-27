@@ -669,9 +669,10 @@ function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
 
     // GPS tracker
     if (navigator.geolocation) {
-      gpsWatchRef.current = navigator.geolocation.watchPosition((pos) => {
-        const { latitude, longitude, speed } = pos.coords;
-        const speedKmh = (speed || 0) * 3.6;
+      gpsWatchRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude, speed } = pos.coords;
+          const speedKmh = (speed || 0) * 3.6;
 
         if (lastPosRef.current) {
           const metros = haversineMetros(
@@ -702,7 +703,7 @@ function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
           contadorParadoRef.current = 0;
           setEnEspera(false);
         }
-      }, () => {}, { enableHighAccuracy: true, maximumAge: 2000 });
+      }, () => {}, { enableHighAccuracy: true, maximumAge: 0 });
     }
 
     // Timer cada 1 segundo — cobra espera
@@ -1285,8 +1286,8 @@ export default function DriverApp() {
         },
         {
           enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 5000,
+          timeout: 10000,
+          maximumAge: 0,
         }
       );
     };
@@ -1295,7 +1296,20 @@ export default function DriverApp() {
 
     // Re-iniciar GPS cuando la página vuelve a primer plano (background → foreground)
     const onVisible = () => {
-      if (document.visibilityState === "visible") startWatch();
+      if (document.visibilityState === "visible") {
+        // Force an immediate fresh read
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            base44.entities.Driver.update(myDriverId, {
+              current_lat: pos.coords.latitude,
+              current_lng: pos.coords.longitude,
+            }).catch(() => {});
+          },
+          () => {},
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+        startWatch();
+      }
     };
     document.addEventListener("visibilitychange", onVisible);
 

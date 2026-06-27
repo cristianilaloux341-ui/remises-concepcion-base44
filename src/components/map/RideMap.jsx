@@ -121,16 +121,30 @@ const BASE_COORDS = {
   "8-Monumento":   { lat: -32.4760, lng: -58.2390 },
 };
 
+// Límites aproximados del ejido urbano de Concepción del Uruguay
+const isUrbano = (lat, lng) => lat > -32.55 && lat < -32.42 && lng > -58.32 && lng < -58.15;
+
 export default function RideMap({ orders = [], drivers = [], center, zoom = 13, className = "" }) {
   const defaultCenter = center || [CENTRAL.lat, CENTRAL.lng];
   // No re-montamos el mapa en cada visibilitychange — InvalidateSize lo maneja
 
-  const allPoints = [];
-  orders.forEach(o => {
-    if (o.pickup_lat && o.pickup_lng) allPoints.push([o.pickup_lat, o.pickup_lng]);
-    if (o.dropoff_lat && o.dropoff_lng) allPoints.push([o.dropoff_lat, o.dropoff_lng]);
+  // Filtramos choferes y puntos fuera del ejido urbano para no mostrarlos ni centrar en ellos
+  const validDrivers = drivers.filter(d => {
+    if (d.current_lat && d.current_lng) return isUrbano(d.current_lat, d.current_lng);
+    return true; 
   });
-  drivers.forEach(d => {
+
+  const validOrders = orders.filter(o => {
+    if (o.pickup_lat && o.pickup_lng && !isUrbano(o.pickup_lat, o.pickup_lng)) return false;
+    return true;
+  });
+
+  const allPoints = [];
+  validOrders.forEach(o => {
+    if (o.pickup_lat && o.pickup_lng) allPoints.push([o.pickup_lat, o.pickup_lng]);
+    if (o.dropoff_lat && o.dropoff_lng && isUrbano(o.dropoff_lat, o.dropoff_lng)) allPoints.push([o.dropoff_lat, o.dropoff_lng]);
+  });
+  validDrivers.forEach(d => {
     if (d.current_lat && d.current_lng) allPoints.push([d.current_lat, d.current_lng]);
   });
 
@@ -158,7 +172,7 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
           </Popup>
         </Marker>
 
-        {orders.map((order) => (
+        {validOrders.map((order) => (
           <div key={order.id}>
             {order.pickup_lat && order.pickup_lng && (
               <Marker position={[order.pickup_lat, order.pickup_lng]} icon={pickupIcon}>
@@ -195,7 +209,7 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
           </div>
         ))}
 
-        {drivers.map((driver) => {
+        {validDrivers.map((driver) => {
           const lat = driver.current_lat || BASE_COORDS[driver.current_base]?.lat;
           const lng = driver.current_lng || BASE_COORDS[driver.current_base]?.lng;
           if (!lat || !lng) return null;
