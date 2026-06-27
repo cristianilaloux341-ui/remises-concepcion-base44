@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, UserPlus, Wand2, Calculator } from "lucide-react";
-import { findBestDriver, detectZoneFromAddress, learnZoneMapping, parseAddress } from "@/lib/dispatchLogic";
+import { findBestDriver, detectZoneFromAddress, detectZoneFromCoords, learnZoneMapping, parseAddress } from "@/lib/dispatchLogic";
 import PickupAutocomplete from "@/components/orders/PickupAutocomplete";
 import AddressAutocomplete from "@/components/orders/AddressAutocomplete";
 import { recordAddressUsage } from "@/hooks/useAddressSuggestions";
@@ -129,7 +129,26 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     if (!form.pickup_address || form.pickup_address.length < 3) { setDetectedZone(null); return; }
     const timeout = setTimeout(async () => {
       setDetectingZone(true);
-      const zone = await detectZoneFromAddress(form.pickup_address);
+      let zone = null;
+      
+      // 1. Try to detect by geofencing (coordinates)
+      let coords = (form.pickup_lat && form.pickup_lng) 
+        ? { lat: form.pickup_lat, lng: form.pickup_lng } 
+        : await geocodeAddress(form.pickup_address);
+        
+      if (coords) {
+        zone = await detectZoneFromCoords(coords.lat, coords.lng);
+        // Save coords if we geocoded them here
+        if (!form.pickup_lat || !form.pickup_lng) {
+          setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
+        }
+      }
+      
+      // 2. Fallback to dictionary (text)
+      if (!zone) {
+        zone = await detectZoneFromAddress(form.pickup_address);
+      }
+
       setDetectingZone(false);
       if (zone) {
         setDetectedZone(zone);
@@ -140,7 +159,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       }
     }, 600);
     return () => clearTimeout(timeout);
-  }, [form.pickup_address]);
+  }, [form.pickup_address, form.pickup_lat, form.pickup_lng]);
 
   // Auto-suggest best driver when pickup changes
   useEffect(() => {
