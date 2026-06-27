@@ -42,8 +42,16 @@ export function useRealtimeDrivers() {
       if (!mountedRef.current) return;
       lastEventRef.current = Date.now();
       setDrivers((prev) => {
-        if (event.type === "create") return [...prev, event.data];
-        if (event.type === "update") return prev.map((d) => (d.id === event.id ? { ...d, ...event.data } : d));
+        if (!event.data) return prev; // Fallback si el payload es muy grande
+        if (event.type === "create") {
+          if (prev.some(d => d.id === event.id)) return prev.map(d => d.id === event.id ? { ...d, ...event.data } : d);
+          return [...prev, event.data];
+        }
+        if (event.type === "update") {
+          const exists = prev.some(d => d.id === event.id);
+          if (exists) return prev.map((d) => (d.id === event.id ? { ...d, ...event.data } : d));
+          return [...prev, event.data];
+        }
         if (event.type === "delete") return prev.filter((d) => d.id !== event.id);
         return prev;
       });

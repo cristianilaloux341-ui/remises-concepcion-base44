@@ -19,7 +19,10 @@ export function useRealtimeOrders() {
           return [event.data, ...list.filter(o => o.id !== event.id)];
         }
         if (event.type === "update") {
-          return list.map(o => o.id === event.id ? { ...o, ...event.data } : o);
+          if (!event.data) return list;
+          const exists = list.some(o => o.id === event.id);
+          if (exists) return list.map(o => o.id === event.id ? { ...o, ...event.data } : o);
+          return [event.data, ...list];
         }
         if (event.type === "delete") {
           return list.filter(o => o.id !== event.id);
@@ -49,7 +52,10 @@ export function useRealtimeDrivers() {
           return [...list.filter(d => d.id !== event.id), event.data];
         }
         if (event.type === "update") {
-          return list.map(d => d.id === event.id ? { ...d, ...event.data } : d);
+          if (!event.data) return list;
+          const exists = list.some(d => d.id === event.id);
+          if (exists) return list.map(d => d.id === event.id ? { ...d, ...event.data } : d);
+          return [...list, event.data];
         }
         if (event.type === "delete") {
           return list.filter(d => d.id !== event.id);

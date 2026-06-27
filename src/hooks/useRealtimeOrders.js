@@ -38,8 +38,16 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
       if (!mountedRef.current) return;
       lastEventRef.current = Date.now();
       setOrders((prev) => {
-        if (event.type === "create") return [event.data, ...prev].slice(0, limit);
-        if (event.type === "update") return prev.map((o) => (o.id === event.id ? { ...o, ...event.data } : o));
+        if (!event.data) return prev;
+        if (event.type === "create") {
+          if (prev.some(o => o.id === event.id)) return prev.map((o) => (o.id === event.id ? { ...o, ...event.data } : o));
+          return [event.data, ...prev].slice(0, limit);
+        }
+        if (event.type === "update") {
+          const exists = prev.some(o => o.id === event.id);
+          if (exists) return prev.map((o) => (o.id === event.id ? { ...o, ...event.data } : o));
+          return [event.data, ...prev].slice(0, limit);
+        }
         if (event.type === "delete") return prev.filter((o) => o.id !== event.id);
         return prev;
       });
