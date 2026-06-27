@@ -527,7 +527,7 @@ export default function Moviles() {
 
       {/* Popup de alertas previo — se muestra al abrir un móvil con problemas */}
       {alertMovil && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
             <div className="flex items-center justify-between bg-red-600 px-5 py-3">
               <div className="flex items-center gap-2">

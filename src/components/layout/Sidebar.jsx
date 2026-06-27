@@ -107,6 +107,7 @@ export default function Sidebar({ open, onClose }) {
           "fixed top-0 left-0 z-50 h-full w-64 bg-sidebar text-sidebar-foreground flex flex-col transition-transform duration-300 lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {/* Header de usuario */}
         <div className="p-4 flex items-center justify-between gap-2">

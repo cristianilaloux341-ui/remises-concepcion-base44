@@ -212,7 +212,7 @@ export default function OcasionalMeter({ onClose }) {
   // ── Pantalla: taxímetro en marcha ─────────────────────────────────────────
   if (phase === "running") {
     return (
-      <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col p-4 pt-6">
+      <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col p-4 pt-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="flex items-center justify-between mb-4 shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping" />

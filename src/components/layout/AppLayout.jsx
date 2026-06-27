@@ -26,14 +26,14 @@ export default function AppLayout() {
   useOperatorPushSubscription(user);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <AgendaAlert />
       <CancellationAlert />
       <DriverMessageAlert />
       <PanicAlertBanner />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="lg:pl-64 pb-16 lg:pb-0">
+      <div className="lg:pl-64" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
         <main className="p-4 md:p-8">
           <AnimatePresence mode="wait">
             <motion.div

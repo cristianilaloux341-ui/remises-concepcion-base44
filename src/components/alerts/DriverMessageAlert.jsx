@@ -94,7 +94,7 @@ export default function DriverMessageAlert() {
   if (alerts.length === 0) return null;
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-md space-y-3 max-h-screen overflow-y-auto py-2">
         {alerts.map((msg) => (
           <div

@@ -97,7 +97,7 @@ export default function BatteryOptimizationGuide({ onClose, onDone }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-end justify-center p-4 pb-8">
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-end justify-center p-4 pb-8" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
         {/* Header */}
         <div className="bg-amber-500 px-5 pt-5 pb-4 flex items-start gap-3">

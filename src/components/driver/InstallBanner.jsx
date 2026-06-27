@@ -75,6 +75,7 @@ export default function InstallBanner() {
       {showIOSInstructions && (
         <div
           className="fixed inset-0 z-[9999] bg-black/70 flex items-end p-4"
+          style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}
           onClick={() => setShowIOSInstructions(false)}
         >
           <div
