@@ -1161,7 +1161,17 @@ export default function DriverApp() {
     if (autoAcceptOrderId && myDriverId) {
       base44.entities.RideOrder.update(autoAcceptOrderId, { status: "aceptado" }).catch(() => {});
       base44.entities.Driver.update(myDriverId, { status: "en_viaje" }).catch(() => {});
-      // Limpiar el parámetro de la URL
+      window.history.replaceState({}, "", "/driver-app");
+    }
+    const autoRejectOrderId = urlParams.get("reject");
+    if (autoRejectOrderId && myDriverId) {
+      Promise.all([
+        base44.entities.RideOrder.get(autoRejectOrderId),
+        base44.entities.Driver.list()
+      ]).then(([order, allDrivers]) => {
+         const currentOrder = { ...order, offered_driver_ids: [...(order.offered_driver_ids || []), myDriverId] };
+         reassignAfterReject(currentOrder, allDrivers, []).catch(()=>{});
+      });
       window.history.replaceState({}, "", "/driver-app");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1207,6 +1217,19 @@ export default function DriverApp() {
         if (orderId && myDriverId) {
           base44.entities.RideOrder.update(orderId, { status: "aceptado" }).catch(() => {});
           base44.entities.Driver.update(myDriverId, { status: "en_viaje" }).catch(() => {});
+        }
+      }
+
+      if (msg.type === "SW_REJECT_ORDER") {
+        const orderId = msg.orderId;
+        if (orderId && myDriverId) {
+          Promise.all([
+            base44.entities.RideOrder.get(orderId),
+            base44.entities.Driver.list()
+          ]).then(([order, allDrivers]) => {
+             const currentOrder = { ...order, offered_driver_ids: [...(order.offered_driver_ids || []), myDriverId] };
+             reassignAfterReject(currentOrder, allDrivers, []).catch(()=>{});
+          });
         }
       }
 

@@ -72,8 +72,7 @@ self.addEventListener("notificationclick", (event) => {
   const { action, notification } = event;
   const { orderId, driverId } = notification.data || {};
 
-  if (action === "accept" && orderId && driverId) {
-    // Notificar a la app abierta si existe
+  if (action === "accept" && orderId) {
     event.waitUntil(
       self.clients.matchAll({ type: "window" }).then(clients => {
         const appClient = clients.find(c => c.url.includes("/driver-app"));
@@ -81,8 +80,22 @@ self.addEventListener("notificationclick", (event) => {
           appClient.postMessage({ type: "SW_ACCEPT_ORDER", orderId });
           appClient.focus();
         } else {
-          // Abrir la app con parámetro de aceptación automática
           self.clients.openWindow(`/driver-app?accept=${orderId}`);
+        }
+      })
+    );
+    return;
+  }
+
+  if (action === "reject" && orderId) {
+    event.waitUntil(
+      self.clients.matchAll({ type: "window" }).then(clients => {
+        const appClient = clients.find(c => c.url.includes("/driver-app"));
+        if (appClient) {
+          appClient.postMessage({ type: "SW_REJECT_ORDER", orderId });
+          appClient.focus();
+        } else {
+          self.clients.openWindow(`/driver-app?reject=${orderId}`);
         }
       })
     );
@@ -92,11 +105,51 @@ self.addEventListener("notificationclick", (event) => {
   // Click en la notificación (sin acción específica) → abrir/enfocar la app
   event.waitUntil(
     self.clients.matchAll({ type: "window" }).then(clients => {
-      const appClient = clients.find(c => c.url.includes("/driver-app"));
+      const urlToOpen = notification.data?.url || "/driver-app";
+      const appClient = clients.find(c => c.url.includes(urlToOpen.split("?")[0]));
       if (appClient) { appClient.focus(); return; }
-      self.clients.openWindow("/driver-app");
+      self.clients.openWindow(urlToOpen);
     })
   );
+});
+
+// Manejar notificaciones Push en segundo plano (teléfono bloqueado)
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  try {
+    const data = event.data.json();
+    if (data.type === "NEW_RIDE") {
+      const title = data.title || "🚖 ¡Nuevo Viaje!";
+      const options = {
+        body: data.body || "Tenés un viaje asignado",
+        icon: "/icon-192.png",
+        badge: "/icon-72.png",
+        tag: "ride-offer",
+        renotify: true,
+        requireInteraction: true,
+        vibrate: [500, 200, 500, 200, 1000],
+        data: { orderId: data.orderId, driverId: data.driverId },
+        actions: [
+          { action: "accept", title: "✅ Aceptar" },
+          { action: "reject", title: "❌ Rechazar" },
+        ],
+      };
+      event.waitUntil(self.registration.showNotification(title, options));
+    } else if (data.type === "NEW_MESSAGE") {
+      const title = data.title || "📩 Nuevo mensaje";
+      const options = {
+        body: data.body || "Tenés un mensaje nuevo",
+        icon: "/icon-192.png",
+        badge: "/icon-72.png",
+        tag: data.tag || "msg-" + Date.now(),
+        vibrate: [200, 100, 200],
+        data: { url: data.url },
+      };
+      event.waitUntil(self.registration.showNotification(title, options));
+    }
+  } catch (err) {
+    console.error("Error processing push event:", err);
+  }
 });
 
 // Activación: tomar control inmediato de todas las pestañas
