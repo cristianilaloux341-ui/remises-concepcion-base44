@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { differenceInMinutes, format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Bell, Clock, MapPin, X, Zap, Car } from "lucide-react";
+import { Bell, Clock, MapPin, X, Zap, Car, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { autoDispatch, assignDriverToOrder } from "@/lib/dispatchLogic";
 
 function minutesUntil(datetime) {
   return differenceInMinutes(new Date(datetime), new Date());
@@ -22,6 +23,44 @@ export default function AgendaAlert() {
     queryKey: ["scheduled"],
     queryFn: () => base44.entities.ScheduledRide.list("-scheduled_datetime", 200),
     refetchInterval: 15000,
+  });
+
+  const { data: drivers = [] } = useQuery({
+    queryKey: ["drivers"],
+    queryFn: () => base44.entities.Driver.list(),
+  });
+
+  const { data: bases = [] } = useQuery({
+    queryKey: ["bases"],
+    queryFn: () => base44.entities.Base.list(),
+  });
+
+  const dispatchMutation = useMutation({
+    mutationFn: async (ride) => {
+      const order = await base44.entities.RideOrder.create({
+        client_name: ride.client_name,
+        client_phone: ride.client_phone || "",
+        pickup_address: ride.pickup_address,
+        dropoff_address: ride.dropoff_address || "",
+        zone: ride.zone || undefined,
+        fare: ride.fare && String(ride.fare).trim() !== "" && Number(ride.fare) > 0 ? Number(ride.fare) : undefined,
+        notes: ride.notes || "",
+        status: "pendiente",
+      });
+      if (ride.preferred_driver_id) {
+        const prefDriver = drivers.find(d => d.id === ride.preferred_driver_id);
+        if (prefDriver) await assignDriverToOrder(order, prefDriver);
+      } else {
+        await autoDispatch(order, drivers, bases);
+      }
+      await base44.entities.ScheduledRide.update(ride.id, { status: "despachado", order_id: order.id });
+    },
+    onSuccess: (_, ride) => {
+      queryClient.invalidateQueries({ queryKey: ["scheduled"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      dismiss(ride.id);
+    }
   });
 
   const getAudioCtx = () => {
@@ -198,15 +237,22 @@ export default function AgendaAlert() {
 
                 {/* Acciones */}
                 <div className="flex gap-2 pt-1">
-                  <Link to="/agenda" className="flex-1" onClick={() => dismiss(alert.id)}>
-                    <Button className="w-full h-11 rounded-xl gap-2 bg-amber-500 hover:bg-amber-600 font-bold">
-                      <Zap className="w-4 h-4" /> Ver en Agenda
-                    </Button>
-                  </Link>
+                  <Button 
+                    className="flex-1 h-11 rounded-xl gap-2 bg-amber-500 hover:bg-amber-600 font-bold text-white shadow-md shadow-amber-500/20"
+                    disabled={dispatchMutation.isPending}
+                    onClick={() => dispatchMutation.mutate(alert)}
+                  >
+                    {dispatchMutation.isPending && dispatchMutation.variables?.id === alert.id ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Despachando...</>
+                    ) : (
+                      <><Zap className="w-4 h-4" /> Despachar a Móvil</>
+                    )}
+                  </Button>
                   <Button
                     variant="outline"
                     className="h-11 px-4 rounded-xl font-semibold"
                     onClick={() => dismiss(alert.id)}
+                    disabled={dispatchMutation.isPending}
                   >
                     Cerrar
                   </Button>
