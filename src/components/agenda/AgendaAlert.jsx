@@ -55,11 +55,18 @@ export default function AgendaAlert() {
     } catch (_) {}
   };
 
-  // Repetir sonido mientras haya alertas activas
+  // Repetir sonido mientras haya alertas activas (máximo 4 veces para que "corte")
   useEffect(() => {
     if (alerts.length > 0) {
-      // Tocar inmediatamente y luego cada 5 segundos
-      repeatTimerRef.current = setInterval(playSound, 5000);
+      let count = 0;
+      repeatTimerRef.current = setInterval(() => {
+        count++;
+        if (count >= 4) {
+          clearInterval(repeatTimerRef.current);
+        } else {
+          playSound();
+        }
+      }, 5000);
     } else {
       clearInterval(repeatTimerRef.current);
     }

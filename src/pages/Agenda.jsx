@@ -258,10 +258,17 @@ export default function Agenda() {
 
   const saveMutation = useMutation({
     mutationFn: async (form) => {
-      if (editing?.id) {
-        await base44.entities.ScheduledRide.update(editing.id, form);
+      const dataToSave = { ...form };
+      if (dataToSave.fare && String(dataToSave.fare).trim() !== "") {
+        dataToSave.fare = Number(dataToSave.fare);
       } else {
-        await base44.entities.ScheduledRide.create(form);
+        delete dataToSave.fare;
+      }
+      
+      if (editing?.id) {
+        await base44.entities.ScheduledRide.update(editing.id, dataToSave);
+      } else {
+        await base44.entities.ScheduledRide.create(dataToSave);
       }
     },
     onSuccess: () => {
@@ -305,64 +312,6 @@ export default function Agenda() {
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
     }
   });
-
-  // Play alert sound
-  const playAgendaAlert = () => {
-    try {
-      navigator.vibrate?.([400, 150, 400, 150, 800]);
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const resume = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
-      resume.then(() => {
-        [0, 500, 1000].forEach(delay => {
-          const o = ctx.createOscillator();
-          const g = ctx.createGain();
-          o.connect(g); g.connect(ctx.destination);
-          o.type = "sine"; o.frequency.value = 660;
-          const t = ctx.currentTime + delay / 1000;
-          g.gain.setValueAtTime(0, t);
-          g.gain.linearRampToValueAtTime(0.6, t + 0.05);
-          g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
-          o.start(t); o.stop(t + 0.5);
-        });
-      });
-    } catch (_) {}
-  };
-
-  // Auto-notification check every 15 seconds
-  useEffect(() => {
-    const check = () => {
-      rides.filter(r => r.status === "pendiente").forEach(r => {
-        const mins = minutesUntil(r.scheduled_datetime);
-        const threshold = r.notify_minutes_before ?? 10;
-        if (mins <= threshold && mins >= -5 && !notifiedRef.current.has(r.id)) {
-          notifiedRef.current.add(r.id);
-          base44.entities.ScheduledRide.update(r.id, { status: "notificado" });
-          queryClient.invalidateQueries({ queryKey: ["scheduled"] });
-          // Sound + vibration
-          playAgendaAlert();
-          // System notification
-          if (Notification.permission !== "granted") {
-            Notification.requestPermission().then(p => {
-              if (p === "granted") {
-                new Notification(`⏰ Agenda: ${r.client_name}`, {
-                  body: `${r.pickup_address} — en ${Math.max(0, mins)} min`,
-                  requireInteraction: true,
-                });
-              }
-            });
-          } else {
-            new Notification(`⏰ Agenda: ${r.client_name}`, {
-              body: `${r.pickup_address} — en ${Math.max(0, mins)} min`,
-              requireInteraction: true,
-            });
-          }
-        }
-      });
-    };
-    check();
-    const interval = setInterval(check, 15000);
-    return () => clearInterval(interval);
-  }, [rides]);
 
   const upcoming = rides.filter(r => !["cancelado", "completado"].includes(r.status))
     .sort((a, b) => new Date(a.scheduled_datetime) - new Date(b.scheduled_datetime));
