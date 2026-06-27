@@ -25,8 +25,10 @@ self.addEventListener("message", (event) => {
 
   if (msg.type === "OFFER_CLEARED") {
     // Cerrar notificaciones de oferta pendiente
-    self.registration.getNotifications({ tag: "ride-offer" }).then(notifs => {
-      notifs.forEach(n => n.close());
+    self.registration.getNotifications().then(notifs => {
+      notifs.forEach(n => {
+        if (n.tag && n.tag.startsWith("ride-offer-")) n.close();
+      });
     });
   }
 
@@ -52,7 +54,7 @@ function showRideNotification(order) {
     body,
     icon: "/icon-192.png",
     badge: "/icon-72.png",
-    tag: "ride-offer" + order.id,
+    tag: "ride-offer-" + order.id,
     renotify: true,
     requireInteraction: true,
     vibrate: [500, 200, 500, 200, 1000],
@@ -124,7 +126,7 @@ self.addEventListener("push", (event) => {
         body: data.body || "Tenés un viaje asignado",
         icon: "/icon-192.png",
         badge: "/icon-72.png",
-        tag: "ride-offer",
+        tag: "ride-offer-" + data.orderId,
         renotify: true,
         requireInteraction: true,
         vibrate: [500, 200, 500, 200, 1000],
