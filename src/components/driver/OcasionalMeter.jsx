@@ -276,26 +276,10 @@ export default function OcasionalMeter({ onClose }) {
           <p className="text-gray-400 text-sm">El taxímetro mide distancia GPS real y tiempo de viaje.<br />No depende de internet ni de mapas.</p>
         </div>
 
-        {/* Info tarifa */}
-        <div className={`rounded-2xl p-4 border space-y-2 text-sm ${esNocturna ? "bg-purple-500/10 border-purple-500/30" : "bg-blue-500/10 border-blue-500/30"}`}>
-          <p className={`font-bold text-xs mb-1 ${esNocturna ? "text-purple-300" : "text-blue-300"}`}>
-            {tarifaLabel}
-          </p>
-          <div className="flex justify-between text-gray-300">
-            <span className="text-gray-500">Bajada de bandera</span>
-            <span className="font-bold">${tarifa.current.bajada_bandera.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between text-gray-300">
-            <span className="text-gray-500">Por kilómetro</span>
-            <span className="font-bold">${tarifa.current.precio_por_km.toLocaleString()}/km</span>
-          </div>
-          <div className="flex justify-between text-gray-300">
-            <span className="text-gray-500">Por minuto</span>
-            <span className="font-bold">${tarifa.current.precio_por_minuto}/min</span>
-          </div>
-          <p className="text-xs text-gray-600 pt-1">
-            Fórmula: Bandera + (km × tarifa) + (tiempo × tarifa)
-          </p>
+        {/* Solo muestra la tarifa vigente sin valores */}
+        <div className={`rounded-2xl p-3 border text-center ${esNocturna ? "bg-purple-500/10 border-purple-500/30" : "bg-blue-500/10 border-blue-500/30"}`}>
+          <p className={`font-bold text-sm ${esNocturna ? "text-purple-300" : "text-blue-300"}`}>{tarifaLabel}</p>
+          <p className="text-gray-500 text-xs mt-0.5">La tarifa es configurada por la administración</p>
         </div>
 
         <button
