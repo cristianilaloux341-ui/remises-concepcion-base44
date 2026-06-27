@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Map, Search } from "lucide-react";
 import TarifaConfigPanel from "@/components/tarifa/TarifaConfig";
+import ZoneDrawMap from "@/components/map/ZoneDrawMap";
 
 const ZONES = ["1-Puerto","2-Plaza","3-Columna","4-Base","5-Cementerio","6-Díaz Vélez","7-Don Bosco","8-Monumento"];
 
@@ -34,6 +35,11 @@ export default function ZoneSettings() {
     queryFn: () => base44.entities.ZoneMapping.list("-priority"),
   });
 
+  const { data: polygons = [], isLoading: isLoadingPolygons } = useQuery({
+    queryKey: ["zone_polygons"],
+    queryFn: () => base44.entities.ZonePolygon.list(),
+  });
+
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.ZoneMapping.create(data),
     onSuccess: () => { qc.invalidateQueries(["zone_mappings"]); setNewRow({ keyword: "", zone: "", priority: 1, notes: "" }); },
@@ -43,6 +49,54 @@ export default function ZoneSettings() {
     mutationFn: (id) => base44.entities.ZoneMapping.delete(id),
     onSuccess: () => qc.invalidateQueries(["zone_mappings"]),
   });
+
+  const createPolygonMutation = useMutation({
+    mutationFn: (data) => base44.entities.ZonePolygon.create(data),
+    onSuccess: () => qc.invalidateQueries(["zone_polygons"]),
+  });
+
+  const updatePolygonMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.ZonePolygon.update(id, data),
+    onSuccess: () => qc.invalidateQueries(["zone_polygons"]),
+  });
+
+  const deletePolygonMutation = useMutation({
+    mutationFn: (id) => base44.entities.ZonePolygon.delete(id),
+    onSuccess: () => qc.invalidateQueries(["zone_polygons"]),
+  });
+
+  const handlePolygonCreated = (coordinates, layer) => {
+    // Remove the layer immediately from the map, we'll let React-Leaflet handle rendering it
+    if (layer && layer._map) {
+      layer._map.removeLayer(layer);
+    }
+    
+    // We default to the first zone if not selected, they can change it later
+    const newZone = newRow.zone || ZONES[0];
+    const matchColor = ZONE_COLORS[newZone]?.match(/text-(\w+)-700/);
+    const baseColor = matchColor ? matchColor[1] : "blue";
+    
+    // Convert tailwind color to hex roughly
+    const colorMap = {
+      blue: "#3b82f6", green: "#22c55e", yellow: "#eab308", 
+      orange: "#f97316", purple: "#a855f7", pink: "#ec4899", 
+      teal: "#14b8a6", red: "#ef4444"
+    };
+    
+    createPolygonMutation.mutate({
+      zone: newZone,
+      coordinates,
+      color: colorMap[baseColor] || "#3b82f6"
+    });
+  };
+
+  const handlePolygonEdited = (id, coordinates) => {
+    updatePolygonMutation.mutate({ id, data: { coordinates } });
+  };
+
+  const handlePolygonDeleted = (id) => {
+    deletePolygonMutation.mutate(id);
+  };
 
   const handleAdd = () => {
     if (!newRow.keyword.trim() || !newRow.zone) return;
@@ -79,10 +133,56 @@ export default function ZoneSettings() {
       {/* ── ZONAS ── */}
       <div>
         <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-          <Map className="w-5 h-5 text-primary" /> Diccionario de Zonas
+          <Map className="w-5 h-5 text-primary" /> Mapa de Zonas (Geofencing)
         </h2>
         <p className="text-muted-foreground text-sm mb-4">
-          Asociá calles y palabras clave a cada base para detección automática de zona.
+          Dibujá los polígonos de cada base para la detección automática de zona por coordenadas. Seleccioná la zona abajo antes de dibujar un polígono nuevo.
+        </p>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <ZoneDrawMap 
+            polygons={polygons}
+            onPolygonCreated={handlePolygonCreated}
+            onPolygonEdited={handlePolygonEdited}
+            onPolygonDeleted={handlePolygonDeleted}
+          />
+        </CardContent>
+        <CardContent className="p-4 border-t flex flex-wrap gap-2">
+          {polygons.map(p => (
+            <div key={p.id} className="flex items-center gap-2 bg-muted px-3 py-1.5 rounded-full text-xs">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color || '#3b82f6' }} />
+              <span className="font-semibold">{p.zone}</span>
+              <Select 
+                value={p.zone} 
+                onValueChange={(v) => {
+                  const matchColor = ZONE_COLORS[v]?.match(/text-(\w+)-700/);
+                  const baseColor = matchColor ? matchColor[1] : "blue";
+                  const colorMap = {
+                    blue: "#3b82f6", green: "#22c55e", yellow: "#eab308", 
+                    orange: "#f97316", purple: "#a855f7", pink: "#ec4899", 
+                    teal: "#14b8a6", red: "#ef4444"
+                  };
+                  updatePolygonMutation.mutate({ id: p.id, data: { zone: v, color: colorMap[baseColor] } });
+                }}
+              >
+                <SelectTrigger className="h-6 w-28 text-xs border-none bg-background"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ZONES.map(z => <SelectItem key={z} value={z} className="text-xs">{z}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <div className="pt-6">
+        <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+          <Search className="w-5 h-5 text-primary" /> Diccionario de Texto (Opcional)
+        </h2>
+        <p className="text-muted-foreground text-sm mb-4">
+          Reglas manuales de coincidencia de texto como respaldo al mapa.
         </p>
       </div>
 

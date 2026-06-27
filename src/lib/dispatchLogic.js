@@ -266,6 +266,33 @@ export async function learnZoneMapping(address, zone) {
 }
 
 // ── Zone Detection ────────────────────────────────────────────────────────────
+// Ray-casting algorithm for Point-in-Polygon
+function isPointInPolygon(point, vs) {
+  const x = point[0], y = point[1];
+  let inside = false;
+  for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+    const xi = vs[i][0], yi = vs[i][1];
+    const xj = vs[j][0], yj = vs[j][1];
+    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// Check if coordinates fall inside any defined ZonePolygon
+export async function detectZoneFromCoords(lat, lng) {
+  if (!lat || !lng) return null;
+  const polygons = await base44.entities.ZonePolygon.list();
+  for (const poly of polygons) {
+    if (poly.coordinates && poly.coordinates.length > 2) {
+      if (isPointInPolygon([lat, lng], poly.coordinates)) {
+        return poly.zone;
+      }
+    }
+  }
+  return null;
+}
+
 // Detects the zone for an address using the ZoneMapping entity (editable dictionary)
 // Returns { zone, confidence } or null if no match found
 export async function detectZoneFromAddress(address) {

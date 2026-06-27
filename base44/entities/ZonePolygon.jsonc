@@ -1,0 +1,38 @@
+{
+  "name": "ZonePolygon",
+  "type": "object",
+  "properties": {
+    "zone": {
+      "type": "string",
+      "enum": [
+        "1-Puerto",
+        "2-Plaza",
+        "3-Columna",
+        "4-Base",
+        "5-Cementerio",
+        "6-D\u00edaz V\u00e9lez",
+        "7-Don Bosco",
+        "8-Monumento"
+      ],
+      "description": "Zona/base a la que pertenece este pol\u00edgono"
+    },
+    "coordinates": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "description": "[lat, lng]"
+      },
+      "description": "Array de coordenadas del pol\u00edgono [[lat1, lng1], [lat2, lng2], ...]"
+    },
+    "color": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "zone",
+    "coordinates"
+  ]
+}
