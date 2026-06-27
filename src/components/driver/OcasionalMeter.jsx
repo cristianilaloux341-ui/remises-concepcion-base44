@@ -1,35 +1,35 @@
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
-import { DollarSign, Timer, Navigation, CheckCircle2, XCircle, Car, Zap } from "lucide-react";
+import { DollarSign, Timer, Navigation, CheckCircle2, XCircle, Car, Zap, Clock } from "lucide-react";
 
 /**
- * Taxímetro ocasional: el chofer activa un viaje propio sin despacho.
- * Usa la tarifa configurada por los administradores.
+ * Taxímetro GPS en tiempo real.
+ * Fórmula: Precio = Bajada_Bandera + (km × precio_km) + (minutos × precio_minuto)
+ * - La distancia se mide con GPS + Haversine cada actualización de posición.
+ * - El tiempo corre desde que se pulsa "Iniciar" hasta "Terminar".
+ * - No depende de ninguna API externa.
  */
 export default function OcasionalMeter({ onClose }) {
-  // Estados del taxímetro: 'idle' | 'running' | 'done'
-  const [phase, setPhase] = useState("idle");
+  const [phase, setPhase] = useState("idle"); // 'idle' | 'running' | 'done'
   const [importeActual, setImporteActual] = useState(0);
   const [metrosRecorridos, setMetrosRecorridos] = useState(0);
-  const [enEspera, setEnEspera] = useState(false);
-  const [segundosEspera, setSegundosEspera] = useState(0);
+  const [segundosTotales, setSegundosTotales] = useState(0);
   const [esNocturna, setEsNocturna] = useState(false);
-  const [tarifaLabel, setTarifaLabel] = useState("");
+  const [tarifaLabel, setTarifaLabel] = useState("Cargando tarifa...");
+  const [tarifaCargada, setTarifaCargada] = useState(false);
 
-  const importeRef = useRef(0);
+  // Refs para evitar stale closures en GPS/timer
   const metrosRef = useRef(0);
-  const contadorParadoRef = useRef(0);
+  const segundosRef = useRef(0);
   const lastPosRef = useRef(null);
   const gpsWatchRef = useRef(null);
   const timerRef = useRef(null);
-  const segundosEsperaRef = useRef(0);
 
-  const tarifaRef = useRef({
+  const tarifa = useRef({
     bajada_bandera: 500,
-    precio_por_metro: 2,
-    precio_por_minuto_espera: 50,
-    tolerancia_espera_segundos: 120,
+    precio_por_km: 2000,       // precio_por_metro * 1000
+    precio_por_minuto: 30,
     es_nocturna: false,
   });
 
@@ -45,138 +45,151 @@ export default function OcasionalMeter({ onClose }) {
         : (hora >= horaInicio && hora < horaFin);
 
       if (nocturna) {
-        tarifaRef.current = {
+        tarifa.current = {
           bajada_bandera: raw.nocturna_bajada_bandera ?? 700,
-          precio_por_metro: raw.nocturna_precio_por_metro ?? 2.8,
-          precio_por_minuto_espera: raw.nocturna_precio_por_minuto_espera ?? 70,
-          tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
+          precio_por_km: (raw.nocturna_precio_por_metro ?? 2.8) * 1000,
+          precio_por_minuto: raw.nocturna_precio_por_minuto_corrido ?? 45,
         };
         setEsNocturna(true);
-        setTarifaLabel("Tarifa Nocturna");
+        setTarifaLabel("🌙 Tarifa Nocturna");
       } else {
-        tarifaRef.current = {
+        tarifa.current = {
           bajada_bandera: raw.bajada_bandera ?? 500,
-          precio_por_metro: raw.precio_por_metro ?? 2,
-          precio_por_minuto_espera: raw.precio_por_minuto_espera ?? 50,
-          tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
+          precio_por_km: (raw.precio_por_metro ?? 2) * 1000,
+          precio_por_minuto: raw.precio_por_minuto_corrido ?? 30,
         };
         setEsNocturna(false);
-        setTarifaLabel("Tarifa Diurna");
+        setTarifaLabel("☀️ Tarifa Diurna");
       }
-    }).catch(() => {});
+      setTarifaCargada(true);
+    }).catch(() => { setTarifaCargada(true); });
   }, []);
 
+  // Recalcular importe a partir de metros + segundos actuales
+  const recalcular = (metros, segundos) => {
+    const km = metros / 1000;
+    const minutos = segundos / 60;
+    const total = tarifa.current.bajada_bandera
+      + km * tarifa.current.precio_por_km
+      + minutos * tarifa.current.precio_por_minuto;
+    return Math.round(total);
+  };
+
   const iniciarViaje = () => {
-    const bajada = tarifaRef.current.bajada_bandera;
-    importeRef.current = bajada;
-    setImporteActual(bajada);
     metrosRef.current = 0;
-    contadorParadoRef.current = 0;
-    segundosEsperaRef.current = 0;
+    segundosRef.current = 0;
     lastPosRef.current = null;
     setMetrosRecorridos(0);
-    setEnEspera(false);
-    setSegundosEspera(0);
+    setSegundosTotales(0);
+    setImporteActual(tarifa.current.bajada_bandera);
     setPhase("running");
 
-    // GPS
+    // GPS: acumula distancia real con Haversine
     if (navigator.geolocation) {
       gpsWatchRef.current = navigator.geolocation.watchPosition(
         (pos) => {
-          const { latitude, longitude, speed } = pos.coords;
-          const speedKmh = (speed || 0) * 3.6;
-
+          const { latitude, longitude } = pos.coords;
           if (lastPosRef.current) {
             const metros = haversineMetros(
               lastPosRef.current.lat, lastPosRef.current.lng,
               latitude, longitude
             );
-            if (metros > 0.5 && metros < 500) {
+            // Filtrar saltos de GPS (> 0.5m y < 300m entre lecturas)
+            if (metros > 0.5 && metros < 300) {
               metrosRef.current += metros;
               setMetrosRecorridos(Math.round(metrosRef.current));
-              // cobrar por metro
-              const nuevo = tarifaRef.current.bajada_bandera + metrosRef.current * tarifaRef.current.precio_por_metro;
-              importeRef.current = nuevo;
-              setImporteActual(Math.round(nuevo));
+              setImporteActual(recalcular(metrosRef.current, segundosRef.current));
             }
           }
-
           lastPosRef.current = { lat: latitude, lng: longitude };
-
-          if (speedKmh < 5) {
-            contadorParadoRef.current += 1;
-            setEnEspera(true);
-          } else {
-            contadorParadoRef.current = 0;
-            setEnEspera(false);
-          }
         },
         () => {},
-        { enableHighAccuracy: true, maximumAge: 2000 }
+        { enableHighAccuracy: true, maximumAge: 3000 }
       );
     }
 
-    // Timer espera
+    // Timer: cada segundo suma tiempo y recalcula
     timerRef.current = setInterval(() => {
-      if (contadorParadoRef.current > tarifaRef.current.tolerancia_espera_segundos) {
-        segundosEsperaRef.current += 1;
-        setSegundosEspera(segundosEsperaRef.current);
-        const costoPorSegundo = tarifaRef.current.precio_por_minuto_espera / 60;
-        importeRef.current += costoPorSegundo;
-        setImporteActual(Math.round(importeRef.current));
-      }
+      segundosRef.current += 1;
+      setSegundosTotales(s => s + 1);
+      setImporteActual(recalcular(metrosRef.current, segundosRef.current));
     }, 1000);
   };
 
   const terminarViaje = () => {
-    if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
+    if (gpsWatchRef.current !== null) {
+      navigator.geolocation.clearWatch(gpsWatchRef.current);
+      gpsWatchRef.current = null;
+    }
     clearInterval(timerRef.current);
     setPhase("done");
   };
 
   const reiniciar = () => {
-    if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
+    if (gpsWatchRef.current !== null) {
+      navigator.geolocation.clearWatch(gpsWatchRef.current);
+      gpsWatchRef.current = null;
+    }
     clearInterval(timerRef.current);
     setPhase("idle");
     setImporteActual(0);
     setMetrosRecorridos(0);
-    setEnEspera(false);
-    setSegundosEspera(0);
-    importeRef.current = 0;
+    setSegundosTotales(0);
     metrosRef.current = 0;
+    segundosRef.current = 0;
   };
 
-  // Pantalla: cobro final
+  // Formato mm:ss
+  const fmtTiempo = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+  // ── Pantalla: cobro final ──────────────────────────────────────────────────
   if (phase === "done") {
+    const importeFinal = recalcular(metrosRecorridos, segundosTotales);
+    const km = (metrosRecorridos / 1000).toFixed(2);
+    const minutos = (segundosTotales / 60).toFixed(1);
     return (
       <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-sm space-y-6 text-center">
+        <div className="w-full max-w-sm space-y-5 text-center">
           <div className="w-24 h-24 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
             <DollarSign className="w-12 h-12 text-green-400" />
           </div>
           <div>
-            <p className="text-gray-400 text-sm font-semibold uppercase tracking-wide mb-1">COBRAR AL PASAJERO</p>
-            <p className="text-7xl font-black text-green-400">${Math.round(importeRef.current).toLocaleString()}</p>
-            <p className={`text-xs mt-2 font-medium ${esNocturna ? "text-purple-400" : "text-blue-400"}`}>{tarifaLabel}</p>
+            <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-1">COBRAR AL PASAJERO</p>
+            <p className="text-7xl font-black text-green-400">${importeFinal.toLocaleString()}</p>
+            <p className={`text-xs mt-2 font-semibold ${esNocturna ? "text-purple-400" : "text-blue-400"}`}>{tarifaLabel}</p>
           </div>
-          <div className="bg-gray-900 rounded-2xl p-4 space-y-2 text-sm text-left border border-gray-800">
-            <div className="flex justify-between text-gray-400">
-              <span>Bajada de bandera</span>
-              <span className="text-white font-semibold">${tarifaRef.current.bajada_bandera.toLocaleString()}</span>
+
+          {/* Desglose */}
+          <div className="bg-gray-900 rounded-2xl p-4 space-y-3 text-sm text-left border border-gray-800">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Bajada de bandera</span>
+              <span className="text-white font-bold">${tarifa.current.bajada_bandera.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between text-gray-400">
-              <span>Distancia recorrida</span>
-              <span className="text-white font-semibold">{(metrosRecorridos / 1000).toFixed(2)} km</span>
+            <div className="h-px bg-gray-800" />
+            <div className="flex justify-between">
+              <span className="text-gray-500">Distancia GPS</span>
+              <span className="text-white font-bold">{km} km</span>
             </div>
-            {segundosEspera > 0 && (
-              <div className="flex justify-between text-gray-400">
-                <span>Tiempo de espera</span>
-                <span className="text-amber-400 font-semibold">
-                  {Math.floor(segundosEspera / 60)}m {segundosEspera % 60}s
-                </span>
-              </div>
-            )}
+            <div className="flex justify-between text-xs text-gray-600">
+              <span>{km} km × ${tarifa.current.precio_por_km.toLocaleString()}/km</span>
+              <span>${Math.round((metrosRecorridos / 1000) * tarifa.current.precio_por_km).toLocaleString()}</span>
+            </div>
+            <div className="h-px bg-gray-800" />
+            <div className="flex justify-between">
+              <span className="text-gray-500">Tiempo de viaje</span>
+              <span className="text-white font-bold">{minutos} min</span>
+            </div>
+            <div className="flex justify-between text-xs text-gray-600">
+              <span>{minutos} min × ${tarifa.current.precio_por_minuto}/min</span>
+              <span>${Math.round((segundosTotales / 60) * tarifa.current.precio_por_minuto).toLocaleString()}</span>
+            </div>
+            <div className="h-px bg-gray-800" />
+            <div className="flex justify-between font-bold text-green-400">
+              <span>TOTAL</span>
+              <span>${importeFinal.toLocaleString()}</span>
+            </div>
           </div>
+
           <div className="space-y-3">
             <button
               className="w-full h-14 rounded-2xl bg-blue-600 text-white font-bold text-base active:scale-95 transition-all"
@@ -185,7 +198,7 @@ export default function OcasionalMeter({ onClose }) {
               Nuevo Viaje Ocasional
             </button>
             <button
-              className="w-full h-12 rounded-2xl border border-gray-700 text-gray-400 font-semibold text-sm active:scale-95 transition-all"
+              className="w-full h-11 rounded-2xl border border-gray-700 text-gray-400 font-semibold text-sm active:scale-95 transition-all"
               onClick={onClose}
             >
               Volver a la App
@@ -196,56 +209,53 @@ export default function OcasionalMeter({ onClose }) {
     );
   }
 
-  // Pantalla: taxímetro en marcha
+  // ── Pantalla: taxímetro en marcha ─────────────────────────────────────────
   if (phase === "running") {
     return (
-      <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col p-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+      <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col p-4 pt-6">
+        <div className="flex items-center justify-between mb-4 shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping" />
-            <span className="text-white font-bold text-base">Viaje Ocasional</span>
+            <span className="text-white font-bold">Viaje Ocasional</span>
           </div>
           <span className={`text-xs font-semibold px-3 py-1 rounded-full ${esNocturna ? "bg-purple-500/20 text-purple-300" : "bg-blue-500/20 text-blue-300"}`}>
             {tarifaLabel}
           </span>
         </div>
 
-        {/* Taxímetro principal */}
-        <div className={`flex-1 flex flex-col items-center justify-center rounded-3xl border ${enEspera ? "bg-amber-500/10 border-amber-500/30" : "bg-green-500/10 border-green-500/30"}`}>
-          <div className="flex items-center gap-2 mb-3">
-            {enEspera
-              ? <Timer className="w-6 h-6 text-amber-400 animate-pulse" />
-              : <Navigation className="w-6 h-6 text-green-400" />
-            }
-            <span className={`text-sm font-bold ${enEspera ? "text-amber-400" : "text-green-400"}`}>
-              {enEspera ? "EN ESPERA" : "EN MOVIMIENTO"}
-            </span>
-          </div>
-          <p className="text-8xl font-black text-white leading-none">
-            ${Math.round(importeActual).toLocaleString()}
+        {/* Taxímetro central */}
+        <div className="flex-1 flex flex-col items-center justify-center rounded-3xl bg-gray-900 border border-gray-800">
+          <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-2">TARIFA ACTUAL</p>
+          <p className="text-8xl font-black text-green-400 leading-none">
+            ${importeActual.toLocaleString()}
           </p>
-          <div className="mt-4 flex gap-6 text-sm text-gray-400">
-            <span className="flex items-center gap-1">
-              <Car className="w-4 h-4" /> {(metrosRecorridos / 1000).toFixed(2)} km
-            </span>
-            {segundosEspera > 0 && (
-              <span className="flex items-center gap-1 text-amber-400">
-                <Timer className="w-4 h-4" /> {Math.floor(segundosEspera / 60)}:{String(segundosEspera % 60).padStart(2, "0")} espera
-              </span>
-            )}
+          <div className="mt-6 flex gap-8">
+            <div className="text-center">
+              <div className="flex items-center gap-1 justify-center text-blue-400 mb-1">
+                <Navigation className="w-4 h-4" />
+                <span className="text-xs font-bold">DISTANCIA</span>
+              </div>
+              <p className="text-xl font-black text-white">{(metrosRecorridos / 1000).toFixed(2)} km</p>
+            </div>
+            <div className="w-px bg-gray-800" />
+            <div className="text-center">
+              <div className="flex items-center gap-1 justify-center text-amber-400 mb-1">
+                <Clock className="w-4 h-4" />
+                <span className="text-xs font-bold">TIEMPO</span>
+              </div>
+              <p className="text-xl font-black text-white">{fmtTiempo(segundosTotales)}</p>
+            </div>
           </div>
         </div>
 
-        {/* Botón terminar */}
         <button
-          className="mt-4 w-full h-16 rounded-2xl bg-green-500 text-white font-black text-xl flex items-center justify-center gap-3 shadow-lg shadow-green-500/30 active:scale-95 transition-all"
+          className="mt-4 w-full h-16 rounded-2xl bg-green-500 text-white font-black text-xl flex items-center justify-center gap-3 shadow-lg shadow-green-500/30 active:scale-95 transition-all shrink-0"
           onClick={terminarViaje}
         >
-          <CheckCircle2 className="w-7 h-7" /> Terminar · ${Math.round(importeActual).toLocaleString()}
+          <CheckCircle2 className="w-7 h-7" /> Terminar · ${importeActual.toLocaleString()}
         </button>
         <button
-          className="mt-2 w-full h-11 rounded-2xl border border-red-500/30 text-red-400 font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all"
+          className="mt-2 w-full h-11 rounded-2xl border border-red-500/30 text-red-400 font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shrink-0"
           onClick={reiniciar}
         >
           <XCircle className="w-4 h-4" /> Cancelar viaje
@@ -254,43 +264,43 @@ export default function OcasionalMeter({ onClose }) {
     );
   }
 
-  // Pantalla: inicio (idle)
+  // ── Pantalla: inicio (idle) ───────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-sm space-y-6">
+      <div className="w-full max-w-sm space-y-5">
         <div className="text-center space-y-2">
           <div className="w-20 h-20 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto">
             <Zap className="w-10 h-10 text-yellow-400" />
           </div>
           <h2 className="text-2xl font-black text-white">Viaje Ocasional</h2>
-          <p className="text-gray-400 text-sm">Iniciá el taxímetro para un viaje propio.<br />La tarifa es la configurada por la central.</p>
+          <p className="text-gray-400 text-sm">El taxímetro mide distancia GPS real y tiempo de viaje.<br />No depende de internet ni de mapas.</p>
         </div>
 
         {/* Info tarifa */}
         <div className={`rounded-2xl p-4 border space-y-2 text-sm ${esNocturna ? "bg-purple-500/10 border-purple-500/30" : "bg-blue-500/10 border-blue-500/30"}`}>
-          <div className={`flex items-center gap-2 font-bold text-xs mb-2 ${esNocturna ? "text-purple-300" : "text-blue-300"}`}>
-            <span>{esNocturna ? "🌙" : "☀️"} {tarifaLabel || "Cargando tarifa..."}</span>
-          </div>
+          <p className={`font-bold text-xs mb-1 ${esNocturna ? "text-purple-300" : "text-blue-300"}`}>
+            {tarifaLabel}
+          </p>
           <div className="flex justify-between text-gray-300">
             <span className="text-gray-500">Bajada de bandera</span>
-            <span className="font-semibold">${tarifaRef.current.bajada_bandera.toLocaleString()}</span>
+            <span className="font-bold">${tarifa.current.bajada_bandera.toLocaleString()}</span>
           </div>
           <div className="flex justify-between text-gray-300">
-            <span className="text-gray-500">Por metro</span>
-            <span className="font-semibold">${tarifaRef.current.precio_por_metro}/m</span>
+            <span className="text-gray-500">Por kilómetro</span>
+            <span className="font-bold">${tarifa.current.precio_por_km.toLocaleString()}/km</span>
           </div>
           <div className="flex justify-between text-gray-300">
-            <span className="text-gray-500">Espera (por min)</span>
-            <span className="font-semibold">${tarifaRef.current.precio_por_minuto_espera}</span>
+            <span className="text-gray-500">Por minuto</span>
+            <span className="font-bold">${tarifa.current.precio_por_minuto}/min</span>
           </div>
-          <div className="flex justify-between text-gray-300">
-            <span className="text-gray-500">Tolerancia espera</span>
-            <span className="font-semibold">{tarifaRef.current.tolerancia_espera_segundos}s</span>
-          </div>
+          <p className="text-xs text-gray-600 pt-1">
+            Fórmula: Bandera + (km × tarifa) + (tiempo × tarifa)
+          </p>
         </div>
 
         <button
-          className="w-full h-16 rounded-2xl bg-yellow-500 text-gray-950 font-black text-xl flex items-center justify-center gap-3 shadow-lg shadow-yellow-500/30 active:scale-95 transition-all"
+          disabled={!tarifaCargada}
+          className="w-full h-16 rounded-2xl bg-yellow-500 text-gray-950 font-black text-xl flex items-center justify-center gap-3 shadow-lg shadow-yellow-500/30 active:scale-95 transition-all disabled:opacity-50"
           onClick={iniciarViaje}
         >
           <Zap className="w-6 h-6" /> Iniciar Taxímetro
