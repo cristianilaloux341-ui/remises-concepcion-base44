@@ -131,22 +131,22 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       setDetectingZone(true);
       let zone = null;
       
-      // 1. Try to detect by geofencing (coordinates)
-      let coords = (form.pickup_lat && form.pickup_lng) 
-        ? { lat: form.pickup_lat, lng: form.pickup_lng } 
-        : await geocodeAddress(form.pickup_address);
-        
-      if (coords) {
-        zone = await detectZoneFromCoords(coords.lat, coords.lng);
-        // Save coords if we geocoded them here
-        if (!form.pickup_lat || !form.pickup_lng) {
-          setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
-        }
-      }
+      // 1. Priorizar el diccionario de texto primero porque es donde el sistema "aprende" las correcciones de zona
+      zone = await detectZoneFromAddress(form.pickup_address);
       
-      // 2. Fallback to dictionary (text)
+      // 2. Fallback a geofencing por polígonos del mapa si la calle no estaba guardada manualmente
       if (!zone) {
-        zone = await detectZoneFromAddress(form.pickup_address);
+        let coords = (form.pickup_lat && form.pickup_lng) 
+          ? { lat: form.pickup_lat, lng: form.pickup_lng } 
+          : await geocodeAddress(form.pickup_address);
+          
+        if (coords) {
+          zone = await detectZoneFromCoords(coords.lat, coords.lng);
+          // Save coords if we geocoded them here
+          if (!form.pickup_lat || !form.pickup_lng) {
+            setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
+          }
+        }
       }
 
       setDetectingZone(false);

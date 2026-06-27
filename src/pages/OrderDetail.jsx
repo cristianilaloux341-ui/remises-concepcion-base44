@@ -114,16 +114,26 @@ export default function OrderDetail() {
               <XCircle className="w-4 h-4" /> Cancelar
             </Button>
           )}
-          <Button
-            variant="destructive"
-            size="sm"
-            className="gap-2"
-            onClick={() => deleteMutation.mutate(order.id)}
-            disabled={deleteMutation.isPending}
-          >
-            {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-            Eliminar
-          </Button>
+          {(() => {
+            try {
+              const op = JSON.parse(localStorage.getItem("local_operator") || "null");
+              if (op?.role === "admin") {
+                return (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => deleteMutation.mutate(order.id)}
+                    disabled={deleteMutation.isPending}
+                  >
+                    {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Eliminar
+                  </Button>
+                );
+              }
+            } catch { return null; }
+            return null;
+          })()}
         </div>
       </div>
 

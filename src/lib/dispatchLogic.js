@@ -301,19 +301,51 @@ export async function detectZoneFromAddress(address) {
   const mappings = await base44.entities.ZoneMapping.list("-priority");
   if (!mappings.length) return null;
 
-  const normalized = address.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const parsed = parseAddress(address);
+  const streetNorm = (parsed.street || address).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  
+  let blockNorm = null;
+  if (parsed.number) {
+    const block = Math.floor(parsed.number / 100);
+    blockNorm = `${streetNorm} ${block}`;
+  }
 
   let bestMatch = null;
   let bestPriority = -1;
 
   for (const m of mappings) {
-    const keyword = (m.keyword || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const keyword = (m.keyword || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     if (!keyword) continue;
-    if (normalized.includes(keyword)) {
+    
+    // Primero, si el operador configuró manualmente las alturas (ej: san martin 12)
+    if (blockNorm && keyword === blockNorm) {
+      const priority = m.priority || 10;
+      if (priority > bestPriority) {
+        bestPriority = priority;
+        bestMatch = m.zone;
+      }
+    } 
+    // Luego, coincidencia exacta del nombre de la calle entera
+    else if (keyword === streetNorm) {
       const priority = m.priority || 1;
       if (priority > bestPriority) {
         bestPriority = priority;
         bestMatch = m.zone;
+      }
+    }
+  }
+
+  // Si no hubo coincidencia exacta de calle, probamos incluído genérico por las dudas
+  if (!bestMatch) {
+    const normalized = address.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    for (const m of mappings) {
+      const keyword = (m.keyword || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (keyword && normalized.includes(keyword)) {
+        const priority = m.priority || 1;
+        if (priority > bestPriority) {
+          bestPriority = priority;
+          bestMatch = m.zone;
+        }
       }
     }
   }
