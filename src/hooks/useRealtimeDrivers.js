@@ -15,7 +15,7 @@ export function useRealtimeDrivers() {
 
   const fetchAll = useCallback(() => {
     if (!mountedRef.current) return;
-    return withRetry(() => base44.entities.Driver.list()).then((data) => {
+    return withRetry(() => base44.entities.Driver.list(undefined, 500)).then((data) => {
       if (mountedRef.current) {
         setDrivers(data);
         setIsLoading(false);
