@@ -52,7 +52,7 @@ function showRideNotification(order) {
     body,
     icon: "/icon-192.png",
     badge: "/icon-72.png",
-    tag: "ride-offer",
+    tag: "ride-offer" + order.id,
     renotify: true,
     requireInteraction: true,
     vibrate: [500, 200, 500, 200, 1000],
