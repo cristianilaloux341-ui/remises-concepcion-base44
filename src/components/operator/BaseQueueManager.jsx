@@ -4,7 +4,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import DraggableModal from "@/components/ui/draggable-modal";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import { GripVertical } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getBaseQueue, BASES } from "@/lib/dispatchLogic";
 import { formatDistanceToNow } from "date-fns";
@@ -26,13 +28,14 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
   );
 
   const moveMutation = useMutation({
-    mutationFn: async ({ driver, newPosition }) => {
+    mutationFn: async ({ driverId, newPosition }) => {
       // Recalculate queue_entered_at to reflect new position
       const currentQueue = [...queue];
-      const idx = currentQueue.findIndex(d => d.id === driver.id);
+      const idx = currentQueue.findIndex(d => d.id === driverId);
       if (idx === -1) return;
-      currentQueue.splice(idx, 1);
-      currentQueue.splice(newPosition, 0, driver);
+      
+      const [driverToMove] = currentQueue.splice(idx, 1);
+      currentQueue.splice(newPosition, 0, driverToMove);
 
       // Reassign timestamps to maintain order
       const baseTime = new Date();
@@ -46,6 +49,16 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["drivers"] }),
   });
+
+  const handleDragEnd = (result) => {
+    if (!result.destination) return;
+    if (result.source.index === result.destination.index) return;
+    
+    moveMutation.mutate({ 
+      driverId: result.draggableId, 
+      newPosition: result.destination.index 
+    });
+  };
 
   const removeMutation = useMutation({
     mutationFn: (driver) => base44.entities.Driver.update(driver.id, {
@@ -75,48 +88,60 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
         Modificá el orden de la cola en <strong>{baseName}</strong>. Los cambios se aplican inmediatamente.
       </p>
 
-      <div className="space-y-2">
-        {queue.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Cola vacía</p>
-        ) : queue.map((driver, idx) => {
-          const nroMovil = movilByPlate[driver.vehicle_plate?.toUpperCase()];
-          return (
-          <div key={driver.id} className="flex items-center gap-2 p-3 bg-muted/50 rounded-xl">
-            <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-              {idx + 1}
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">
-                {nroMovil && <span className="text-primary font-bold mr-1">#{nroMovil}</span>}
-                {driver.name}
-              </p>
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId="base-queue">
+          {(provided) => (
+            <div 
+              className={`space-y-2 relative ${moveMutation.isPending ? "opacity-50 pointer-events-none" : ""}`}
+              {...provided.droppableProps} 
+              ref={provided.innerRef}
+            >
+              {queue.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Cola vacía</p>
+              ) : queue.map((driver, idx) => {
+                const nroMovil = movilByPlate[driver.vehicle_plate?.toUpperCase()];
+                return (
+                  <Draggable key={driver.id} draggableId={driver.id} index={idx}>
+                    {(provided, snapshot) => (
+                      <div 
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        className={`flex items-center gap-2 p-3 bg-muted/50 rounded-xl ${snapshot.isDragging ? "shadow-lg ring-1 ring-primary/20 bg-background" : ""}`}
+                      >
+                        <div {...provided.dragHandleProps} className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing p-1">
+                          <GripVertical className="w-4 h-4" />
+                        </div>
+                        <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {nroMovil && <span className="text-primary font-bold mr-1">#{nroMovil}</span>}
+                            {driver.name}
+                          </p>
+                        </div>
+                        {driver.queue_entered_at && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatDistanceToNow(new Date(driver.queue_entered_at), { locale: es })}
+                          </span>
+                        )}
+                        <div className="flex gap-1 ml-auto">
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700"
+                            onClick={() => removeMutation.mutate(driver)}>
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </Draggable>
+                );
+              })}
+              {provided.placeholder}
             </div>
-            {driver.queue_entered_at && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {formatDistanceToNow(new Date(driver.queue_entered_at), { locale: es })}
-              </span>
-            )}
-            <div className="flex gap-1">
-              <Button size="icon" variant="ghost" className="h-7 w-7"
-                disabled={idx === 0 || moveMutation.isPending}
-                onClick={() => moveMutation.mutate({ driver, newPosition: idx - 1 })}>
-                <ArrowUp className="w-3 h-3" />
-              </Button>
-              <Button size="icon" variant="ghost" className="h-7 w-7"
-                disabled={idx === queue.length - 1 || moveMutation.isPending}
-                onClick={() => moveMutation.mutate({ driver, newPosition: idx + 1 })}>
-                <ArrowDown className="w-3 h-3" />
-              </Button>
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700"
-                onClick={() => removeMutation.mutate(driver)}>
-                <XCircle className="w-3 h-3" />
-              </Button>
-            </div>
-          </div>
-          );
-        })}
-      </div>
+          )}
+        </Droppable>
+      </DragDropContext>
 
       {notInQueue.length > 0 && (
         <div className="flex gap-2">
@@ -199,22 +224,21 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
         })}
       </div>
 
-      <Dialog open={!!editingBase} onOpenChange={(o) => { if (!o) setEditingBase(null); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cola de Base — {editingBase}</DialogTitle>
-          </DialogHeader>
-          {editingBase && (
-            <QueueEditor
-              baseName={editingBase}
-              queue={getBaseQueue(drivers, editingBase)}
-              drivers={drivers}
-              onClose={() => setEditingBase(null)}
-              movilByPlate={movilByPlate}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <DraggableModal 
+        isOpen={!!editingBase} 
+        onClose={() => setEditingBase(null)}
+        title={`Cola de Base — ${editingBase}`}
+      >
+        {editingBase && (
+          <QueueEditor
+            baseName={editingBase}
+            queue={getBaseQueue(drivers, editingBase)}
+            drivers={drivers}
+            onClose={() => setEditingBase(null)}
+            movilByPlate={movilByPlate}
+          />
+        )}
+      </DraggableModal>
     </>
   );
 }
