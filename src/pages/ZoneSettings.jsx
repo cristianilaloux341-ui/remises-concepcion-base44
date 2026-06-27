@@ -29,6 +29,7 @@ export default function ZoneSettings() {
   const [filter, setFilter] = useState("");
   const [filterZone, setFilterZone] = useState("all");
   const [newRow, setNewRow] = useState({ keyword: "", zone: "", priority: 1, notes: "" });
+  const [selectedDrawZone, setSelectedDrawZone] = useState(ZONES[0]);
 
   const { data: mappings = [], isLoading } = useQuery({
     queryKey: ["zone_mappings"],
@@ -71,8 +72,7 @@ export default function ZoneSettings() {
       layer._map.removeLayer(layer);
     }
     
-    // We default to the first zone if not selected, they can change it later
-    const newZone = newRow.zone || ZONES[0];
+    const newZone = selectedDrawZone;
     const matchColor = ZONE_COLORS[newZone]?.match(/text-(\w+)-700/);
     const baseColor = matchColor ? matchColor[1] : "blue";
     
@@ -136,11 +136,29 @@ export default function ZoneSettings() {
           <Map className="w-5 h-5 text-primary" /> Mapa de Zonas (Geofencing)
         </h2>
         <p className="text-muted-foreground text-sm mb-4">
-          Dibujá los polígonos de cada base para la detección automática de zona por coordenadas. Seleccioná la zona abajo antes de dibujar un polígono nuevo.
+          Elegí la zona a dibujar en el selector de abajo, luego trazá el polígono en el mapa usando la herramienta (⬟). Podés editar o borrar los polígonos existentes en cualquier momento.
         </p>
       </div>
 
       <Card>
+        <div className="p-4 border-b flex flex-col sm:flex-row sm:items-center gap-3 bg-muted/30">
+          <Label className="font-semibold whitespace-nowrap">Siguiente zona a dibujar:</Label>
+          <Select value={selectedDrawZone} onValueChange={setSelectedDrawZone}>
+            <SelectTrigger className="w-full sm:w-64 bg-background">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ZONES.map(z => (
+                <SelectItem key={z} value={z}>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${ZONE_COLORS[z].split(' ')[0]}`} />
+                    {z}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <CardContent className="p-0">
           <ZoneDrawMap 
             polygons={polygons}
