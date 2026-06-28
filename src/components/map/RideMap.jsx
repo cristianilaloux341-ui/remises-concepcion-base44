@@ -140,6 +140,7 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
 
   // Filtramos choferes y puntos fuera del ejido urbano para no mostrarlos ni centrar en ellos
   const validDrivers = drivers.filter(d => {
+    if (d.status === "no_disponible") return false;
     if (d.current_lat && d.current_lng) return isUrbano(d.current_lat, d.current_lng);
     return true; 
   });
