@@ -31,6 +31,15 @@ export function useOperatorPushSubscription(user) {
         const reg = await navigator.serviceWorker.ready;
 
         let sub = await reg.pushManager.getSubscription();
+        
+        // Renovar forzosamente para prevenir desconexiones de Google FCM
+        if (sub) {
+          try {
+            await sub.unsubscribe();
+          } catch (e) {}
+          sub = null;
+        }
+
         if (!sub) {
           sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,

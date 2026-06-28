@@ -1,7 +1,7 @@
 // Service Worker — Remises Concepción
-// v2026-06-28a — bump para invalidar cache vieja y forzar push handlers
+// v2026-06-28b — bump para invalidar cache vieja y forzar push handlers
 
-const CACHE_NAME = "radiocab-v6";
+const CACHE_NAME = "radiocab-v7";
 
 // Responder a skip waiting para actualizaciones inmediatas
 self.addEventListener("message", (event) => {

@@ -28,7 +28,18 @@ export function usePushSubscription(driverId) {
         // Verificar si ya hay una suscripción activa
         let sub = await reg.pushManager.getSubscription();
         
-        // Sólo intentar suscribir automáticamente si el permiso ya fue concedido
+        // FORZAR RENOVACIÓN: Google a veces invalida la suscripción en segundo plano sin avisar.
+        // También soluciona cuando cambian las claves VAPID en el servidor.
+        if (sub) {
+          try {
+            await sub.unsubscribe();
+          } catch (e) {
+            console.warn("Error al desuscribir la vieja key", e);
+          }
+          sub = null;
+        }
+
+        // Suscribir nuevamente de cero si el permiso ya fue concedido
         if (!sub && ("Notification" in window) && Notification.permission === "granted") {
           sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
