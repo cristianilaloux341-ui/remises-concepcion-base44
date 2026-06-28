@@ -131,7 +131,7 @@ self.addEventListener("push", (event) => {
         requireInteraction: true,
         vibrate: [500, 200, 500, 200, 1000],
         data: { orderId: data.orderId, driverId: data.driverId },
-        actions: [
+        actions: data.actions || [
           { action: "accept", title: "✅ Aceptar" },
           { action: "reject", title: "❌ Rechazar" },
         ],

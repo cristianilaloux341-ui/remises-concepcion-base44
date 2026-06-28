@@ -1283,16 +1283,16 @@ export default function DriverApp() {
       const msg = event.data;
       if (!msg) return;
 
-      if (msg.type === "SW_ACCEPT_ORDER") {
-        const orderId = msg.orderId;
+      if (msg.type === "SW_ACCEPT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "accept")) {
+        const orderId = msg.orderId || msg.payload?.orderId;
         if (orderId && myDriverId) {
           base44.entities.RideOrder.update(orderId, { status: "aceptado" }).catch(() => {});
           base44.entities.Driver.update(myDriverId, { status: "en_viaje" }).catch(() => {});
         }
       }
 
-      if (msg.type === "SW_REJECT_ORDER") {
-        const orderId = msg.orderId;
+      if (msg.type === "SW_REJECT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "reject")) {
+        const orderId = msg.orderId || msg.payload?.orderId;
         if (orderId && myDriverId) {
           Promise.all([
             base44.entities.RideOrder.get(orderId),

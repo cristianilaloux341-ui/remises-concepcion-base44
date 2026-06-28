@@ -268,6 +268,10 @@ Deno.serve(async (req) => {
         driverId,
         title: '🚖 ¡Nuevo Viaje!',
         body: orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}${orderData.fare ? ' · $' + orderData.fare : ''}` : 'Tenés un viaje asignado',
+        actions: [
+          { action: 'accept', title: '✅ Aceptar' },
+          { action: 'reject', title: '❌ Rechazar' }
+        ]
       });
 
       const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
