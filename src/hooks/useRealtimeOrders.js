@@ -52,9 +52,15 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
     mountedRef.current = true;
     connect();
 
+    // Polling en segundo plano sin destruir el WebSocket
+    const pollInterval = setInterval(() => {
+      fetchAll();
+    }, 15000);
+
     return () => {
       mountedRef.current = false;
       unsubRef.current?.();
+      clearInterval(pollInterval);
     };
   }, [connect, fetchAll]);
 

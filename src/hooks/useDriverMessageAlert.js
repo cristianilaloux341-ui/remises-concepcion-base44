@@ -49,13 +49,10 @@ export function useDriverMessageAlert(driverId) {
     if (!driverId) return;
 
     let unsubscribe = null;
-    let lastEvent = Date.now();
-    let pollInterval = null;
 
     const connect = () => {
       unsubscribe?.();
       unsubscribe = base44.entities.Message.subscribe((event) => {
-        lastEvent = Date.now();
         if (event.type !== "create") return;
         const msg = event.data;
         if (!msg) return;
@@ -72,10 +69,29 @@ export function useDriverMessageAlert(driverId) {
       });
     };
 
+    const fetchMissed = async () => {
+      try {
+        const data = await base44.entities.Message.filter({ from_type: "operador", read: false });
+        const unread = data.filter(msg => {
+          const isForMe = !msg.to_driver_id || msg.to_driver_id === driverId;
+          return isForMe && !seenIds.current.has(msg.id);
+        });
+        if (unread.length > 0) {
+          unread.forEach(msg => seenIds.current.add(msg.id));
+          setPendingMessages(prev => [...prev, ...unread]);
+          playAlertOnce();
+        }
+      } catch (err) {}
+    };
+
     connect();
+    
+    // Polling de respaldo sin destruir el websocket
+    const pollInterval = setInterval(fetchMissed, 15000);
 
     return () => {
       unsubscribe?.();
+      clearInterval(pollInterval);
     };
   }, [driverId]);
 
