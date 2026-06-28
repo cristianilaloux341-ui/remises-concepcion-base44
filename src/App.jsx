@@ -55,6 +55,7 @@ import Backup from '@/pages/Backup';
 import AuditLogs from '@/pages/AuditLogs';
 import ActiveUsers from '@/pages/ActiveUsers';
 import Profile from '@/pages/Profile';
+import DesktopOnlyError from '@/components/DesktopOnlyError';
 
 function AdminRoute({ children, allowRoles = ["admin"] }) {
   const { user } = useAuth();
@@ -74,8 +75,18 @@ const AuthenticatedApp = () => {
     window.location.href = window.location.href.replace('http:', 'https:');
   }
 
+  // Seguridad: Validar User-Agent (Contenedor Electron)
+  const isDesktopApp = navigator.userAgent.includes('RemisesConcepcion-AdminApp');
+  const isDriverApp = window.location.pathname === '/driver-app' || window.location.pathname.startsWith('/driver-app');
+  // Parametro bypass solo para poder seguir editando la web en este editor temporalmente (?dev=1)
+  const isDevBypass = new URLSearchParams(window.location.search).get('dev') === '1' || window.location.hostname === 'localhost';
+
+  if (!isDriverApp && !isDesktopApp && !isDevBypass) {
+    return <DesktopOnlyError />;
+  }
+
   // Driver app is fully public - render immediately without any auth checks
-  if (window.location.pathname === '/driver-app' || window.location.pathname.startsWith('/driver-app')) {
+  if (isDriverApp) {
     return (
       <Routes>
         <Route path="/driver-app" element={<DriverAppErrorBoundary><DriverApp /></DriverAppErrorBoundary>} />
