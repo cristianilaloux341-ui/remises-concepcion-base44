@@ -1270,19 +1270,6 @@ export default function DriverApp() {
     return () => bc.close();
   }, [myDriverId]);
 
-  // Verificación de sesión única (Forzar deslogueo si hay otra sesión activa)
-  useEffect(() => {
-    if (myDriverRaw && myDriverRaw.current_session_token) {
-      const localSession = localStorage.getItem("session_token");
-      if (localSession && myDriverRaw.current_session_token !== localSession) {
-         localStorage.removeItem("my_driver_id");
-         localStorage.removeItem("remembered_driver_id");
-         localStorage.removeItem("session_token");
-         window.location.reload();
-      }
-    }
-  }, [myDriverRaw?.current_session_token]);
-
   // Load dismissed broadcasts from localStorage per driver
   useEffect(() => {
     if (!myDriverId) { setDismissedBroadcasts([]); return; }
@@ -1428,6 +1415,19 @@ export default function DriverApp() {
   const clearOverrideTimerRef = useRef(null);
 
   const myDriverRaw = drivers.find(d => d.id === myDriverId);
+
+  // Verificación de sesión única (Forzar deslogueo si hay otra sesión activa)
+  useEffect(() => {
+    if (myDriverRaw && myDriverRaw.current_session_token) {
+      const localSession = localStorage.getItem("session_token");
+      if (localSession && myDriverRaw.current_session_token !== localSession) {
+         localStorage.removeItem("my_driver_id");
+         localStorage.removeItem("remembered_driver_id");
+         localStorage.removeItem("session_token");
+         window.location.reload();
+      }
+    }
+  }, [myDriverRaw?.current_session_token]);
 
   // Limpiar el override cuando los datos reales del servidor ya coinciden
   // Usamos un pequeño delay para evitar flash si la suscripción llega antes de lo esperado
