@@ -82,6 +82,16 @@ function FitBounds({ bounds }) {
   return null;
 }
 
+function CenterMap({ centerOn, zoom }) {
+  const map = useMap();
+  useEffect(() => {
+    if (centerOn && centerOn.length === 2) {
+      map.setView(centerOn, zoom || 15);
+    }
+  }, [centerOn, map, zoom]);
+  return null;
+}
+
 function InvalidateSize() {
   const map = useMap();
   useEffect(() => {
@@ -122,9 +132,9 @@ const BASE_COORDS = {
 };
 
 // Límites aproximados del ejido urbano de Concepción del Uruguay
-const isUrbano = (lat, lng) => lat > -32.55 && lat < -32.42 && lng > -58.32 && lng < -58.15;
+const isUrbano = (lat, lng) => lat > -32.52 && lat < -32.43 && lng > -58.30 && lng < -58.18;
 
-export default function RideMap({ orders = [], drivers = [], center, zoom = 13, className = "" }) {
+export default function RideMap({ orders = [], drivers = [], center, zoom = 13, className = "", autoFit = true, centerOn = null }) {
   const defaultCenter = center || [CENTRAL.lat, CENTRAL.lng];
   // No re-montamos el mapa en cada visibilitychange — InvalidateSize lo maneja
 
@@ -162,7 +172,8 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
         />
 
         <InvalidateSize />
-        {allPoints.length > 1 && <FitBounds bounds={allPoints} />}
+        {autoFit && allPoints.length > 1 && <FitBounds bounds={allPoints} />}
+        {centerOn && <CenterMap centerOn={centerOn} zoom={zoom} />}
 
         {/* Marcador fijo de la central */}
         <Marker position={[CENTRAL.lat, CENTRAL.lng]} icon={centralIcon}>

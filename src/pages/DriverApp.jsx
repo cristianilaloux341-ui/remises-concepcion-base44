@@ -1063,9 +1063,16 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
           <DailyStats driverId={driverId} />
         </div>
 
-        {/* Mapa compacto — solo referencia visual */}
-        <div className="mx-4 mb-4 h-36 rounded-2xl overflow-hidden border border-gray-800 pointer-events-none opacity-70">
-          <RideMap orders={[]} drivers={[driver]} className="h-full w-full" />
+        {/* Mapa interactivo — ver compañeros y mi ubicación */}
+        <div className="mx-4 mb-4 h-56 rounded-2xl overflow-hidden border border-gray-800 shadow-md">
+          <RideMap 
+            orders={[]} 
+            drivers={drivers} 
+            autoFit={false}
+            centerOn={driver.current_lat && driver.current_lng ? [driver.current_lat, driver.current_lng] : null} 
+            zoom={16} 
+            className="h-full w-full" 
+          />
         </div>
       </div>
     );
