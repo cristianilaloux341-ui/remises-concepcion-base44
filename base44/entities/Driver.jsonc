@@ -3,7 +3,11 @@
   "type": "object",
   "rls": {
     "read": true,
-    "create": false,
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
     "update": true,
     "delete": true
   },
@@ -125,6 +129,14 @@
     "push_subscription": {
       "type": "string",
       "description": "JSON serializado de la PushSubscription del navegador"
+    },
+    "device_id": {
+      "type": "string",
+      "description": "ID \u00fanico del dispositivo asociado"
+    },
+    "current_session_token": {
+      "type": "string",
+      "description": "Token de la sesi\u00f3n actual en el dispositivo"
     }
   },
   "required": [
