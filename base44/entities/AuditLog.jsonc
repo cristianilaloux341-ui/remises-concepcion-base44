@@ -1,0 +1,28 @@
+{
+  "name": "AuditLog",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Tipo de acci\u00f3n (ej: 'asignar_viaje', 'cancelar_viaje', 'modificar_tarifa')"
+    },
+    "user_type": {
+      "type": "string",
+      "description": "Rol de quien ejecut\u00f3 (ej: 'operador', 'admin', 'chofer', 'sistema')"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "details": {
+      "type": "string",
+      "description": "Detalle en texto de la acci\u00f3n"
+    },
+    "device": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "action",
+    "user_name"
+  ]
+}
