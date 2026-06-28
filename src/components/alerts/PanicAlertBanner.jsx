@@ -59,31 +59,58 @@ export default function PanicAlertBanner() {
   }, [panics.length]);
 
   useEffect(() => {
-    const unsubscribe = base44.entities.PanicAlert.subscribe((event) => {
-      if (event.type === "create") {
-        if (seenIds.current.has(event.id)) return;
-        seenIds.current.add(event.id);
-        if (event.data?.status === "activo") {
-          setPanics(prev => [...prev, event.data]);
-          if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-            try {
-              new Notification("🚨 ALERTA DE PÁNICO", {
-                body: `${event.data.driver_name} — ${event.data.vehicle_plate}`,
-                icon: "/icon-192.png",
-                requireInteraction: true,
-              });
-            } catch (_) {}
+    let unsubscribe = null;
+    let lastEvent = Date.now();
+    let pollInterval = null;
+
+    const connect = () => {
+      unsubscribe?.();
+      base44.entities.PanicAlert.filter({ status: "activo" }).then(data => {
+        const activeIds = data.map(p => p.id);
+        setPanics(prev => {
+          const current = [...prev];
+          data.forEach(p => { if (!current.some(x => x.id === p.id)) { current.push(p); seenIds.current.add(p.id); } });
+          return current.filter(p => activeIds.includes(p.id));
+        });
+        lastEvent = Date.now();
+      }).catch(() => {});
+
+      unsubscribe = base44.entities.PanicAlert.subscribe((event) => {
+        lastEvent = Date.now();
+        if (event.type === "create") {
+          if (seenIds.current.has(event.id)) return;
+          seenIds.current.add(event.id);
+          if (event.data?.status === "activo") {
+            setPanics(prev => [...prev, event.data]);
+            if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+              try {
+                new Notification("🚨 ALERTA DE PÁNICO", {
+                  body: `${event.data.driver_name} — ${event.data.vehicle_plate}`,
+                  icon: "/icon-192.png",
+                  requireInteraction: true,
+                });
+              } catch (_) {}
+            }
+          }
+        } else if (event.type === "update") {
+          if (event.data?.status !== "activo") {
+            setPanics(prev => prev.filter(p => p.id !== event.id));
+          } else {
+            setPanics(prev => prev.map(p => p.id === event.id ? { ...p, ...event.data } : p));
           }
         }
-      } else if (event.type === "update") {
-        if (event.data?.status !== "activo") {
-          setPanics(prev => prev.filter(p => p.id !== event.id));
-        } else {
-          setPanics(prev => prev.map(p => p.id === event.id ? { ...p, ...event.data } : p));
-        }
-      }
-    });
-    return () => unsubscribe();
+      });
+    };
+
+    connect();
+    pollInterval = setInterval(() => {
+      if (Date.now() - lastEvent > 15000) connect();
+    }, 15000);
+
+    return () => {
+      unsubscribe?.();
+      clearInterval(pollInterval);
+    };
   }, []);
 
   const dismiss = async (panic) => {

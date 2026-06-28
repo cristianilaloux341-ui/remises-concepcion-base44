@@ -57,33 +57,50 @@ export default function DriverMessageAlert() {
   }, [onMessagesPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const unsubscribe = base44.entities.Message.subscribe((event) => {
-      if (event.type !== "create") return;
-      const msg = event.data;
-      if (!msg) return;
-      if (msg.from_type !== "movil") return;
-      if (seenIds.current.has(msg.id)) return;
-      // No alertar si ya estamos en la página de mensajes
-      if (onMessagesPage) { seenIds.current.add(msg.id); return; }
+    let unsubscribe = null;
+    let lastEvent = Date.now();
+    let pollInterval = null;
 
-      seenIds.current.add(msg.id);
-      setAlerts(prev => [...prev, msg]);
+    const connect = () => {
+      unsubscribe?.();
+      
+      unsubscribe = base44.entities.Message.subscribe((event) => {
+        lastEvent = Date.now();
+        if (event.type !== "create") return;
+        const msg = event.data;
+        if (!msg) return;
+        if (msg.from_type !== "movil") return;
+        if (seenIds.current.has(msg.id)) return;
+        // No alertar si ya estamos en la página de mensajes
+        if (onMessagesPage) { seenIds.current.add(msg.id); return; }
 
-      // Sonido una sola vez por mensaje nuevo
-      playAlert();
+        seenIds.current.add(msg.id);
+        setAlerts(prev => [...prev, msg]);
 
-      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-        try {
-          new Notification(`📩 Mensaje de ${msg.from_name}`, {
-            body: msg.content,
-            icon: "/icon-192.png",
-            requireInteraction: true,
-          });
-        } catch (_) {}
-      }
-    });
+        // Sonido una sola vez por mensaje nuevo
+        playAlert();
 
-    return () => unsubscribe();
+        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+          try {
+            new Notification(`📩 Mensaje de ${msg.from_name}`, {
+              body: msg.content,
+              icon: "/icon-192.png",
+              requireInteraction: true,
+            });
+          } catch (_) {}
+        }
+      });
+    };
+
+    connect();
+    pollInterval = setInterval(() => {
+      if (Date.now() - lastEvent > 15000) connect();
+    }, 15000);
+
+    return () => {
+      unsubscribe?.();
+      clearInterval(pollInterval);
+    };
   }, [onMessagesPage]);
 
   const dismiss = (id) => {

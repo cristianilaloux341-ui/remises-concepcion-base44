@@ -43,23 +43,39 @@ export default function CancellationAlert() {
   const seenIds = useRef(new Set());
 
   useEffect(() => {
-    // Subscribe to RideOrder changes — detect transitions to "cancelado"
-    const unsubscribe = base44.entities.RideOrder.subscribe((event) => {
-      if (event.type !== "update") return;
-      const order = event.data;
-      if (!order) return;
-      if (order.status !== "cancelado") return;
-      // Only alert once per order
-      if (seenIds.current.has(order.id)) return;
-      // Only alert if had a driver assigned (operator needs to free the slot)
-      if (!order.driver_id && !order.driver_name) return;
+    let unsubscribe = null;
+    let lastEvent = Date.now();
+    let pollInterval = null;
 
-      seenIds.current.add(order.id);
-      setAlerts(prev => [...prev, order]);
-      playCancel();
-    });
+    const connect = () => {
+      unsubscribe?.();
+      // Subscribe to RideOrder changes — detect transitions to "cancelado"
+      unsubscribe = base44.entities.RideOrder.subscribe((event) => {
+        lastEvent = Date.now();
+        if (event.type !== "update") return;
+        const order = event.data;
+        if (!order) return;
+        if (order.status !== "cancelado") return;
+        // Only alert once per order
+        if (seenIds.current.has(order.id)) return;
+        // Only alert if had a driver assigned (operator needs to free the slot)
+        if (!order.driver_id && !order.driver_name) return;
 
-    return () => unsubscribe();
+        seenIds.current.add(order.id);
+        setAlerts(prev => [...prev, order]);
+        playCancel();
+      });
+    };
+
+    connect();
+    pollInterval = setInterval(() => {
+      if (Date.now() - lastEvent > 15000) connect();
+    }, 15000);
+
+    return () => {
+      unsubscribe?.();
+      clearInterval(pollInterval);
+    };
   }, []);
 
   const dismiss = (orderId) => {

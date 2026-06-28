@@ -58,10 +58,10 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
     mountedRef.current = true;
     connect();
 
-    // Poll de respaldo: si la suscripción cayó silenciosamente, re-fetch
+    // Poll de respaldo: si la suscripción cayó silenciosamente, reconectar
     pollRef.current = setInterval(() => {
       if (Date.now() - lastEventRef.current > POLL_INTERVAL_MS * 2) {
-        fetchAll();
+        connect();
       }
     }, POLL_INTERVAL_MS);
 

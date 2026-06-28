@@ -62,10 +62,10 @@ export function useRealtimeDrivers() {
     mountedRef.current = true;
     connect();
 
-    // Poll de respaldo: si no hubo evento en 2× el intervalo, re-fetch forzado
+    // Poll de respaldo: si no hubo evento en 2× el intervalo, reconectar
     pollRef.current = setInterval(() => {
       if (Date.now() - lastEventRef.current > POLL_INTERVAL_MS * 2) {
-        fetchAll();
+        connect();
       }
     }, POLL_INTERVAL_MS);
 

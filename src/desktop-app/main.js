@@ -38,6 +38,9 @@ function createWindow() {
 
 // Permitir que los sonidos se reproduzcan automáticamente sin requerir que el usuario haga clic
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 app.whenReady().then(() => {
   createWindow();
