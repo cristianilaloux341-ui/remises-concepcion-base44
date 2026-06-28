@@ -11,7 +11,8 @@ function createWindow() {
     webPreferences: {
       devTools: false, // Desactiva F12 e inspeccionar elementos
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      backgroundThrottling: false // Evita que la app se duerma en segundo plano y corte los sonidos
     }
   });
 
@@ -34,6 +35,9 @@ function createWindow() {
     }
   });
 }
+
+// Permitir que los sonidos se reproduzcan automáticamente sin requerir que el usuario haga clic
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 app.whenReady().then(() => {
   createWindow();
