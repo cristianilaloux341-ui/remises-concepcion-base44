@@ -131,22 +131,22 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       setDetectingZone(true);
       let zone = null;
       
-      // 1. Priorizar el diccionario de texto primero porque es donde el sistema "aprende" las correcciones de zona
-      zone = await detectZoneFromAddress(form.pickup_address);
-      
-      // 2. Fallback a geofencing por polígonos del mapa si la calle no estaba guardada manualmente
-      if (!zone) {
-        let coords = (form.pickup_lat && form.pickup_lng) 
-          ? { lat: form.pickup_lat, lng: form.pickup_lng } 
-          : await geocodeAddress(form.pickup_address);
-          
-        if (coords) {
-          zone = await detectZoneFromCoords(coords.lat, coords.lng);
-          // Save coords if we geocoded them here
-          if (!form.pickup_lat || !form.pickup_lng) {
-            setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
-          }
+      // 1. Intentar SIEMPRE por coordenadas primero (Geofencing con los polígonos del mapa)
+      let coords = (form.pickup_lat && form.pickup_lng) 
+        ? { lat: form.pickup_lat, lng: form.pickup_lng } 
+        : await geocodeAddress(form.pickup_address);
+        
+      if (coords) {
+        zone = await detectZoneFromCoords(coords.lat, coords.lng);
+        // Guardar las coordenadas geocodificadas si no las teníamos
+        if (!form.pickup_lat || !form.pickup_lng) {
+          setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
         }
+      }
+
+      // 2. Fallback al diccionario de texto (nombres de calles) si no cayó en ningún polígono del mapa
+      if (!zone) {
+        zone = await detectZoneFromAddress(form.pickup_address);
       }
 
       setDetectingZone(false);
@@ -358,7 +358,12 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
               <Label>Recogida</Label>
               <PickupAutocomplete
                 value={form.pickup_address}
-                onChange={(v, coords) => setForm(prev => ({ ...prev, pickup_address: v, pickup_lat: coords?.lat ?? prev.pickup_lat, pickup_lng: coords?.lng ?? prev.pickup_lng }))}
+                onChange={(v, coords) => setForm(prev => ({ 
+                  ...prev, 
+                  pickup_address: v, 
+                  pickup_lat: coords !== undefined ? (coords?.lat || null) : null, 
+                  pickup_lng: coords !== undefined ? (coords?.lng || null) : null 
+                }))}
                 onClientSelect={handleAddressClientSelect}
                 required
               />
@@ -448,7 +453,12 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
               <Label>Destino Principal</Label>
               <AddressAutocomplete
                 value={form.dropoff_address}
-                onChange={(v, coords) => setForm(prev => ({ ...prev, dropoff_address: v, dropoff_lat: coords?.lat ?? prev.dropoff_lat, dropoff_lng: coords?.lng ?? prev.dropoff_lng }))}
+                onChange={(v, coords) => setForm(prev => ({ 
+                  ...prev, 
+                  dropoff_address: v, 
+                  dropoff_lat: coords !== undefined ? (coords?.lat || null) : null, 
+                  dropoff_lng: coords !== undefined ? (coords?.lng || null) : null 
+                }))}
                 placeholder="Calle y número de destino"
                 icon={<MapPin className="w-4 h-4 text-red-500" />}
               />
