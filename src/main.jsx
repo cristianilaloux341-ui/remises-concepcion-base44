@@ -11,6 +11,42 @@ const applyTheme = () => {
 applyTheme();
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
+// Ocultamiento de consola en producción (seguridad)
+if (window.location.hostname !== 'localhost') {
+  console.log = () => {};
+  console.info = () => {};
+  console.warn = () => {};
+  console.error = () => {};
+  console.debug = () => {};
+  console.trace = () => {};
+}
+
+// Detección básica de Root / Emuladores
+const isProbableEmulator = () => {
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  if (!isAndroid) return false;
+  // Comprobaciones heurísticas básicas para web view/PWA
+  const hasHardwareConcurrency = navigator.hardwareConcurrency > 0;
+  const isWebGlRenderValid = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!gl) return true; // fallback
+      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+      const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+      return /swiftshader|llvmpipe|mali/i.test(renderer);
+    } catch (e) {
+      return false;
+    }
+  };
+  return isWebGlRenderValid() && !hasHardwareConcurrency;
+};
+
+if (isProbableEmulator()) {
+  document.body.innerHTML = "<div style='padding:20px;text-align:center;font-family:sans-serif;'>Dispositivo no soportado (Root/Emulador detectado) por motivos de seguridad.</div>";
+  throw new Error("Entorno no seguro detectado");
+}
+
 // Registrar el Service Worker para PWA y push notifications
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
