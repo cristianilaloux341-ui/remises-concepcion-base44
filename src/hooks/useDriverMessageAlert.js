@@ -73,13 +73,9 @@ export function useDriverMessageAlert(driverId) {
     };
 
     connect();
-    pollInterval = setInterval(() => {
-      if (Date.now() - lastEvent > 15000) connect();
-    }, 15000);
 
     return () => {
       unsubscribe?.();
-      clearInterval(pollInterval);
     };
   }, [driverId]);
 

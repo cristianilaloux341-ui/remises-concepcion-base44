@@ -60,8 +60,6 @@ export default function PanicAlertBanner() {
 
   useEffect(() => {
     let unsubscribe = null;
-    let lastEvent = Date.now();
-    let pollInterval = null;
 
     const connect = () => {
       unsubscribe?.();
@@ -72,11 +70,9 @@ export default function PanicAlertBanner() {
           data.forEach(p => { if (!current.some(x => x.id === p.id)) { current.push(p); seenIds.current.add(p.id); } });
           return current.filter(p => activeIds.includes(p.id));
         });
-        lastEvent = Date.now();
       }).catch(() => {});
 
       unsubscribe = base44.entities.PanicAlert.subscribe((event) => {
-        lastEvent = Date.now();
         if (event.type === "create") {
           if (seenIds.current.has(event.id)) return;
           seenIds.current.add(event.id);
@@ -103,13 +99,9 @@ export default function PanicAlertBanner() {
     };
 
     connect();
-    pollInterval = setInterval(() => {
-      if (Date.now() - lastEvent > 15000) connect();
-    }, 15000);
 
     return () => {
       unsubscribe?.();
-      clearInterval(pollInterval);
     };
   }, []);
 

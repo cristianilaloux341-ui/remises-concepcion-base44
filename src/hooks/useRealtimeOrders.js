@@ -3,15 +3,11 @@ import { base44 } from "@/api/base44Client";
 import { useBackgroundSync } from "./useBackgroundSync";
 import { withRetry } from "@/lib/retryFetch";
 
-const POLL_INTERVAL_MS = 15_000; // fallback poll cada 15s si la suscripción cae
-
 export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const mountedRef = useRef(true);
   const unsubRef = useRef(null);
-  const pollRef = useRef(null);
-  const lastEventRef = useRef(Date.now());
 
   const fetchAll = useCallback(() => {
     if (!mountedRef.current) return;
@@ -19,7 +15,6 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
       if (mountedRef.current) {
         setOrders(data);
         setIsLoading(false);
-        lastEventRef.current = Date.now();
       }
     }).catch(() => {
       if (mountedRef.current) setIsLoading(false);
@@ -36,7 +31,6 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
 
     unsubRef.current = base44.entities.RideOrder.subscribe((event) => {
       if (!mountedRef.current) return;
-      lastEventRef.current = Date.now();
       setOrders((prev) => {
         if (!event.data) return prev;
         if (event.type === "create") {
@@ -58,17 +52,9 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
     mountedRef.current = true;
     connect();
 
-    // Poll de respaldo: si la suscripción cayó silenciosamente, reconectar
-    pollRef.current = setInterval(() => {
-      if (Date.now() - lastEventRef.current > POLL_INTERVAL_MS * 2) {
-        connect();
-      }
-    }, POLL_INTERVAL_MS);
-
     return () => {
       mountedRef.current = false;
       unsubRef.current?.();
-      clearInterval(pollRef.current);
     };
   }, [connect, fetchAll]);
 

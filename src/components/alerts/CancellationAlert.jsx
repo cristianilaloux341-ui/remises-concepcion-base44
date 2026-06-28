@@ -44,14 +44,11 @@ export default function CancellationAlert() {
 
   useEffect(() => {
     let unsubscribe = null;
-    let lastEvent = Date.now();
-    let pollInterval = null;
 
     const connect = () => {
       unsubscribe?.();
       // Subscribe to RideOrder changes — detect transitions to "cancelado"
       unsubscribe = base44.entities.RideOrder.subscribe((event) => {
-        lastEvent = Date.now();
         if (event.type !== "update") return;
         const order = event.data;
         if (!order) return;
@@ -68,13 +65,9 @@ export default function CancellationAlert() {
     };
 
     connect();
-    pollInterval = setInterval(() => {
-      if (Date.now() - lastEvent > 15000) connect();
-    }, 15000);
 
     return () => {
       unsubscribe?.();
-      clearInterval(pollInterval);
     };
   }, []);
 

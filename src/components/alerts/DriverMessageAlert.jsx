@@ -58,14 +58,10 @@ export default function DriverMessageAlert() {
 
   useEffect(() => {
     let unsubscribe = null;
-    let lastEvent = Date.now();
-    let pollInterval = null;
 
     const connect = () => {
       unsubscribe?.();
-      
       unsubscribe = base44.entities.Message.subscribe((event) => {
-        lastEvent = Date.now();
         if (event.type !== "create") return;
         const msg = event.data;
         if (!msg) return;
@@ -93,13 +89,9 @@ export default function DriverMessageAlert() {
     };
 
     connect();
-    pollInterval = setInterval(() => {
-      if (Date.now() - lastEvent > 15000) connect();
-    }, 15000);
 
     return () => {
       unsubscribe?.();
-      clearInterval(pollInterval);
     };
   }, [onMessagesPage]);
 
