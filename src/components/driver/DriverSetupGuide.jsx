@@ -120,6 +120,23 @@ export default function DriverSetupGuide({ onClose }) {
               )}
             </Button>
           </div>
+          {step === 0 && ("Notification" in window) && Notification.permission !== "granted" && (
+            <Button
+              className="w-full rounded-2xl h-12 bg-indigo-600 hover:bg-indigo-700 text-white gap-2 font-bold shadow-lg"
+              onClick={async () => {
+                const p = await Notification.requestPermission();
+                if (p === "granted" && "serviceWorker" in navigator) {
+                  alert("¡Permiso concedido! Las notificaciones están activadas.");
+                  // Recargar para que el hook de suscripción (que ahora requiere "granted") lo tome
+                  window.location.reload();
+                } else {
+                  alert("El permiso fue denegado. Vas a tener que activarlo manualmente desde los ajustes de Chrome.");
+                }
+              }}
+            >
+              <Bell className="w-5 h-5" /> Solicitar permiso ahora
+            </Button>
+          )}
         </div>
       </div>
     </div>

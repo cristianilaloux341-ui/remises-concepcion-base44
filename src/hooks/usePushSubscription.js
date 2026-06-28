@@ -27,12 +27,16 @@ export function usePushSubscription(driverId) {
 
         // Verificar si ya hay una suscripción activa
         let sub = await reg.pushManager.getSubscription();
-        if (!sub) {
+        
+        // Sólo intentar suscribir automáticamente si el permiso ya fue concedido
+        if (!sub && ("Notification" in window) && Notification.permission === "granted") {
           sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
           });
         }
+
+        if (!sub) return; // Si no hay suscripción (y no tenemos permiso), salimos
 
         if (cancelled) return;
 

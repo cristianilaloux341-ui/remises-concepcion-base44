@@ -1220,7 +1220,6 @@ export default function DriverApp() {
   // Register SW and request notification permission on load
   useEffect(() => {
     registerSW();
-    requestNotificationPermission();
 
     // Si la app fue abierta desde un tap de "Aceptar" en pantalla bloqueada
     const urlParams = new URLSearchParams(window.location.search);
