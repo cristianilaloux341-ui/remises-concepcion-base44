@@ -152,8 +152,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       setDetectingZone(false);
       if (zone) {
         setDetectedZone(zone);
-        // Auto-fill only if zone was empty
-        setForm(prev => prev.zone ? prev : { ...prev, zone });
+        // Auto-fill zone always, overriding any previous value
+        setForm(prev => ({ ...prev, zone }));
       } else {
         setDetectedZone(null);
       }
