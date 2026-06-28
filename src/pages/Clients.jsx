@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Plus, Search, Phone, Car, MapPin, BarChart2, UserCog, Trash2 } from "lucide-react";
 import ClientTripStats from "@/components/clients/ClientTripStats";
+import PullToRefresh from "@/components/ui/pull-to-refresh";
 
 function scoreColor(score) {
   if (score >= 8) return "text-green-600";
@@ -218,15 +219,34 @@ export default function Clients() {
         if (existing) throw new Error(`El teléfono ya está registrado para el cliente "${existing.name}".`);
       }
       if (editing?.id) {
-        await base44.entities.Client.update(editing.id, form);
+        return await base44.entities.Client.update(editing.id, form);
       } else {
-        await base44.entities.Client.create(form);
+        return await base44.entities.Client.create(form);
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["clients"] });
+    onMutate: async (newClient) => {
+      await queryClient.cancelQueries({ queryKey: ["clients"] });
+      const previousClients = queryClient.getQueryData(["clients"]);
+      
+      queryClient.setQueryData(["clients"], (old) => {
+        if (!old) return [];
+        if (editing?.id) {
+          return old.map(c => c.id === editing.id ? { ...c, ...newClient } : c);
+        } else {
+          return [{ id: 'temp-' + Date.now(), ...newClient, created_date: new Date().toISOString() }, ...old];
+        }
+      });
+      
       setShowForm(false);
       setEditing(null);
+      
+      return { previousClients };
+    },
+    onError: (err, newClient, context) => {
+      if (context?.previousClients) queryClient.setQueryData(["clients"], context.previousClients);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
     }
   });
 
@@ -237,8 +257,13 @@ export default function Clients() {
     c.pickup_address?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleRefresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["clients"] });
+  };
+
   return (
-    <div className="space-y-6">
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="space-y-6 pb-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Clientes</h1>
@@ -332,6 +357,7 @@ export default function Clients() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </PullToRefresh>
   );
 }

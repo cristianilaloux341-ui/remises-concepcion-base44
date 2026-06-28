@@ -2,9 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck, User, Zap, Settings, Ban, Car } from "lucide-react";
+import { ShieldCheck, User, Zap, Settings, Ban, Car, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 export default function AuditLogs() {
+  const navigate = useNavigate();
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ["audit_logs"],
     queryFn: () => base44.entities.AuditLog.list("-created_date", 200),
@@ -12,6 +15,9 @@ export default function AuditLogs() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
+      <Button variant="ghost" className="gap-2 md:hidden -ml-3" onClick={() => navigate(-1)}>
+        <ArrowLeft className="w-4 h-4" /> Volver
+      </Button>
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <ShieldCheck className="w-6 h-6 text-indigo-600" />

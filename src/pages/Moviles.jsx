@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Car, Plus, Edit, AlertTriangle, CheckCircle2, XCircle, Search, ClipboardList, Ban, PauseCircle, X } from "lucide-react";
+import { Car, Plus, Edit, AlertTriangle, CheckCircle2, XCircle, Search, ClipboardList, Ban, PauseCircle, X, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
@@ -325,6 +326,7 @@ function getCamposMovil(m) {
 
 export default function Moviles() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);

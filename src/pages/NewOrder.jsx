@@ -1,5 +1,5 @@
 import { base44 } from "@/api/base44Client";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { findBestDriver, findDriverInZone, assignDriverToOrder } from "@/lib/dis
 
 export default function NewOrder() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
@@ -40,8 +41,21 @@ export default function NewOrder() {
 
       return newOrder;
     },
-    onSuccess: () => {
+    onMutate: async (data) => {
+      await queryClient.cancelQueries({ queryKey: ["orders"] });
+      const previous = queryClient.getQueryData(["orders"]);
+      queryClient.setQueryData(["orders"], old => {
+        if (!old) return [];
+        return [{ id: 'temp-' + Date.now(), ...data, created_date: new Date().toISOString() }, ...old];
+      });
       navigate("/orders");
+      return { previous };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previous) queryClient.setQueryData(["orders"], context.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
   });
 

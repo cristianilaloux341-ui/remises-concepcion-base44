@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Download, Loader2, CheckCircle2 } from "lucide-react";
+import { Download, Loader2, CheckCircle2, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const ENTITIES = [
   { name: "Driver", label: "Chóferes" },
@@ -20,6 +21,7 @@ const ENTITIES = [
 ];
 
 export default function Backup() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(null);
   const [done, setDone] = useState(false);
@@ -58,11 +60,16 @@ export default function Backup() {
   };
 
   return (
-    <div className="p-6 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold mb-1">Backup de la Agencia</h1>
+    <div className="p-6 max-w-lg mx-auto space-y-4">
+      <Button variant="ghost" className="gap-2 md:hidden -ml-3" onClick={() => navigate(-1)}>
+        <ArrowLeft className="w-4 h-4" /> Volver
+      </Button>
+      <div>
+        <h1 className="text-2xl font-bold mb-1">Backup de la Agencia</h1>
       <p className="text-muted-foreground mb-8">
         Descargá un archivo JSON con todos los datos del sistema. Guardalo en un lugar seguro.
       </p>
+      </div>
 
       <div className="bg-card border rounded-xl p-5 mb-6 space-y-2">
         <p className="text-sm font-medium mb-3">El backup incluye:</p>

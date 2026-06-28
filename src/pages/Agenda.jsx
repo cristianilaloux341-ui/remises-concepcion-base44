@@ -17,6 +17,7 @@ const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-
 import { format, formatDistanceToNow, isPast, differenceInMinutes } from "date-fns";
 import { es } from "date-fns/locale";
 import { autoDispatch, assignDriverToOrder, detectZoneFromAddress } from "@/lib/dispatchLogic";
+import PullToRefresh from "@/components/ui/pull-to-refresh";
 import { useTarifaConfig, calcularDistanciaRuta, calcularImporte } from "@/hooks/useTarifaConfig";
 
 const STATUS_COLORS = {
@@ -266,15 +267,35 @@ export default function Agenda() {
       }
       
       if (editing?.id) {
-        await base44.entities.ScheduledRide.update(editing.id, dataToSave);
+        return await base44.entities.ScheduledRide.update(editing.id, dataToSave);
       } else {
-        await base44.entities.ScheduledRide.create(dataToSave);
+        return await base44.entities.ScheduledRide.create(dataToSave);
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["scheduled"] });
+    onMutate: async (form) => {
+      await queryClient.cancelQueries({ queryKey: ["scheduled"] });
+      const previous = queryClient.getQueryData(["scheduled"]);
+      
+      queryClient.setQueryData(["scheduled"], (old) => {
+        if (!old) return [];
+        const dataToSave = { ...form, status: form.status || "pendiente" };
+        if (editing?.id) {
+          return old.map(r => r.id === editing.id ? { ...r, ...dataToSave } : r);
+        } else {
+          return [{ id: 'temp-' + Date.now(), ...dataToSave, scheduled_datetime: form.scheduled_datetime || new Date().toISOString() }, ...old];
+        }
+      });
+      
       setShowForm(false);
       setEditing(null);
+      
+      return { previous };
+    },
+    onError: (err, newRide, context) => {
+      if (context?.previous) queryClient.setQueryData(["scheduled"], context.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["scheduled"] });
     }
   });
 
@@ -319,8 +340,13 @@ export default function Agenda() {
     .sort((a, b) => new Date(b.scheduled_datetime) - new Date(a.scheduled_datetime))
     .slice(0, 20);
 
+  const handleRefresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["scheduled"] });
+  };
+
   return (
-    <div className="space-y-6">
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="space-y-6 pb-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Agenda</h1>
@@ -448,6 +474,7 @@ export default function Agenda() {
           />
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </PullToRefresh>
   );
 }

@@ -37,7 +37,16 @@ export default function OrderDetail() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.RideOrder.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] }),
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ["orders"] });
+      const previous = queryClient.getQueryData(["orders"]);
+      queryClient.setQueryData(["orders"], old => old ? old.map(o => o.id === id ? { ...o, ...data } : o) : old);
+      return { previous };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previous) queryClient.setQueryData(["orders"], context.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] }),
   });
 
   // When cancelling an active order, put the assigned driver first in queue

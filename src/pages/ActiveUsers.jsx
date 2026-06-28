@@ -3,12 +3,14 @@ import { base44 } from "@/api/base44Client";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Activity, Car, Users, ShieldAlert, Smartphone, Ban, Eye, EyeOff, CheckCircle2, Trash2 } from "lucide-react";
+import { Activity, Car, Users, ShieldAlert, Smartphone, Ban, Eye, EyeOff, CheckCircle2, Trash2, ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 export default function ActiveUsers() {
+  const navigate = useNavigate();
   const [now, setNow] = useState(Date.now());
   const [tab, setTab] = useState("online");
   const [showPins, setShowPins] = useState(false);
@@ -74,6 +76,9 @@ export default function ActiveUsers() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
+      <Button variant="ghost" className="gap-2 md:hidden -ml-3" onClick={() => navigate(-1)}>
+        <ArrowLeft className="w-4 h-4" /> Volver
+      </Button>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">

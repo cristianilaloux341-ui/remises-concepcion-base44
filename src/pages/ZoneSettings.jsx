@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Map, Search } from "lucide-react";
 import TarifaConfigPanel from "@/components/tarifa/TarifaConfig";
 import ZoneDrawMap from "@/components/map/ZoneDrawMap";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 
 const ZONES = ["1-Puerto","2-Plaza","3-Columna","4-Base","5-Cementerio","6-Díaz Vélez","7-Don Bosco","8-Monumento"];
 
@@ -26,6 +28,7 @@ const ZONE_COLORS = {
 
 export default function ZoneSettings() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState("");
   const [filterZone, setFilterZone] = useState("all");
   const [newRow, setNewRow] = useState({ keyword: "", zone: "", priority: 1, notes: "" });
@@ -117,6 +120,9 @@ export default function ZoneSettings() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      <Button variant="ghost" className="gap-2 md:hidden -ml-3" onClick={() => navigate(-1)}>
+        <ArrowLeft className="w-4 h-4" /> Volver
+      </Button>
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Map className="w-6 h-6 text-primary" />

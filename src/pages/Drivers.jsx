@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard, NotebookPen, ClipboardList, KeyRound, MonitorSmartphone } from "lucide-react";
+import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard, NotebookPen, ClipboardList, KeyRound, MonitorSmartphone, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
@@ -374,6 +375,7 @@ function DriverHistory({ driverId, driverName, onClose }) {
 
 export default function Drivers() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState(null);
   const [selectedDriver, setSelectedDriver] = useState(null);

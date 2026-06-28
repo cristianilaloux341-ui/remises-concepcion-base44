@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Users, UserPlus, Phone, Shield, User, Loader2, CheckCircle2, AlertCircle, Trash2, KeyRound, Pencil, PowerOff, Power, Mail, ShoppingBag, Eye } from "lucide-react";
+import { Users, UserPlus, Phone, Shield, User, Loader2, CheckCircle2, AlertCircle, Trash2, KeyRound, Pencil, PowerOff, Power, Mail, ShoppingBag, Eye, ArrowLeft } from "lucide-react";
 import { ROLE_LABELS, ROLE_COLORS } from "@/lib/permissions";
+import { useNavigate } from "react-router-dom";
 
 const ROLES = [
   { value: "admin",      label: "Administrador",          icon: Shield,      desc: "Acceso total" },
@@ -126,6 +127,7 @@ function OperatorForm({ initial, onSubmit, isSubmitting }) {
 
 export default function Usuarios() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [dialogOpen, setDialogOpen]       = useState(false);
   const [editingOp, setEditingOp]         = useState(null);
   const [deleteTarget, setDeleteTarget]   = useState(null);
@@ -181,6 +183,9 @@ export default function Usuarios() {
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
+      <Button variant="ghost" className="gap-2 md:hidden -ml-3" onClick={() => navigate(-1)}>
+        <ArrowLeft className="w-4 h-4" /> Volver
+      </Button>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">

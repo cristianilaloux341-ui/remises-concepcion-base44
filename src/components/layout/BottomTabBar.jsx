@@ -1,17 +1,41 @@
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { LayoutDashboard, Car, CalendarClock, MessageSquare, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tabs = [
-  { label: "Central", path: "/", icon: LayoutDashboard, exact: true },
-  { label: "Órdenes", path: "/orders", icon: Car },
-  { label: "Agenda", path: "/agenda", icon: CalendarClock },
-  { label: "Mensajes", path: "/messages", icon: MessageSquare },
-  { label: "Perfil", path: "/profile", icon: UserCircle },
+  { label: "Central", path: "/", match: "/", icon: LayoutDashboard, exact: true },
+  { label: "Órdenes", path: "/orders", match: "/orders", icon: Car },
+  { label: "Agenda", path: "/agenda", match: "/agenda", icon: CalendarClock },
+  { label: "Mensajes", path: "/messages", match: "/messages", icon: MessageSquare },
+  { label: "Perfil", path: "/profile", match: "/profile", icon: UserCircle },
 ];
 
 export default function BottomTabBar() {
   const location = useLocation();
+  const [tabPaths, setTabPaths] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem("tab_navigation_stack");
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Track the current path for the active tab
+  useEffect(() => {
+    const activeTab = tabs.find(t => 
+      t.exact ? location.pathname === t.match : location.pathname.startsWith(t.match)
+    );
+    
+    if (activeTab) {
+      setTabPaths(prev => {
+        const next = { ...prev, [activeTab.match]: location.pathname + location.search };
+        sessionStorage.setItem("tab_navigation_stack", JSON.stringify(next));
+        return next;
+      });
+    }
+  }, [location.pathname, location.search]);
 
   return (
     <nav
@@ -19,11 +43,15 @@ export default function BottomTabBar() {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {tabs.map((tab) => {
-        const isActive = tab.exact ? location.pathname === tab.path : location.pathname.startsWith(tab.path);
+        const isActive = tab.exact ? location.pathname === tab.match : location.pathname.startsWith(tab.match);
+        // Navigate to the preserved path if exists, otherwise base path.
+        // If clicking the active tab again, go to its base path (like popping to root).
+        const targetPath = isActive ? tab.path : (tabPaths[tab.match] || tab.path);
+
         return (
           <Link
             key={tab.path}
-            to={tab.path}
+            to={targetPath}
             className={cn(
               "flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs font-medium transition-colors",
               isActive

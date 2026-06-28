@@ -1,9 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Smartphone, Copy, ExternalLink, CheckCircle2, AlertCircle } from "lucide-react";
+import { Smartphone, Copy, ExternalLink, CheckCircle2, AlertCircle, ArrowLeft } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function DriverLink() {
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
 
   // Detectar la URL base correcta:
@@ -39,6 +41,9 @@ export default function DriverLink() {
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
+      <Button variant="ghost" className="gap-2 md:hidden -ml-3" onClick={() => navigate(-1)}>
+        <ArrowLeft className="w-4 h-4" /> Volver
+      </Button>
       <div>
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">App para Chóferes</h1>
         <p className="text-muted-foreground mt-1">Compartí este link con tus chóferes para que usen la app en su celular</p>

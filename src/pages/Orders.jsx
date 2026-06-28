@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import PullToRefresh from "@/components/ui/pull-to-refresh";
+import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Search } from "lucide-react";
@@ -9,10 +11,15 @@ import OrderCard from "@/components/orders/OrderCard";
 
 export default function Orders() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
   const { orders, isLoading } = useRealtimeOrders({ limit: 100 });
+
+  const handleRefresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["orders"] });
+  };
 
   const filtered = orders.filter(o => {
     const matchSearch =
@@ -25,8 +32,9 @@ export default function Orders() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="space-y-6 pb-6">
+        <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Órdenes de Viaje</h1>
           <p className="text-muted-foreground mt-1">{orders.length} viajes en total</p>
@@ -74,7 +82,8 @@ export default function Orders() {
             <OrderCard key={order.id} order={order} onClick={() => navigate(`/orders/${order.id}`)} />
           ))}
         </div>
-      )}
-    </div>
+        )}
+      </div>
+    </PullToRefresh>
   );
 }
