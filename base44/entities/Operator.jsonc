@@ -37,6 +37,11 @@
     "notes": {
       "type": "string",
       "description": "Notas internas"
+    },
+    "last_active": {
+      "type": "string",
+      "format": "date",
+      "description": "\u00daltima vez activo online"
     }
   },
   "required": [

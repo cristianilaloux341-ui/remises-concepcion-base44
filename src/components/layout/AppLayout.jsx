@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import ManualInstructivo from "@/components/manual/ManualInstructivo";
@@ -10,6 +10,7 @@ import DriverMessageAlert from "@/components/alerts/DriverMessageAlert";
 import PanicAlertBanner from "@/components/alerts/PanicAlertBanner";
 import { useAuth } from "@/lib/AuthContext";
 import { useOperatorPushSubscription } from "@/hooks/useOperatorPushSubscription";
+import { base44 } from "@/api/base44Client";
 
 const pageVariants = {
   initial: { opacity: 0, x: 16 },
@@ -24,6 +25,21 @@ export default function AppLayout() {
   const { user } = useAuth();
   const location = useLocation();
   useOperatorPushSubscription(user);
+
+  // Monitoreo de actividad del operador
+  useEffect(() => {
+    const updatePresence = () => {
+      try {
+        const op = JSON.parse(localStorage.getItem("local_operator"));
+        if (op && op.id) {
+          base44.entities.Operator.update(op.id, { last_active: new Date().toISOString() }).catch(()=>{});
+        }
+      } catch (e) {}
+    };
+    updatePresence(); // initial ping
+    const interval = setInterval(updatePresence, 60000); // 1 minuto
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>

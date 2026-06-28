@@ -26,6 +26,7 @@ const NAV_BY_ROLE = {
     { label: "Tarifas",       path: "/tarifas",       icon: DollarSign },
     { label: "Backup",        path: "/backup",        icon: HardDriveDownload },
     { label: "Auditoría",     path: "/audit",         icon: Eye },
+    { label: "Conectados",    path: "/active-users",  icon: Users },
   ],
   supervisor: [
     { label: "Central",   path: "/",        icon: LayoutDashboard },
@@ -36,6 +37,7 @@ const NAV_BY_ROLE = {
     { label: "Mapa",      path: "/map",     icon: MapPin },
     { label: "Chóferes",  path: "/drivers", icon: Users,    section: "Supervisión" },
     { label: "Móviles",   path: "/moviles", icon: Car },
+    { label: "Conectados", path: "/active-users", icon: Users },
   ],
   operador: [
     { label: "Central",  path: "/",         icon: LayoutDashboard },

@@ -53,6 +53,7 @@ import TiempoEspera from '@/pages/TiempoEspera';
 import Usuarios from '@/pages/Usuarios';
 import Backup from '@/pages/Backup';
 import AuditLogs from '@/pages/AuditLogs';
+import ActiveUsers from '@/pages/ActiveUsers';
 import Profile from '@/pages/Profile';
 
 function AdminRoute({ children, allowRoles = ["admin"] }) {
@@ -127,6 +128,7 @@ const AuthenticatedApp = () => {
           <Route path="/usuarios" element={<AdminRoute allowRoles={["admin"]}><Usuarios /></AdminRoute>} />
           <Route path="/backup" element={<AdminRoute allowRoles={["admin"]}><Backup /></AdminRoute>} />
           <Route path="/audit" element={<AdminRoute allowRoles={["admin"]}><AuditLogs /></AdminRoute>} />
+          <Route path="/active-users" element={<AdminRoute allowRoles={["admin", "supervisor"]}><ActiveUsers /></AdminRoute>} />
           <Route path="/profile" element={<Profile />} />
         </Route>
       </Route>

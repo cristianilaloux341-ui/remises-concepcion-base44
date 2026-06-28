@@ -137,6 +137,11 @@
     "current_session_token": {
       "type": "string",
       "description": "Token de la sesi\u00f3n actual en el dispositivo"
+    },
+    "last_active": {
+      "type": "string",
+      "format": "date",
+      "description": "\u00daltima vez reportando actividad online"
     }
   },
   "required": [
