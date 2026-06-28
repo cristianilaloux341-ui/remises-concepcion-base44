@@ -1,10 +1,10 @@
 import { Card } from "@/components/ui/card";
-import { MapPin, Phone, User, Clock } from "lucide-react";
+import { MapPin, Phone, User, Clock, Trash2 } from "lucide-react";
 import OrderStatusBadge from "./OrderStatusBadge";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
-export default function OrderCard({ order, onClick }) {
+export default function OrderCard({ order, onClick, isAdmin, onDelete }) {
   return (
     <Card
       className="p-4 cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/30"
@@ -23,7 +23,21 @@ export default function OrderCard({ order, onClick }) {
             </p>
           </div>
         </div>
-        <OrderStatusBadge status={order.status} />
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete?.();
+              }}
+              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Eliminar viaje"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+          <OrderStatusBadge status={order.status} />
+        </div>
       </div>
 
       <div className="space-y-2 text-sm">

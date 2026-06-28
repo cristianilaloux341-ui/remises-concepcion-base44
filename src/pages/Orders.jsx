@@ -8,14 +8,41 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Search } from "lucide-react";
 import OrderCard from "@/components/orders/OrderCard";
+import { useAuth } from "@/lib/AuthContext";
+import { useMutation } from "@tanstack/react-query";
+import { base44 } from "@/api/base44Client";
 
 export default function Orders() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  const localOperator = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+  const effectiveRole = localOperator ? localOperator.role : user?.role;
+  const isAdmin = effectiveRole === "admin";
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
   const { orders, isLoading } = useRealtimeOrders({ limit: 100 });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.RideOrder.delete(id),
+    onSuccess: (_, id) => {
+      base44.entities.AuditLog.create({
+        action: "eliminar_viaje",
+        user_type: effectiveRole,
+        user_name: localOperator?.name || "Admin",
+        details: `Eliminó la orden de viaje ID ${id}`
+      }).catch(()=>{});
+    }
+  });
+
+  const handleDelete = (order) => {
+    if (confirm("¿Estás seguro de que querés eliminar este viaje? Esta acción no se puede deshacer.")) {
+      deleteMutation.mutate(order.id);
+    }
+  };
 
   const handleRefresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ["orders"] });
@@ -79,7 +106,13 @@ export default function Orders() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map(order => (
-            <OrderCard key={order.id} order={order} onClick={() => navigate(`/orders/${order.id}`)} />
+            <OrderCard 
+              key={order.id} 
+              order={order} 
+              onClick={() => navigate(`/orders/${order.id}`)} 
+              isAdmin={isAdmin}
+              onDelete={() => handleDelete(order)}
+            />
           ))}
         </div>
         )}
