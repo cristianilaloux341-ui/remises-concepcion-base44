@@ -348,7 +348,19 @@ export default function Moviles() {
         ? base44.entities.Movil.update(editing.id, data)
         : base44.entities.Movil.create(data);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["moviles"] }); setDialogOpen(false); setEditing(null); },
+    onSuccess: () => { 
+      const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+      base44.entities.AuditLog.create({
+        action: editing ? "editar_movil" : "alta_movil",
+        user_type: localOp?.role || "operador",
+        user_name: localOp?.name || "Operador",
+        details: editing ? `Editó el móvil N° ${editing?.numero_movil || ""}` : `Dio de alta un nuevo móvil`
+      }).catch(() => {});
+
+      qc.invalidateQueries({ queryKey: ["moviles"] }); 
+      setDialogOpen(false); 
+      setEditing(null); 
+    },
   });
 
   // Build a map: movil_id -> drivers that have this movil assigned (by driver_ids or legacy driver_id)

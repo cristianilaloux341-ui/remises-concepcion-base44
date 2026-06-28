@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard, NotebookPen, ClipboardList, KeyRound } from "lucide-react";
+import { Plus, Phone, Car, Trash2, Loader2, User, History, Trash, AlertCircle, Upload, MapPin, CreditCard, NotebookPen, ClipboardList, KeyRound, MonitorSmartphone } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
@@ -382,6 +382,22 @@ export default function Drivers() {
   const [resetPinDriver, setResetPinDriver] = useState(null);
   const [resetPinLoading, setResetPinLoading] = useState(false);
   const [resetPinSuccess, setResetPinSuccess] = useState(null); // { driver, pin }
+  const [resetDeviceDriver, setResetDeviceDriver] = useState(null);
+
+  const resetDeviceMutation = useMutation({
+    mutationFn: (id) => base44.entities.Driver.update(id, { device_id: null, current_session_token: null }),
+    onSuccess: () => {
+      const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+      base44.entities.AuditLog.create({
+        action: "resetear_dispositivo",
+        user_type: "admin",
+        user_name: localOp?.name || "Admin",
+        details: `Autorizó un nuevo teléfono para ${resetDeviceDriver?.name}`
+      }).catch(() => {});
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      setResetDeviceDriver(null);
+    }
+  });
 
   const { data: drivers = [], isLoading } = useQuery({
     queryKey: ["drivers"],
@@ -674,6 +690,15 @@ export default function Drivers() {
                      <KeyRound className="w-4 h-4" />
                    </Button>
                    <Button
+                     variant="outline"
+                     size="icon"
+                     className="h-9 w-9 text-indigo-600 border-indigo-200"
+                     title="Habilitar nuevo teléfono (Resetear equipo asociado)"
+                     onClick={() => setResetDeviceDriver(driver)}
+                   >
+                     <MonitorSmartphone className="w-4 h-4" />
+                   </Button>
+                   <Button
                      variant="ghost"
                      size="icon"
                      className="h-9 w-9 text-destructive hover:text-destructive"
@@ -751,6 +776,31 @@ export default function Drivers() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      <AlertDialog open={!!resetDeviceDriver} onOpenChange={(v) => !v && setResetDeviceDriver(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <MonitorSmartphone className="w-5 h-5 text-indigo-500" />
+              Autorizar Nuevo Teléfono
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Al resetear el equipo, <strong>{resetDeviceDriver?.name}</strong> podrá iniciar sesión en un nuevo celular. La sesión abierta en el teléfono viejo se cerrará automáticamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex gap-3 mt-2">
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-indigo-600 text-white hover:bg-indigo-700"
+              onClick={() => resetDeviceMutation.mutate(resetDeviceDriver.id)}
+              disabled={resetDeviceMutation.isPending}
+            >
+              {resetDeviceMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Resetear Teléfono
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteConfirmDriver} onOpenChange={(v) => !v && setDeleteConfirmDriver(null)}>
         <AlertDialogContent>

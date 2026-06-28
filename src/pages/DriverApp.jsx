@@ -111,6 +111,24 @@ function openMapsNavigation(address, driverLat, driverLng) {
   window.open(url, "_blank");
 }
 
+const getDeviceId = () => {
+  let id = localStorage.getItem("device_id");
+  if (!id) {
+    id = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    localStorage.setItem("device_id", id);
+  }
+  return id;
+};
+
+const getSessionToken = () => {
+  let token = localStorage.getItem("session_token");
+  if (!token) {
+    token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    localStorage.setItem("session_token", token);
+  }
+  return token;
+};
+
 const STATUS_CONFIG = {
   ofrecido:  { label: "Nuevo Viaje",    bg: "bg-amber-500"  },
   aceptado:  { label: "Aceptado",       bg: "bg-blue-500"   },
@@ -169,9 +187,17 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
     if (pin.length < 4) { setError("El PIN debe tener al menos 4 dígitos"); return; }
     if (!/^\d+$/.test(pin)) { setError("El PIN solo puede contener números"); return; }
     if (pin !== pinConfirm) { setError("Los PINs no coinciden"); return; }
+    
+    const deviceId = getDeviceId();
+    if (foundDriver.device_id && foundDriver.device_id !== deviceId) {
+      setError("Dispositivo no autorizado. Pida al administrador que habilite este nuevo teléfono desde la base.");
+      return;
+    }
+
     setLoading(true);
     try {
-      await base44.entities.Driver.update(foundDriver.id, { pin });
+      const sessionToken = getSessionToken();
+      await base44.entities.Driver.update(foundDriver.id, { pin, device_id: deviceId, current_session_token: sessionToken });
       unlockAudio();
       if (remember) localStorage.setItem("remembered_driver_id", foundDriver.id);
       else localStorage.removeItem("remembered_driver_id");
@@ -182,13 +208,28 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
     setLoading(false);
   };
 
-  const handlePinLogin = () => {
+  const handlePinLogin = async () => {
     if (!pin) { setError("Ingresá tu PIN"); return; }
     if (pin !== foundDriver.pin) { setError("PIN incorrecto"); return; }
-    unlockAudio();
-    if (remember) localStorage.setItem("remembered_driver_id", foundDriver.id);
-    else localStorage.removeItem("remembered_driver_id");
-    onSelect(foundDriver.id, !localStorage.getItem(`setup_done_${foundDriver.id}`));
+    
+    const deviceId = getDeviceId();
+    if (foundDriver.device_id && foundDriver.device_id !== deviceId) {
+      setError("Dispositivo no autorizado. Pida al administrador que habilite este nuevo teléfono desde la base.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const sessionToken = getSessionToken();
+      await base44.entities.Driver.update(foundDriver.id, { device_id: deviceId, current_session_token: sessionToken });
+      unlockAudio();
+      if (remember) localStorage.setItem("remembered_driver_id", foundDriver.id);
+      else localStorage.removeItem("remembered_driver_id");
+      onSelect(foundDriver.id, !localStorage.getItem(`setup_done_${foundDriver.id}`));
+    } catch (_) {
+      setError("Error al conectar. Intentá de nuevo.");
+    }
+    setLoading(false);
   };
 
   const handleForgotPin = async () => {
@@ -242,9 +283,27 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
                 <p className="text-xs text-gray-400 font-mono">{savedDriver.vehicle_plate}</p>
               </div>
             </div>
+            {error && <p className="text-red-400 text-xs text-center pb-2">{error}</p>}
             <button
-              className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-base py-3.5 rounded-xl transition-all"
-              onClick={() => { unlockAudio(); onSelect(savedDriver.id, false); }}
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-base py-3.5 rounded-xl transition-all disabled:opacity-50"
+              onClick={async () => { 
+                const deviceId = getDeviceId();
+                if (savedDriver.device_id && savedDriver.device_id !== deviceId) {
+                  setError("Dispositivo no autorizado. Pida al operador que habilite este teléfono.");
+                  return;
+                }
+                setLoading(true);
+                try {
+                  const sessionToken = getSessionToken();
+                  await base44.entities.Driver.update(savedDriver.id, { current_session_token: sessionToken });
+                  unlockAudio(); 
+                  onSelect(savedDriver.id, false); 
+                } catch (e) {
+                  setError("Error de red.");
+                }
+                setLoading(false);
+              }}
             >
               <LogIn className="inline w-4 h-4 mr-2" />
               Entrar como {savedDriver.name.split(" ")[0]}
@@ -1206,6 +1265,19 @@ export default function DriverApp() {
     return () => bc.close();
   }, [myDriverId]);
 
+  // Verificación de sesión única (Forzar deslogueo si hay otra sesión activa)
+  useEffect(() => {
+    if (myDriverRaw && myDriverRaw.current_session_token) {
+      const localSession = localStorage.getItem("session_token");
+      if (localSession && myDriverRaw.current_session_token !== localSession) {
+         localStorage.removeItem("my_driver_id");
+         localStorage.removeItem("remembered_driver_id");
+         localStorage.removeItem("session_token");
+         window.location.reload();
+      }
+    }
+  }, [myDriverRaw?.current_session_token]);
+
   // Load dismissed broadcasts from localStorage per driver
   useEffect(() => {
     if (!myDriverId) { setDismissedBroadcasts([]); return; }
@@ -1456,6 +1528,13 @@ export default function DriverApp() {
     // La suscripción en tiempo real propagará el cambio automáticamente a todos los dispositivos
     const currentOrder = { ...offeredOrder, offered_driver_ids: [...(offeredOrder.offered_driver_ids || []), myDriverId] };
     await reassignAfterReject(currentOrder, drivers, []);
+    
+    base44.entities.AuditLog.create({
+      action: "rechazar_viaje",
+      user_type: "chofer",
+      user_name: myDriver?.name || "Chofer",
+      details: `Rechazó el viaje de ${offeredOrder?.client_name || "Desconocido"}`
+    }).catch(() => {});
     // No necesita invalidateQueries — la suscripción actualiza instantáneamente
   };
   // Cargar config de minutos de bloqueo post-viaje
@@ -1522,6 +1601,14 @@ export default function DriverApp() {
     if (!activeOrder) return;
     const base = activeOrder.assigned_base || myDriver?.current_base || null;
     await updateOrder.mutateAsync({ id: activeOrder.id, data: { status: "cancelado", driver_id: null, driver_name: null } });
+    
+    base44.entities.AuditLog.create({
+      action: "cancelar_viaje",
+      user_type: "chofer",
+      user_name: myDriver?.name || "Chofer",
+      details: `Anuló el viaje de ${activeOrder.client_name}`
+    }).catch(() => {});
+
     const ts = new Date(0).toISOString(); // timestamp en el pasado → queda primero en la cola
     setLocalOverride({ status: "disponible", current_base: base, queue_entered_at: ts });
     updateDriver.mutate({ id: myDriverId, data: { status: "disponible", current_base: base, queue_entered_at: ts } });

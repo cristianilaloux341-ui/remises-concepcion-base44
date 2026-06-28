@@ -52,6 +52,7 @@ import Moviles from '@/pages/Moviles';
 import TiempoEspera from '@/pages/TiempoEspera';
 import Usuarios from '@/pages/Usuarios';
 import Backup from '@/pages/Backup';
+import AuditLogs from '@/pages/AuditLogs';
 import Profile from '@/pages/Profile';
 
 function AdminRoute({ children, allowRoles = ["admin"] }) {
@@ -66,6 +67,11 @@ function AdminRoute({ children, allowRoles = ["admin"] }) {
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+
+  // Forzar HTTPS en producción (Auditoría/Seguridad)
+  if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
+    window.location.href = window.location.href.replace('http:', 'https:');
+  }
 
   // Driver app is fully public - render immediately without any auth checks
   if (window.location.pathname === '/driver-app' || window.location.pathname.startsWith('/driver-app')) {
@@ -120,6 +126,7 @@ const AuthenticatedApp = () => {
           <Route path="/tiempo-espera" element={<AdminRoute allowRoles={["admin"]}><TiempoEspera /></AdminRoute>} />
           <Route path="/usuarios" element={<AdminRoute allowRoles={["admin"]}><Usuarios /></AdminRoute>} />
           <Route path="/backup" element={<AdminRoute allowRoles={["admin"]}><Backup /></AdminRoute>} />
+          <Route path="/audit" element={<AdminRoute allowRoles={["admin"]}><AuditLogs /></AdminRoute>} />
           <Route path="/profile" element={<Profile />} />
         </Route>
       </Route>

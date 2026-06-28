@@ -21,6 +21,15 @@ function PendingOrderCard({ order, drivers, bases, onDispatched }) {
   const handleAutoAssign = async () => {
     setDispatching(true);
     await autoDispatch(order, drivers, bases);
+    
+    const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+    base44.entities.AuditLog.create({
+      action: "asignar_viaje",
+      user_type: localOp?.role || "operador",
+      user_name: localOp?.name || "Operador",
+      details: `Despacho automático/broadcast para ${order.client_name}`
+    }).catch(() => {});
+
     onDispatched();
     setDispatching(false);
   };
@@ -31,6 +40,15 @@ function PendingOrderCard({ order, drivers, bases, onDispatched }) {
     const driver = drivers.find(d => d.id === selectedDriverId);
     if (driver) {
       await assignDriverToOrder(order, driver);
+      
+      const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+      base44.entities.AuditLog.create({
+        action: "asignar_viaje",
+        user_type: localOp?.role || "operador",
+        user_name: localOp?.name || "Operador",
+        details: `Asignó manualmente a ${driver.name} el viaje de ${order.client_name}`
+      }).catch(() => {});
+
       onDispatched();
     }
     setDispatching(false);

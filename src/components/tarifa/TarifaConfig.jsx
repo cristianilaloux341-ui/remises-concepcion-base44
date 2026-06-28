@@ -95,6 +95,14 @@ export default function TarifaConfigPanel() {
       }
     },
     onSuccess: () => {
+      const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+      base44.entities.AuditLog.create({
+        action: "modificar_tarifa",
+        user_type: "admin",
+        user_name: localOp?.name || "Administrador",
+        details: "Modificó los valores de las tarifas"
+      }).catch(() => {});
+
       qc.invalidateQueries(["tarifa_config"]);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);

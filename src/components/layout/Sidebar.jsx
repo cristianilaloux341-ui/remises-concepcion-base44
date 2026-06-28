@@ -25,6 +25,7 @@ const NAV_BY_ROLE = {
     { label: "Zonas",         path: "/zone-settings", icon: Map },
     { label: "Tarifas",       path: "/tarifas",       icon: DollarSign },
     { label: "Backup",        path: "/backup",        icon: HardDriveDownload },
+    { label: "Auditoría",     path: "/audit",         icon: Eye },
   ],
   supervisor: [
     { label: "Central",   path: "/",        icon: LayoutDashboard },
