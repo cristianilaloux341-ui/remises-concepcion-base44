@@ -47,30 +47,47 @@ export default function Dashboard() {
 
   // Suscribirse a alertas de pánico en tiempo real
   useEffect(() => {
-    const unsubscribe = base44.entities.PanicAlert.subscribe((event) => {
-      if (event.type === "create") {
-        setPanicAlerts(prev => [event.data, ...prev]);
-        setShowPanicPanel(true);
-        // Audio alert
-        try {
-          navigator.vibrate?.([500, 200, 500, 200, 500]);
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          if (ctx.state === "suspended") ctx.resume();
-          [0, 300, 600].forEach(delay => {
-            const o = ctx.createOscillator();
-            const g = ctx.createGain();
-            o.connect(g); g.connect(ctx.destination);
-            o.type = "sine"; o.frequency.value = 1000;
-            const t = ctx.currentTime + delay / 1000;
-            g.gain.setValueAtTime(0, t);
-            g.gain.linearRampToValueAtTime(0.8, t + 0.05);
-            g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-            o.start(t); o.stop(t + 0.4);
-          });
-        } catch (_) {}
-      }
-    });
-    return unsubscribe;
+    let unsubscribe = null;
+    let lastEvent = Date.now();
+    let pollInterval = null;
+
+    const connect = () => {
+      unsubscribe?.();
+      unsubscribe = base44.entities.PanicAlert.subscribe((event) => {
+        lastEvent = Date.now();
+        if (event.type === "create") {
+          setPanicAlerts(prev => [event.data, ...prev]);
+          setShowPanicPanel(true);
+          // Audio alert
+          try {
+            navigator.vibrate?.([500, 200, 500, 200, 500]);
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            if (ctx.state === "suspended") ctx.resume();
+            [0, 300, 600].forEach(delay => {
+              const o = ctx.createOscillator();
+              const g = ctx.createGain();
+              o.connect(g); g.connect(ctx.destination);
+              o.type = "sine"; o.frequency.value = 1000;
+              const t = ctx.currentTime + delay / 1000;
+              g.gain.setValueAtTime(0, t);
+              g.gain.linearRampToValueAtTime(0.8, t + 0.05);
+              g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+              o.start(t); o.stop(t + 0.4);
+            });
+          } catch (_) {}
+        }
+      });
+    };
+
+    connect();
+    pollInterval = setInterval(() => {
+      if (Date.now() - lastEvent > 15000) connect();
+    }, 15000);
+
+    return () => {
+      unsubscribe?.();
+      clearInterval(pollInterval);
+    };
   }, []);
 
   const activeOrders = orders.filter(o => ["pendiente", "ofrecido", "aceptado", "en_camino", "en_viaje"].includes(o.status));

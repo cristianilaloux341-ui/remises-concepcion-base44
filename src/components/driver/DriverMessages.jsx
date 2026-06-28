@@ -49,26 +49,42 @@ export default function DriverMessages({ driver, onClose }) {
       initializedRef.current = true;
     });
 
-    const unsubscribe = base44.entities.Message.subscribe((event) => {
-      if (!initializedRef.current) return;
-      if (event.type === "create") {
-        if (seenIdsRef.current.has(event.id)) return;
-        seenIdsRef.current.add(event.id);
-        const msg = event.data;
-        // Solo mensajes relevantes: broadcast del operador, dirigidos a este chofer, o enviados por este chofer
-        const isForMe = msg.from_type === "operador"
-          ? (!msg.to_driver_id || msg.to_driver_id === driver.id)
-          : msg.driver_id === driver.id;
-        if (!isForMe) return;
-        if (msg.from_type === "operador") {
-          playBeep("receive");
-          try { navigator.vibrate?.([200]); } catch (_) {}
-        }
-        setMessages(prev => [...prev, msg]);
-      }
-    });
+    let unsubscribe = null;
+    let lastEvent = Date.now();
+    let pollInterval = null;
 
-    return () => unsubscribe();
+    const connect = () => {
+      unsubscribe?.();
+      unsubscribe = base44.entities.Message.subscribe((event) => {
+        lastEvent = Date.now();
+        if (!initializedRef.current) return;
+        if (event.type === "create") {
+          if (seenIdsRef.current.has(event.id)) return;
+          seenIdsRef.current.add(event.id);
+          const msg = event.data;
+          // Solo mensajes relevantes: broadcast del operador, dirigidos a este chofer, o enviados por este chofer
+          const isForMe = msg.from_type === "operador"
+            ? (!msg.to_driver_id || msg.to_driver_id === driver.id)
+            : msg.driver_id === driver.id;
+          if (!isForMe) return;
+          if (msg.from_type === "operador") {
+            playBeep("receive");
+            try { navigator.vibrate?.([200]); } catch (_) {}
+          }
+          setMessages(prev => [...prev, msg]);
+        }
+      });
+    };
+
+    connect();
+    pollInterval = setInterval(() => {
+      if (Date.now() - lastEvent > 15000) connect();
+    }, 15000);
+
+    return () => {
+      unsubscribe?.();
+      clearInterval(pollInterval);
+    };
   }, [driver.id]);
 
   // Filter: solo mensajes relevantes para este chofer:

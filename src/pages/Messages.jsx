@@ -45,32 +45,48 @@ export default function Messages() {
       setMessages(msgs);
     });
 
-    const unsubscribe = base44.entities.Message.subscribe((event) => {
-      if (event.type === "create") {
-        if (seenIdsRef.current.has(event.id)) return;
-        seenIdsRef.current.add(event.id);
-        setMessages(prev => [...prev, event.data]);
-        // Toast + sonido solo para mensajes de móviles entrantes — UNA sola vez, sin loop
-        if (event.data?.from_type === "movil") {
-          playMsgSound();
-          setToast({ from_name: event.data.from_name, content: event.data.content, id: event.id });
-          clearTimeout(toastTimerRef.current);
-          toastTimerRef.current = setTimeout(() => setToast(null), 5000);
-          // Enviar push real a todos los operadores (para cuando tienen pantalla bloqueada)
-          base44.functions.invoke("sendPushNotification", {
-            action: "send_to_operators",
-            fromName: event.data.from_name,
-            messageContent: event.data.content,
-          }).catch(() => {});
-        }
-      } else if (event.type === "update") {
-        setMessages(prev => prev.map(m => m.id === event.id ? { ...m, ...event.data } : m));
-      } else if (event.type === "delete") {
-        setMessages(prev => prev.filter(m => m.id !== event.id));
-      }
-    });
+    let unsubscribe = null;
+    let lastEvent = Date.now();
+    let pollInterval = null;
 
-    return () => unsubscribe();
+    const connect = () => {
+      unsubscribe?.();
+      unsubscribe = base44.entities.Message.subscribe((event) => {
+        lastEvent = Date.now();
+        if (event.type === "create") {
+          if (seenIdsRef.current.has(event.id)) return;
+          seenIdsRef.current.add(event.id);
+          setMessages(prev => [...prev, event.data]);
+          // Toast + sonido solo para mensajes de móviles entrantes — UNA sola vez, sin loop
+          if (event.data?.from_type === "movil") {
+            playMsgSound();
+            setToast({ from_name: event.data.from_name, content: event.data.content, id: event.id });
+            clearTimeout(toastTimerRef.current);
+            toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+            // Enviar push real a todos los operadores (para cuando tienen pantalla bloqueada)
+            base44.functions.invoke("sendPushNotification", {
+              action: "send_to_operators",
+              fromName: event.data.from_name,
+              messageContent: event.data.content,
+            }).catch(() => {});
+          }
+        } else if (event.type === "update") {
+          setMessages(prev => prev.map(m => m.id === event.id ? { ...m, ...event.data } : m));
+        } else if (event.type === "delete") {
+          setMessages(prev => prev.filter(m => m.id !== event.id));
+        }
+      });
+    };
+
+    connect();
+    pollInterval = setInterval(() => {
+      if (Date.now() - lastEvent > 15000) connect();
+    }, 15000);
+
+    return () => {
+      unsubscribe?.();
+      clearInterval(pollInterval);
+    };
   }, []);
 
   // Drivers en tiempo real

@@ -48,23 +48,39 @@ export function useDriverMessageAlert(driverId) {
   useEffect(() => {
     if (!driverId) return;
 
-    const unsubscribe = base44.entities.Message.subscribe((event) => {
-      if (event.type !== "create") return;
-      const msg = event.data;
-      if (!msg) return;
-      if (msg.from_type !== "operador") return; // only operator → driver
-      // Must be broadcast (no to_driver_id) or targeted at this driver
-      const isForMe = !msg.to_driver_id || msg.to_driver_id === driverId;
-      if (!isForMe) return;
-      if (seenIds.current.has(msg.id)) return;
+    let unsubscribe = null;
+    let lastEvent = Date.now();
+    let pollInterval = null;
 
-      seenIds.current.add(msg.id);
-      setPendingMessages(prev => [...prev, msg]);
-      // Sonido una sola vez por mensaje nuevo
-      playAlertOnce();
-    });
+    const connect = () => {
+      unsubscribe?.();
+      unsubscribe = base44.entities.Message.subscribe((event) => {
+        lastEvent = Date.now();
+        if (event.type !== "create") return;
+        const msg = event.data;
+        if (!msg) return;
+        if (msg.from_type !== "operador") return; // only operator → driver
+        // Must be broadcast (no to_driver_id) or targeted at this driver
+        const isForMe = !msg.to_driver_id || msg.to_driver_id === driverId;
+        if (!isForMe) return;
+        if (seenIds.current.has(msg.id)) return;
 
-    return () => unsubscribe();
+        seenIds.current.add(msg.id);
+        setPendingMessages(prev => [...prev, msg]);
+        // Sonido una sola vez por mensaje nuevo
+        playAlertOnce();
+      });
+    };
+
+    connect();
+    pollInterval = setInterval(() => {
+      if (Date.now() - lastEvent > 15000) connect();
+    }, 15000);
+
+    return () => {
+      unsubscribe?.();
+      clearInterval(pollInterval);
+    };
   }, [driverId]);
 
   const dismissMessage = (msgId) => {
