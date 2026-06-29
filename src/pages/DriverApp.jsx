@@ -219,7 +219,8 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
     );
   };
 
-  const handlePhoneSubmit = () => {
+  const handlePhoneSubmit = async () => {
+    await requestNotificationPermission();
     const normalized = phone.replace(/\s|-|\(|\)/g, "");
     if (!normalized) { setError("Ingresá tu número de celular"); return; }
     const found = drivers.find(d => {
@@ -241,6 +242,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
   };
 
   const handleCreatePin = async () => {
+    await requestNotificationPermission();
     if (pin.length < 4) { setError("El PIN debe tener al menos 4 dígitos"); return; }
     if (!/^\d+$/.test(pin)) { setError("El PIN solo puede contener números"); return; }
     if (pin !== pinConfirm) { setError("Los PINs no coinciden"); return; }
@@ -266,6 +268,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
   };
 
   const handlePinLogin = async () => {
+    await requestNotificationPermission();
     if (!pin) { setError("Ingresá tu PIN"); return; }
     if (pin !== foundDriver.pin) { setError("PIN incorrecto"); return; }
     

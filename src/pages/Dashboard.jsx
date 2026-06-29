@@ -18,8 +18,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function Dashboard() {
+  const { toast } = useToast();
   // Suscripciones en tiempo real — actualizaciones instantáneas sin polling
   const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100 });
   const { drivers } = useRealtimeDrivers();
@@ -44,6 +46,44 @@ export default function Dashboard() {
 
   const [panicAlerts, setPanicAlerts] = useState([]);
   const [showPanicPanel, setShowPanicPanel] = useState(false);
+
+  // Monitoreo de Viajes Nuevos (Burbuja/Notificación para el Operador)
+  useEffect(() => {
+    let unsubscribe = null;
+    let knownOrderIds = new Set(orders.map(o => o.id));
+
+    unsubscribe = base44.entities.RideOrder.subscribe((event) => {
+      if (event.type === "create" && event.data?.status === "pendiente") {
+        if (!knownOrderIds.has(event.id)) {
+          knownOrderIds.add(event.id);
+          
+          // Sonido de viaje nuevo en la central
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            if (ctx.state === "suspended") ctx.resume();
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = "sine";
+            o.frequency.setValueAtTime(880, ctx.currentTime);
+            o.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+            g.gain.setValueAtTime(0, ctx.currentTime);
+            g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05);
+            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            o.connect(g); g.connect(ctx.destination);
+            o.start(); o.stop(ctx.currentTime + 0.3);
+          } catch (_) {}
+
+          // Burbuja visual
+          toast({
+            title: "🚕 ¡Nuevo viaje entrante!",
+            description: `${event.data.pickup_address} (${event.data.client_name || 'Cliente'})`,
+            variant: "default",
+          });
+        }
+      }
+    });
+    return () => unsubscribe?.();
+  }, [orders, toast]);
 
   // Suscribirse a alertas de pánico en tiempo real
   useEffect(() => {

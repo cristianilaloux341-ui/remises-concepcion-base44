@@ -92,10 +92,10 @@ export async function assignDriverToOrder(order, driver) {
     },
   }).catch(() => {});
 
-  // Timeout automático: si el chofer NO acepta en 30s, reasignar a otro
+  // Timeout automático ampliado: 60s para evitar caídas prematuras por ahorro de batería
   base44.functions.invoke("autoReassignOnTimeout", {
     orderId: order.id,
-    timeoutSeconds: 30,
+    timeoutSeconds: 60,
   }).catch(() => {});
 }
 

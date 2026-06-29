@@ -32,24 +32,48 @@ export function useRealtimeDrivers() {
     // Fetch inicial
     fetchAll();
 
-    // Suscripción en tiempo real
+    // Suscripción en tiempo real con BUFFER (throttle) para no trabar la central
+    const buffer = [];
+    let flushTimeout = null;
+
     unsubRef.current = base44.entities.Driver.subscribe((event) => {
-      if (!mountedRef.current) return;
-      setDrivers((prev) => {
-        if (!event.data) return prev; // Fallback si el payload es muy grande
-        if (event.type === "create") {
-          if (prev.some(d => d.id === event.id)) return prev.map(d => d.id === event.id ? { ...d, ...event.data } : d);
-          return [...prev, event.data];
-        }
-        if (event.type === "update") {
-          const exists = prev.some(d => d.id === event.id);
-          if (exists) return prev.map((d) => (d.id === event.id ? { ...d, ...event.data } : d));
-          return [...prev, event.data];
-        }
-        if (event.type === "delete") return prev.filter((d) => d.id !== event.id);
-        return prev;
-      });
+      if (!mountedRef.current || !event.data) return;
+      
+      buffer.push(event);
+
+      // Programar un flush para aplicar todos los cambios juntos (max 1 vez por segundo)
+      if (!flushTimeout) {
+        flushTimeout = setTimeout(() => {
+          if (!mountedRef.current) return;
+          
+          setDrivers((prev) => {
+            let next = [...prev];
+            // Aplicar todos los eventos acumulados en el buffer
+            for (const ev of buffer) {
+              if (ev.type === "create" || ev.type === "update") {
+                const idx = next.findIndex(d => d.id === ev.id);
+                if (idx >= 0) {
+                  next[idx] = { ...next[idx], ...ev.data };
+                } else {
+                  next.push(ev.data);
+                }
+              } else if (ev.type === "delete") {
+                next = next.filter(d => d.id !== ev.id);
+              }
+            }
+            return next;
+          });
+
+          // Limpiar buffer
+          buffer.length = 0;
+          flushTimeout = null;
+        }, 1000);
+      }
     });
+
+    return () => {
+      if (flushTimeout) clearTimeout(flushTimeout);
+    };
   }, [fetchAll]);
 
   useEffect(() => {
