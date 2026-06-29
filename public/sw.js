@@ -182,3 +182,17 @@ self.addEventListener("install", () => {
   // No hacer skipWaiting aquí para no romper clientes activos
   // La actualización se maneja via mensaje SKIP_WAITING desde la app
 });
+
+// Fetch: Requerido por PWABuilder para considerar la app instalable offline
+self.addEventListener("fetch", (event) => {
+  // Pasamos la petición directamente a la red. 
+  // Si falla (está offline), devolvemos una respuesta vacía o un error controlado.
+  event.respondWith(
+    fetch(event.request).catch(() => {
+      return new Response("Estás sin conexión a internet.", {
+        status: 503,
+        statusText: "Service Unavailable"
+      });
+    })
+  );
+});
