@@ -420,27 +420,35 @@ export default function Drivers() {
   const createMutation = useMutation({
     mutationFn: (data) => {
       const { id, created_date, updated_date, created_by_id, ...cleanData } = data;
-      Object.keys(cleanData).forEach(k => { if (cleanData[k] === "") cleanData[k] = null; });
+      Object.keys(cleanData).forEach(k => { 
+        if (cleanData[k] === "" || cleanData[k] === null || cleanData[k] === undefined) {
+          delete cleanData[k];
+        }
+      });
       return base44.entities.Driver.create(cleanData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
       setDialogOpen(false);
     },
-    onError: (err) => alert("Error al guardar: " + err.message)
+    onError: (err) => alert("Error al guardar: " + (err?.response?.data?.error || err?.message || JSON.stringify(err)))
   });
 
   const editMutation = useMutation({
     mutationFn: ({ id, data }) => {
       const { id: _id, created_date, updated_date, created_by_id, ...cleanData } = data;
-      Object.keys(cleanData).forEach(k => { if (cleanData[k] === "") cleanData[k] = null; });
+      Object.keys(cleanData).forEach(k => { 
+        if (cleanData[k] === "" || cleanData[k] === null || cleanData[k] === undefined) {
+          delete cleanData[k];
+        }
+      });
       return base44.entities.Driver.update(id, cleanData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
       setEditingDriver(null);
     },
-    onError: (err) => alert("Error al guardar: " + err.message)
+    onError: (err) => alert("Error al guardar: " + (err?.response?.data?.error || err?.message || JSON.stringify(err)))
   });
 
   const updateMutation = useMutation({

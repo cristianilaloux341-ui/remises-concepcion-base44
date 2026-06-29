@@ -347,7 +347,14 @@ export default function Moviles() {
     mutationFn: (form) => {
       const { id, created_date, updated_date, created_by_id, ...cleanData } = form;
       const data = { ...cleanData, numero_movil: Number(cleanData.numero_movil) };
-      Object.keys(data).forEach(k => { if (data[k] === "") data[k] = null; });
+      
+      // Eliminar campos vacíos para que no rompan la validación de fechas o números
+      Object.keys(data).forEach(k => { 
+        if (data[k] === "" || data[k] === null || data[k] === undefined) {
+          delete data[k];
+        }
+      });
+
       return editing?.id
         ? base44.entities.Movil.update(editing.id, data)
         : base44.entities.Movil.create(data);
@@ -365,7 +372,7 @@ export default function Moviles() {
       setDialogOpen(false); 
       setEditing(null); 
     },
-    onError: (err) => alert("Error al guardar el móvil: " + err.message)
+    onError: (err) => alert("Error al guardar el móvil: " + (err?.response?.data?.error || err?.message || JSON.stringify(err)))
   });
 
   // Build a map: movil_id -> drivers that have this movil assigned (by driver_ids or legacy driver_id)
