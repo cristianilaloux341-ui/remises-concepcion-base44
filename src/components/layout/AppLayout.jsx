@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import ManualInstructivo from "@/components/manual/ManualInstructivo";
 import Sidebar from "./Sidebar";
@@ -24,7 +24,36 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   useOperatorPushSubscription(user);
+
+  // Accesos directos de teclado
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      switch (e.key) {
+        case 'F2':
+          e.preventDefault();
+          navigate('/agenda?new=true');
+          break;
+        case 'F3':
+          e.preventDefault();
+          navigate('/agenda');
+          break;
+        case 'F5':
+          e.preventDefault();
+          navigate('/orders');
+          break;
+        case 'F7':
+          e.preventDefault();
+          navigate('/'); // Dashboard (viajes en curso)
+          break;
+        default:
+          break;
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [navigate]);
 
   // Monitoreo de actividad del operador
   useEffect(() => {

@@ -14,6 +14,7 @@ import { Plus, Clock, Car, MapPin, Bell, BellOff, CheckCircle2, XCircle, Zap, Ta
 import AddressAutocomplete from "@/components/orders/AddressAutocomplete";
 
 const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
+import { useLocation, useNavigate } from "react-router-dom";
 import { format, formatDistanceToNow, isPast, differenceInMinutes } from "date-fns";
 import { es } from "date-fns/locale";
 import { autoDispatch, assignDriverToOrder, detectZoneFromAddress } from "@/lib/dispatchLogic";
@@ -236,9 +237,20 @@ function minutesUntil(datetime) {
 
 export default function Agenda() {
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const notifiedRef = useRef(new Set());
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("new") === "true") {
+      setEditing(null);
+      setShowForm(true);
+      navigate("/agenda", { replace: true });
+    }
+  }, [location.search, navigate]);
 
   const { data: rides = [] } = useQuery({
     queryKey: ["scheduled"],
