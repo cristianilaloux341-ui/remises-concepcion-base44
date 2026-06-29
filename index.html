@@ -35,7 +35,14 @@
       // PWABuilder detection snippet
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js', { scope: '/' });
+          if (navigator.userAgent.includes('RemisesConcepcion')) {
+            // Eliminar SW en la app de escritorio (Electron) para evitar bloqueos
+            navigator.serviceWorker.getRegistrations().then(regs => {
+              for (let r of regs) r.unregister();
+            });
+          } else {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' });
+          }
         });
       }
     </script>

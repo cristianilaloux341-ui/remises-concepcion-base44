@@ -333,12 +333,12 @@ export default function Moviles() {
   const [reinscripcionMovil, setReinscripcionMovil] = useState(null);
   const [alertMovil, setAlertMovil] = useState(null); // móvil cuyas alertas se muestran en popup previo
 
-  const { data: moviles = [] } = useQuery({
+  const { data: moviles = [], error: errorMoviles } = useQuery({
     queryKey: ["moviles"],
     queryFn: () => base44.entities.Movil.list(),
   });
 
-  const { data: drivers = [], isSuccess: driversLoaded } = useQuery({
+  const { data: drivers = [], isSuccess: driversLoaded, error: errorDrivers } = useQuery({
     queryKey: ["drivers-list"],
     queryFn: () => base44.entities.Driver.list(),
   });
@@ -415,6 +415,13 @@ export default function Moviles() {
           <Plus className="w-4 h-4" /> Nuevo Móvil
         </Button>
       </div>
+
+      {(errorMoviles || errorDrivers) && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+          <strong className="font-bold">Error de conexión: </strong>
+          <span className="block sm:inline">{errorMoviles?.message || errorDrivers?.message || "No se pudo conectar con el servidor."}</span>
+        </div>
+      )}
 
       {/* Alertas de vencimientos — una por cada móvil con problemas */}
       {moviles.map(m => (

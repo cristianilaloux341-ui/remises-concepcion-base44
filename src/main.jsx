@@ -3,6 +3,19 @@ import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
 
+// Si el usuario tuvo un service worker corrupto, lo borramos inmediatamente al iniciar React
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(reg => reg.unregister());
+  });
+}
+// Limpiamos los caches estáticos para obligar a que cargue todo fresco
+if ('caches' in window) {
+  caches.keys().then(keys => {
+    keys.forEach(k => caches.delete(k));
+  });
+}
+
 // Sync dark mode with system preference
 const applyTheme = () => {
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;

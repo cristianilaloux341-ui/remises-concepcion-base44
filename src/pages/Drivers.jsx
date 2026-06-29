@@ -401,12 +401,12 @@ export default function Drivers() {
     }
   });
 
-  const { data: drivers = [], isLoading } = useQuery({
+  const { data: drivers = [], isLoading, error: errorDrivers } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
   });
 
-  const { data: moviles = [] } = useQuery({
+  const { data: moviles = [], error: errorMoviles } = useQuery({
     queryKey: ["moviles"],
     queryFn: () => base44.entities.Movil.list(),
   });
@@ -511,6 +511,13 @@ export default function Drivers() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {(errorDrivers || errorMoviles) && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+          <strong className="font-bold">Error de conexión: </strong>
+          <span className="block sm:inline">{errorDrivers?.message || errorMoviles?.message || "No se pudo conectar con el servidor."}</span>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
