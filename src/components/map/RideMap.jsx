@@ -160,11 +160,11 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
   });
 
   return (
-    <div className={`rounded-xl overflow-hidden border ${className}`} style={{ height: "100%", minHeight: "260px" }}>
+    <div className={`rounded-xl overflow-hidden border relative z-0 ${className}`} style={{ height: "100%", minHeight: "260px" }}>
       <MapContainer
         center={defaultCenter}
         zoom={zoom}
-        style={{ height: "100%", width: "100%", minHeight: "200px" }}
+        style={{ height: "100%", width: "100%", minHeight: "200px", zIndex: 0 }}
         scrollWheelZoom={true}
       >
         <TileLayer
