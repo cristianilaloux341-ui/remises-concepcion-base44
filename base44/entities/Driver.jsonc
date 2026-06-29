@@ -3,11 +3,7 @@
   "type": "object",
   "rls": {
     "read": true,
-    "create": {
-      "user_condition": {
-        "role": "admin"
-      }
-    },
+    "create": true,
     "update": true,
     "delete": true
   },
