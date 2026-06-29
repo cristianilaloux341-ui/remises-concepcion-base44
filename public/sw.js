@@ -1,7 +1,7 @@
 // Service Worker — Remises Concepción
-// v2026-06-28b — bump para invalidar cache vieja y forzar push handlers
+// v2026-06-29a — fix fetch api intercept
 
-const CACHE_NAME = "radiocab-v7";
+const CACHE_NAME = "radiocab-v8";
 
 // Responder a skip waiting para actualizaciones inmediatas
 self.addEventListener("message", (event) => {
@@ -179,14 +179,14 @@ self.addEventListener("activate", (event) => {
 
 // Install: no cachear nada (la app es dinámica)
 self.addEventListener("install", () => {
-  // No hacer skipWaiting aquí para no romper clientes activos
-  // La actualización se maneja via mensaje SKIP_WAITING desde la app
+  self.skipWaiting(); // Forzar actualización inmediata para corregir el bloqueo de red
 });
 
 // Fetch: Requerido por PWABuilder para considerar la app instalable offline
 self.addEventListener("fetch", (event) => {
-  // Pasamos la petición directamente a la red. 
-  // Si falla (está offline), devolvemos una respuesta vacía o un error controlado.
+  // Solo interceptamos recursos locales. Ignoramos la API para no romper la conexión en tiempo real
+  if (event.request.url.includes("api.base44.com")) return;
+  
   event.respondWith(
     fetch(event.request).catch(() => {
       return new Response("Estás sin conexión a internet.", {
