@@ -157,12 +157,8 @@
     "apellido_nombre"
   ],
   "rls": {
+    "read": true,
     "create": {
-      "user_condition": {
-        "role": "admin"
-      }
-    },
-    "read": {
       "user_condition": {
         "role": "admin"
       }
