@@ -31,7 +31,19 @@ export default function InstallBanner() {
       setShow(true);
     };
     window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+
+    // Fallback manual para Android moderno: mostrar igual si no se dispara el prompt
+    const isAndroid = /android/i.test(navigator.userAgent);
+    const dismissedAndroid = localStorage.getItem("install_banner_dismissed");
+    let fallbackTimer;
+    if (isAndroid && !dismissedAndroid) {
+        fallbackTimer = setTimeout(() => setShow(true), 2500);
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+    };
   }, []);
 
   const handleInstall = async () => {
@@ -42,6 +54,9 @@ export default function InstallBanner() {
       setDeferredPrompt(null);
     } else if (isIOS) {
       setShowIOSInstructions(true);
+    } else {
+      // Fallback para Chrome en Android cuando el sistema oculta el prompt nativo
+      alert("Para instalar, tocá el menú de Chrome (los 3 puntitos arriba a la derecha) y seleccioná 'Instalar aplicación' o 'Agregar a la pantalla principal'.");
     }
   };
 
