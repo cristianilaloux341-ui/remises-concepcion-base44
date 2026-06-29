@@ -161,6 +161,7 @@ async function sendWebPush(subscription, payload, vapidPublicKey, vapidPrivateKe
     'Crypto-Key': `dh=${toBase64Url(ephPubBuf)}`,
     'Content-Type': 'application/octet-stream',
     'TTL': '60',
+    'Urgency': 'high'
   };
 
   const res = await fetch(subscription.endpoint, {
