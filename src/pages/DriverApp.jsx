@@ -30,6 +30,7 @@ let audioUnlocked = false;
 let audioCtx = null;
 let alarmAudioElement = null;
 let silentLoopElement = null;
+let keepAliveInterval = null;
 
 function getAudioCtx() {
   if (!audioCtx || audioCtx.state === "closed") {
@@ -51,19 +52,40 @@ function unlockAudio() {
     ctx.resume();
   } catch (_) {}
 
-  // Desbloqueo y reproducción silenciosa continua para mantener la app viva en Motorola/Android
+  // Desbloqueo y reproducción silenciosa continua
   try {
     if (!silentLoopElement) {
       silentLoopElement = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
       silentLoopElement.loop = true;
     }
-    silentLoopElement.play().catch(() => {});
+    
+    silentLoopElement.play().then(() => {
+      // 🚀 MAGIA PARA MOTOROLA/ANDROID: Registrarse como reproductor multimedia.
+      // Le dice al SO: "Soy Spotify/Radio, no me mates al apagar la pantalla".
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: 'Buscando viajes...',
+          artist: 'Remises Concepción',
+          album: 'App del Chofer'
+        });
+        navigator.mediaSession.playbackState = 'playing';
+      }
+
+      // Forzar play cíclico por si el OS lo pausa a la fuerza
+      if (keepAliveInterval) clearInterval(keepAliveInterval);
+      keepAliveInterval = setInterval(() => {
+        if (silentLoopElement.paused) {
+          silentLoopElement.play().catch(() => {});
+        }
+      }, 10000);
+
+    }).catch(() => {});
 
     if (!alarmAudioElement) {
       alarmAudioElement = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
       alarmAudioElement.loop = true;
     }
-    // Tocamos y pausamos para obtener permiso de reproducción en background luego
+    // Tocamos y pausamos para obtener permiso
     alarmAudioElement.play().then(() => alarmAudioElement.pause()).catch(() => {});
   } catch (_) {}
 }
