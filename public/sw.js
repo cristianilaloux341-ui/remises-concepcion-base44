@@ -136,7 +136,14 @@ self.addEventListener("push", (event) => {
           { action: "reject", title: "❌ Rechazar" },
         ],
       };
-      event.waitUntil(self.registration.showNotification(title, options));
+      event.waitUntil(
+        Promise.all([
+          self.registration.showNotification(title, options),
+          self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clients => {
+            clients.forEach(c => c.postMessage({ type: "RECONNECT" }));
+          })
+        ])
+      );
     } else if (data.type === "NEW_MESSAGE") {
       const title = data.title || "📩 Nuevo mensaje";
       const options = {
@@ -147,7 +154,14 @@ self.addEventListener("push", (event) => {
         vibrate: [200, 100, 200],
         data: { url: data.url },
       };
-      event.waitUntil(self.registration.showNotification(title, options));
+      event.waitUntil(
+        Promise.all([
+          self.registration.showNotification(title, options),
+          self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clients => {
+            clients.forEach(c => c.postMessage({ type: "RECONNECT" }));
+          })
+        ])
+      );
     }
   } catch (err) {
     console.error("Error processing push event:", err);
