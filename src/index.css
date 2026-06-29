@@ -81,13 +81,17 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    -webkit-tap-highlight-color: transparent;
   }
   body {
     @apply bg-background text-foreground font-inter;
     overscroll-behavior-y: none;
+    -webkit-touch-callout: none;
   }
-  button, a, [role="tab"], nav, header {
+  button, a, [role="tab"], nav, header, img, svg {
     user-select: none;
     -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
   }
 }
