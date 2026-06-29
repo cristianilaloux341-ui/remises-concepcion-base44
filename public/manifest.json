@@ -9,6 +9,21 @@
   "background_color": "#030712",
   "theme_color": "#1d6ef7",
   "lang": "es-AR",
+  "id": "/driver-app",
+  "screenshots": [
+    {
+      "src": "/screenshot1.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/screenshot2.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192.png",
