@@ -28,6 +28,8 @@ import OcasionalMeter from "@/components/driver/OcasionalMeter";
 
 let audioUnlocked = false;
 let audioCtx = null;
+let alarmAudioElement = null;
+let silentLoopElement = null;
 
 function getAudioCtx() {
   if (!audioCtx || audioCtx.state === "closed") {
@@ -39,6 +41,8 @@ function getAudioCtx() {
 function unlockAudio() {
   if (audioUnlocked) return;
   audioUnlocked = true;
+  
+  // Desbloqueo WebAudio
   try {
     const ctx = getAudioCtx();
     const buf = ctx.createBuffer(1, 1, 22050);
@@ -46,14 +50,36 @@ function unlockAudio() {
     src.buffer = buf; src.connect(ctx.destination); src.start(0);
     ctx.resume();
   } catch (_) {}
+
+  // Desbloqueo y reproducción silenciosa continua para mantener la app viva en Motorola/Android
+  try {
+    if (!silentLoopElement) {
+      silentLoopElement = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+      silentLoopElement.loop = true;
+    }
+    silentLoopElement.play().catch(() => {});
+
+    if (!alarmAudioElement) {
+      alarmAudioElement = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+      alarmAudioElement.loop = true;
+    }
+    // Tocamos y pausamos para obtener permiso de reproducción en background luego
+    alarmAudioElement.play().then(() => alarmAudioElement.pause()).catch(() => {});
+  } catch (_) {}
 }
 
 function playAlert() {
   try { navigator.vibrate?.([500, 200, 500, 200, 1000, 300, 500]); } catch (_) {}
+  
+  // Alarma HTML5 (suena más fuerte y sortea bloqueos de background mejor)
+  try {
+    if (alarmAudioElement) alarmAudioElement.play().catch(() => {});
+  } catch (_) {}
+
+  // Alarma WebAudio (fallback)
   try {
     const ctx = getAudioCtx();
     const doPlay = () => {
-      // 3 beeps ascendentes
       [[0, 660], [350, 880], [700, 1100]].forEach(([delay, freq]) => {
         const o = ctx.createOscillator();
         const g = ctx.createGain();
@@ -70,6 +96,15 @@ function playAlert() {
     };
     if (ctx.state === "suspended") ctx.resume().then(doPlay);
     else doPlay();
+  } catch (_) {}
+}
+
+function stopAlert() {
+  try {
+    if (alarmAudioElement) {
+      alarmAudioElement.pause();
+      alarmAudioElement.currentTime = 0;
+    }
   } catch (_) {}
 }
 
@@ -521,7 +556,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
 // ── Incoming ride alert ───────────────────────────────────────────────────────
 function IncomingAlert({ order, onAccept, onReject }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
         <div className="bg-amber-500 px-5 py-4 flex items-center gap-3 animate-pulse">
           <Bell className="w-6 h-6 text-white" />
@@ -601,7 +636,7 @@ function IncomingAlert({ order, onAccept, onReject }) {
 function BroadcastAlert({ order, onAccept, onReject }) {
   const cleanNotes = (order.notes || "").replace(/^\[BROADCAST\]\s*/, "").trim();
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
         <div className="bg-orange-500 px-5 py-4 flex items-center gap-3 animate-pulse">
           <Bell className="w-6 h-6 text-white" />
@@ -1494,9 +1529,13 @@ export default function DriverApp() {
         playAlert();
         notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
       }, 4000);
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        stopAlert();
+      };
     } else {
       prevOfferedId.current = null;
+      stopAlert();
       notifySW({ type: "OFFER_CLEARED" });
     }
   }, [offeredOrder?.id]);
@@ -1505,6 +1544,7 @@ export default function DriverApp() {
   useEffect(() => {
     if (!broadcastOrder) {
       prevBroadcastId.current = null;
+      stopAlert();
       return;
     }
     if (broadcastOrder.id !== prevBroadcastId.current) {
@@ -1513,7 +1553,10 @@ export default function DriverApp() {
       sendSystemNotification(broadcastOrder);
     }
     const interval = setInterval(() => playAlert(), 4000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      stopAlert();
+    };
   }, [broadcastOrder?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateOrder = useMutation({
