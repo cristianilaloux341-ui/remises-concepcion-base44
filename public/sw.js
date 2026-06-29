@@ -1,7 +1,7 @@
 // Service Worker — Remises Concepción
-// v2026-06-29a — fix fetch api intercept
+// v2026-06-29b — remove fetch intercept for electron
 
-const CACHE_NAME = "radiocab-v8";
+const CACHE_NAME = "radiocab-v9";
 
 // Responder a skip waiting para actualizaciones inmediatas
 self.addEventListener("message", (event) => {
@@ -184,15 +184,7 @@ self.addEventListener("install", () => {
 
 // Fetch: Requerido por PWABuilder para considerar la app instalable offline
 self.addEventListener("fetch", (event) => {
-  // Solo interceptamos recursos locales. Ignoramos la API para no romper la conexión en tiempo real
-  if (event.request.url.includes("api.base44.com")) return;
-  
-  event.respondWith(
-    fetch(event.request).catch(() => {
-      return new Response("Estás sin conexión a internet.", {
-        status: 503,
-        statusText: "Service Unavailable"
-      });
-    })
-  );
+  // Listener vacío/transparente. 
+  // Con solo tener el evento registrado, PWABuilder lo da por válido
+  // y así evitamos que rompa las conexiones de la app encapsulada (Electron/WebView).
 });
