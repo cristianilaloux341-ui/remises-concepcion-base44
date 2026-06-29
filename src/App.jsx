@@ -11,6 +11,7 @@ import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
+import PrivacyPolicy from '@/pages/PrivacyPolicy';
 
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
@@ -116,6 +117,7 @@ const AuthenticatedApp = () => {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       
       {/* Driver mobile app - public, no login needed */}
       <Route path="/driver-app" element={<DriverApp />} />
