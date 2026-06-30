@@ -270,56 +270,60 @@ Deno.serve(async (req) => {
         const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
         if (saStr) {
           const sa = JSON.parse(saStr);
-          const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
-          const now = Math.floor(Date.now() / 1000);
-          const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
-            iss: sa.client_email,
-            scope: 'https://www.googleapis.com/auth/firebase.messaging',
-            aud: 'https://oauth2.googleapis.com/token',
-            exp: now + 3600,
-            iat: now
-          })));
-          
-          const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
-          const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-          const rsaKey = await crypto.subtle.importKey(
-            "pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]
-          );
-          const signature = await crypto.subtle.sign(
-            "RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`)
-          );
-          const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
-          
-          const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
-          }).then(r => r.json());
-
-          if (tokenRes.access_token) {
-            const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+          if (!sa.private_key) {
+            console.error("Error: FIREBASE_SERVICE_ACCOUNT no contiene private_key. Parece google-services.json en lugar de un Service Account Key.");
+          } else {
+            const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
+            const now = Math.floor(Date.now() / 1000);
+            const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
+              iss: sa.client_email,
+              scope: 'https://www.googleapis.com/auth/firebase.messaging',
+              aud: 'https://oauth2.googleapis.com/token',
+              exp: now + 3600,
+              iat: now
+            })));
+            
+            const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
+            const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+            const rsaKey = await crypto.subtle.importKey(
+              "pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]
+            );
+            const signature = await crypto.subtle.sign(
+              "RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`)
+            );
+            const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
+            
+            const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
               method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${tokenRes.access_token}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                message: {
-                  token: driver.fcm_token,
-                  notification: { title, body },
-                  android: {
-                    priority: "high",
-                    notification: {
-                      channel_id: "ride-alerts-max",
-                      sound: "default",
-                      click_action: "FCM_PLUGIN_ACTIVITY"
-                    }
-                  },
-                  data: { orderId: String(orderId), action: "open_ride" }
-                }
-              })
-            });
-            if (fcmRes.ok) return Response.json({ ok: true, via: 'fcm' });
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+            }).then(r => r.json());
+
+            if (tokenRes.access_token) {
+              const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${tokenRes.access_token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  message: {
+                    token: driver.fcm_token,
+                    notification: { title, body },
+                    android: {
+                      priority: "high",
+                      notification: {
+                        channel_id: "ride-alerts-max",
+                        sound: "default",
+                        click_action: "FCM_PLUGIN_ACTIVITY"
+                      }
+                    },
+                    data: { orderId: String(orderId), action: "open_ride" }
+                  }
+                })
+              });
+              if (fcmRes.ok) return Response.json({ ok: true, via: 'fcm' });
+            }
           }
         }
       }
