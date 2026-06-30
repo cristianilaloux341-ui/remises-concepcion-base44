@@ -1600,14 +1600,14 @@ export default function DriverApp() {
             vibration: true
           });
 
-          // Registramos los botones nativos
+          // Registramos los botones nativos sin emojis y con foreground: true
           LocalNotifications.registerActionTypes({
             types: [
               {
                 id: 'RIDE_OFFER_ACTIONS',
                 actions: [
-                  { id: 'accept', title: '✅ Aceptar' },
-                  { id: 'reject', title: '❌ Rechazar', destructive: true }
+                  { id: 'accept', title: 'ACEPTAR', foreground: true },
+                  { id: 'reject', title: 'RECHAZAR', foreground: true, destructive: true }
                 ]
               }
             ]
