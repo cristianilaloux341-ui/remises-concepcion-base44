@@ -26,7 +26,7 @@ import OcasionalMeter from "@/components/driver/OcasionalMeter";
 
 // ── Audio & Notifications ─────────────────────────────────────────────────────
 
-let audioUnlocked = false;
+let isKeepingAlive = false;
 let audioCtx = null;
 let alarmAudioElement = null;
 let silentLoopElement = null;
@@ -40,52 +40,52 @@ function getAudioCtx() {
 }
 
 function unlockAudio() {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
-  
-  // Desbloqueo WebAudio
+  // Intentar reanudar siempre, no solo la primera vez
   try {
     const ctx = getAudioCtx();
-    const buf = ctx.createBuffer(1, 1, 22050);
-    const src = ctx.createBufferSource();
-    src.buffer = buf; src.connect(ctx.destination); src.start(0);
-    ctx.resume();
-  } catch (_) {}
+    if (ctx.state === "suspended") ctx.resume();
 
-  // Desbloqueo y reproducción silenciosa continua
-  try {
-    if (!silentLoopElement) {
-      silentLoopElement = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
-      silentLoopElement.loop = true;
-    }
-    
-    silentLoopElement.play().then(() => {
-      // 🚀 MAGIA PARA MOTOROLA/ANDROID: Registrarse como reproductor multimedia.
-      // Le dice al SO: "Soy Spotify/Radio, no me mates al apagar la pantalla".
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: 'Buscando viajes...',
-          artist: 'Remises Concepción',
-          album: 'App del Chofer'
-        });
-        navigator.mediaSession.playbackState = 'playing';
+    if (!isKeepingAlive) {
+      isKeepingAlive = true;
+      
+      // 1. Oscilador inaudible infinito (hace que WebAudio nunca duerma)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      gain.gain.value = 0.0001;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+
+      // 2. Audio HTML5 silencioso continuo
+      if (!silentLoopElement) {
+        silentLoopElement = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+        silentLoopElement.loop = true;
       }
+      
+      silentLoopElement.play().then(() => {
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: '🟢 Esperando Viajes',
+            artist: 'Remises Concepción',
+            album: 'Sistema de Despacho Activo'
+          });
+          navigator.mediaSession.playbackState = 'playing';
+        }
+      }).catch(() => {});
 
-      // Forzar play cíclico por si el OS lo pausa a la fuerza
+      // 3. Ping agresivo cada 3 segundos
       if (keepAliveInterval) clearInterval(keepAliveInterval);
       keepAliveInterval = setInterval(() => {
-        if (silentLoopElement.paused) {
-          silentLoopElement.play().catch(() => {});
-        }
-      }, 10000);
-
-    }).catch(() => {});
-
+        if (ctx.state === "suspended") ctx.resume();
+        if (silentLoopElement.paused) silentLoopElement.play().catch(() => {});
+      }, 3000);
+    }
+    
+    // Preparar alarma
     if (!alarmAudioElement) {
       alarmAudioElement = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
       alarmAudioElement.loop = true;
     }
-    // Tocamos y pausamos para obtener permiso
     alarmAudioElement.play().then(() => alarmAudioElement.pause()).catch(() => {});
   } catch (_) {}
 }
@@ -1385,13 +1385,15 @@ export default function DriverApp() {
     return () => navigator.serviceWorker.removeEventListener("message", handler);
   }, [myDriverId]);
 
-  // Re-alertar cuando la pantalla vuelve a estar activa (venía de background)
-  // offeredOrderRef se usa para evitar stale closure sin necesidad de re-registrar el listener
+  // Re-alertar cuando la pantalla vuelve a estar activa y REFORZAR audio
   useEffect(() => {
     const ref = offeredOrderRef;
     const onVisible = () => {
-      if (document.visibilityState === "visible" && ref.current) {
-        playAlert();
+      if (document.visibilityState === "visible") {
+        unlockAudio(); // Reforzar el lock de audio al ver la app
+        if (ref.current) {
+          playAlert();
+        }
       }
     };
     document.addEventListener("visibilitychange", onVisible);
@@ -1590,15 +1592,16 @@ export default function DriverApp() {
     };
   }, [broadcastOrder?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Retries agresivos: reintenta hasta 15 veces, con backoff para sobrevivir a la reconexión de red al despertar
   const updateOrder = useMutation({
     mutationFn: ({ id, data }) => base44.entities.RideOrder.update(id, data),
-    retry: 5,
-    retryDelay: 1000,
+    retry: 15,
+    retryDelay: (attempt) => Math.min(1000 * 1.5 ** attempt, 10000),
   });
   const updateDriver = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Driver.update(id, data),
-    retry: 5,
-    retryDelay: 1000,
+    retry: 15,
+    retryDelay: (attempt) => Math.min(1000 * 1.5 ** attempt, 10000),
   });
 
   const handleAccept = () => {
