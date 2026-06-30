@@ -22,6 +22,21 @@ import MapView from '@/pages/MapView';
 import Drivers from '@/pages/Drivers';
 import DriverApp from '@/pages/DriverApp';
 import { Component } from 'react';
+import DriverLink from '@/pages/DriverLink';
+import Clients from '@/pages/Clients';
+import Agenda from '@/pages/Agenda';
+import Messages from '@/pages/Messages';
+import ZoneSettings from '@/pages/ZoneSettings';
+import Tarifas from '@/pages/Tarifas';
+import Moviles from '@/pages/Moviles';
+import TiempoEspera from '@/pages/TiempoEspera';
+import Usuarios from '@/pages/Usuarios';
+import Backup from '@/pages/Backup';
+import AuditLogs from '@/pages/AuditLogs';
+import ActiveUsers from '@/pages/ActiveUsers';
+import Profile from '@/pages/Profile';
+import DesktopOnlyError from '@/components/DesktopOnlyError';
+import { Capacitor } from '@capacitor/core';
 
 class DriverAppErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -43,21 +58,6 @@ class DriverAppErrorBoundary extends Component {
     return this.props.children;
   }
 }
-import DriverLink from '@/pages/DriverLink';
-import Clients from '@/pages/Clients';
-import Agenda from '@/pages/Agenda';
-import Messages from '@/pages/Messages';
-import ZoneSettings from '@/pages/ZoneSettings';
-import Tarifas from '@/pages/Tarifas';
-import Moviles from '@/pages/Moviles';
-import TiempoEspera from '@/pages/TiempoEspera';
-import Usuarios from '@/pages/Usuarios';
-import Backup from '@/pages/Backup';
-import AuditLogs from '@/pages/AuditLogs';
-import ActiveUsers from '@/pages/ActiveUsers';
-import Profile from '@/pages/Profile';
-import DesktopOnlyError from '@/components/DesktopOnlyError';
-import { Capacitor } from '@capacitor/core';
 
 function AdminRoute({ children, allowRoles = ["admin"] }) {
   const { user } = useAuth();
