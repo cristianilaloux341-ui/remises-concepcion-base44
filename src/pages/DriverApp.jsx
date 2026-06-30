@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2, Zap } from "lucide-react";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
 import { withRetry } from "@/lib/retryFetch";
+import { Capacitor, registerPlugin } from '@capacitor/core';
+const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 import RideMap from "@/components/map/RideMap";
 import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
@@ -1400,13 +1402,42 @@ export default function DriverApp() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // GPS — con reintentos automáticos si falla
+  // GPS — nativo en segundo plano (Capacitor) o Web (HTML5)
   const gpsIdRef = useRef(null);
   useEffect(() => {
     if (!myDriverId) return;
-    if (!navigator.geolocation) return;
 
-    const startWatch = () => {
+    const startNativeBackgroundTracking = async () => {
+      try {
+        const watcherId = await BackgroundGeolocation.addWatcher(
+          {
+            backgroundMessage: "La app está activa buscando viajes.",
+            backgroundTitle: "Remises Concepción Activo",
+            requestPermissions: true,
+            stale: false,
+            distanceFilter: 10
+          },
+          function callback(location, error) {
+            if (error) {
+              console.error("GPS Nativo Error:", error);
+              return;
+            }
+            if (location) {
+              withRetry(() => base44.entities.Driver.update(myDriverId, {
+                current_lat: location.latitude,
+                current_lng: location.longitude,
+              })).catch(() => {});
+            }
+          }
+        );
+        gpsIdRef.current = watcherId;
+      } catch(e) {
+        console.error("Error iniciando GPS nativo", e);
+      }
+    };
+
+    const startWebWatch = () => {
+      if (!navigator.geolocation) return;
       if (gpsIdRef.current !== null) {
         navigator.geolocation.clearWatch(gpsIdRef.current);
       }
@@ -1418,42 +1449,47 @@ export default function DriverApp() {
           })).catch(() => {});
         },
         (err) => {
-          // Si el GPS falla, reintentar en 5s
           console.warn("GPS error:", err.code, err.message);
-          setTimeout(startWatch, 5000);
+          setTimeout(startWebWatch, 5000);
         },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     };
 
-    startWatch();
+    if (Capacitor.isNativePlatform()) {
+      startNativeBackgroundTracking();
+    } else {
+      startWebWatch();
+    }
 
-    // Re-iniciar GPS cuando la página vuelve a primer plano (background → foreground)
     const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        // Force an immediate fresh read
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            base44.entities.Driver.update(myDriverId, {
-              current_lat: pos.coords.latitude,
-              current_lng: pos.coords.longitude,
-            }).catch(() => {});
-          },
-          () => {},
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-        );
-        startWatch();
+      if (document.visibilityState === "visible" && !Capacitor.isNativePlatform()) {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              base44.entities.Driver.update(myDriverId, {
+                current_lat: pos.coords.latitude,
+                current_lng: pos.coords.longitude,
+              }).catch(() => {});
+            },
+            () => {},
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+          );
+        }
+        startWebWatch();
       }
     };
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
-      if (gpsIdRef.current !== null) navigator.geolocation.clearWatch(gpsIdRef.current);
+      if (Capacitor.isNativePlatform()) {
+        if (gpsIdRef.current) {
+           BackgroundGeolocation.removeWatcher({ id: gpsIdRef.current }).catch(()=>{});
+        }
+      } else {
+        if (gpsIdRef.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(gpsIdRef.current);
+      }
     };
   }, [myDriverId]);
 

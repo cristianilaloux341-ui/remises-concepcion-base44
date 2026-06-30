@@ -1,0 +1,6 @@
+{
+  "appId": "com.remisesconcepcion.app",
+  "appName": "Remises Concepción",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
