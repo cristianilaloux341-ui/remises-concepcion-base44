@@ -12,6 +12,14 @@ export function usePushSubscription(driverId) {
   useEffect(() => {
     if (!driverId || subscribedRef.current) return;
 
+    // Log the initiation of the push subscription attempt
+    base44.entities.AuditLog.create({
+      action: 'push_debug',
+      user_type: 'sistema',
+      user_name: 'Chofer ' + driverId,
+      details: 'Iniciando usePushSubscription. isNative: ' + Capacitor.isNativePlatform()
+    }).catch(()=>{});
+
     let cancelled = false;
 
     async function registerNative() {
@@ -126,8 +134,10 @@ export function usePushSubscription(driverId) {
     }
 
     if (Capacitor.isNativePlatform()) {
+      base44.entities.AuditLog.create({ action: 'push_debug', user_type: 'sistema', user_name: 'Chofer ' + driverId, details: 'Llamando registerNative()' }).catch(()=>{});
       registerNative();
     } else {
+      base44.entities.AuditLog.create({ action: 'push_debug', user_type: 'sistema', user_name: 'Chofer ' + driverId, details: 'Llamando registerWeb()' }).catch(()=>{});
       registerWeb();
     }
 
