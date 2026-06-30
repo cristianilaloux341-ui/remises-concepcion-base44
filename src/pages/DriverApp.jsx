@@ -1285,8 +1285,9 @@ export default function DriverApp() {
     const urlParams = new URLSearchParams(window.location.search);
     const autoAcceptOrderId = urlParams.get("accept");
     if (autoAcceptOrderId && myDriverId) {
-      base44.entities.RideOrder.update(autoAcceptOrderId, { status: "aceptado" }).catch(() => {});
-      base44.entities.Driver.update(myDriverId, { status: "en_viaje" }).catch(() => {});
+      setLocalOverride({ status: "en_viaje" });
+      updateOrder.mutate({ id: autoAcceptOrderId, data: { status: "aceptado" } });
+      updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
       window.history.replaceState({}, "", "/driver-app");
     }
     const autoRejectOrderId = urlParams.get("reject");
@@ -1346,8 +1347,10 @@ export default function DriverApp() {
       if (msg.type === "SW_ACCEPT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "accept")) {
         const orderId = msg.orderId || msg.payload?.orderId;
         if (orderId && myDriverId) {
-          base44.entities.RideOrder.update(orderId, { status: "aceptado" }).catch(() => {});
-          base44.entities.Driver.update(myDriverId, { status: "en_viaje" }).catch(() => {});
+          setLocalOverride({ status: "en_viaje" });
+          updateOrder.mutate({ id: orderId, data: { status: "aceptado" } });
+          updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+          window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
       }
 
@@ -1361,6 +1364,7 @@ export default function DriverApp() {
              const currentOrder = { ...order, offered_driver_ids: [...(order.offered_driver_ids || []), myDriverId] };
              reassignAfterReject(currentOrder, allDrivers, []).catch(()=>{});
           });
+          window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
       }
 
