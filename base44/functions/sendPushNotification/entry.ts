@@ -180,18 +180,18 @@ async function sendWebPush(subscription, payload, vapidPublicKey, vapidPrivateKe
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
-  const { action, driverId, subscription, orderId, orderData } = await req.json();
+  const body = await req.json();
+  const { action, driverId, subscription, orderId, orderData, token, userId, fromName, messageContent } = body;
 
   const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
   const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
 
   // ── Register FCM Token (Native Android) ──────────────────────────────────
   if (action === 'subscribe_fcm') {
-    const { driverId: fcmDriverId, token } = await req.clone().json().catch(() => ({}));
-    if (!fcmDriverId || !token) {
+    if (!driverId || !token) {
       return Response.json({ error: 'Missing driverId or token' }, { status: 400 });
     }
-    await base44.asServiceRole.entities.Driver.update(fcmDriverId, {
+    await base44.asServiceRole.entities.Driver.update(driverId, {
       fcm_token: token,
     });
     return Response.json({ ok: true });
@@ -211,20 +211,18 @@ Deno.serve(async (req) => {
 
   // ── Register operator push subscription ──────────────────────────────────
   if (action === 'subscribe_operator') {
-    const { userId, subscription: opSub } = await req.clone().json().catch(() => ({}));
-    if (!userId || !opSub) {
+    if (!userId || !subscription) {
       return Response.json({ error: 'Missing userId or subscription' }, { status: 400 });
     }
     // Store on User record
     await base44.asServiceRole.entities.User.update(userId, {
-      push_subscription: JSON.stringify(opSub),
+      push_subscription: JSON.stringify(subscription),
     });
     return Response.json({ ok: true });
   }
 
   // ── Send push to all operators (new driver message) ───────────────────────
   if (action === 'send_to_operators') {
-    const { fromName, messageContent } = await req.clone().json().catch(() => ({}));
     if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
       return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
     }
