@@ -160,7 +160,7 @@ async function sendWebPush(subscription, payload, vapidPublicKey, vapidPrivateKe
     'Encryption': `salt=${toBase64Url(salt)}`,
     'Crypto-Key': `dh=${toBase64Url(ephPubBuf)}`,
     'Content-Type': 'application/octet-stream',
-    'TTL': '60',
+    'TTL': '300', // Aumentado a 5 minutos para celulares que entraron en Doze Mode
     'Urgency': 'high'
   };
 
@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
         type: 'NEW_RIDE',
         orderId,
         driverId,
-        title: '🚖 ¡Nuevo Viaje!',
+        title: '🚖 ¡NUEVO VIAJE!',
         body: orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}${orderData.fare ? ' · $' + orderData.fare : ''}` : 'Tenés un viaje asignado',
         actions: [
           { action: 'accept', title: '✅ Aceptar' },
