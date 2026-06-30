@@ -14,6 +14,7 @@ import { withRetry } from "@/lib/retryFetch";
 import { Capacitor, registerPlugin } from '@capacitor/core';
 const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { PushNotifications } from '@capacitor/push-notifications';
 import RideMap from "@/components/map/RideMap";
 import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
@@ -1627,6 +1628,14 @@ export default function DriverApp() {
           } else {
             window.location.href = `/driver-app`;
           }
+        }
+      });
+
+      // Escuchar taps en notificaciones de Firebase (FCM)
+      PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+        const orderId = notification.notification.data?.orderId;
+        if (orderId) {
+          window.location.href = `/driver-app`;
         }
       });
     }
