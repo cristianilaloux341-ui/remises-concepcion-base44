@@ -185,6 +185,18 @@ Deno.serve(async (req) => {
   const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
   const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
 
+  // ── Register FCM Token (Native Android) ──────────────────────────────────
+  if (action === 'subscribe_fcm') {
+    const { driverId: fcmDriverId, token } = await req.clone().json().catch(() => ({}));
+    if (!fcmDriverId || !token) {
+      return Response.json({ error: 'Missing driverId or token' }, { status: 400 });
+    }
+    await base44.asServiceRole.entities.Driver.update(fcmDriverId, {
+      fcm_token: token,
+    });
+    return Response.json({ ok: true });
+  }
+
   // ── Register subscription ─────────────────────────────────────────────────
   if (action === 'subscribe') {
     if (!driverId || !subscription) {

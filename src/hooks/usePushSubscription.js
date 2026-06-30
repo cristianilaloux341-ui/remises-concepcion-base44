@@ -1,20 +1,49 @@
 import { useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { Capacitor } from "@capacitor/core";
+import { PushNotifications } from "@capacitor/push-notifications";
 
 /**
- * Registra la push subscription del navegador para este chofer.
- * Al recibir un viaje ofrecido, el dashboard llama a sendPushToDriver().
+ * Registra la push subscription del navegador o nativa (FCM) para este chofer.
  */
 export function usePushSubscription(driverId) {
   const subscribedRef = useRef(false);
 
   useEffect(() => {
     if (!driverId || subscribedRef.current) return;
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
 
     let cancelled = false;
 
-    async function register() {
+    async function registerNative() {
+      try {
+        let permStatus = await PushNotifications.checkPermissions();
+        if (permStatus.receive === 'prompt') {
+          permStatus = await PushNotifications.requestPermissions();
+        }
+        if (permStatus.receive !== 'granted') return;
+
+        await PushNotifications.register();
+
+        PushNotifications.addListener('registration', async (token) => {
+          if (cancelled) return;
+          await base44.functions.invoke("sendPushNotification", {
+            action: "subscribe_fcm",
+            driverId,
+            token: token.value,
+          });
+          subscribedRef.current = true;
+        });
+
+        PushNotifications.addListener('registrationError', (error) => {
+          console.error('Error al registrar FCM: ', error);
+        });
+      } catch (e) {
+        console.error("Error en Push Nativo", e);
+      }
+    }
+
+    async function registerWeb() {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
       try {
         // Obtener VAPID public key del backend
         const res = await base44.functions.invoke("sendPushNotification", {
@@ -64,7 +93,12 @@ export function usePushSubscription(driverId) {
       }
     }
 
-    register();
+    if (Capacitor.isNativePlatform()) {
+      registerNative();
+    } else {
+      registerWeb();
+    }
+
     return () => { cancelled = true; };
   }, [driverId]);
 }

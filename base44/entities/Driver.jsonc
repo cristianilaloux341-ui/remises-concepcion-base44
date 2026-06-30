@@ -126,6 +126,10 @@
       "type": "string",
       "description": "JSON serializado de la PushSubscription del navegador"
     },
+    "fcm_token": {
+      "type": "string",
+      "description": "Token FCM nativo de Android"
+    },
     "device_id": {
       "type": "string",
       "description": "ID \u00fanico del dispositivo asociado"
