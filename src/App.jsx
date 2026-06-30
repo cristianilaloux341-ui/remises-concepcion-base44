@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -71,6 +71,7 @@ function AdminRoute({ children, allowRoles = ["admin"] }) {
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const location = useLocation();
 
   // Forzar HTTPS en producción (Auditoría/Seguridad)
   if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
@@ -79,7 +80,7 @@ const AuthenticatedApp = () => {
 
   // Seguridad: Validar User-Agent (Contenedor Electron)
   const isDesktopApp = navigator.userAgent.includes('RemisesConcepcion-AdminApp');
-  const isDriverApp = window.location.pathname === '/driver-app' || window.location.pathname.startsWith('/driver-app');
+  const isDriverApp = location.pathname === '/driver-app' || location.pathname.startsWith('/driver-app');
   // Parametro bypass solo para poder seguir editando la web en este editor temporalmente (?dev=1)
   const isDevBypass = true; // Bypass temporal total para asegurar que puedan probar
 
