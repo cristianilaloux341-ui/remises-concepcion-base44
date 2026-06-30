@@ -20,9 +20,23 @@ export function usePushSubscription(driverId) {
         if (permStatus.receive === 'prompt') {
           permStatus = await PushNotifications.requestPermissions();
         }
-        if (permStatus.receive !== 'granted') return;
+        if (permStatus.receive !== 'granted') {
+          await base44.entities.AuditLog.create({
+            action: 'push_error',
+            user_type: 'sistema',
+            user_name: 'Chofer ' + driverId,
+            details: 'Push Nativo sin permiso: ' + permStatus.receive
+          }).catch(()=>{});
+          return;
+        }
 
         await PushNotifications.register();
+        await base44.entities.AuditLog.create({
+          action: 'push_debug',
+          user_type: 'sistema',
+          user_name: 'Chofer ' + driverId,
+          details: 'PushNotifications.register() ejecutado'
+        }).catch(()=>{});
 
         PushNotifications.addListener('registration', async (token) => {
           if (cancelled) return;
@@ -36,9 +50,21 @@ export function usePushSubscription(driverId) {
 
         PushNotifications.addListener('registrationError', (error) => {
           console.error('Error al registrar FCM: ', error);
+          base44.entities.AuditLog.create({
+            action: 'push_error',
+            user_type: 'sistema',
+            user_name: 'Chofer ' + driverId,
+            details: 'FCM Reg Error: ' + (error.error || JSON.stringify(error))
+          }).catch(()=>{});
         });
       } catch (e) {
         console.error("Error en Push Nativo", e);
+        base44.entities.AuditLog.create({
+          action: 'push_error',
+          user_type: 'sistema',
+          user_name: 'Chofer ' + driverId,
+          details: 'Error catch Push Nativo: ' + e.message
+        }).catch(()=>{});
       }
     }
 
@@ -90,6 +116,12 @@ export function usePushSubscription(driverId) {
         subscribedRef.current = true;
       } catch (err) {
         console.warn("[Push] No se pudo registrar:", err?.message || err);
+        base44.entities.AuditLog.create({
+          action: 'push_error',
+          user_type: 'sistema',
+          user_name: 'Chofer ' + driverId,
+          details: 'Web Push Error: ' + err.message
+        }).catch(()=>{});
       }
     }
 
