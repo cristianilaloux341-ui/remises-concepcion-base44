@@ -13,6 +13,7 @@ import { haversineMetros } from "@/hooks/useTarifaConfig";
 import { withRetry } from "@/lib/retryFetch";
 import { Capacitor, registerPlugin } from '@capacitor/core';
 const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
+import { LocalNotifications } from '@capacitor/local-notifications';
 import RideMap from "@/components/map/RideMap";
 import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
@@ -1584,6 +1585,32 @@ export default function DriverApp() {
     }
   }, [myDriverId, myDriverRaw]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Configurar canal de notificaciones nativas de alta prioridad
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      LocalNotifications.requestPermissions().then((status) => {
+        if (status.display === 'granted') {
+          LocalNotifications.createChannel({
+            id: 'ride-alerts',
+            name: 'Alertas de Viaje',
+            description: 'Despierta la pantalla para viajes nuevos',
+            importance: 5, // MAX importance wakes screen
+            visibility: 1, // PUBLIC
+            vibration: true
+          });
+        }
+      });
+      
+      // Escuchar taps en notificaciones nativas
+      LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
+        const orderId = notificationAction.notification.extra?.orderId;
+        if (orderId && notificationAction.actionId === 'tap') {
+          // Si el usuario toca la notificación, se asegura de tener la app abierta
+        }
+      });
+    }
+  }, []);
+
   // Alert on new offer (audio + SW notification) — repeat every 4s
   useEffect(() => {
     offeredOrderRef.current = offeredOrder || null;
@@ -1591,12 +1618,28 @@ export default function DriverApp() {
       if (offeredOrder.id !== prevOfferedId.current) {
         prevOfferedId.current = offeredOrder.id;
         playAlert();
-        sendSystemNotification(offeredOrder);
-        notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
+        
+        if (Capacitor.isNativePlatform()) {
+          LocalNotifications.schedule({
+            notifications: [{
+              title: "🚖 ¡Nuevo Viaje!",
+              body: `${offeredOrder.pickup_address} ${offeredOrder.dropoff_address ? "→ " + offeredOrder.dropoff_address : ""}`,
+              id: Math.floor(Math.random() * 100000),
+              schedule: { at: new Date(Date.now() + 100) },
+              channelId: 'ride-alerts',
+              extra: { orderId: offeredOrder.id }
+            }]
+          });
+        } else {
+          sendSystemNotification(offeredOrder);
+          notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
+        }
       }
       const interval = setInterval(() => {
         playAlert();
-        notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
+        if (!Capacitor.isNativePlatform()) {
+          notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
+        }
       }, 4000);
       return () => {
         clearInterval(interval);
@@ -1605,7 +1648,7 @@ export default function DriverApp() {
     } else {
       prevOfferedId.current = null;
       stopAlert();
-      notifySW({ type: "OFFER_CLEARED" });
+      if (!Capacitor.isNativePlatform()) notifySW({ type: "OFFER_CLEARED" });
     }
   }, [offeredOrder?.id]);
 
@@ -1619,7 +1662,20 @@ export default function DriverApp() {
     if (broadcastOrder.id !== prevBroadcastId.current) {
       prevBroadcastId.current = broadcastOrder.id;
       playAlert();
-      sendSystemNotification(broadcastOrder);
+      if (Capacitor.isNativePlatform()) {
+        LocalNotifications.schedule({
+          notifications: [{
+            title: "📢 Viaje a todos los móviles",
+            body: `⚡ El primero se lo lleva: ${broadcastOrder.pickup_address}`,
+            id: Math.floor(Math.random() * 100000),
+            schedule: { at: new Date(Date.now() + 100) },
+            channelId: 'ride-alerts',
+            extra: { orderId: broadcastOrder.id }
+          }]
+        });
+      } else {
+        sendSystemNotification(broadcastOrder);
+      }
     }
     const interval = setInterval(() => playAlert(), 4000);
     return () => {
