@@ -29,6 +29,21 @@
     <title>RC Chófer — Remises Concepción</title>
   </head>
   <body>
+    <div id="error-overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:red; color:white; padding:20px; z-index:999999; font-family:monospace; overflow:auto;">
+      <h3>CRITICAL BOOT ERROR</h3>
+      <pre id="error-log"></pre>
+      <button onclick="window.location.reload()" style="padding:10px; background:white; color:red; border:none; margin-top:10px;">RELOAD</button>
+    </div>
+    <script>
+      window.onerror = function(msg, url, line, col, error) {
+        document.getElementById('error-overlay').style.display = 'block';
+        document.getElementById('error-log').innerText += msg + '\n' + (error ? error.stack : '') + '\n\n';
+      };
+      window.addEventListener('unhandledrejection', function(event) {
+        document.getElementById('error-overlay').style.display = 'block';
+        document.getElementById('error-log').innerText += 'Unhandled Promise: ' + (event.reason ? (event.reason.stack || event.reason) : event) + '\n\n';
+      });
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
