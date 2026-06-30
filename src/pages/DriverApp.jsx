@@ -1590,13 +1590,27 @@ export default function DriverApp() {
     if (Capacitor.isNativePlatform()) {
       LocalNotifications.requestPermissions().then((status) => {
         if (status.display === 'granted') {
+          // Usamos un ID nuevo para forzar a Android a recrear el canal con máxima prioridad
           LocalNotifications.createChannel({
-            id: 'ride-alerts',
+            id: 'ride-alerts-max',
             name: 'Alertas de Viaje',
             description: 'Despierta la pantalla para viajes nuevos',
-            importance: 5, // MAX importance wakes screen
-            visibility: 1, // PUBLIC
+            importance: 5, // 5 = MAX (Heads-up / Burbuja)
+            visibility: 1, // 1 = PUBLIC
             vibration: true
+          });
+
+          // Registramos los botones nativos
+          LocalNotifications.registerActionTypes({
+            types: [
+              {
+                id: 'RIDE_OFFER_ACTIONS',
+                actions: [
+                  { id: 'accept', title: '✅ Aceptar' },
+                  { id: 'reject', title: '❌ Rechazar', destructive: true }
+                ]
+              }
+            ]
           });
         }
       });
@@ -1604,8 +1618,15 @@ export default function DriverApp() {
       // Escuchar taps en notificaciones nativas
       LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
         const orderId = notificationAction.notification.extra?.orderId;
-        if (orderId && notificationAction.actionId === 'tap') {
-          // Si el usuario toca la notificación, se asegura de tener la app abierta
+        const actionId = notificationAction.actionId;
+        if (orderId) {
+          if (actionId === 'accept') {
+            window.location.href = `/driver-app?accept=${orderId}`;
+          } else if (actionId === 'reject') {
+            window.location.href = `/driver-app?reject=${orderId}`;
+          } else {
+            window.location.href = `/driver-app`;
+          }
         }
       });
     }
@@ -1624,9 +1645,10 @@ export default function DriverApp() {
             notifications: [{
               title: "🚖 ¡Nuevo Viaje!",
               body: `${offeredOrder.pickup_address} ${offeredOrder.dropoff_address ? "→ " + offeredOrder.dropoff_address : ""}`,
-              id: Math.floor(Math.random() * 100000),
+              id: 88888, // ID fijo para poder cancelarla si se rechaza
               schedule: { at: new Date(Date.now() + 100) },
-              channelId: 'ride-alerts',
+              channelId: 'ride-alerts-max',
+              actionTypeId: 'RIDE_OFFER_ACTIONS',
               extra: { orderId: offeredOrder.id }
             }]
           });
@@ -1648,6 +1670,9 @@ export default function DriverApp() {
     } else {
       prevOfferedId.current = null;
       stopAlert();
+      if (Capacitor.isNativePlatform()) {
+        LocalNotifications.cancel({ notifications: [{ id: 88888 }] });
+      }
       if (!Capacitor.isNativePlatform()) notifySW({ type: "OFFER_CLEARED" });
     }
   }, [offeredOrder?.id]);
@@ -1657,6 +1682,9 @@ export default function DriverApp() {
     if (!broadcastOrder) {
       prevBroadcastId.current = null;
       stopAlert();
+      if (Capacitor.isNativePlatform()) {
+        LocalNotifications.cancel({ notifications: [{ id: 77777 }] });
+      }
       return;
     }
     if (broadcastOrder.id !== prevBroadcastId.current) {
@@ -1667,9 +1695,10 @@ export default function DriverApp() {
           notifications: [{
             title: "📢 Viaje a todos los móviles",
             body: `⚡ El primero se lo lleva: ${broadcastOrder.pickup_address}`,
-            id: Math.floor(Math.random() * 100000),
+            id: 77777,
             schedule: { at: new Date(Date.now() + 100) },
-            channelId: 'ride-alerts',
+            channelId: 'ride-alerts-max',
+            actionTypeId: 'RIDE_OFFER_ACTIONS',
             extra: { orderId: broadcastOrder.id }
           }]
         });
