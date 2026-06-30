@@ -57,6 +57,7 @@ import AuditLogs from '@/pages/AuditLogs';
 import ActiveUsers from '@/pages/ActiveUsers';
 import Profile from '@/pages/Profile';
 import DesktopOnlyError from '@/components/DesktopOnlyError';
+import { Capacitor } from '@capacitor/core';
 
 function AdminRoute({ children, allowRoles = ["admin"] }) {
   const { user } = useAuth();
@@ -81,6 +82,11 @@ const AuthenticatedApp = () => {
   const isDriverApp = window.location.pathname === '/driver-app' || window.location.pathname.startsWith('/driver-app');
   // Parametro bypass solo para poder seguir editando la web en este editor temporalmente (?dev=1)
   const isDevBypass = true; // Bypass temporal total para asegurar que puedan probar
+
+  // Si estamos en la app nativa (celular) y no estamos en la ruta del chofer, lo redirigimos forzosamente.
+  if (Capacitor.isNativePlatform() && !isDriverApp) {
+    return <Navigate to="/driver-app" replace />;
+  }
 
   if (!isDriverApp && !isDesktopApp && !isDevBypass) {
     return <DesktopOnlyError />;
