@@ -73,6 +73,16 @@ const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
   const location = useLocation();
 
+  // En Android/iOS nativo: Evitamos todo tipo de redirección, cargando la app directamente.
+  // Esto mata de raíz el problema del bucle y el destello blanco.
+  if (Capacitor.isNativePlatform()) {
+    return (
+      <Routes>
+        <Route path="*" element={<DriverAppErrorBoundary><DriverApp /></DriverAppErrorBoundary>} />
+      </Routes>
+    );
+  }
+
   // Forzar HTTPS en producción (Auditoría/Seguridad)
   if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
     window.location.href = window.location.href.replace('http:', 'https:');
@@ -83,11 +93,6 @@ const AuthenticatedApp = () => {
   const isDriverApp = location.pathname === '/driver-app' || location.pathname.startsWith('/driver-app');
   // Parametro bypass solo para poder seguir editando la web en este editor temporalmente (?dev=1)
   const isDevBypass = true; // Bypass temporal total para asegurar que puedan probar
-
-  // Si estamos en la app nativa (celular) y no estamos en la ruta del chofer, lo redirigimos forzosamente.
-  if (Capacitor.isNativePlatform() && !isDriverApp) {
-    return <Navigate to="/driver-app" replace />;
-  }
 
   if (!isDriverApp && !isDesktopApp && !isDevBypass) {
     return <DesktopOnlyError />;
