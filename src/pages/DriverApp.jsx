@@ -1347,6 +1347,7 @@ export default function DriverApp() {
       if (msg.type === "SW_ACCEPT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "accept")) {
         const orderId = msg.orderId || msg.payload?.orderId;
         if (orderId && myDriverId) {
+          notifySW({ type: "ACK_ACCEPT_ORDER", orderId }); // Send ACK immediately so SW doesn't spawn a new tab
           setLocalOverride({ status: "en_viaje" });
           updateOrder.mutate({ id: orderId, data: { status: "aceptado" } });
           updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
@@ -1357,6 +1358,7 @@ export default function DriverApp() {
       if (msg.type === "SW_REJECT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "reject")) {
         const orderId = msg.orderId || msg.payload?.orderId;
         if (orderId && myDriverId) {
+          notifySW({ type: "ACK_REJECT_ORDER", orderId }); // Send ACK
           Promise.all([
             base44.entities.RideOrder.get(orderId),
             base44.entities.Driver.list()
@@ -1590,9 +1592,13 @@ export default function DriverApp() {
 
   const updateOrder = useMutation({
     mutationFn: ({ id, data }) => base44.entities.RideOrder.update(id, data),
+    retry: 5,
+    retryDelay: 1000,
   });
   const updateDriver = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Driver.update(id, data),
+    retry: 5,
+    retryDelay: 1000,
   });
 
   const handleAccept = () => {

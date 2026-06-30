@@ -79,10 +79,29 @@ self.addEventListener("notificationclick", (event) => {
       self.clients.matchAll({ type: "window" }).then(clients => {
         const appClient = clients.find(c => c.url.includes("/driver-app"));
         if (appClient) {
+          // Send message and set a timeout for fallback
           appClient.postMessage({ type: "SW_ACCEPT_ORDER", orderId });
           appClient.focus();
+          
+          return new Promise((resolve) => {
+            const timeoutId = setTimeout(() => {
+              // Si no recibimos respuesta (la app estaba congelada), forzamos recarga
+              self.clients.openWindow(`/driver-app?accept=${orderId}`);
+              resolve();
+            }, 1500);
+
+            // Listener temporal para el ACK
+            const ackListener = (msgEvent) => {
+              if (msgEvent.data && msgEvent.data.type === "ACK_ACCEPT_ORDER" && msgEvent.data.orderId === orderId) {
+                clearTimeout(timeoutId);
+                self.removeEventListener("message", ackListener);
+                resolve();
+              }
+            };
+            self.addEventListener("message", ackListener);
+          });
         } else {
-          self.clients.openWindow(`/driver-app?accept=${orderId}`);
+          return self.clients.openWindow(`/driver-app?accept=${orderId}`);
         }
       })
     );
@@ -96,8 +115,24 @@ self.addEventListener("notificationclick", (event) => {
         if (appClient) {
           appClient.postMessage({ type: "SW_REJECT_ORDER", orderId });
           appClient.focus();
+          
+          return new Promise((resolve) => {
+            const timeoutId = setTimeout(() => {
+              self.clients.openWindow(`/driver-app?reject=${orderId}`);
+              resolve();
+            }, 1500);
+
+            const ackListener = (msgEvent) => {
+              if (msgEvent.data && msgEvent.data.type === "ACK_REJECT_ORDER" && msgEvent.data.orderId === orderId) {
+                clearTimeout(timeoutId);
+                self.removeEventListener("message", ackListener);
+                resolve();
+              }
+            };
+            self.addEventListener("message", ackListener);
+          });
         } else {
-          self.clients.openWindow(`/driver-app?reject=${orderId}`);
+          return self.clients.openWindow(`/driver-app?reject=${orderId}`);
         }
       })
     );
