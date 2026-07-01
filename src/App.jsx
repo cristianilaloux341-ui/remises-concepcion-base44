@@ -92,7 +92,7 @@ const AuthenticatedApp = () => {
   const isDesktopApp = navigator.userAgent.includes('RemisesConcepcion-AdminApp');
   const isDriverApp = location.pathname === '/driver-app' || location.pathname.startsWith('/driver-app');
   // Parametro bypass solo para poder seguir editando la web en este editor temporalmente (?dev=1)
-  const isDevBypass = true; // Bypass temporal total para asegurar que puedan probar
+  const isDevBypass = false; // Acceso web cerrado nuevamente
 
   if (!isDriverApp && !isDesktopApp && !isDevBypass) {
     return <DesktopOnlyError />;
