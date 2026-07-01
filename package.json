@@ -16,6 +16,8 @@
     "@base44/vite-plugin": "^1.0.24",
     "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor/android": "^8.4.1",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/background-runner": "^3.0.0",
     "@capacitor/cli": "^7.6.7",
     "@capacitor/core": "^8.4.1",
     "@capacitor/local-notifications": "^7.0.6",
