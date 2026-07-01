@@ -14,7 +14,6 @@ export default function DriverLink() {
   const getPublishedUrl = () => {
     const saved = localStorage.getItem("published_app_url");
     if (saved) return saved;
-    // Si la URL contiene "base44.app" o "localhost", probablemente estamos en el editor
     const origin = window.location.origin;
     if (origin.includes("base44.app") || origin.includes("localhost")) return null;
     return origin;
