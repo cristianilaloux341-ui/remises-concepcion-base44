@@ -1,5 +1,5 @@
 {
-  "appId": "com.remisesconcepcion.app",
+  "appId": "com.remisesconcepcion.driver",
   "appName": "Remises Concepción",
   "webDir": "dist",
   "bundledWebRuntime": false
