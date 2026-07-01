@@ -59,14 +59,14 @@ export default function DriverLink() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Ingresá la URL de tu app publicada (la que te dio Base44 al publicar, ej: <span className="font-mono text-xs">https://mi-app.base44.app</span>)
+            Ingresá la URL de tu app publicada (ej: <span className="font-mono text-xs">https://remises-concepcion.com</span>)
           </p>
           <div className="flex gap-2">
             <input
               type="url"
               value={publishedUrl}
               onChange={e => setPublishedUrl(e.target.value)}
-              placeholder="https://tu-app.base44.app"
+              placeholder="https://remises-concepcion.com"
               className="flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
             <Button size="sm" onClick={handleSaveUrl} disabled={!publishedUrl}>
