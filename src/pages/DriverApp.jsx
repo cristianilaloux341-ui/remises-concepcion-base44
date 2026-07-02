@@ -213,7 +213,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
   const [gpsStatus, setGpsStatus] = useState(null);
 
   const safeDriversList = Array.isArray(drivers) ? drivers : [];
-  const savedDriver = savedDriverId ? safeDriversList.find(d => d.id === savedDriverId) : null;
+  const savedDriver = savedDriverId && Array.isArray(safeDriversList) ? safeDriversList.find(d => d.id === savedDriverId) : null;
 
   const requestGps = () => {
     if (!navigator.geolocation) { setGpsStatus("denied"); return; }
@@ -1652,29 +1652,45 @@ export default function DriverApp() {
         prevOfferedId.current = offeredOrder.id;
         playAlert();
         
+        if (!Capacitor.isNativePlatform()) {
+          sendSystemNotification(offeredOrder);
+          notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
+        }
+      }
+      
+      const interval = setInterval(() => {
+        playAlert();
         if (Capacitor.isNativePlatform()) {
           LocalNotifications.schedule({
             notifications: [{
               title: "🚖 ¡Nuevo Viaje!",
               body: `${offeredOrder.pickup_address} ${offeredOrder.dropoff_address ? "→ " + offeredOrder.dropoff_address : ""}`,
-              id: 88888, // ID fijo para poder cancelarla si se rechaza
+              id: 88888,
               schedule: { at: new Date(Date.now() + 100) },
               channelId: 'ride-alerts-max',
               actionTypeId: 'RIDE_OFFER_ACTIONS',
               extra: { orderId: offeredOrder.id }
             }]
-          });
+          }).catch(() => {});
         } else {
-          sendSystemNotification(offeredOrder);
-          notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
-        }
-      }
-      const interval = setInterval(() => {
-        playAlert();
-        if (!Capacitor.isNativePlatform()) {
           notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
         }
       }, 4000);
+      
+      // Lanzar la primera de inmediato en nativo también
+      if (offeredOrder.id !== prevOfferedId.current && Capacitor.isNativePlatform()) {
+          LocalNotifications.schedule({
+            notifications: [{
+              title: "🚖 ¡Nuevo Viaje!",
+              body: `${offeredOrder.pickup_address} ${offeredOrder.dropoff_address ? "→ " + offeredOrder.dropoff_address : ""}`,
+              id: 88888,
+              schedule: { at: new Date(Date.now() + 100) },
+              channelId: 'ride-alerts-max',
+              actionTypeId: 'RIDE_OFFER_ACTIONS',
+              extra: { orderId: offeredOrder.id }
+            }]
+          }).catch(() => {});
+      }
       return () => {
         clearInterval(interval);
         stopAlert();
@@ -1702,6 +1718,12 @@ export default function DriverApp() {
     if (broadcastOrder.id !== prevBroadcastId.current) {
       prevBroadcastId.current = broadcastOrder.id;
       playAlert();
+      if (!Capacitor.isNativePlatform()) {
+        sendSystemNotification(broadcastOrder);
+      }
+    }
+    const interval = setInterval(() => {
+      playAlert();
       if (Capacitor.isNativePlatform()) {
         LocalNotifications.schedule({
           notifications: [{
@@ -1713,12 +1735,23 @@ export default function DriverApp() {
             actionTypeId: 'RIDE_OFFER_ACTIONS',
             extra: { orderId: broadcastOrder.id }
           }]
-        });
-      } else {
-        sendSystemNotification(broadcastOrder);
+        }).catch(() => {});
       }
+    }, 4000);
+    
+    if (broadcastOrder.id !== prevBroadcastId.current && Capacitor.isNativePlatform()) {
+        LocalNotifications.schedule({
+          notifications: [{
+            title: "📢 Viaje a todos los móviles",
+            body: `⚡ El primero se lo lleva: ${broadcastOrder.pickup_address}`,
+            id: 77777,
+            schedule: { at: new Date(Date.now() + 100) },
+            channelId: 'ride-alerts-max',
+            actionTypeId: 'RIDE_OFFER_ACTIONS',
+            extra: { orderId: broadcastOrder.id }
+          }]
+        }).catch(() => {});
     }
-    const interval = setInterval(() => playAlert(), 4000);
     return () => {
       clearInterval(interval);
       stopAlert();
