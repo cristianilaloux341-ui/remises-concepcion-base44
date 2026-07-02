@@ -16,8 +16,11 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
         setOrders(Array.isArray(data) ? data : []);
         setIsLoading(false);
       }
-    }).catch(() => {
-      if (mountedRef.current) setIsLoading(false);
+    }).catch((err) => {
+      if (mountedRef.current) {
+        setIsLoading(false);
+        console.error("Order fetch error:", err);
+      }
     });
   }, [limit, sort]);
 

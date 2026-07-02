@@ -207,7 +207,7 @@ const STATUS_CONFIG = {
 };
 
 // ── Login screen ──────────────────────────────────────────────────────────────
-function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {} }) {
+function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSaved = () => {} }) {
   // step: 'phone' | 'create_pin' | 'enter_pin' | 'forgot_sent'
   const [step, setStep] = useState("phone");
   const [phone, setPhone] = useState("");
@@ -582,8 +582,14 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
             <LogIn className="inline w-4 h-4 mr-2" />
             Continuar
           </button>
-          {safeDriversList.length === 0 && (
+          {safeDriversList.length === 0 && !driversError && (
             <p className="text-xs text-gray-600 text-center">No hay chóferes registrados. Pedile al operador que te agregue.</p>
+          )}
+          {driversError && (
+            <div className="bg-red-900/30 border border-red-700 rounded-xl p-3 text-center">
+              <p className="text-red-400 text-xs font-bold mb-1">¡Error en la conexión!</p>
+              <p className="text-red-300 text-[10px] break-words font-mono">{driversError}</p>
+            </div>
           )}
         </div>
       </div>
@@ -1505,7 +1511,7 @@ export default function DriverApp() {
   }, [myDriverId]);
 
   // ── Tiempo real: suscripciones en lugar de polling ────────────────────────
-  const { drivers, isLoading: driversLoading } = useRealtimeDrivers();
+  const { drivers, isLoading: driversLoading, error: driversError } = useRealtimeDrivers();
   const { orders } = useRealtimeOrders({ limit: 50 });
 
   // Timeout de seguridad: si después de 8s sigue cargando, mostrar reintento
@@ -1916,6 +1922,7 @@ export default function DriverApp() {
         <div className="flex-1 overflow-y-auto">
           <LoginScreen
             drivers={safeDrivers}
+            driversError={driversError}
             savedDriverId={savedDriverId}
             onSelect={(id, isFirstTime) => {
               setMyDriverId(id);

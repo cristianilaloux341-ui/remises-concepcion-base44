@@ -6,19 +6,24 @@ import { withRetry } from "@/lib/retryFetch";
 export function useRealtimeDrivers() {
   const [drivers, setDrivers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorInfo, setErrorInfo] = useState(null);
   const mountedRef = useRef(true);
   const unsubRef = useRef(null);
 
   const fetchAll = useCallback(() => {
     if (!mountedRef.current) return;
-    return withRetry(() => base44.entities.Driver.list(undefined, 500)).then((data) => {
+    return withRetry(() => base44.entities.Driver.list('-created_date', 500)).then((data) => {
       if (mountedRef.current) {
         setDrivers(Array.isArray(data) ? data : []);
         setIsLoading(false);
+        setErrorInfo(null);
       }
-    }).catch(() => {
-      // Aunque falle, salimos del estado loading para no bloquear la UI
-      if (mountedRef.current) setIsLoading(false);
+    }).catch((err) => {
+      // Mostrar el error en pantalla si falla
+      if (mountedRef.current) {
+        setIsLoading(false);
+        setErrorInfo(err?.message || err?.toString() || "Error desconocido al cargar");
+      }
     });
   }, []);
 
@@ -92,5 +97,5 @@ export function useRealtimeDrivers() {
 
   useBackgroundSync(connect);
 
-  return { drivers, isLoading };
+  return { drivers, isLoading, error: errorInfo };
 }
