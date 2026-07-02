@@ -2,7 +2,7 @@
   "name": "RideOrder",
   "type": "object",
   "rls": {
-    "read": false,
+    "read": true,
     "create": true,
     "update": true,
     "delete": true
