@@ -8,5 +8,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    sourcemap: true, // Habilitar sourcemaps para depurar en Android
+    minify: false,   // Desactivar minificación temporalmente para ver el código real en lugar de "Q.find"
   }
 })
