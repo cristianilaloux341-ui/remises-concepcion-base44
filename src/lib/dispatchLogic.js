@@ -24,6 +24,8 @@ export function getBaseQueue(drivers, baseName) {
 
 // Find best driver for an order: zone-first (FIFO), then nearest base
 export async function findBestDriver(order, drivers, bases) {
+  if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in findBestDriver!", drivers); return null; }
+  if (!Array.isArray(bases)) { console.error("[CRITICAL ERROR] bases is not array in findBestDriver!", bases); bases = BASES; }
   const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
   if (!availableDrivers.length) return null;
 
@@ -157,6 +159,8 @@ export async function autoDispatch(order, drivers, bases) {
 // Reassign after rejection: next in same base queue (skipping already-offered),
 // or broadcast to ALL available drivers if no one left in zone
 export async function reassignAfterReject(order, drivers, bases) {
+  if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in reassignAfterReject!", drivers); return null; }
+  if (!Array.isArray(bases)) { console.error("[CRITICAL ERROR] bases is not array in reassignAfterReject!", bases); bases = BASES; }
   const offeredIds = order.offered_driver_ids || [];
   const available = drivers.filter(d => d.status === "disponible" && d.current_base && !offeredIds.includes(d.id));
 

@@ -28,6 +28,14 @@ import { usePushSubscription } from "@/hooks/usePushSubscription";
 import BatteryOptimizationGuide from "@/components/driver/BatteryOptimizationGuide";
 import OcasionalMeter from "@/components/driver/OcasionalMeter";
 
+const debugArray = (arr, name) => {
+  if (!Array.isArray(arr)) {
+    console.error(`[CRITICAL ERROR] ${name} is NOT an array! Type: ${typeof arr}. Value:`, arr);
+    return [];
+  }
+  return arr;
+};
+
 // ── Audio & Notifications ─────────────────────────────────────────────────────
 
 let isKeepingAlive = false;
@@ -213,7 +221,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
   const [gpsStatus, setGpsStatus] = useState(null);
 
   const safeDriversList = Array.isArray(drivers) ? drivers : [];
-  const savedDriver = savedDriverId && Array.isArray(safeDriversList) ? safeDriversList.find(d => d.id === savedDriverId) : null;
+  const savedDriver = savedDriverId && Array.isArray(safeDriversList) ? debugArray(safeDriversList, 'safeDriversList').find(d => d.id === savedDriverId) : null;
 
   const requestGps = () => {
     if (!navigator.geolocation) { setGpsStatus("denied"); return; }
@@ -228,7 +236,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
     await requestNotificationPermission();
     const normalized = phone.replace(/\s|-|\(|\)/g, "");
     if (!normalized) { setError("Ingresá tu número de celular"); return; }
-    const found = safeDriversList.find(d => {
+    const found = debugArray(safeDriversList, 'safeDriversList').find(d => {
       const dp = (d.phone || "").replace(/\s|-|\(|\)/g, "");
       return dp === normalized || dp.endsWith(normalized) || normalized.endsWith(dp);
     });
@@ -1082,10 +1090,10 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
   const isInBase = driver.current_base && driver.status === "disponible";
 
   // Queue for current base
-  const baseQueue = drivers
+  const baseQueue = debugArray(drivers, 'drivers_in_IdleScreen')
     .filter(d => d.current_base === driver.current_base && d.status === "disponible")
     .sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at));
-  const myPosition = baseQueue.findIndex(d => d.id === driver.id) + 1;
+  const myPosition = debugArray(baseQueue, 'baseQueue').findIndex(d => d.id === driver.id) + 1;
 
   if (changingBase) {
     return (
@@ -1522,7 +1530,7 @@ export default function DriverApp() {
 
   const safeDrivers = Array.isArray(drivers) ? drivers : [];
   const safeOrders = Array.isArray(orders) ? orders : [];
-  const myDriverRaw = safeDrivers.find(d => d.id === myDriverId);
+  const myDriverRaw = debugArray(safeDrivers, 'safeDrivers').find(d => d.id === myDriverId);
 
   // Verificación de sesión única (Forzar deslogueo si hay otra sesión activa)
   useEffect(() => {
@@ -1554,14 +1562,14 @@ export default function DriverApp() {
     ? { ...myDriverRaw, ...(localOverride ?? {}) }
     : null;
 
-  const activeOrder = safeOrders.find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
-  const offeredOrder = safeOrders.find(o => o.driver_id === myDriverId && o.status === "ofrecido");
+  const activeOrder = debugArray(safeOrders, 'safeOrders').find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
+  const offeredOrder = debugArray(safeOrders, 'safeOrders').find(o => o.driver_id === myDriverId && o.status === "ofrecido");
   // Broadcast: pedido pendiente (sin chofer asignado) que este chofer no rechazó — solo si está libre y en base
   const broadcastOrder = myDriver?.status === "disponible" && myDriver?.current_base && !activeOrder && !offeredOrder
-    ? safeOrders.find(o =>
+    ? debugArray(safeOrders, 'safeOrders').find(o =>
         o.status === "pendiente" &&
         !o.driver_id &&
-        !Array.isArray(dismissedBroadcasts) ? false : !dismissedBroadcasts.includes(o.id)
+        (!Array.isArray(dismissedBroadcasts) ? false : !dismissedBroadcasts.includes(o.id))
       )
     : null;
 
@@ -2026,7 +2034,7 @@ export default function DriverApp() {
             onClick={() => {
               setShowMessages(true);
               // Parar alertas sonoras al abrir el chat
-              pendingMessages.forEach(m => dismissMessage(m.id));
+              debugArray(pendingMessages, 'pendingMessages').forEach(m => dismissMessage(m.id));
             }}
           >
             <MessageCircle className="w-4 h-4" />

@@ -72,7 +72,8 @@ export function useDriverMessageAlert(driverId) {
     const fetchMissed = async () => {
       try {
         const data = await base44.entities.Message.filter({ from_type: "operador", read: false });
-        const unread = data.filter(msg => {
+        const safeData = Array.isArray(data) ? data : [];
+        const unread = safeData.filter(msg => {
           const isForMe = !msg.to_driver_id || msg.to_driver_id === driverId;
           return isForMe && !seenIds.current.has(msg.id);
         });
@@ -98,7 +99,7 @@ export function useDriverMessageAlert(driverId) {
   const dismissMessage = (msgId) => {
     // Mark as read in DB (fire and forget)
     base44.entities.Message.update(msgId, { read: true }).catch(() => {});
-    setPendingMessages(prev => prev.filter(m => m.id !== msgId));
+    setPendingMessages(prev => Array.isArray(prev) ? prev.filter(m => m.id !== msgId) : []);
   };
 
   return { pendingMessages, dismissMessage };

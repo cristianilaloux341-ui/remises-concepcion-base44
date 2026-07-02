@@ -6,7 +6,8 @@ import { startOfDay, startOfWeek, startOfMonth, endOfDay, endOfWeek, endOfMonth,
 import { es } from "date-fns/locale";
 
 function computeStats(orders, from, to) {
-  const inRange = orders.filter(o => {
+  const safeOrders = Array.isArray(orders) ? orders : [];
+  const inRange = safeOrders.filter(o => {
     const d = new Date(o.created_date);
     return d >= from && d <= to && o.status === "completado";
   });

@@ -47,6 +47,10 @@ export function useRealtimeDrivers() {
           if (!mountedRef.current) return;
           
           setDrivers((prev) => {
+            if (!Array.isArray(prev)) {
+               console.error("[CRITICAL ERROR] prev in useRealtimeDrivers is NOT an array! Type:", typeof prev, "Value:", prev);
+               prev = [];
+            }
             let next = [...prev];
             // Aplicar todos los eventos acumulados en el buffer
             for (const ev of buffer) {

@@ -16,7 +16,8 @@ export default function DailyStats({ driverId }) {
       status: "completado",
     });
 
-    const todayOrders = orders.filter(o => o.created_date >= todayISO);
+    const safeOrders = Array.isArray(orders) ? orders : [];
+    const todayOrders = safeOrders.filter(o => o.created_date >= todayISO);
 
     const viajes = todayOrders.length;
     const km = todayOrders.reduce((acc, o) => acc + (o.distancia_teorica_metros || 0), 0) / 1000;

@@ -33,6 +33,10 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
       if (!mountedRef.current) return;
       setOrders((prev) => {
         if (!event.data) return prev;
+        if (!Array.isArray(prev)) {
+            console.error("[CRITICAL ERROR] prev in useRealtimeOrders is NOT an array! Type:", typeof prev, "Value:", prev);
+            prev = [];
+        }
         if (event.type === "create") {
           if (prev.some(o => o.id === event.id)) return prev.map((o) => (o.id === event.id ? { ...o, ...event.data } : o));
           return [event.data, ...prev].slice(0, limit);
