@@ -44,7 +44,12 @@
         document.getElementById('error-log').innerText += 'Unhandled Promise: ' + (event.reason ? (event.reason.stack || event.reason) : event) + '\n\n';
       });
     </script>
-    <div id="root"></div>
+    <div id="root">
+      <div style="display: flex; height: 100vh; width: 100vw; align-items: center; justify-content: center; background-color: #030712; color: white; font-family: sans-serif; flex-direction: column; padding: 20px; box-sizing: border-box;">
+        <h1 style="font-size: 2.5rem; font-weight: 900; text-align: center; color: #3b82f6;">VERSIÓN 2 - PRUEBA CHATGPT</h1>
+        <p style="color: #9ca3af; margin-top: 10px;">Cargando aplicación...</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
       // PWABuilder detection snippet
