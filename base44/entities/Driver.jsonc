@@ -2,7 +2,7 @@
   "name": "Driver",
   "type": "object",
   "rls": {
-    "read": true,
+    "read": false,
     "create": true,
     "update": true,
     "delete": true
