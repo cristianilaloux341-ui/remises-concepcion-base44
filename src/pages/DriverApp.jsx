@@ -583,7 +583,11 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
             Continuar
           </button>
           {safeDriversList.length === 0 && !driversError && (
-            <p className="text-xs text-gray-600 text-center">No hay chóferes registrados. Pedile al operador que te agregue.</p>
+            <div className="text-center">
+              <p className="text-xs text-gray-600">No hay chóferes registrados. Pedile al operador que te agregue.</p>
+              {/* DEBUG INFO */}
+              <p className="text-[10px] text-gray-500 mt-2 break-all">AppID: {base44.appId || "N/A"}</p>
+            </div>
           )}
           {driversError && (
             <div className="bg-red-900/30 border border-red-700 rounded-xl p-3 text-center">
