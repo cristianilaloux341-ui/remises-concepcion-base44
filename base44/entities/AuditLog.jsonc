@@ -1,6 +1,12 @@
 {
   "name": "AuditLog",
   "type": "object",
+  "rls": {
+    "read": false,
+    "create": true,
+    "update": true,
+    "delete": true
+  },
   "properties": {
     "action": {
       "type": "string",

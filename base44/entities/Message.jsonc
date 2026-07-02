@@ -1,6 +1,12 @@
 {
   "name": "Message",
   "type": "object",
+  "rls": {
+    "read": false,
+    "create": true,
+    "update": true,
+    "delete": true
+  },
   "properties": {
     "from_type": {
       "type": "string",

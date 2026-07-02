@@ -1,6 +1,12 @@
 {
   "name": "TarifaConfig",
   "type": "object",
+  "rls": {
+    "read": false,
+    "create": true,
+    "update": true,
+    "delete": true
+  },
   "properties": {
     "clave_modificacion": {
       "type": "string",

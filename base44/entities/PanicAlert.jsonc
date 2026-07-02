@@ -1,6 +1,12 @@
 {
   "name": "PanicAlert",
   "type": "object",
+  "rls": {
+    "read": false,
+    "create": true,
+    "update": true,
+    "delete": true
+  },
   "properties": {
     "driver_id": {
       "type": "string",
