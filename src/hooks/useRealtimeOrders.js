@@ -13,7 +13,7 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
     if (!mountedRef.current) return;
     return withRetry(() => base44.entities.RideOrder.list(sort, limit)).then((data) => {
       if (mountedRef.current) {
-        setOrders(data);
+        setOrders(Array.isArray(data) ? data : []);
         setIsLoading(false);
       }
     }).catch(() => {

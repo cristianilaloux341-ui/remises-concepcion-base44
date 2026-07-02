@@ -13,7 +13,7 @@ export function useRealtimeDrivers() {
     if (!mountedRef.current) return;
     return withRetry(() => base44.entities.Driver.list(undefined, 500)).then((data) => {
       if (mountedRef.current) {
-        setDrivers(data);
+        setDrivers(Array.isArray(data) ? data : []);
         setIsLoading(false);
       }
     }).catch(() => {

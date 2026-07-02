@@ -212,7 +212,8 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
   const [loading, setLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState(null);
 
-  const savedDriver = savedDriverId ? drivers.find(d => d.id === savedDriverId) : null;
+  const safeDriversList = Array.isArray(drivers) ? drivers : [];
+  const savedDriver = savedDriverId ? safeDriversList.find(d => d.id === savedDriverId) : null;
 
   const requestGps = () => {
     if (!navigator.geolocation) { setGpsStatus("denied"); return; }
@@ -227,7 +228,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
     await requestNotificationPermission();
     const normalized = phone.replace(/\s|-|\(|\)/g, "");
     if (!normalized) { setError("Ingresá tu número de celular"); return; }
-    const found = drivers.find(d => {
+    const found = safeDriversList.find(d => {
       const dp = (d.phone || "").replace(/\s|-|\(|\)/g, "");
       return dp === normalized || dp.endsWith(normalized) || normalized.endsWith(dp);
     });
@@ -573,7 +574,7 @@ function LoginScreen({ drivers, onSelect, savedDriverId, onClearSaved = () => {}
             <LogIn className="inline w-4 h-4 mr-2" />
             Continuar
           </button>
-          {drivers.length === 0 && (
+          {safeDriversList.length === 0 && (
             <p className="text-xs text-gray-600 text-center">No hay chóferes registrados. Pedile al operador que te agregue.</p>
           )}
         </div>
@@ -1519,7 +1520,9 @@ export default function DriverApp() {
   const [localOverride, setLocalOverride] = useState(null);
   const clearOverrideTimerRef = useRef(null);
 
-  const myDriverRaw = drivers.find(d => d.id === myDriverId);
+  const safeDrivers = Array.isArray(drivers) ? drivers : [];
+  const safeOrders = Array.isArray(orders) ? orders : [];
+  const myDriverRaw = safeDrivers.find(d => d.id === myDriverId);
 
   // Verificación de sesión única (Forzar deslogueo si hay otra sesión activa)
   useEffect(() => {
@@ -1551,14 +1554,14 @@ export default function DriverApp() {
     ? { ...myDriverRaw, ...(localOverride ?? {}) }
     : null;
 
-  const activeOrder = orders.find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
-  const offeredOrder = orders.find(o => o.driver_id === myDriverId && o.status === "ofrecido");
+  const activeOrder = safeOrders.find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
+  const offeredOrder = safeOrders.find(o => o.driver_id === myDriverId && o.status === "ofrecido");
   // Broadcast: pedido pendiente (sin chofer asignado) que este chofer no rechazó — solo si está libre y en base
   const broadcastOrder = myDriver?.status === "disponible" && myDriver?.current_base && !activeOrder && !offeredOrder
-    ? orders.find(o =>
+    ? safeOrders.find(o =>
         o.status === "pendiente" &&
         !o.driver_id &&
-        !dismissedBroadcasts.includes(o.id)
+        !Array.isArray(dismissedBroadcasts) ? false : !dismissedBroadcasts.includes(o.id)
       )
     : null;
 
@@ -1871,7 +1874,7 @@ export default function DriverApp() {
         <InstallBanner />
         <div className="flex-1 overflow-y-auto">
           <LoginScreen
-            drivers={drivers}
+            drivers={safeDrivers}
             savedDriverId={savedDriverId}
             onSelect={(id, isFirstTime) => {
               setMyDriverId(id);
@@ -2047,7 +2050,7 @@ export default function DriverApp() {
       ) : (
         <IdleScreen
           driver={myDriver}
-          drivers={drivers}
+          drivers={safeDrivers}
           selectedBase={selectedBase}
           onBaseChange={setSelectedBase}
           onEnter={handleEnterBase}
