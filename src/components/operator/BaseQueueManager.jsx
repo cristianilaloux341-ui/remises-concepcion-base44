@@ -233,7 +233,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
 }
 
 export function QuickAssignInput({ drivers, moviles = [] }) {
-  const { toast } = useToast();
+  // const { toast } = useToast(); // Desactivamos los carteles por pedido del usuario
   const [quickInput, setQuickInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const quickInputRef = useRef(null);
@@ -247,7 +247,6 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     setIsProcessing(true);
 
     if (!input.includes(".")) {
-      toast({ title: "Formato incorrecto", description: "Usá el formato movil.base (ej: 12.3)", variant: "destructive" });
       setIsProcessing(false);
       return;
     }
@@ -282,9 +281,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
           numero_movil: movilNum,
           activo: true
         });
-        toast({ title: "Móvil creado", description: `Se autogeneró el móvil ${movilNum}.` });
       } catch (err) {
-        toast({ title: "Error", description: "No se pudo auto-crear el móvil.", variant: "destructive" });
         setIsProcessing(false);
         return;
       }
@@ -292,7 +289,6 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       // Forzar activación para pruebas
       try {
         await base44.entities.Movil.update(movil.id, { activo: true, fuera_de_servicio: false });
-        toast({ title: "Móvil reactivado", description: `Se rehabilitó el móvil ${movilNum} automáticamente.` });
       } catch (err) {}
     }
 
@@ -311,9 +307,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
         if (!movil.dominio) {
           await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
         }
-        toast({ title: "Móvil creado", description: `Se autogeneró el móvil ${movilNum}.` });
       } catch (err) {
-        toast({ title: "Error", description: "No se pudo auto-crear el chofer.", variant: "destructive" });
         setIsProcessing(false);
         return;
       }
@@ -334,9 +328,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
           status: "no_disponible",
           queue_entered_at: null,
         });
-        toast({ title: "Fuera de servicio", description: `Móvil ${movilNum} marcado como fuera de servicio.` });
       } catch (err) {
-        toast({ title: "Error", description: "No se pudo actualizar el móvil.", variant: "destructive" });
       }
       setIsProcessing(false);
       return;
@@ -345,7 +337,6 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     // Find base
     const baseName = BASES.find(b => b.startsWith(baseNumStr + "-"));
     if (!baseName) {
-      toast({ title: "Base no encontrada", description: `La base ${baseNumStr} no existe.`, variant: "destructive" });
       setIsProcessing(false);
       return;
     }
@@ -358,12 +349,10 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
         status: "disponible",
         queue_entered_at: new Date(Date.now() + queue.length * 1000).toISOString(),
       });
-      toast({ title: "Móvil asignado", description: `Móvil ${movilNum} asignado a ${baseName} exitosamente.` });
       
       // Forzar recarga rápida de la UI, ya que mutation invalidaría react-query pero acá no estamos usando el useMutation de BaseQueueManager sino update directo
       window.dispatchEvent(new Event("force-driver-refresh"));
     } catch (err) {
-      toast({ title: "Error", description: "No se pudo asignar el móvil.", variant: "destructive" });
     }
     
     setIsProcessing(false);
