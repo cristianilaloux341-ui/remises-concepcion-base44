@@ -11,15 +11,18 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
 
   const fetchAll = useCallback(() => {
     if (!mountedRef.current) return;
+    console.log("[Realtime-Background] Ejecutando fetchAll() en Orders...");
     return withRetry(() => base44.entities.RideOrder.list(sort, limit)).then((data) => {
       if (mountedRef.current) {
-        setOrders(Array.isArray(data) ? data : []);
+        const arr = Array.isArray(data) ? data : [];
+        console.log(`[Realtime-Background] Fetch Orders OK - ${arr.length} viajes`);
+        setOrders(arr);
         setIsLoading(false);
       }
     }).catch((err) => {
       if (mountedRef.current) {
         setIsLoading(false);
-        console.error("Order fetch error:", err);
+        console.error("[Realtime-Background] Error en fetch Orders:", err);
       }
     });
   }, [limit, sort]);

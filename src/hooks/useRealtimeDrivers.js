@@ -12,9 +12,12 @@ export function useRealtimeDrivers() {
 
   const fetchAll = useCallback(() => {
     if (!mountedRef.current) return;
+    console.log("[Realtime-Background] Ejecutando fetchAll() en Drivers...");
     return withRetry(() => base44.entities.Driver.list('-created_date', 500)).then((data) => {
       if (mountedRef.current) {
-        setDrivers(Array.isArray(data) ? data : []);
+        const arr = Array.isArray(data) ? data : [];
+        console.log(`[Realtime-Background] Fetch Drivers OK - ${arr.length} choferes`);
+        setDrivers(arr);
         setIsLoading(false);
         setErrorInfo(null);
       }
@@ -22,6 +25,7 @@ export function useRealtimeDrivers() {
       // Mostrar el error en pantalla si falla
       if (mountedRef.current) {
         setIsLoading(false);
+        console.error("[Realtime-Background] Error en fetch Drivers:", err);
         setErrorInfo(err?.message || err?.toString() || "Error desconocido al cargar");
       }
     });
