@@ -213,28 +213,55 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
        });
     }
 
+    // Auto-crear Móvil si no existe (Modo Prueba / Carga Rápida)
     if (!movil) {
-      toast({ title: "Móvil no encontrado", description: `El móvil ${movilNum} no existe en la base.`, variant: "destructive" });
-      setIsProcessing(false);
-      return;
+      try {
+        movil = await base44.entities.Movil.create({
+          numero_movil: movilNum,
+          activo: true
+        });
+        toast({ title: "Móvil creado", description: `Se autogeneró el móvil ${movilNum}.` });
+      } catch (err) {
+        toast({ title: "Error", description: "No se pudo auto-crear el móvil.", variant: "destructive" });
+        setIsProcessing(false);
+        return;
+      }
+    } else if (!movil.activo || movil.fuera_de_servicio) {
+      // Forzar activación para pruebas
+      try {
+        await base44.entities.Movil.update(movil.id, { activo: true, fuera_de_servicio: false });
+        toast({ title: "Móvil reactivado", description: `Se rehabilitó el móvil ${movilNum} automáticamente.` });
+      } catch (err) {}
     }
 
-    if (!movil.activo || movil.fuera_de_servicio) {
-      toast({ title: "Móvil inactivo", description: `El móvil ${movilNum} está suspendido.`, variant: "destructive" });
-      setIsProcessing(false);
-      return;
-    }
-
+    // Auto-crear Chofer si no existe (Modo Prueba / Carga Rápida)
     if (!driver) {
-      toast({ title: "Chofer no encontrado", description: `El chofer del móvil ${movilNum} no está online o no coincide patente.`, variant: "destructive" });
-      setIsProcessing(false);
-      return;
+      try {
+        const fakePlate = `TEST${movilNum}`;
+        driver = await base44.entities.Driver.create({
+          name: `Chofer ${movilNum}`,
+          phone: `000000000${movilNum}`,
+          vehicle_plate: fakePlate,
+          vehicle_model: String(movilNum),
+          status: "disponible"
+        });
+        
+        if (!movil.dominio) {
+          await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
+        }
+        toast({ title: "Chofer creado", description: `Se autogeneró un chofer para el móvil ${movilNum}.` });
+      } catch (err) {
+        toast({ title: "Error", description: "No se pudo auto-crear el chofer.", variant: "destructive" });
+        setIsProcessing(false);
+        return;
+      }
     }
 
     if (driver.status === "en_viaje") {
-      toast({ title: "Móvil ocupado", description: `El móvil ${movilNum} está en viaje actualmente.`, variant: "destructive" });
-      setIsProcessing(false);
-      return;
+      // Para pruebas, forzamos que vuelva a estar disponible
+      try {
+        await base44.entities.Driver.update(driver.id, { status: "disponible" });
+      } catch (e) {}
     }
 
     // Salida de servicio rápida con .00 o .0
