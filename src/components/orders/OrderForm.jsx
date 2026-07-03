@@ -578,7 +578,6 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
 
             <div className="flex gap-2">
               <input 
-                list="drivers-form-list"
                 className="flex-1 h-9 text-sm rounded-lg border border-input px-3 bg-white"
                 placeholder="Nº de móvil para asignar..."
                 value={manualDriverInput}
@@ -587,13 +586,6 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
                   setForm(prev => ({ ...prev, driver_id: "" })); // Clear actual ID to trigger auto-creation on submit
                 }}
               />
-              <datalist id="drivers-form-list">
-                {availableDrivers.map(d => (
-                  <option key={d.id} value={d.vehicle_model || d.name}>
-                    {d.name} — {d.vehicle_plate} ({d.current_base})
-                  </option>
-                ))}
-              </datalist>
               <Button type="button" variant="outline" className="gap-1.5 rounded-lg shrink-0"
                 onClick={handleAutoAssign} disabled={autoAssigning || !form.pickup_address}>
                 {autoAssigning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}

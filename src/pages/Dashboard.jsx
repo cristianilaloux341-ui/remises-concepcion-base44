@@ -18,8 +18,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function Dashboard() {
+  const { toast } = useToast();
   // Suscripciones en tiempo real — actualizaciones instantáneas sin polling
   const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100 });
   const { drivers } = useRealtimeDrivers();
@@ -71,11 +73,17 @@ export default function Dashboard() {
             o.start(); o.stop(ctx.currentTime + 0.3);
           } catch (_) {}
 
+          // Burbuja visual
+          toast({
+            title: "🚕 ¡Nuevo viaje entrante!",
+            description: `${event.data.pickup_address} (${event.data.client_name || 'Cliente'})`,
+            variant: "default",
+          });
         }
       }
     });
     return () => unsubscribe?.();
-  }, [orders]);
+  }, [orders, toast]);
 
   // Suscribirse a alertas de pánico en tiempo real
   useEffect(() => {

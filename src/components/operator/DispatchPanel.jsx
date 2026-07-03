@@ -174,7 +174,6 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       {/* Selector manual */}
       <div className="flex gap-2">
         <input 
-          list={`drivers-list-${order.id}`}
           className="flex-1 h-8 text-xs rounded-lg border border-input px-3 bg-white"
           placeholder="Nº o Nombre para asignar..."
           value={selectedDriverId}
@@ -185,13 +184,6 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
              }
           }}
         />
-        <datalist id={`drivers-list-${order.id}`}>
-          {availableDrivers.map(d => (
-            <option key={d.id} value={d.vehicle_model || d.name}>
-              {d.name} — {d.vehicle_plate} ({d.current_base})
-            </option>
-          ))}
-        </datalist>
         <Button
           size="sm"
           variant="outline"

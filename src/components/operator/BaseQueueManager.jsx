@@ -202,7 +202,6 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
 
       <div className="flex gap-2">
         <Input 
-          list={`not-in-queue-list-${baseName}`}
           className="flex-1 h-9 rounded-xl text-xs" 
           placeholder="N° de móvil o nombre para agregar..." 
           value={addingDriver} 
@@ -213,13 +212,6 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
             }
           }}
         />
-        <datalist id={`not-in-queue-list-${baseName}`}>
-          {notInQueue.map(d => (
-            <option key={d.id} value={d.vehicle_model || d.name}>
-              {d.name} — {d.vehicle_plate}
-            </option>
-          ))}
-        </datalist>
         <Button size="sm" className="gap-1 rounded-xl px-4"
           disabled={!addingDriver || addMutation.isPending}
           onClick={() => addMutation.mutate(addingDriver)}>
