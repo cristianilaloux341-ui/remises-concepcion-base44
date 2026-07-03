@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -176,6 +176,9 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
   const movilByPlate = Object.fromEntries(moviles.map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
   const [editingBase, setEditingBase] = useState(null);
   const [quickInput, setQuickInput] = useState("");
+  
+  // Guardar quickInput en un lugar accesible para enfocarlo si se necesita
+  const quickInputRef = React.useRef(null);
 
   const handleQuickAssign = async (e) => {
     if (e.key !== "Enter" || !quickInput.trim()) return;
@@ -259,7 +262,8 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
         </div>
         <div className="flex-1 max-w-sm">
           <Input 
-            placeholder="móvil.base (ej: 12.3) y Enter" 
+            ref={quickInputRef}
+            placeholder="móvil.base (ej: 12.3) o móvil.0 para libre" 
             value={quickInput}
             onChange={(e) => setQuickInput(e.target.value)}
             onKeyDown={handleQuickAssign}
