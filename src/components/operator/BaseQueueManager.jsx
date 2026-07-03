@@ -26,7 +26,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
   const [addingDriver, setAddingDriver] = useState("");
 
   const notInQueue = drivers.filter(d =>
-    d.status !== "en_viaje" && !queue.find(q => q.id === d.id)
+    d.status === "disponible" && !queue.find(q => q.id === d.id)
   );
 
   const moveMutation = useMutation({
@@ -199,10 +199,20 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
       return;
     }
 
+    if (!movil.activo || movil.fuera_de_servicio) {
+      toast({ title: "Móvil fuera de servicio", description: `El móvil ${movilNum} está suspendido o inactivo.`, variant: "destructive" });
+      return;
+    }
+
     // Find driver currently using this movil
     const driver = drivers.find(d => d.vehicle_plate?.toUpperCase() === movil.dominio?.toUpperCase());
     if (!driver) {
-      toast({ title: "Chofer no encontrado", description: `No hay chofer activo con la patente ${movil.dominio}.`, variant: "destructive" });
+      toast({ title: "Chofer no encontrado", description: `No hay chofer conectado con la patente ${movil.dominio}.`, variant: "destructive" });
+      return;
+    }
+
+    if (driver.status === "en_viaje") {
+      toast({ title: "Móvil ocupado", description: `El móvil ${movilNum} está en viaje actualmente.`, variant: "destructive" });
       return;
     }
 
