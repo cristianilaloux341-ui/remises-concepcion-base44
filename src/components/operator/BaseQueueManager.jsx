@@ -195,7 +195,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     const baseNumStr = baseStr.trim();
     
     // Find movil
-    const movil = moviles.find(m => m.numero_movil === movilNum);
+    let movil = moviles.find(m => m.numero_movil === movilNum);
     
     // Buscar chofer por móvil o directamente si no hay móvil asignado
     let driver = null;
