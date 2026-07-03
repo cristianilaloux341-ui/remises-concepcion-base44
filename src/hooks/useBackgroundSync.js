@@ -26,9 +26,17 @@ export function useBackgroundSync(onResume, pingInterval = 20_000) {
   }, []);
 
   useEffect(() => {
-    // JS Execution Heartbeat Log (para auditar si el proceso entra en pausa)
+    // JS Execution Heartbeat Log y Reconexión Forzada en Background
     jsHeartbeatRef.current = setInterval(() => {
-      console.log(`[JS-Heartbeat] Proceso JS corriendo normalmente. Timestamp: ${new Date().toISOString()}`);
+      console.log(`[JS-Heartbeat] Proceso JS corriendo. Timestamp: ${new Date().toISOString()}`);
+      
+      // Si la pantalla está apagada, el WebView de Android pausa los WebSockets.
+      // Como este setInterval nativo sigue vivo, obligamos a reconectar y hacer fetch.
+      if (wasHiddenRef.current) {
+        console.log("[Realtime-Background] WebView oculto/bloqueado. Forzando reconexión para revivir el WebSocket y hacer Polling...");
+        onResumeRef.current?.();
+        pingSW();
+      }
     }, 15000);
 
     // Escuchar mensajes del SW (reconexión solicitada desde background sync)
