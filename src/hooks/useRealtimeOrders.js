@@ -17,6 +17,7 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
         const arr = Array.isArray(data) ? data : [];
         console.log(`[Realtime-Background] Fetch Orders OK - ${arr.length} viajes`);
         setOrders(arr);
+        window.dispatchEvent(new CustomEvent('radiocab_force_alert_check', { detail: arr }));
         setIsLoading(false);
       }
     }).catch((err) => {
@@ -45,17 +46,19 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
             console.error("[CRITICAL ERROR] prev in useRealtimeOrders is NOT an array! Type:", typeof prev, "Value:", prev);
             prev = [];
         }
+        let next = prev;
         if (event.type === "create") {
-          if (prev.some(o => o.id === event.id)) return prev.map((o) => (o.id === event.id ? { ...o, ...event.data } : o));
-          return [event.data, ...prev].slice(0, limit);
-        }
-        if (event.type === "update") {
+          if (prev.some(o => o.id === event.id)) next = prev.map((o) => (o.id === event.id ? { ...o, ...event.data } : o));
+          else next = [event.data, ...prev].slice(0, limit);
+        } else if (event.type === "update") {
           const exists = prev.some(o => o.id === event.id);
-          if (exists) return prev.map((o) => (o.id === event.id ? { ...o, ...event.data } : o));
-          return [event.data, ...prev].slice(0, limit);
+          if (exists) next = prev.map((o) => (o.id === event.id ? { ...o, ...event.data } : o));
+          else next = [event.data, ...prev].slice(0, limit);
+        } else if (event.type === "delete") {
+          next = prev.filter((o) => o.id !== event.id);
         }
-        if (event.type === "delete") return prev.filter((o) => o.id !== event.id);
-        return prev;
+        window.dispatchEvent(new CustomEvent('radiocab_force_alert_check', { detail: next }));
+        return next;
       });
     });
   }, [fetchAll, limit]);

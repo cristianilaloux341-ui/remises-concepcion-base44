@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { useMutation } from "@tanstack/react-query";
 // Tiempo real — sin polling
@@ -1666,94 +1666,119 @@ export default function DriverApp() {
     }
   }, []);
 
-  // Alert on new offer (audio + SW notification)
-  useEffect(() => {
-    offeredOrderRef.current = offeredOrder || null;
-    if (offeredOrder) {
-      if (offeredOrder.id !== prevOfferedId.current) {
-        prevOfferedId.current = offeredOrder.id;
+  const myDriverIdRef = useRef(myDriverId);
+  useEffect(() => { myDriverIdRef.current = myDriverId; }, [myDriverId]);
+  
+  const myDriverRef = useRef(myDriver);
+  useEffect(() => { myDriverRef.current = myDriver; }, [myDriver]);
+
+  const dismissedBroadcastsRef = useRef(dismissedBroadcasts);
+  useEffect(() => { dismissedBroadcastsRef.current = dismissedBroadcasts; }, [dismissedBroadcasts]);
+
+  const alertIntervalRef = useRef(null);
+  const broadcastIntervalRef = useRef(null);
+
+  const evaluateAlerts = useCallback((incomingOrders) => {
+    const dId = myDriverIdRef.current;
+    const driver = myDriverRef.current;
+    const dismissed = dismissedBroadcastsRef.current;
+    if (!dId) return;
+
+    const safeOrds = Array.isArray(incomingOrders) ? incomingOrders : [];
+    const activeOrder = safeOrds.find(o => o.driver_id === dId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
+    const offered = safeOrds.find(o => o.driver_id === dId && o.status === "ofrecido");
+    const broadcast = driver?.status === "disponible" && driver?.current_base && !activeOrder && !offered
+      ? safeOrds.find(o => o.status === "pendiente" && !o.driver_id && (!dismissed || !dismissed.includes(o.id)))
+      : null;
+
+    offeredOrderRef.current = offered || null;
+
+    // 1. Evaluate Offered
+    if (offered) {
+      if (offered.id !== prevOfferedId.current) {
+        console.log("[Alert-Background] ¡Viaje ofrecido detectado imperativamente!");
+        prevOfferedId.current = offered.id;
         playAlert();
         
         if (Capacitor.isNativePlatform()) {
-          // Lanzar la notificación local una sola vez por viaje
           LocalNotifications.schedule({
             notifications: [{
               title: "🚖 ¡Nuevo Viaje!",
-              body: `${offeredOrder.pickup_address} ${offeredOrder.dropoff_address ? "→ " + offeredOrder.dropoff_address : ""}`,
+              body: `${offered.pickup_address} ${offered.dropoff_address ? "→ " + offered.dropoff_address : ""}`,
               id: 88888,
               schedule: { at: new Date(Date.now() + 100) },
               channelId: 'ride-alerts-urgent',
               actionTypeId: 'RIDE_OFFER_ACTIONS',
-              extra: { orderId: offeredOrder.id }
+              extra: { orderId: offered.id }
             }]
           }).catch(() => {});
         } else {
-          sendSystemNotification(offeredOrder);
-          notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
+          sendSystemNotification(offered);
+          notifySW({ type: "SHOW_NOTIFICATION", order: offered });
+        }
+
+        clearInterval(alertIntervalRef.current);
+        alertIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+      }
+    } else {
+      if (prevOfferedId.current) {
+        prevOfferedId.current = null;
+        clearInterval(alertIntervalRef.current);
+        stopAlert();
+        if (Capacitor.isNativePlatform()) {
+          LocalNotifications.cancel({ notifications: [{ id: 88888 }] });
+        }
+        if (!Capacitor.isNativePlatform()) notifySW({ type: "OFFER_CLEARED" });
+      }
+    }
+
+    // 2. Evaluate Broadcast
+    if (broadcast && !offered) {
+      if (broadcast.id !== prevBroadcastId.current) {
+        console.log("[Alert-Background] ¡Viaje broadcast detectado imperativamente!");
+        prevBroadcastId.current = broadcast.id;
+        playAlert();
+        
+        if (Capacitor.isNativePlatform()) {
+          LocalNotifications.schedule({
+            notifications: [{
+              title: "📢 Viaje a todos los móviles",
+              body: `⚡ El primero se lo lleva: ${broadcast.pickup_address}`,
+              id: 77777,
+              schedule: { at: new Date(Date.now() + 100) },
+              channelId: 'ride-alerts-urgent',
+              actionTypeId: 'RIDE_OFFER_ACTIONS',
+              extra: { orderId: broadcast.id }
+            }]
+          }).catch(() => {});
+        } else {
+          sendSystemNotification(broadcast);
+        }
+
+        clearInterval(broadcastIntervalRef.current);
+        broadcastIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+      }
+    } else {
+      if (prevBroadcastId.current) {
+        prevBroadcastId.current = null;
+        clearInterval(broadcastIntervalRef.current);
+        stopAlert();
+        if (Capacitor.isNativePlatform()) {
+          LocalNotifications.cancel({ notifications: [{ id: 77777 }] });
         }
       }
-      
-      // Repetir el sonido interno cada 4 segundos, pero NO spamear el sistema de notificaciones
-      const interval = setInterval(() => {
-        playAlert();
-      }, 4000);
-      
-      return () => {
-        clearInterval(interval);
-        stopAlert();
-      };
-    } else {
-      prevOfferedId.current = null;
-      stopAlert();
-      if (Capacitor.isNativePlatform()) {
-        LocalNotifications.cancel({ notifications: [{ id: 88888 }] });
-      }
-      if (!Capacitor.isNativePlatform()) notifySW({ type: "OFFER_CLEARED" });
     }
-  }, [offeredOrder?.id]);
+  }, []);
 
-  // Alerta de audio al recibir un broadcast
   useEffect(() => {
-    if (!broadcastOrder) {
-      prevBroadcastId.current = null;
-      stopAlert();
-      if (Capacitor.isNativePlatform()) {
-        LocalNotifications.cancel({ notifications: [{ id: 77777 }] });
-      }
-      return;
-    }
-    
-    if (broadcastOrder.id !== prevBroadcastId.current) {
-      prevBroadcastId.current = broadcastOrder.id;
-      playAlert();
-      
-      if (Capacitor.isNativePlatform()) {
-        LocalNotifications.schedule({
-          notifications: [{
-            title: "📢 Viaje a todos los móviles",
-            body: `⚡ El primero se lo lleva: ${broadcastOrder.pickup_address}`,
-            id: 77777,
-            schedule: { at: new Date(Date.now() + 100) },
-            channelId: 'ride-alerts-urgent',
-            actionTypeId: 'RIDE_OFFER_ACTIONS',
-            extra: { orderId: broadcastOrder.id }
-          }]
-        }).catch(() => {});
-      } else {
-        sendSystemNotification(broadcastOrder);
-      }
-    }
-    
-    // Repetir el sonido interno cada 4 segundos, NO spamear la notificación del sistema
-    const interval = setInterval(() => {
-      playAlert();
-    }, 4000);
-    
-    return () => {
-      clearInterval(interval);
-      stopAlert();
-    };
-  }, [broadcastOrder?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    const handler = (e) => evaluateAlerts(e.detail);
+    window.addEventListener('radiocab_force_alert_check', handler);
+    return () => window.removeEventListener('radiocab_force_alert_check', handler);
+  }, [evaluateAlerts]);
+
+  useEffect(() => {
+    evaluateAlerts(safeOrders);
+  }, [safeOrders, myDriver?.status, myDriver?.current_base, dismissedBroadcasts, evaluateAlerts]);
 
   // Retries agresivos: reintenta hasta 15 veces, con backoff para sobrevivir a la reconexión de red al despertar
   const updateOrder = useMutation({
