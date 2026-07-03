@@ -1707,7 +1707,6 @@ export default function DriverApp() {
               title: "🚖 ¡Nuevo Viaje!",
               body: `${offered.pickup_address} ${offered.dropoff_address ? "→ " + offered.dropoff_address : ""}`,
               id: 88888,
-              schedule: { at: new Date(Date.now() + 100) },
               channelId: 'ride-alerts-urgent',
               actionTypeId: 'RIDE_OFFER_ACTIONS',
               extra: { orderId: offered.id }
@@ -1749,7 +1748,6 @@ export default function DriverApp() {
               title: "📢 Viaje a todos los móviles",
               body: `⚡ El primero se lo lleva: ${broadcast.pickup_address}`,
               id: 77777,
-              schedule: { at: new Date(Date.now() + 100) },
               channelId: 'ride-alerts-urgent',
               actionTypeId: 'RIDE_OFFER_ACTIONS',
               extra: { orderId: broadcast.id }
