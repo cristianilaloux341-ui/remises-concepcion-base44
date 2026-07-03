@@ -1701,6 +1701,7 @@ export default function DriverApp() {
         playAlert();
         
         if (Capacitor.isNativePlatform()) {
+          console.log("[Alert-Background] Intentando schedule() nativo para OFRECIDO...");
           LocalNotifications.schedule({
             notifications: [{
               title: "🚖 ¡Nuevo Viaje!",
@@ -1711,7 +1712,9 @@ export default function DriverApp() {
               actionTypeId: 'RIDE_OFFER_ACTIONS',
               extra: { orderId: offered.id }
             }]
-          }).catch(() => {});
+          })
+          .then(() => console.log("[Alert-Background] schedule() nativo OFRECIDO completado OK"))
+          .catch((err) => console.error("[Alert-Background] ERROR en schedule() nativo OFRECIDO:", err));
         } else {
           sendSystemNotification(offered);
           notifySW({ type: "SHOW_NOTIFICATION", order: offered });
@@ -1740,6 +1743,7 @@ export default function DriverApp() {
         playAlert();
         
         if (Capacitor.isNativePlatform()) {
+          console.log("[Alert-Background] Intentando schedule() nativo para BROADCAST...");
           LocalNotifications.schedule({
             notifications: [{
               title: "📢 Viaje a todos los móviles",
@@ -1750,7 +1754,9 @@ export default function DriverApp() {
               actionTypeId: 'RIDE_OFFER_ACTIONS',
               extra: { orderId: broadcast.id }
             }]
-          }).catch(() => {});
+          })
+          .then(() => console.log("[Alert-Background] schedule() nativo BROADCAST completado OK"))
+          .catch((err) => console.error("[Alert-Background] ERROR en schedule() nativo BROADCAST:", err));
         } else {
           sendSystemNotification(broadcast);
         }
