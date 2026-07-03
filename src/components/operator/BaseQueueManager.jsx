@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getBaseQueue, BASES } from "@/lib/dispatchLogic";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowUp, ArrowDown, XCircle, Plus, Clock, Settings } from "lucide-react";
+import { ArrowUp, ArrowDown, XCircle, Plus, Clock, Settings, Zap } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
 
 const BASE_COLORS = {
   "1-Puerto": "bg-blue-500", "2-Plaza": "bg-green-500", "3-Columna": "bg-purple-500",
@@ -169,12 +171,78 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
 }
 
 export default function BaseQueueManager({ drivers, moviles = [] }) {
+  const { toast } = useToast();
   // Mapa patente → número de móvil para lookup rápido
   const movilByPlate = Object.fromEntries(moviles.map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
   const [editingBase, setEditingBase] = useState(null);
+  const [quickInput, setQuickInput] = useState("");
+
+  const handleQuickAssign = async (e) => {
+    if (e.key !== "Enter" || !quickInput.trim()) return;
+
+    const input = quickInput.trim();
+    setQuickInput("");
+
+    if (!input.includes(".")) {
+      toast({ title: "Formato incorrecto", description: "Usá el formato movil.base (ej: 12.3)", variant: "destructive" });
+      return;
+    }
+
+    const [movilStr, baseStr] = input.split(".");
+    const movilNum = parseInt(movilStr.trim());
+    const baseNumStr = baseStr.trim();
+    
+    // Find movil
+    const movil = moviles.find(m => m.numero_movil === movilNum);
+    if (!movil) {
+      toast({ title: "Móvil no encontrado", description: `El móvil ${movilNum} no existe.`, variant: "destructive" });
+      return;
+    }
+
+    // Find driver currently using this movil
+    const driver = drivers.find(d => d.vehicle_plate?.toUpperCase() === movil.dominio?.toUpperCase());
+    if (!driver) {
+      toast({ title: "Chofer no encontrado", description: `No hay chofer activo con la patente ${movil.dominio}.`, variant: "destructive" });
+      return;
+    }
+
+    // Find base
+    const baseName = BASES.find(b => b.startsWith(baseNumStr + "-"));
+    if (!baseName) {
+      toast({ title: "Base no encontrada", description: `La base ${baseNumStr} no existe.`, variant: "destructive" });
+      return;
+    }
+
+    try {
+      const queue = getBaseQueue(drivers, baseName);
+      await base44.entities.Driver.update(driver.id, {
+        current_base: baseName,
+        status: "disponible",
+        queue_entered_at: new Date(Date.now() + queue.length * 1000).toISOString(),
+      });
+      toast({ title: "Móvil asignado", description: `Móvil ${movilNum} asignado a ${baseName} exitosamente.` });
+    } catch (err) {
+      toast({ title: "Error", description: "No se pudo asignar el móvil.", variant: "destructive" });
+    }
+  };
 
   return (
     <>
+      <div className="mb-4 bg-muted/50 p-3 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Zap className="w-4 h-4 text-amber-500" /> Asignación Rápida:
+        </div>
+        <div className="flex-1 max-w-sm">
+          <Input 
+            placeholder="móvil.base (ej: 12.3) y Enter" 
+            value={quickInput}
+            onChange={(e) => setQuickInput(e.target.value)}
+            onKeyDown={handleQuickAssign}
+            className="bg-white"
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         {BASES.map(baseName => {
           const queue = getBaseQueue(drivers, baseName);
