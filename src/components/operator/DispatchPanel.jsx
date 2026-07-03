@@ -7,7 +7,7 @@ import { Zap, User, MapPin, Loader2, ChevronRight, Car, CheckCircle2, Radio } fr
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
 import { autoDispatch, assignDriverToOrder, getBaseQueue, BASES } from "@/lib/dispatchLogic";
 
-function PendingOrderCard({ order, drivers, bases, onDispatched }) {
+function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   const [dispatching, setDispatching] = useState(false);
   const [selectedDriverId, setSelectedDriverId] = useState("");
 
@@ -41,13 +41,17 @@ function PendingOrderCard({ order, drivers, bases, onDispatched }) {
     let movilNum = parseInt(selectedDriverId.trim());
     if (!isNaN(movilNum)) {
       // Find driver by mobile number
-      let driver = drivers.find(d => d.vehicle_model === String(movilNum));
+      const movilByPlate = Object.fromEntries((moviles || []).map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
+      let driver = drivers.find(d => 
+        d.vehicle_model === String(movilNum) || 
+        (movilByPlate[d.vehicle_plate?.toUpperCase()] === movilNum)
+      );
       
       // Auto create if not found
       if (!driver) {
         try {
-          const moviles = await base44.entities.Movil.filter({ numero_movil: movilNum });
-          let movil = moviles[0];
+          const m = await base44.entities.Movil.filter({ numero_movil: movilNum });
+          let movil = m[0];
           if (!movil) {
             movil = await base44.entities.Movil.create({ numero_movil: movilNum, activo: true });
           }
@@ -59,6 +63,9 @@ function PendingOrderCard({ order, drivers, bases, onDispatched }) {
             vehicle_model: String(movilNum),
             status: "disponible"
           });
+          if (!movil.dominio) {
+            await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
+          }
         } catch(err) {
           console.error("Auto-create failed", err);
         }
@@ -77,6 +84,7 @@ function PendingOrderCard({ order, drivers, bases, onDispatched }) {
 
         setSelectedDriverId("");
         onDispatched();
+        window.dispatchEvent(new Event("force-driver-refresh"));
       }
     }
     
@@ -176,7 +184,7 @@ function PendingOrderCard({ order, drivers, bases, onDispatched }) {
   );
 }
 
-export default function DispatchPanel({ orders, drivers, bases, onOrderClick }) {
+export default function DispatchPanel({ orders, drivers, bases, moviles, onOrderClick }) {
   const [dispatchingAll, setDispatchingAll] = useState(false);
 
   const pending = orders.filter(o => o.status === "pendiente");
@@ -212,6 +220,7 @@ export default function DispatchPanel({ orders, drivers, bases, onOrderClick }) 
               key={order.id}
               order={order}
               drivers={drivers}
+              moviles={moviles}
               bases={bases}
               onDispatched={() => {}}
             />

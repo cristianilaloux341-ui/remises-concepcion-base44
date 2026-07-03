@@ -204,6 +204,7 @@ export default function Dashboard() {
                 orders={orders}
                 drivers={drivers}
                 bases={bases}
+                moviles={moviles}
                 onOrderClick={(o) => window.location.href = `/orders/${o.id}`}
               />
             </CardContent>
