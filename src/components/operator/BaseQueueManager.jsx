@@ -70,9 +70,51 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
   });
 
   const addMutation = useMutation({
-    mutationFn: (driverId) => {
+    mutationFn: async (inputValue) => {
       const existingCount = queue.length;
-      return base44.entities.Driver.update(driverId, {
+      let movilNum = parseInt(inputValue.trim());
+      if (isNaN(movilNum)) throw new Error("Debe ser un número válido");
+
+      // Search if driver already exists
+      let driver = drivers.find(d => 
+        d.vehicle_model === String(movilNum) || 
+        (movilByPlate[d.vehicle_plate?.toUpperCase()] === movilNum)
+      );
+
+      // Auto create if missing
+      if (!driver) {
+        try {
+          // Check if Movil exists using a quick query
+          const moviles = await base44.entities.Movil.filter({ numero_movil: movilNum });
+          let movil = moviles[0];
+          
+          if (!movil) {
+            movil = await base44.entities.Movil.create({ numero_movil: movilNum, activo: true });
+          }
+
+          const fakePlate = `TEST${movilNum}`;
+          driver = await base44.entities.Driver.create({
+            name: `Chofer ${movilNum}`,
+            phone: `000000000${movilNum}`,
+            vehicle_plate: fakePlate,
+            vehicle_model: String(movilNum),
+            status: "disponible"
+          });
+
+          if (!movil.dominio) {
+            await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
+          }
+        } catch(e) {
+          throw new Error("No se pudo crear el chofer automáticamente");
+        }
+      }
+
+      // If he was on a trip, we assume for tests that he is now available
+      if (driver.status === "en_viaje") {
+        await base44.entities.Driver.update(driver.id, { status: "disponible" });
+      }
+
+      return base44.entities.Driver.update(driver.id, {
         current_base: baseName,
         status: "disponible",
         queue_entered_at: new Date(Date.now() + existingCount * 1000).toISOString(),
@@ -80,6 +122,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      window.dispatchEvent(new Event("force-driver-refresh"));
       setAddingDriver("");
     }
   });
@@ -145,25 +188,24 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
         </Droppable>
       </DragDropContext>
 
-      {notInQueue.length > 0 && (
-        <div className="flex gap-2">
-          <Select value={addingDriver} onValueChange={setAddingDriver}>
-            <SelectTrigger className="flex-1 h-9 rounded-xl text-xs">
-              <SelectValue placeholder="Agregar móvil a la cola..." />
-            </SelectTrigger>
-            <SelectContent>
-              {notInQueue.map(d => (
-                <SelectItem key={d.id} value={d.id}>{d.name} — {d.vehicle_plate}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button size="sm" className="gap-1 rounded-xl px-4"
-            disabled={!addingDriver || addMutation.isPending}
-            onClick={() => addMutation.mutate(addingDriver)}>
-            <Plus className="w-3 h-3" /> Agregar
-          </Button>
-        </div>
-      )}
+      <div className="flex gap-2">
+        <Input 
+          className="flex-1 h-9 rounded-xl text-xs" 
+          placeholder="Ingresá N° de móvil para agregar a la cola..." 
+          value={addingDriver} 
+          onChange={(e) => setAddingDriver(e.target.value)} 
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && addingDriver) {
+              addMutation.mutate(addingDriver);
+            }
+          }}
+        />
+        <Button size="sm" className="gap-1 rounded-xl px-4"
+          disabled={!addingDriver || addMutation.isPending}
+          onClick={() => addMutation.mutate(addingDriver)}>
+          <Plus className="w-3 h-3" /> Agregar
+        </Button>
+      </div>
 
       <Button variant="outline" className="w-full" onClick={onClose}>Cerrar</Button>
     </div>

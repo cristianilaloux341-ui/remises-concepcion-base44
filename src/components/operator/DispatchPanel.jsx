@@ -37,20 +37,49 @@ function PendingOrderCard({ order, drivers, bases, onDispatched }) {
   const handleManualAssign = async () => {
     if (!selectedDriverId) return;
     setDispatching(true);
-    const driver = drivers.find(d => d.id === selectedDriverId);
-    if (driver) {
-      await assignDriverToOrder(order, driver);
+    
+    let movilNum = parseInt(selectedDriverId.trim());
+    if (!isNaN(movilNum)) {
+      // Find driver by mobile number
+      let driver = drivers.find(d => d.vehicle_model === String(movilNum));
       
-      const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
-      base44.entities.AuditLog.create({
-        action: "asignar_viaje",
-        user_type: localOp?.role || "operador",
-        user_name: localOp?.name || "Operador",
-        details: `Asignó manualmente a ${driver.name} el viaje de ${order.client_name}`
-      }).catch(() => {});
+      // Auto create if not found
+      if (!driver) {
+        try {
+          const moviles = await base44.entities.Movil.filter({ numero_movil: movilNum });
+          let movil = moviles[0];
+          if (!movil) {
+            movil = await base44.entities.Movil.create({ numero_movil: movilNum, activo: true });
+          }
+          const fakePlate = `TEST${movilNum}`;
+          driver = await base44.entities.Driver.create({
+            name: `Chofer ${movilNum}`,
+            phone: `000000000${movilNum}`,
+            vehicle_plate: fakePlate,
+            vehicle_model: String(movilNum),
+            status: "disponible"
+          });
+        } catch(err) {
+          console.error("Auto-create failed", err);
+        }
+      }
 
-      onDispatched();
+      if (driver) {
+        await assignDriverToOrder(order, driver);
+        
+        const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+        base44.entities.AuditLog.create({
+          action: "asignar_viaje",
+          user_type: localOp?.role || "operador",
+          user_name: localOp?.name || "Operador",
+          details: `Asignó manualmente a móvil ${movilNum} el viaje de ${order.client_name}`
+        }).catch(() => {});
+
+        setSelectedDriverId("");
+        onDispatched();
+      }
     }
+    
     setDispatching(false);
   };
 
@@ -121,18 +150,18 @@ function PendingOrderCard({ order, drivers, bases, onDispatched }) {
 
       {/* Selector manual */}
       <div className="flex gap-2">
-        <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
-          <SelectTrigger className="h-8 text-xs rounded-lg flex-1">
-            <SelectValue placeholder="Asignar manualmente..." />
-          </SelectTrigger>
-          <SelectContent>
-            {availableDrivers.map(d => (
-              <SelectItem key={d.id} value={d.id}>
-                {d.name} — {d.vehicle_plate} ({d.current_base})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <input 
+          type="text"
+          className="flex-1 h-8 text-xs rounded-lg border border-input px-3 bg-white"
+          placeholder="Nº Móvil para asignar..."
+          value={selectedDriverId}
+          onChange={(e) => setSelectedDriverId(e.target.value)}
+          onKeyDown={(e) => {
+             if (e.key === 'Enter' && selectedDriverId) {
+               handleManualAssign();
+             }
+          }}
+        />
         <Button
           size="sm"
           variant="outline"
