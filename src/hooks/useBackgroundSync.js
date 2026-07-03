@@ -33,11 +33,15 @@ export function useBackgroundSync(onResume, pingInterval = 20_000) {
 
     // Detectar visibilidad
     const onVisibility = () => {
-      if (document.visibilityState === "visible" && wasHiddenRef.current) {
-        wasHiddenRef.current = false;
-        onResumeRef.current?.();
-        pingSW();
+      if (document.visibilityState === "visible") {
+        console.log("[Realtime] App volvió a primer plano. Intentando reconectar...");
+        if (wasHiddenRef.current) {
+          wasHiddenRef.current = false;
+          onResumeRef.current?.();
+          pingSW();
+        }
       } else if (document.visibilityState === "hidden") {
+        console.log("[Realtime] App suspendida o enviada a segundo plano.");
         wasHiddenRef.current = true;
       }
     };
@@ -46,14 +50,29 @@ export function useBackgroundSync(onResume, pingInterval = 20_000) {
     // Detectar foco de ventana (complementario a visibilitychange)
     const onFocus = () => {
       if (wasHiddenRef.current) {
+        console.log("[Realtime] Ventana enfocada nuevamente. Reconectando...");
         wasHiddenRef.current = false;
         onResumeRef.current?.();
       }
     };
     window.addEventListener("focus", onFocus);
 
+    // Detectar cambios de conexión a red (Online/Offline)
+    const onOnline = () => {
+      console.log("[Realtime] Red restablecida (Online). Disparando reconexión...");
+      onResumeRef.current?.();
+    };
+    const onOffline = () => {
+      console.log("[Realtime] Red perdida (Offline). Se interrumpió la conexión al servidor.");
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
     // Escuchar el evento custom que lanza DriverApp cuando el SW pide RECONNECT
-    const onCustomReconnect = () => onResumeRef.current?.();
+    const onCustomReconnect = () => {
+      console.log("[Realtime] Reconexión solicitada por el Service Worker.");
+      onResumeRef.current?.();
+    };
     window.addEventListener("radiocab_reconnect", onCustomReconnect);
 
     // Ping periódico para mantener SW + conexión activa
@@ -62,6 +81,8 @@ export function useBackgroundSync(onResume, pingInterval = 20_000) {
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
       window.removeEventListener("radiocab_reconnect", onCustomReconnect);
       navigator.serviceWorker?.removeEventListener("message", onSWMessage);
       clearInterval(pingTimerRef.current);

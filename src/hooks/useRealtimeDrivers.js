@@ -30,6 +30,8 @@ export function useRealtimeDrivers() {
   const connect = useCallback(() => {
     if (!mountedRef.current) return;
 
+    console.log("[Realtime] Iniciando conexión de canal: Drivers...");
+
     // Cancelar suscripción anterior
     unsubRef.current?.();
     unsubRef.current = null;

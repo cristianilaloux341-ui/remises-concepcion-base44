@@ -27,6 +27,8 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
   const connect = useCallback(() => {
     if (!mountedRef.current) return;
 
+    console.log("[Realtime] Iniciando conexión de canal: Orders...");
+
     unsubRef.current?.();
     unsubRef.current = null;
 
