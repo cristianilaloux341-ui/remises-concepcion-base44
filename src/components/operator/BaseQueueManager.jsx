@@ -173,16 +173,20 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
 export function QuickAssignInput({ drivers, moviles = [] }) {
   const { toast } = useToast();
   const [quickInput, setQuickInput] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
   const quickInputRef = useRef(null);
 
   const handleQuickAssign = async (e) => {
     if (e.key !== "Enter" || !quickInput.trim()) return;
+    e.preventDefault();
 
     const input = quickInput.trim();
     setQuickInput("");
+    setIsProcessing(true);
 
     if (!input.includes(".")) {
       toast({ title: "Formato incorrecto", description: "Usá el formato movil.base (ej: 12.3)", variant: "destructive" });
+      setIsProcessing(false);
       return;
     }
 
@@ -192,25 +196,44 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     
     // Find movil
     const movil = moviles.find(m => m.numero_movil === movilNum);
+    
+    // Buscar chofer por móvil o directamente si no hay móvil asignado
+    let driver = null;
+    if (movil && movil.dominio) {
+      driver = drivers.find(d => d.vehicle_plate?.toUpperCase() === movil.dominio.toUpperCase());
+    } else {
+      driver = drivers.find(d => d.vehicle_model === String(movilNum));
+    }
+
+    // Un fallback más directo: buscar por número de móvil exacto en caso de inconsistencia con patentes
+    if (!driver) {
+       driver = drivers.find(d => {
+         const m = moviles.find(mv => mv.dominio?.toUpperCase() === d.vehicle_plate?.toUpperCase());
+         return m && m.numero_movil === movilNum;
+       });
+    }
+
     if (!movil) {
-      toast({ title: "Móvil no encontrado", description: `El móvil ${movilNum} no existe.`, variant: "destructive" });
+      toast({ title: "Móvil no encontrado", description: `El móvil ${movilNum} no existe en la base.`, variant: "destructive" });
+      setIsProcessing(false);
       return;
     }
 
     if (!movil.activo || movil.fuera_de_servicio) {
-      toast({ title: "Móvil fuera de servicio", description: `El móvil ${movilNum} está suspendido o inactivo.`, variant: "destructive" });
+      toast({ title: "Móvil inactivo", description: `El móvil ${movilNum} está suspendido.`, variant: "destructive" });
+      setIsProcessing(false);
       return;
     }
 
-    // Find driver currently using this movil
-    const driver = drivers.find(d => d.vehicle_plate?.toUpperCase() === movil.dominio?.toUpperCase());
     if (!driver) {
-      toast({ title: "Chofer no encontrado", description: `No hay chofer conectado con la patente ${movil.dominio}.`, variant: "destructive" });
+      toast({ title: "Chofer no encontrado", description: `El chofer del móvil ${movilNum} no está online o no coincide patente.`, variant: "destructive" });
+      setIsProcessing(false);
       return;
     }
 
     if (driver.status === "en_viaje") {
       toast({ title: "Móvil ocupado", description: `El móvil ${movilNum} está en viaje actualmente.`, variant: "destructive" });
+      setIsProcessing(false);
       return;
     }
 
@@ -226,6 +249,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       } catch (err) {
         toast({ title: "Error", description: "No se pudo actualizar el móvil.", variant: "destructive" });
       }
+      setIsProcessing(false);
       return;
     }
 
@@ -233,6 +257,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     const baseName = BASES.find(b => b.startsWith(baseNumStr + "-"));
     if (!baseName) {
       toast({ title: "Base no encontrada", description: `La base ${baseNumStr} no existe.`, variant: "destructive" });
+      setIsProcessing(false);
       return;
     }
 
@@ -247,16 +272,19 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     } catch (err) {
       toast({ title: "Error", description: "No se pudo asignar el móvil.", variant: "destructive" });
     }
+    
+    setIsProcessing(false);
   };
 
   return (
     <Input 
       ref={quickInputRef}
-      placeholder="móvil.base (12.3) o móvil.0" 
+      placeholder={isProcessing ? "Asignando..." : "móvil.base (12.3) o móvil.0"} 
       value={quickInput}
       onChange={(e) => setQuickInput(e.target.value)}
       onKeyDown={handleQuickAssign}
-      className="bg-white text-xs h-8"
+      disabled={isProcessing}
+      className="bg-white text-xs h-8 disabled:opacity-50"
     />
   );
 }
