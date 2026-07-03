@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { MapPin, User, Clock, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGooglePlaces } from "@/hooks/useGooglePlaces";
+import { useAddressSuggestions } from "@/hooks/useAddressSuggestions";
 
 const normalize = (s) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -29,12 +30,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     staleTime: 30_000,
   });
 
-  const { data: addressHistory = [] } = useQuery({
-    queryKey: ["address_history"],
-    queryFn: () => base44.entities.AddressHistory.list("-usage_count"),
-    staleTime: 30_000,
-  });
-
+  const osmAndHistory = useAddressSuggestions(inputValue);
   const { predictions, getPlaceDetails } = useGooglePlaces(inputValue);
 
   const suggestions = useMemo(() => {
@@ -50,14 +46,23 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
       .slice(0, 5);
 
     const clientAddressNorms = new Set(clientResults.map((r) => normalize(r.full_address)));
-    const historyResults = addressHistory
-      .filter((a) => normalize(a.address).includes(norm) && !clientAddressNorms.has(normalize(a.address)))
-      .map((a) => ({ ...a, type: "history", full_address: a.address }))
+    
+    const historyResults = osmAndHistory
+      .filter(x => x.source === "history" && !clientAddressNorms.has(normalize(x.address)))
+      .map(x => ({ ...x, type: "history", full_address: x.address }))
       .slice(0, 3);
 
     const localNorms = new Set([...clientResults, ...historyResults].map(r => normalize(r.full_address)));
+    
+    const osmResults = osmAndHistory
+      .filter(x => x.source === "osm" && !localNorms.has(normalize(x.address)))
+      .map(x => ({ ...x, type: "osm", full_address: x.address }))
+      .slice(0, 4);
+
+    const allLocalNorms = new Set([...clientResults, ...historyResults, ...osmResults].map(r => normalize(r.full_address)));
+    
     const googleItems = predictions
-      .filter(p => !localNorms.has(normalize(p.description)))
+      .filter(p => !allLocalNorms.has(normalize(p.description)))
       .slice(0, 4)
       .map((p) => ({
         id: p.place_id,
@@ -67,8 +72,8 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
         usage_count: 0,
       }));
 
-    return [...clientResults, ...historyResults, ...googleItems];
-  }, [inputValue, clientAddresses, addressHistory, predictions]);
+    return [...clientResults, ...historyResults, ...osmResults, ...googleItems];
+  }, [inputValue, clientAddresses, osmAndHistory, predictions]);
 
   const handleChange = (e) => {
     const val = e.target.value;
@@ -130,8 +135,8 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelect(s)}
             >
-              {s.type === "google"
-                ? <Globe className="w-4 h-4 text-blue-400 shrink-0" />
+              {s.type === "google" || s.type === "osm"
+                ? <Globe className={cn("w-4 h-4 shrink-0", s.type === "osm" ? "text-green-500" : "text-blue-400")} />
                 : <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
               }
               <div className="flex-1 min-w-0">
@@ -148,7 +153,10 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
               {s.type === "google" && (
                 <span className="text-xs text-blue-400 shrink-0">Google</span>
               )}
-              {s.type !== "google" && (s.usage_count || 0) > 1 && (
+              {s.type === "osm" && (
+                <span className="text-xs text-green-600 font-medium shrink-0">OSM</span>
+              )}
+              {s.type !== "google" && s.type !== "osm" && (s.usage_count || 0) > 1 && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                   <Clock className="w-3 h-3" />
                   {s.usage_count}x

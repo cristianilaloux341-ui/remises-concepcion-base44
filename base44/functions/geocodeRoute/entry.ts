@@ -22,8 +22,9 @@ Deno.serve(async (req) => {
       const { input } = body;
       if (!input || input.length < 2) return Response.json({ predictions: [] });
 
-      // Removimos la concatenación estricta de la ciudad porque a veces rompe la búsqueda de calles comunes como "Mitre"
-      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&key=${GOOGLE_API_KEY}&language=es&components=country:ar&location=-32.4853,-58.2375&radius=15000`;
+      // Forzamos la búsqueda local con strictbounds y agregamos la ciudad si no está escrita para no poner "cualquier cosa" de otros lados
+      const query = input.toLowerCase().includes("concepci") ? input : `${input}, Concepción del Uruguay`;
+      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}&language=es&components=country:ar&location=-32.4853,-58.2375&radius=15000&strictbounds=true`;
       const r = await fetch(url);
       const data = await r.json();
 

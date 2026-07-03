@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { MapPin, Clock, Globe } from "lucide-react";
 import { useGooglePlaces } from "@/hooks/useGooglePlaces";
+import { useAddressSuggestions } from "@/hooks/useAddressSuggestions";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -24,31 +25,30 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const { data: addressHistory = [] } = useQuery({
-    queryKey: ["address_history"],
-    queryFn: () => base44.entities.AddressHistory.list("-usage_count"),
-    staleTime: 30_000,
-  });
-
+  const osmAndHistory = useAddressSuggestions(inputValue);
   const { predictions, getPlaceDetails } = useGooglePlaces(inputValue);
 
-  // Combinar historial local + Google Places
   const suggestions = (() => {
     if (!inputValue || inputValue.length < 3) return [];
-    const norm = normalize(inputValue);
-
-    const historyItems = addressHistory
-      .filter((a) => normalize(a.address).includes(norm))
-      .slice(0, 3)
-      .map((a) => ({ id: a.id, address: a.address, source: "history", usage_count: a.usage_count, lat: null, lng: null }));
+    
+    const historyItems = osmAndHistory
+      .filter(x => x.source === "history")
+      .slice(0, 3);
 
     const historyNorms = new Set(historyItems.map(h => normalize(h.address)));
+    
+    const osmItems = osmAndHistory
+      .filter(x => x.source === "osm" && !historyNorms.has(normalize(x.address)))
+      .slice(0, 4);
+
+    const localNorms = new Set([...historyItems, ...osmItems].map(h => normalize(h.address)));
+    
     const googleItems = predictions
-      .filter(p => !historyNorms.has(normalize(p.description)))
+      .filter(p => !localNorms.has(normalize(p.description)))
       .slice(0, 4)
       .map((p) => ({ id: p.place_id, address: p.description, place_id: p.place_id, source: "google", usage_count: 0 }));
 
-    return [...historyItems, ...googleItems];
+    return [...historyItems, ...osmItems, ...googleItems];
   })();
 
   const handleChange = (e) => {
@@ -105,8 +105,8 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
               onClick={() => handleSelect(s)}
             >
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                {s.source === "google"
-                  ? <Globe className="w-4 h-4 text-blue-400 shrink-0" />
+                {s.source === "google" || s.source === "osm"
+                  ? <Globe className={cn("w-4 h-4 shrink-0", s.source === "osm" ? "text-green-500" : "text-blue-400")} />
                   : <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
                 }
                 <span className="text-sm truncate">{s.address}</span>
@@ -116,6 +116,9 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
                   <Clock className="w-3 h-3" />
                   {s.usage_count}x
                 </span>
+              )}
+              {s.source === "osm" && (
+                <span className="text-xs text-green-600 font-medium shrink-0">OSM</span>
               )}
               {s.source === "google" && (
                 <span className="text-xs text-blue-400 shrink-0">Google</span>
