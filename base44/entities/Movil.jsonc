@@ -153,8 +153,7 @@
     }
   },
   "required": [
-    "numero_movil",
-    "apellido_nombre"
+    "numero_movil"
   ],
   "rls": {
     "read": true,

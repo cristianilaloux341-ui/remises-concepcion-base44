@@ -147,8 +147,8 @@ function MovilForm({ movil, onSave, onCancel, saving, drivers = [] }) {
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Apellido y Nombre del Titular *</label>
-        <Input value={form.apellido_nombre} onChange={e => set("apellido_nombre", e.target.value)} required className="mt-1" placeholder="Ej: García, Juan Carlos" />
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Apellido y Nombre del Titular</label>
+        <Input value={form.apellido_nombre} onChange={e => set("apellido_nombre", e.target.value)} className="mt-1" placeholder="Ej: García, Juan Carlos" />
       </div>
 
       <div>
