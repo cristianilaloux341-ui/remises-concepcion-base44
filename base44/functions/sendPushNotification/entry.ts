@@ -313,7 +313,7 @@ Deno.serve(async (req) => {
                     android: {
                       priority: "high",
                       notification: {
-                        channel_id: "ride-alerts-max",
+                        channel_id: "ride-alerts-urgent",
                         sound: "default",
                         click_action: "FCM_PLUGIN_ACTIVITY"
                       }

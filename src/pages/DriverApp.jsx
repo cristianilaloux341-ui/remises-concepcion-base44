@@ -1613,14 +1613,18 @@ export default function DriverApp() {
       LocalNotifications.requestPermissions().then((status) => {
         if (status.display === 'granted') {
           // Usamos un ID nuevo para forzar a Android a recrear el canal con máxima prioridad
-          LocalNotifications.createChannel({
-            id: 'ride-alerts-max',
-            name: 'Alertas de Viaje',
+          const channelConfig = {
+            id: 'ride-alerts-urgent',
+            name: 'Alertas de Viaje (Urgente)',
             description: 'Despierta la pantalla para viajes nuevos',
             importance: 5, // 5 = MAX (Heads-up / Burbuja)
             visibility: 1, // 1 = PUBLIC
-            vibration: true
-          });
+            vibration: true,
+            sound: 'default'
+          };
+          
+          LocalNotifications.createChannel(channelConfig);
+          PushNotifications.createChannel(channelConfig).catch(() => {}); // Aseguramos el mismo canal para FCM
 
           // Registramos los botones nativos sin emojis y con foreground: true
           LocalNotifications.registerActionTypes({
@@ -1662,7 +1666,7 @@ export default function DriverApp() {
     }
   }, []);
 
-  // Alert on new offer (audio + SW notification) — repeat every 4s
+  // Alert on new offer (audio + SW notification)
   useEffect(() => {
     offeredOrderRef.current = offeredOrder || null;
     if (offeredOrder) {
@@ -1670,45 +1674,30 @@ export default function DriverApp() {
         prevOfferedId.current = offeredOrder.id;
         playAlert();
         
-        if (!Capacitor.isNativePlatform()) {
-          sendSystemNotification(offeredOrder);
-          notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
-        }
-      }
-      
-      const interval = setInterval(() => {
-        playAlert();
         if (Capacitor.isNativePlatform()) {
+          // Lanzar la notificación local una sola vez por viaje
           LocalNotifications.schedule({
             notifications: [{
               title: "🚖 ¡Nuevo Viaje!",
               body: `${offeredOrder.pickup_address} ${offeredOrder.dropoff_address ? "→ " + offeredOrder.dropoff_address : ""}`,
               id: 88888,
               schedule: { at: new Date(Date.now() + 100) },
-              channelId: 'ride-alerts-max',
+              channelId: 'ride-alerts-urgent',
               actionTypeId: 'RIDE_OFFER_ACTIONS',
               extra: { orderId: offeredOrder.id }
             }]
           }).catch(() => {});
         } else {
+          sendSystemNotification(offeredOrder);
           notifySW({ type: "SHOW_NOTIFICATION", order: offeredOrder });
         }
+      }
+      
+      // Repetir el sonido interno cada 4 segundos, pero NO spamear el sistema de notificaciones
+      const interval = setInterval(() => {
+        playAlert();
       }, 4000);
       
-      // Lanzar la primera de inmediato en nativo también
-      if (offeredOrder.id !== prevOfferedId.current && Capacitor.isNativePlatform()) {
-          LocalNotifications.schedule({
-            notifications: [{
-              title: "🚖 ¡Nuevo Viaje!",
-              body: `${offeredOrder.pickup_address} ${offeredOrder.dropoff_address ? "→ " + offeredOrder.dropoff_address : ""}`,
-              id: 88888,
-              schedule: { at: new Date(Date.now() + 100) },
-              channelId: 'ride-alerts-max',
-              actionTypeId: 'RIDE_OFFER_ACTIONS',
-              extra: { orderId: offeredOrder.id }
-            }]
-          }).catch(() => {});
-      }
       return () => {
         clearInterval(interval);
         stopAlert();
@@ -1723,7 +1712,7 @@ export default function DriverApp() {
     }
   }, [offeredOrder?.id]);
 
-  // Alerta de audio al recibir un broadcast — repite cada 4s hasta que se acepte o rechace
+  // Alerta de audio al recibir un broadcast
   useEffect(() => {
     if (!broadcastOrder) {
       prevBroadcastId.current = null;
@@ -1733,15 +1722,11 @@ export default function DriverApp() {
       }
       return;
     }
+    
     if (broadcastOrder.id !== prevBroadcastId.current) {
       prevBroadcastId.current = broadcastOrder.id;
       playAlert();
-      if (!Capacitor.isNativePlatform()) {
-        sendSystemNotification(broadcastOrder);
-      }
-    }
-    const interval = setInterval(() => {
-      playAlert();
+      
       if (Capacitor.isNativePlatform()) {
         LocalNotifications.schedule({
           notifications: [{
@@ -1749,27 +1734,21 @@ export default function DriverApp() {
             body: `⚡ El primero se lo lleva: ${broadcastOrder.pickup_address}`,
             id: 77777,
             schedule: { at: new Date(Date.now() + 100) },
-            channelId: 'ride-alerts-max',
+            channelId: 'ride-alerts-urgent',
             actionTypeId: 'RIDE_OFFER_ACTIONS',
             extra: { orderId: broadcastOrder.id }
           }]
         }).catch(() => {});
+      } else {
+        sendSystemNotification(broadcastOrder);
       }
+    }
+    
+    // Repetir el sonido interno cada 4 segundos, NO spamear la notificación del sistema
+    const interval = setInterval(() => {
+      playAlert();
     }, 4000);
     
-    if (broadcastOrder.id !== prevBroadcastId.current && Capacitor.isNativePlatform()) {
-        LocalNotifications.schedule({
-          notifications: [{
-            title: "📢 Viaje a todos los móviles",
-            body: `⚡ El primero se lo lleva: ${broadcastOrder.pickup_address}`,
-            id: 77777,
-            schedule: { at: new Date(Date.now() + 100) },
-            channelId: 'ride-alerts-max',
-            actionTypeId: 'RIDE_OFFER_ACTIONS',
-            extra: { orderId: broadcastOrder.id }
-          }]
-        }).catch(() => {});
-    }
     return () => {
       clearInterval(interval);
       stopAlert();
