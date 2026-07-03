@@ -105,7 +105,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
 
             const fakePlate = `TEST${movilNum}`;
             driver = await base44.entities.Driver.create({
-              name: `Chofer ${movilNum}`,
+              name: `Móvil ${movilNum}`,
               phone: `000000000${movilNum}`,
               vehicle_plate: fakePlate,
               vehicle_model: String(movilNum),
@@ -301,7 +301,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       try {
         const fakePlate = `TEST${movilNum}`;
         driver = await base44.entities.Driver.create({
-          name: `Chofer ${movilNum}`,
+          name: `Móvil ${movilNum}`,
           phone: `000000000${movilNum}`,
           vehicle_plate: fakePlate,
           vehicle_model: String(movilNum),
@@ -311,7 +311,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
         if (!movil.dominio) {
           await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
         }
-        toast({ title: "Chofer creado", description: `Se autogeneró un chofer para el móvil ${movilNum}.` });
+        toast({ title: "Móvil creado", description: `Se autogeneró el móvil ${movilNum}.` });
       } catch (err) {
         toast({ title: "Error", description: "No se pudo auto-crear el chofer.", variant: "destructive" });
         setIsProcessing(false);

@@ -61,7 +61,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
         }
         const fakePlate = `TEST${movilNum}`;
         driver = await base44.entities.Driver.create({
-          name: `Chofer ${movilNum}`,
+          name: `Móvil ${movilNum}`,
           phone: `000000000${movilNum}`,
           vehicle_plate: fakePlate,
           vehicle_model: String(movilNum),

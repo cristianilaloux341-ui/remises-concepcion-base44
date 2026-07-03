@@ -178,15 +178,27 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     }));
   };
 
+  const [manualDriverInput, setManualDriverInput] = useState("");
+
+  useEffect(() => {
+    if (order?.driver_id && order?.driver_name && !manualDriverInput) {
+      setManualDriverInput(order.driver_name);
+    }
+  }, [order]);
+
   const handleChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
   const handleDriverChange = (driverId) => {
-    if (driverId === "none") {
+    if (driverId === "none" || !driverId) {
       setForm(prev => ({ ...prev, driver_id: "", driver_name: "", status: "pendiente" }));
+      setManualDriverInput("");
       return;
     }
     const driver = drivers.find(d => d.id === driverId);
-    setForm(prev => ({ ...prev, driver_id: driverId, driver_name: driver?.name || "", status: "ofrecido" }));
+    if (driver) {
+      setForm(prev => ({ ...prev, driver_id: driverId, driver_name: driver.name, status: "ofrecido" }));
+      setManualDriverInput(driver.name);
+    }
   };
 
   const handleAutoAssign = async () => {
@@ -252,7 +264,53 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     }
     if (data.fare && String(data.fare).trim() !== "") data.fare = Number(data.fare);
     else delete data.fare;
-    if (!data.driver_id) { delete data.driver_id; delete data.driver_name; }
+    if (!data.driver_id && manualDriverInput) {
+      // Auto-create/force assign just like DispatchPanel
+      const inputTrimmed = manualDriverInput.trim();
+      let movilNum = parseInt(inputTrimmed);
+      let driver = drivers.find(d => 
+        d.id === inputTrimmed || 
+        d.vehicle_model === inputTrimmed || 
+        d.name.toLowerCase() === inputTrimmed.toLowerCase()
+      );
+
+      if (!driver && !isNaN(movilNum)) {
+        try {
+          const m = await base44.entities.Movil.filter({ numero_movil: movilNum });
+          let movil = m[0];
+          if (!movil) {
+            movil = await base44.entities.Movil.create({ numero_movil: movilNum, activo: true });
+          }
+          const fakePlate = `TEST${movilNum}`;
+          driver = await base44.entities.Driver.create({
+            name: `Móvil ${movilNum}`,
+            phone: `000000000${movilNum}`,
+            vehicle_plate: fakePlate,
+            vehicle_model: String(movilNum),
+            status: "disponible"
+          });
+          if (!movil.dominio) {
+            await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
+          }
+        } catch(err) {
+          console.error("Auto-create failed", err);
+        }
+      }
+
+      if (driver) {
+        data.driver_id = driver.id;
+        data.driver_name = driver.name;
+        data.status = "ofrecido";
+      } else {
+        // Fuerza sin entidad para pruebas
+        data.driver_id = `manual-${inputTrimmed}`;
+        data.driver_name = isNaN(movilNum) ? inputTrimmed : `Móvil ${movilNum}`;
+        data.status = "ofrecido";
+      }
+    } else if (!data.driver_id) {
+      delete data.driver_id; 
+      delete data.driver_name;
+    }
 
     // Auto-save/update client in database
     if (data.client_name?.trim()) {
@@ -519,19 +577,23 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
             )}
 
             <div className="flex gap-2">
-              <Select value={form.driver_id || "none"} onValueChange={handleDriverChange}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Elegir móvil manualmente..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin asignar</SelectItem>
-                  {availableDrivers.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name} — {d.vehicle_plate} ({d.current_base})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <input 
+                list="drivers-form-list"
+                className="flex-1 h-9 text-sm rounded-lg border border-input px-3 bg-white"
+                placeholder="Nº de móvil para asignar..."
+                value={manualDriverInput}
+                onChange={(e) => {
+                  setManualDriverInput(e.target.value);
+                  setForm(prev => ({ ...prev, driver_id: "" })); // Clear actual ID to trigger auto-creation on submit
+                }}
+              />
+              <datalist id="drivers-form-list">
+                {availableDrivers.map(d => (
+                  <option key={d.id} value={d.vehicle_model || d.name}>
+                    {d.name} — {d.vehicle_plate} ({d.current_base})
+                  </option>
+                ))}
+              </datalist>
               <Button type="button" variant="outline" className="gap-1.5 rounded-lg shrink-0"
                 onClick={handleAutoAssign} disabled={autoAssigning || !form.pickup_address}>
                 {autoAssigning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
