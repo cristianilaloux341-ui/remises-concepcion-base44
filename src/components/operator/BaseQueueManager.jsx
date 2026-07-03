@@ -72,44 +72,56 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
   const addMutation = useMutation({
     mutationFn: async (inputValue) => {
       const existingCount = queue.length;
-      let movilNum = parseInt(inputValue.trim());
-      if (isNaN(movilNum)) throw new Error("Debe ser un número válido");
-
-      // Search if driver already exists
+      const inputTrimmed = inputValue.trim();
+      
+      // Buscar si el chofer ya existe (por ID, modelo/número, o nombre)
       let driver = drivers.find(d => 
-        d.vehicle_model === String(movilNum) || 
-        (movilByPlate[d.vehicle_plate?.toUpperCase()] === movilNum)
+        d.id === inputTrimmed || 
+        d.vehicle_model === inputTrimmed || 
+        d.name.toLowerCase() === inputTrimmed.toLowerCase()
       );
 
-      // Auto create if missing
+      // Si no existe, intentar auto-crearlo
       if (!driver) {
-        try {
-          // Check if Movil exists using a quick query
-          const moviles = await base44.entities.Movil.filter({ numero_movil: movilNum });
-          let movil = moviles[0];
-          
-          if (!movil) {
-            movil = await base44.entities.Movil.create({ numero_movil: movilNum, activo: true });
-          }
-
-          const fakePlate = `TEST${movilNum}`;
+        let movilNum = parseInt(inputTrimmed);
+        
+        if (isNaN(movilNum)) {
+          // No es un número, creamos un chofer genérico
           driver = await base44.entities.Driver.create({
-            name: `Chofer ${movilNum}`,
-            phone: `000000000${movilNum}`,
-            vehicle_plate: fakePlate,
-            vehicle_model: String(movilNum),
+            name: inputTrimmed,
+            phone: "0000000000",
+            vehicle_plate: "TEST-" + Math.floor(Math.random() * 1000),
             status: "disponible"
           });
+        } else {
+          // Es un número, auto-creamos Móvil y Chofer vinculados
+          try {
+            const moviles = await base44.entities.Movil.filter({ numero_movil: movilNum });
+            let movil = moviles[0];
+            
+            if (!movil) {
+              movil = await base44.entities.Movil.create({ numero_movil: movilNum, activo: true });
+            }
 
-          if (!movil.dominio) {
-            await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
+            const fakePlate = `TEST${movilNum}`;
+            driver = await base44.entities.Driver.create({
+              name: `Chofer ${movilNum}`,
+              phone: `000000000${movilNum}`,
+              vehicle_plate: fakePlate,
+              vehicle_model: String(movilNum),
+              status: "disponible"
+            });
+
+            if (!movil.dominio) {
+              await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
+            }
+          } catch(e) {
+            throw new Error("No se pudo crear el chofer automáticamente");
           }
-        } catch(e) {
-          throw new Error("No se pudo crear el chofer automáticamente");
         }
       }
 
-      // If he was on a trip, we assume for tests that he is now available
+      // Si estaba en viaje, forzamos su disponibilidad para reasignarlo
       if (driver.status === "en_viaje") {
         await base44.entities.Driver.update(driver.id, { status: "disponible" });
       }
@@ -190,8 +202,9 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
 
       <div className="flex gap-2">
         <Input 
+          list={`not-in-queue-list-${baseName}`}
           className="flex-1 h-9 rounded-xl text-xs" 
-          placeholder="Ingresá N° de móvil para agregar a la cola..." 
+          placeholder="N° de móvil o nombre para agregar..." 
           value={addingDriver} 
           onChange={(e) => setAddingDriver(e.target.value)} 
           onKeyDown={(e) => {
@@ -200,6 +213,13 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
             }
           }}
         />
+        <datalist id={`not-in-queue-list-${baseName}`}>
+          {notInQueue.map(d => (
+            <option key={d.id} value={d.vehicle_model || d.name}>
+              {d.name} — {d.vehicle_plate}
+            </option>
+          ))}
+        </datalist>
         <Button size="sm" className="gap-1 rounded-xl px-4"
           disabled={!addingDriver || addMutation.isPending}
           onClick={() => addMutation.mutate(addingDriver)}>

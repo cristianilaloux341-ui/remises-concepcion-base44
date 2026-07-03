@@ -38,56 +38,71 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
     if (!selectedDriverId) return;
     setDispatching(true);
     
-    let movilNum = parseInt(selectedDriverId.trim());
-    if (!isNaN(movilNum)) {
-      // Find driver by mobile number
-      const movilByPlate = Object.fromEntries((moviles || []).map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
-      let driver = drivers.find(d => 
-        d.vehicle_model === String(movilNum) || 
-        (movilByPlate[d.vehicle_plate?.toUpperCase()] === movilNum)
-      );
-      
-      // Auto create if not found
-      if (!driver) {
-        try {
-          const m = await base44.entities.Movil.filter({ numero_movil: movilNum });
-          let movil = m[0];
-          if (!movil) {
-            movil = await base44.entities.Movil.create({ numero_movil: movilNum, activo: true });
-          }
-          const fakePlate = `TEST${movilNum}`;
-          driver = await base44.entities.Driver.create({
-            name: `Chofer ${movilNum}`,
-            phone: `000000000${movilNum}`,
-            vehicle_plate: fakePlate,
-            vehicle_model: String(movilNum),
-            status: "disponible"
-          });
-          if (!movil.dominio) {
-            await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
-          }
-        } catch(err) {
-          console.error("Auto-create failed", err);
+    const inputTrimmed = selectedDriverId.trim();
+    const movilByPlate = Object.fromEntries((moviles || []).map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
+    
+    // Buscar si existe el chofer por ID, nombre, modelo de vehículo o patente
+    let driver = drivers.find(d => 
+      d.id === inputTrimmed || 
+      d.vehicle_model === inputTrimmed || 
+      d.name.toLowerCase() === inputTrimmed.toLowerCase() ||
+      (movilByPlate[d.vehicle_plate?.toUpperCase()] === parseInt(inputTrimmed))
+    );
+    
+    let movilNum = parseInt(inputTrimmed);
+
+    // Si no existe y es un número, intentar auto-crearlo
+    if (!driver && !isNaN(movilNum)) {
+      try {
+        const m = await base44.entities.Movil.filter({ numero_movil: movilNum });
+        let movil = m[0];
+        if (!movil) {
+          movil = await base44.entities.Movil.create({ numero_movil: movilNum, activo: true });
         }
-      }
-
-      if (driver) {
-        await assignDriverToOrder(order, driver);
-        
-        const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
-        base44.entities.AuditLog.create({
-          action: "asignar_viaje",
-          user_type: localOp?.role || "operador",
-          user_name: localOp?.name || "Operador",
-          details: `Asignó manualmente a móvil ${movilNum} el viaje de ${order.client_name}`
-        }).catch(() => {});
-
-        setSelectedDriverId("");
-        onDispatched();
-        window.dispatchEvent(new Event("force-driver-refresh"));
+        const fakePlate = `TEST${movilNum}`;
+        driver = await base44.entities.Driver.create({
+          name: `Chofer ${movilNum}`,
+          phone: `000000000${movilNum}`,
+          vehicle_plate: fakePlate,
+          vehicle_model: String(movilNum),
+          status: "disponible"
+        });
+        if (!movil.dominio) {
+          await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
+        }
+      } catch(err) {
+        console.error("Auto-create failed", err);
       }
     }
-    
+
+    const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+
+    if (driver) {
+      await assignDriverToOrder(order, driver);
+      base44.entities.AuditLog.create({
+        action: "asignar_viaje",
+        user_type: localOp?.role || "operador",
+        user_name: localOp?.name || "Operador",
+        details: `Asignó manualmente a ${driver.name} el viaje de ${order.client_name}`
+      }).catch(() => {});
+    } else {
+      // Forzar asignación sin entidad (ignora registro completamente, solo guarda nombre)
+      await base44.entities.RideOrder.update(order.id, {
+        status: "ofrecido",
+        driver_id: `manual-${inputTrimmed}`,
+        driver_name: isNaN(movilNum) ? inputTrimmed : `Móvil ${movilNum}`,
+      });
+      base44.entities.AuditLog.create({
+        action: "asignar_viaje_manual_forzado",
+        user_type: localOp?.role || "operador",
+        user_name: localOp?.name || "Operador",
+        details: `Forzó asignación manual a "${inputTrimmed}" para el viaje de ${order.client_name}`
+      }).catch(() => {});
+    }
+
+    setSelectedDriverId("");
+    onDispatched();
+    window.dispatchEvent(new Event("force-driver-refresh"));
     setDispatching(false);
   };
 
@@ -159,9 +174,9 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       {/* Selector manual */}
       <div className="flex gap-2">
         <input 
-          type="text"
+          list={`drivers-list-${order.id}`}
           className="flex-1 h-8 text-xs rounded-lg border border-input px-3 bg-white"
-          placeholder="Nº Móvil para asignar..."
+          placeholder="Nº o Nombre para asignar..."
           value={selectedDriverId}
           onChange={(e) => setSelectedDriverId(e.target.value)}
           onKeyDown={(e) => {
@@ -170,6 +185,13 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
              }
           }}
         />
+        <datalist id={`drivers-list-${order.id}`}>
+          {availableDrivers.map(d => (
+            <option key={d.id} value={d.vehicle_model || d.name}>
+              {d.name} — {d.vehicle_plate} ({d.current_base})
+            </option>
+          ))}
+        </datalist>
         <Button
           size="sm"
           variant="outline"
