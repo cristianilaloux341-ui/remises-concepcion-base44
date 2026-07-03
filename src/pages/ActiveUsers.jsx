@@ -7,6 +7,7 @@ import { Activity, Car, Users, ShieldAlert, Smartphone, Ban, Eye, EyeOff, CheckC
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
 
 export default function ActiveUsers() {
@@ -16,6 +17,7 @@ export default function ActiveUsers() {
   const [showPins, setShowPins] = useState(false);
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const localOperator = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
   const effectiveRole = localOperator ? localOperator.role : user?.role;
@@ -65,6 +67,20 @@ export default function ActiveUsers() {
       qc.invalidateQueries({ queryKey: ["operators_active"] });
     }
   });
+
+  const testFCM = async (driver) => {
+    toast({ title: "Enviando Push...", description: `Intentando despertar a ${driver.name}` });
+    try {
+      const res = await base44.functions.invoke('checkFirebasePush', { driverId: driver.id });
+      if (res.data?.status === 200) {
+        toast({ title: "✅ Push Enviado", description: `Notificación nativa enviada a ${driver.name}. Debería sonar.`, variant: "default" });
+      } else {
+        toast({ title: "❌ Error de Push", description: JSON.stringify(res.data?.response || res.data?.error).substring(0,100), variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "❌ Error", description: e.message, variant: "destructive" });
+    }
+  };
 
   const isOnline = (isoString) => {
     if (!isoString) return false;
@@ -160,9 +176,14 @@ export default function ActiveUsers() {
                         <p className="text-xs text-muted-foreground">{d.vehicle_plate} • {d.status.replace("_", " ")}</p>
                       </div>
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      Hace {formatDistanceToNow(new Date(d.last_active), { locale: es })}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground">
+                        Hace {formatDistanceToNow(new Date(d.last_active), { locale: es })}
+                      </span>
+                      <Button variant="outline" size="sm" onClick={() => testFCM(d)} className="h-7 text-xs bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-transparent">
+                        Probar Push
+                      </Button>
+                    </div>
                   </li>
                 ))}
                 {activeDrivers.length === 0 && !isLoadingDr && (
@@ -277,6 +298,9 @@ export default function ActiveUsers() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
+                        <Button variant="outline" size="sm" onClick={() => testFCM(d)} className="h-8 mr-2 text-xs bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-transparent">
+                          Probar Push FCM
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
