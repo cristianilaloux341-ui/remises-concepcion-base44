@@ -1658,8 +1658,8 @@ export default function DriverApp() {
 
       // Escuchar taps en notificaciones de Firebase (FCM)
       PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-        const orderId = notification.notification.data?.orderId || notification.notification.data?.payload?.orderId;
-        if (orderId) {
+        const data = notification.notification.data || notification.notification.data?.payload || {};
+        if (data.orderId || data.action === "open_messages") {
           window.location.href = `/driver-app`;
         }
       });
@@ -1673,7 +1673,7 @@ export default function DriverApp() {
         if (data.orderId && data.title) {
           const localTimeOffset = new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 2000);
           const notifId = data.type === "broadcast" ? 77777 : 88888;
-          
+
           LocalNotifications.schedule({
             notifications: [{
               title: data.title,
@@ -1685,7 +1685,20 @@ export default function DriverApp() {
               extra: { orderId: data.orderId }
             }]
           }).catch(console.error);
-          
+
+          playAlert();
+        } else if (data.type === "message" || data.action === "open_messages") {
+          const localTimeOffset = new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 2000);
+          LocalNotifications.schedule({
+            notifications: [{
+              title: data.title || "Nuevo Mensaje",
+              body: data.body || "",
+              id: 99999,
+              channelId: 'ride-alerts-urgent',
+              schedule: { at: localTimeOffset },
+              extra: { action: "open_messages" }
+            }]
+          }).catch(console.error);
           playAlert();
         }
 

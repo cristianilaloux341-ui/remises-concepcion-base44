@@ -7,6 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { Send, X, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 
+const formatTimeBA = (dateStr) => {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString("es-AR", { timeZone: "America/Buenos_Aires", hour: "2-digit", minute: "2-digit" });
+  } catch(e) {
+    return format(new Date(dateStr), "HH:mm");
+  }
+};
+
 function playBeep(type = "send") {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -150,7 +160,7 @@ export default function DriverMessages({ driver, onClose }) {
                 )}
                 <p className="text-sm">{msg.content}</p>
                 <p className={`text-xs mt-1 ${isFromMe ? "text-blue-200" : "text-gray-400"} text-right`}>
-                  {format(new Date(msg.created_date), "HH:mm")}
+                  {formatTimeBA(msg.created_date)}
                 </p>
               </div>
             </div>

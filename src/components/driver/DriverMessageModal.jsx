@@ -2,6 +2,16 @@ import { Button } from "@/components/ui/button";
 import { MessageCircle, Radio, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 
+const formatTimeBA = (dateStr) => {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString("es-AR", { timeZone: "America/Buenos_Aires", hour: "2-digit", minute: "2-digit" });
+  } catch(e) {
+    return format(new Date(dateStr), "HH:mm");
+  }
+};
+
 // Bloqueante: el chofer DEBE tocar "Entendido" para cerrar
 export default function DriverMessageModal({ message, onDismiss }) {
   if (!message) return null;
@@ -34,7 +44,7 @@ export default function DriverMessageModal({ message, onDismiss }) {
           <div className={`rounded-2xl p-5 border-2 ${isBroadcast ? "bg-blue-50 border-blue-200" : "bg-indigo-50 border-indigo-200"}`}>
             <p className="text-gray-900 text-base leading-relaxed font-medium">{message.content}</p>
             <p className="text-xs text-gray-400 mt-3 text-right">
-              {format(new Date(message.created_date), "HH:mm")}
+              {formatTimeBA(message.created_date)}
             </p>
           </div>
 

@@ -97,13 +97,21 @@ export default function Messages() {
   });
 
   const sendMutation = useMutation({
-    mutationFn: () => base44.entities.Message.create({
-      from_type: "operador",
-      from_name: "Operador",
-      to_driver_id: targetDriverId === "todos" ? "" : targetDriverId,
-      content: content.trim(),
-      read: false,
-    }),
+    mutationFn: async () => {
+      const newMsg = await base44.entities.Message.create({
+        from_type: "operador",
+        from_name: "Operador",
+        to_driver_id: targetDriverId === "todos" ? "" : targetDriverId,
+        content: content.trim(),
+        read: false,
+      });
+      await base44.functions.invoke("sendPushNotification", {
+        action: "send_message",
+        targetDriverId: targetDriverId === "todos" ? "" : targetDriverId,
+        messageContent: content.trim()
+      }).catch(() => {});
+      return newMsg;
+    },
     onSuccess: () => setContent(""),
   });
 
