@@ -216,6 +216,21 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
       return;
     }
 
+    // Salida de servicio rápida con .00 o .0
+    if (baseNumStr === "00" || baseNumStr === "0") {
+      try {
+        await base44.entities.Driver.update(driver.id, {
+          current_base: null,
+          status: "no_disponible",
+          queue_entered_at: null,
+        });
+        toast({ title: "Fuera de servicio", description: `Móvil ${movilNum} marcado como fuera de servicio.` });
+      } catch (err) {
+        toast({ title: "Error", description: "No se pudo actualizar el móvil.", variant: "destructive" });
+      }
+      return;
+    }
+
     // Find base
     const baseName = BASES.find(b => b.startsWith(baseNumStr + "-"));
     if (!baseName) {
