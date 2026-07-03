@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatCard from "@/components/dashboard/StatCard";
 import RideMap from "@/components/map/RideMap";
-import BaseQueueManager from "@/components/operator/BaseQueueManager";
+import BaseQueueManager, { QuickAssignInput } from "@/components/operator/BaseQueueManager";
 import DispatchPanel from "@/components/operator/DispatchPanel";
 import { reassignAfterReject } from "@/lib/dispatchLogic";
 import { useEffect, useState } from "react";
@@ -162,7 +162,11 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
-          <StatCard key={stat.title} {...stat} />
+          <StatCard key={stat.title} {...stat}>
+            {stat.title === "Chóferes en Posición" && (
+              <QuickAssignInput drivers={drivers} moviles={moviles} />
+            )}
+          </StatCard>
         ))}
       </div>
 

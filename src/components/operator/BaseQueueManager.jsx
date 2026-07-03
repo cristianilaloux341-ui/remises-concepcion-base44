@@ -170,15 +170,10 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
   );
 }
 
-export default function BaseQueueManager({ drivers, moviles = [] }) {
+export function QuickAssignInput({ drivers, moviles = [] }) {
   const { toast } = useToast();
-  // Mapa patente → número de móvil para lookup rápido
-  const movilByPlate = Object.fromEntries(moviles.map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
-  const [editingBase, setEditingBase] = useState(null);
   const [quickInput, setQuickInput] = useState("");
-  
-  // Guardar quickInput en un lugar accesible para enfocarlo si se necesita
-  const quickInputRef = React.useRef(null);
+  const quickInputRef = useRef(null);
 
   const handleQuickAssign = async (e) => {
     if (e.key !== "Enter" || !quickInput.trim()) return;
@@ -255,23 +250,24 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
   };
 
   return (
-    <>
-      <div className="mb-4 bg-muted/50 p-3 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <Zap className="w-4 h-4 text-amber-500" /> Asignación Rápida:
-        </div>
-        <div className="flex-1 max-w-sm">
-          <Input 
-            ref={quickInputRef}
-            placeholder="móvil.base (ej: 12.3) o móvil.0 para libre" 
-            value={quickInput}
-            onChange={(e) => setQuickInput(e.target.value)}
-            onKeyDown={handleQuickAssign}
-            className="bg-white"
-          />
-        </div>
-      </div>
+    <Input 
+      ref={quickInputRef}
+      placeholder="móvil.base (12.3) o móvil.0" 
+      value={quickInput}
+      onChange={(e) => setQuickInput(e.target.value)}
+      onKeyDown={handleQuickAssign}
+      className="bg-white text-xs h-8"
+    />
+  );
+}
 
+export default function BaseQueueManager({ drivers, moviles = [] }) {
+  // Mapa patente → número de móvil para lookup rápido
+  const movilByPlate = Object.fromEntries(moviles.map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
+  const [editingBase, setEditingBase] = useState(null);
+
+  return (
+    <>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         {BASES.map(baseName => {
           const queue = getBaseQueue(drivers, baseName);
