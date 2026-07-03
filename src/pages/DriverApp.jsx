@@ -1664,41 +1664,49 @@ export default function DriverApp() {
         }
       });
 
-      // Escuchar FCM data-only en background para despertar el JS
+      // Escuchar FCM (foreground/background)
       PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        console.log("[FCM] Push data-only recibido en background:", notification);
+        console.log("[FCM] Push recibido:", notification);
         const data = notification.data || {};
-        
-        // Disparar alarma localmente de inmediato (evita depender de la red al despertar)
+        const isForeground = document.visibilityState === 'visible';
+
         if (data.orderId && data.title) {
           const localTimeOffset = new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 2000);
           const notifId = data.type === "broadcast" ? 77777 : 88888;
 
-          LocalNotifications.schedule({
-            notifications: [{
-              title: data.title,
-              body: data.body || "¡Nuevo viaje disponible!",
-              id: notifId,
-              channelId: 'ride-alerts-urgent',
-              actionTypeId: 'RIDE_OFFER_ACTIONS',
-              schedule: { at: localTimeOffset },
-              extra: { orderId: data.orderId }
-            }]
-          }).catch(console.error);
+          // Si estamos en foreground el OS no muestra la nativa; la mostramos nosotros con LocalNotifications (con botones).
+          // Si estamos en background, el OS muestra la nativa, no duplicamos.
+          if (isForeground) {
+            LocalNotifications.schedule({
+              notifications: [{
+                title: data.title,
+                body: data.body || "¡Nuevo viaje disponible!",
+                id: notifId,
+                channelId: 'ride-alerts-urgent',
+                actionTypeId: 'RIDE_OFFER_ACTIONS',
+                schedule: { at: localTimeOffset },
+                extra: { orderId: data.orderId }
+              }]
+            }).catch(console.error);
+          }
 
           playAlert();
         } else if (data.type === "message" || data.action === "open_messages") {
           const localTimeOffset = new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 2000);
-          LocalNotifications.schedule({
-            notifications: [{
-              title: data.title || "Nuevo Mensaje",
-              body: data.body || "",
-              id: 99999,
-              channelId: 'ride-alerts-urgent',
-              schedule: { at: localTimeOffset },
-              extra: { action: "open_messages" }
-            }]
-          }).catch(console.error);
+
+          if (isForeground) {
+            LocalNotifications.schedule({
+              notifications: [{
+                title: data.title || "Nuevo Mensaje",
+                body: data.body || "",
+                id: 99999,
+                channelId: 'ride-alerts-urgent',
+                schedule: { at: localTimeOffset },
+                extra: { action: "open_messages" }
+              }]
+            }).catch(console.error);
+          }
+
           playAlert();
         }
 

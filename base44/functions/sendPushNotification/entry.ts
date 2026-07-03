@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
   const body = await req.json();
-  const { action, driverId, subscription, orderId, orderData, token, userId, fromName, messageContent } = body;
+  const { action, driverId, subscription, orderId, orderData, token, userId, fromName, messageContent, isBroadcast } = body;
 
   const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
   const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
@@ -312,7 +312,8 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               message: {
                 token: driver.fcm_token,
-                android: { priority: "high" },
+                notification: { title: String(title), body: String(body) },
+                android: { priority: "high", notification: { channel_id: "ride-alerts-urgent" } },
                 data: { 
                   action: "open_messages",
                   title: String(title),
@@ -408,17 +409,14 @@ Deno.serve(async (req) => {
                 body: JSON.stringify({
                   message: {
                     token: driver.fcm_token,
-                    // Convertimos a Data-Message puro quitando 'notification'
-                    // Esto fuerza a Android a despertar el JS en segundo plano (WebView)
-                    android: {
-                      priority: "high"
-                    },
+                    notification: { title: String(title), body: String(body) },
+                    android: { priority: "high", notification: { channel_id: "ride-alerts-urgent" } },
                     data: { 
                       orderId: String(orderId), 
                       action: "open_ride",
                       title: String(title),
                       body: String(body),
-                      type: body.includes('BROADCAST') ? "broadcast" : "ofrecido"
+                      type: isBroadcast ? "broadcast" : "ofrecido"
                     }
                   }
                 })
