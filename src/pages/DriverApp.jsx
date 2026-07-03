@@ -1671,7 +1671,7 @@ export default function DriverApp() {
         const isForeground = document.visibilityState === 'visible';
 
         if (data.orderId && data.title) {
-          const localTimeOffset = new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 2000);
+          const localTimeOffset = new Date(Date.now() + 2000);
           const notifId = data.type === "broadcast" ? 77777 : 88888;
 
           // Si estamos en foreground el OS no muestra la nativa; la mostramos nosotros con LocalNotifications (con botones).
@@ -1684,7 +1684,6 @@ export default function DriverApp() {
                 id: notifId,
                 channelId: 'ride-alerts-urgent',
                 actionTypeId: 'RIDE_OFFER_ACTIONS',
-                schedule: { at: localTimeOffset },
                 extra: { orderId: data.orderId }
               }]
             }).catch(console.error);
@@ -1692,8 +1691,6 @@ export default function DriverApp() {
 
           playAlert();
         } else if (data.type === "message" || data.action === "open_messages") {
-          const localTimeOffset = new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 2000);
-
           if (isForeground) {
             LocalNotifications.schedule({
               notifications: [{
@@ -1701,7 +1698,6 @@ export default function DriverApp() {
                 body: data.body || "",
                 id: 99999,
                 channelId: 'ride-alerts-urgent',
-                schedule: { at: localTimeOffset },
                 extra: { action: "open_messages" }
               }]
             }).catch(console.error);
@@ -1752,8 +1748,6 @@ export default function DriverApp() {
         
         if (Capacitor.isNativePlatform()) {
           console.log("[Alert-Background] Intentando schedule() nativo para OFRECIDO...");
-          // Compensamos la zona horaria para evitar el doble UTC shift del plugin nativo y el error "must be after current time"
-          const localTimeOffset = new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 2000);
           LocalNotifications.schedule({
             notifications: [{
               title: "🚖 ¡Nuevo Viaje!",
@@ -1761,7 +1755,6 @@ export default function DriverApp() {
               id: 88888,
               channelId: 'ride-alerts-urgent',
               actionTypeId: 'RIDE_OFFER_ACTIONS',
-              schedule: { at: localTimeOffset },
               extra: { orderId: offered.id }
             }]
           })
@@ -1796,7 +1789,6 @@ export default function DriverApp() {
         
         if (Capacitor.isNativePlatform()) {
           console.log("[Alert-Background] Intentando schedule() nativo para BROADCAST...");
-          const localTimeOffset = new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 2000);
           LocalNotifications.schedule({
             notifications: [{
               title: "📢 Viaje a todos los móviles",
@@ -1804,7 +1796,6 @@ export default function DriverApp() {
               id: 77777,
               channelId: 'ride-alerts-urgent',
               actionTypeId: 'RIDE_OFFER_ACTIONS',
-              schedule: { at: localTimeOffset },
               extra: { orderId: broadcast.id }
             }]
           })
