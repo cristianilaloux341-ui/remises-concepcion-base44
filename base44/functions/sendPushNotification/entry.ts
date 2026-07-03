@@ -309,16 +309,18 @@ Deno.serve(async (req) => {
                 body: JSON.stringify({
                   message: {
                     token: driver.fcm_token,
-                    notification: { title, body },
+                    // Convertimos a Data-Message puro quitando 'notification'
+                    // Esto fuerza a Android a despertar el JS en segundo plano (WebView)
                     android: {
-                      priority: "high",
-                      notification: {
-                        channel_id: "ride-alerts-urgent",
-                        sound: "default",
-                        click_action: "FCM_PLUGIN_ACTIVITY"
-                      }
+                      priority: "high"
                     },
-                    data: { orderId: String(orderId), action: "open_ride" }
+                    data: { 
+                      orderId: String(orderId), 
+                      action: "open_ride",
+                      title: String(title),
+                      body: String(body),
+                      type: body.includes('BROADCAST') ? "broadcast" : "ofrecido"
+                    }
                   }
                 })
               });

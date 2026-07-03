@@ -1658,10 +1658,39 @@ export default function DriverApp() {
 
       // Escuchar taps en notificaciones de Firebase (FCM)
       PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-        const orderId = notification.notification.data?.orderId;
+        const orderId = notification.notification.data?.orderId || notification.notification.data?.payload?.orderId;
         if (orderId) {
           window.location.href = `/driver-app`;
         }
+      });
+
+      // Escuchar FCM data-only en background para despertar el JS
+      PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        console.log("[FCM] Push data-only recibido en background:", notification);
+        const data = notification.data || {};
+        
+        // Disparar alarma localmente de inmediato (evita depender de la red al despertar)
+        if (data.orderId && data.title) {
+          const localTimeOffset = new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 2000);
+          const notifId = data.type === "broadcast" ? 77777 : 88888;
+          
+          LocalNotifications.schedule({
+            notifications: [{
+              title: data.title,
+              body: data.body || "¡Nuevo viaje disponible!",
+              id: notifId,
+              channelId: 'ride-alerts-urgent',
+              actionTypeId: 'RIDE_OFFER_ACTIONS',
+              schedule: { at: localTimeOffset },
+              extra: { orderId: data.orderId }
+            }]
+          }).catch(console.error);
+          
+          playAlert();
+        }
+
+        // Forzar reconexión de WebSocket y fetch
+        window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       });
     }
   }, []);

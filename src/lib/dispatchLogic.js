@@ -103,7 +103,7 @@ export async function assignDriverToOrder(order, driver) {
 
 // Broadcast: marcar el pedido como "pendiente_broadcast" para que TODOS los disponibles lo vean
 // El primero en aceptar gana. Se usa cuando no hay nadie en la zona.
-export async function broadcastOrder(order) {
+export async function broadcastOrder(order, drivers = []) {
   await base44.entities.RideOrder.update(order.id, {
     status: "pendiente",
     driver_id: null,
@@ -111,6 +111,22 @@ export async function broadcastOrder(order) {
     assigned_base: null,
     // Prefijo especial para que DriverApp lo detecte como broadcast urgente
     notes: order.notes ? `[BROADCAST] ${order.notes}` : "[BROADCAST]",
+  });
+
+  // Notificar a todos los móviles disponibles
+  const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
+  availableDrivers.forEach(driver => {
+    base44.functions.invoke("sendPushNotification", {
+      action: "send",
+      driverId: driver.id,
+      orderId: order.id,
+      orderData: {
+        pickup_address: order.pickup_address,
+        dropoff_address: order.dropoff_address,
+        fare: order.fare,
+      },
+      isBroadcast: true
+    }).catch(() => {});
   });
 }
 
@@ -152,7 +168,7 @@ export async function autoDispatch(order, drivers, bases) {
   }
 
   // 3) Sin nadie en zona → broadcast a todos
-  await broadcastOrder(order);
+  await broadcastOrder(order, drivers);
   return "broadcast";
 }
 
@@ -185,7 +201,7 @@ export async function reassignAfterReject(order, drivers, bases) {
   }
 
   // No one in same zone → broadcast a todos disponibles
-  await broadcastOrder(order);
+  await broadcastOrder(order, drivers);
   return "broadcast";
 }
 
