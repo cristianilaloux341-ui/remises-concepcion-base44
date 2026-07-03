@@ -73,12 +73,14 @@ export default function Dashboard() {
             o.start(); o.stop(ctx.currentTime + 0.3);
           } catch (_) {}
 
-          // Burbuja visual
+          // Burbuja visual desactivada
+          /*
           toast({
             title: "🚕 ¡Nuevo viaje entrante!",
             description: `${event.data.pickup_address} (${event.data.client_name || 'Cliente'})`,
             variant: "default",
           });
+          */
         }
       }
     });
