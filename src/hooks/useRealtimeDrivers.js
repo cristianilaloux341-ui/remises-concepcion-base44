@@ -95,9 +95,15 @@ export function useRealtimeDrivers() {
     mountedRef.current = true;
     connect();
 
+    // Polling en segundo plano por seguridad (sincronización forzada)
+    const pollInterval = setInterval(() => {
+      if (mountedRef.current) fetchAll();
+    }, 15000);
+
     return () => {
       mountedRef.current = false;
       unsubRef.current?.();
+      clearInterval(pollInterval);
     };
   }, [connect, fetchAll]);
 
