@@ -1702,6 +1702,8 @@ export default function DriverApp() {
         
         if (Capacitor.isNativePlatform()) {
           console.log("[Alert-Background] Intentando schedule() nativo para OFRECIDO...");
+          // Compensamos la zona horaria para evitar el doble UTC shift del plugin nativo y el error "must be after current time"
+          const localTimeOffset = new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 2000);
           LocalNotifications.schedule({
             notifications: [{
               title: "🚖 ¡Nuevo Viaje!",
@@ -1709,6 +1711,7 @@ export default function DriverApp() {
               id: 88888,
               channelId: 'ride-alerts-urgent',
               actionTypeId: 'RIDE_OFFER_ACTIONS',
+              schedule: { at: localTimeOffset },
               extra: { orderId: offered.id }
             }]
           })
@@ -1743,6 +1746,7 @@ export default function DriverApp() {
         
         if (Capacitor.isNativePlatform()) {
           console.log("[Alert-Background] Intentando schedule() nativo para BROADCAST...");
+          const localTimeOffset = new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 2000);
           LocalNotifications.schedule({
             notifications: [{
               title: "📢 Viaje a todos los móviles",
@@ -1750,6 +1754,7 @@ export default function DriverApp() {
               id: 77777,
               channelId: 'ride-alerts-urgent',
               actionTypeId: 'RIDE_OFFER_ACTIONS',
+              schedule: { at: localTimeOffset },
               extra: { orderId: broadcast.id }
             }]
           })
