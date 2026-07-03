@@ -236,44 +236,13 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
     await requestNotificationPermission();
     const normalized = phone.replace(/\s|-|\(|\)/g, "");
     if (!normalized) { setError("Ingresá tu número de celular"); return; }
-    let found = debugArray(safeDriversList, 'safeDriversList').find(d => {
+    const found = debugArray(safeDriversList, 'safeDriversList').find(d => {
       const dp = (d.phone || "").replace(/\s|-|\(|\)/g, "");
       return dp === normalized || dp.endsWith(normalized) || normalized.endsWith(dp);
     });
-    
     if (!found) {
-      const movilNum = parseInt(normalized);
-      if (!isNaN(movilNum)) {
-        setLoading(true);
-        try {
-          const moviles = await base44.entities.Movil.filter({ numero_movil: movilNum });
-          let movil = moviles[0];
-          if (!movil) {
-            movil = await base44.entities.Movil.create({ numero_movil: movilNum, activo: true });
-          } else if (!movil.activo || movil.fuera_de_servicio) {
-            await base44.entities.Movil.update(movil.id, { activo: true, fuera_de_servicio: false });
-          }
-          const fakePlate = `TEST${movilNum}`;
-          found = await base44.entities.Driver.create({
-            name: `Móvil ${movilNum}`,
-            phone: normalized,
-            vehicle_plate: movil.dominio || fakePlate,
-            vehicle_model: String(movilNum),
-            status: "disponible"
-          });
-          if (!movil.dominio) {
-            await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
-          }
-        } catch(e) {
-          setError("Error al auto-crear el móvil.");
-          setLoading(false);
-          return;
-        }
-        setLoading(false);
-      } else {
-        setError("No se encontró ningún chofer con ese número. Verificá con el operador.");
-        return;
-      }
+      setError("No se encontró ningún chofer con ese número. Verificá con el operador.");
+      return;
     }
     setFoundDriver(found);
     setError("");
