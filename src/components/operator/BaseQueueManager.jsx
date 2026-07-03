@@ -289,6 +289,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     }
 
     try {
+      // Como drivers no está actualizado con el driver nuevo si recién se creó, la cola se calcula normal
       const queue = getBaseQueue(drivers, baseName);
       await base44.entities.Driver.update(driver.id, {
         current_base: baseName,
@@ -296,6 +297,9 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
         queue_entered_at: new Date(Date.now() + queue.length * 1000).toISOString(),
       });
       toast({ title: "Móvil asignado", description: `Móvil ${movilNum} asignado a ${baseName} exitosamente.` });
+      
+      // Forzar recarga rápida de la UI, ya que mutation invalidaría react-query pero acá no estamos usando el useMutation de BaseQueueManager sino update directo
+      window.dispatchEvent(new Event("force-driver-refresh"));
     } catch (err) {
       toast({ title: "Error", description: "No se pudo asignar el móvil.", variant: "destructive" });
     }

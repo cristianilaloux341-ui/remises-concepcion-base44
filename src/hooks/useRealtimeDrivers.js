@@ -109,5 +109,11 @@ export function useRealtimeDrivers() {
 
   useBackgroundSync(connect);
 
+  useEffect(() => {
+    const handleForceRefresh = () => fetchAll();
+    window.addEventListener('force-driver-refresh', handleForceRefresh);
+    return () => window.removeEventListener('force-driver-refresh', handleForceRefresh);
+  }, [fetchAll]);
+
   return { drivers, isLoading, error: errorInfo };
 }
