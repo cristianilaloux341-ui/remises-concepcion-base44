@@ -1660,51 +1660,20 @@ export default function DriverApp() {
       PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
         const data = notification.notification.data || notification.notification.data?.payload || {};
         if (data.orderId || data.action === "open_messages") {
-          window.location.href = `/driver-app`;
+          // No hacemos un reload duro de la página web que recarga la UI desde cero.
+          // En vez de eso, Capacitor ya trae la app al frente y nosotros forzamos la reconexión de datos.
+          window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
       });
 
       // Escuchar FCM (foreground/background)
       PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log("[FCM] Push recibido:", notification);
-        const data = notification.data || {};
-        const isForeground = document.visibilityState === 'visible';
-
-        if (data.orderId && data.title) {
-          const localTimeOffset = new Date(Date.now() + 2000);
-          const notifId = data.type === "broadcast" ? 77777 : 88888;
-
-          // Si estamos en foreground el OS no muestra la nativa; la mostramos nosotros con LocalNotifications (con botones).
-          // Si estamos en background, el OS muestra la nativa, no duplicamos.
-          if (isForeground) {
-            LocalNotifications.schedule({
-              notifications: [{
-                title: data.title,
-                body: data.body || "¡Nuevo viaje disponible!",
-                id: notifId,
-                channelId: 'ride-alerts-urgent',
-                actionTypeId: 'RIDE_OFFER_ACTIONS',
-                extra: { orderId: data.orderId }
-              }]
-            }).catch(console.error);
-          }
-
-          playAlert();
-        } else if (data.type === "message" || data.action === "open_messages") {
-          if (isForeground) {
-            LocalNotifications.schedule({
-              notifications: [{
-                title: data.title || "Nuevo Mensaje",
-                body: data.body || "",
-                id: 99999,
-                channelId: 'ride-alerts-urgent',
-                extra: { action: "open_messages" }
-              }]
-            }).catch(console.error);
-          }
-
-          playAlert();
-        }
+        
+        // No programamos alertas locales nativas extras cuando la app está abierta en Android (foreground).
+        // Dejamos que React evalúe el estado local y dibuje el modal en pantalla completa (IncomingAlert)
+        // igual que lo hace en la web.
+        playAlert();
 
         // Forzar reconexión de WebSocket y fetch
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
@@ -1747,19 +1716,7 @@ export default function DriverApp() {
         playAlert();
         
         if (Capacitor.isNativePlatform()) {
-          console.log("[Alert-Background] Intentando schedule() nativo para OFRECIDO...");
-          LocalNotifications.schedule({
-            notifications: [{
-              title: "🚖 ¡Nuevo Viaje!",
-              body: `${offered.pickup_address} ${offered.dropoff_address ? "→ " + offered.dropoff_address : ""}`,
-              id: 88888,
-              channelId: 'ride-alerts-urgent',
-              actionTypeId: 'RIDE_OFFER_ACTIONS',
-              extra: { orderId: offered.id }
-            }]
-          })
-          .then(() => console.log("[Alert-Background] schedule() nativo OFRECIDO completado OK"))
-          .catch((err) => console.error("[Alert-Background] ERROR en schedule() nativo OFRECIDO:", err));
+          console.log("[Alert-Background] Viaje ofrecido detectado. El modal de React (IncomingAlert) se mostrará en pantalla.");
         } else {
           sendSystemNotification(offered);
           notifySW({ type: "SHOW_NOTIFICATION", order: offered });
@@ -1788,19 +1745,7 @@ export default function DriverApp() {
         playAlert();
         
         if (Capacitor.isNativePlatform()) {
-          console.log("[Alert-Background] Intentando schedule() nativo para BROADCAST...");
-          LocalNotifications.schedule({
-            notifications: [{
-              title: "📢 Viaje a todos los móviles",
-              body: `⚡ El primero se lo lleva: ${broadcast.pickup_address}`,
-              id: 77777,
-              channelId: 'ride-alerts-urgent',
-              actionTypeId: 'RIDE_OFFER_ACTIONS',
-              extra: { orderId: broadcast.id }
-            }]
-          })
-          .then(() => console.log("[Alert-Background] schedule() nativo BROADCAST completado OK"))
-          .catch((err) => console.error("[Alert-Background] ERROR en schedule() nativo BROADCAST:", err));
+          console.log("[Alert-Background] Viaje broadcast detectado. El modal de React se mostrará en pantalla.");
         } else {
           sendSystemNotification(broadcast);
         }
