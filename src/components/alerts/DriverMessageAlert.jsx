@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
+import { motion } from "framer-motion";
 import { MessageCircle, X, Car } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -105,10 +106,7 @@ export default function DriverMessageAlert() {
   return (
     <>
         {alerts.map((msg) => (
-          <div
-            key={msg.id}
-            className="pointer-events-auto w-full bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-blue-400 animate-in slide-in-from-right-8 fade-in duration-200 shrink-0"
-          >
+          <motion.div drag dragMomentum={false} style={{ touchAction: "none" }} key={msg.id} className="pointer-events-auto w-full bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-blue-400 animate-in slide-in-from-right-8 fade-in duration-200 shrink-0">
             {/* Header */}
             <div className="bg-blue-600 px-5 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -163,7 +161,7 @@ export default function DriverMessageAlert() {
                 </Button>
               </div>
             </div>
-          </div>
+          </motion.div>
         ))}
 
         {alerts.length > 1 && (

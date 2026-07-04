@@ -6,6 +6,7 @@ import { es } from "date-fns/locale";
 import { Bell, Clock, MapPin, X, Zap, Car, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 import { autoDispatch, assignDriverToOrder } from "@/lib/dispatchLogic";
 
 function minutesUntil(datetime) {
@@ -161,10 +162,7 @@ export default function AgendaAlert() {
           const mins = minutesUntil(alert.scheduled_datetime);
           const hora = format(new Date(alert.scheduled_datetime), "HH:mm", { locale: es });
           return (
-            <div
-              key={alert.id}
-              className="pointer-events-auto w-full bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-amber-400 animate-in slide-in-from-right-8 fade-in duration-200 shrink-0"
-            >
+            <motion.div drag dragMomentum={false} style={{ touchAction: "none" }} key={alert.id} className="pointer-events-auto w-full bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-amber-400 animate-in slide-in-from-right-8 fade-in duration-200 shrink-0">
               {/* Header llamativo */}
               <div className="bg-amber-500 px-5 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -260,7 +258,7 @@ export default function AgendaAlert() {
                   </Button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           );
         })}
 
