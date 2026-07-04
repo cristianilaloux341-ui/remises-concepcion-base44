@@ -19,13 +19,13 @@ public class DriverForegroundService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.e("PushDiagnostic", "DriverForegroundService: onCreate");
+        Log.e("PushDiagnostic", "DriverForegroundService: Service onCreate");
         createNotificationChannel();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.e("PushDiagnostic", "DriverForegroundService: onStartCommand - Conectado a la base");
+        Log.e("PushDiagnostic", "DriverForegroundService: Service onStartCommand - Retornando START_STICKY");
 
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
@@ -34,28 +34,43 @@ public class DriverForegroundService extends Service {
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Remises Concepción")
                 .setContentText("Conectado a la base - Esperando viajes")
-                .setSmallIcon(R.mipmap.ic_launcher) // Ícono por defecto
+                .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
 
-        // Especificar el tipo si estamos en Android 14+ (API 34)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // Requerirá android:foregroundServiceType="location" en el Manifest
             startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
         } else {
             startForeground(NOTIFICATION_ID, notification);
         }
 
-        // Si el sistema lo mata, que intente reiniciarlo
         return START_STICKY;
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        Log.e("PushDiagnostic", "DriverForegroundService: Service onTaskRemoved - Aplicación cerrada de recientes");
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Log.e("PushDiagnostic", "DriverForegroundService: onDestroy");
+        Log.e("PushDiagnostic", "DriverForegroundService: Service onDestroy - Destruido por el usuario, el plugin o el OS");
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        Log.e("PushDiagnostic", "DriverForegroundService: Service onTrimMemory - Nivel de memoria: " + level);
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        Log.e("PushDiagnostic", "DriverForegroundService: Service onLowMemory - Memoria crítica");
     }
 
     @Override

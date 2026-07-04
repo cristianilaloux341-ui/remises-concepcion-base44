@@ -12,14 +12,20 @@ public class MyFirebaseMessagingService extends MessagingService {
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         Log.e(TAG, "==== LLEGO EL PUSH A ANDROID NATIVO ====");
-        Log.e(TAG, "Tipo: " + (remoteMessage.getNotification() != null ? "Notification+Data" : "Data-only"));
-        Log.e(TAG, "From: " + remoteMessage.getFrom());
+        Log.e(TAG, "Timestamp recepción local: " + System.currentTimeMillis());
         Log.e(TAG, "Message ID: " + remoteMessage.getMessageId());
-        Log.e(TAG, "Timestamp: " + System.currentTimeMillis());
+        Log.e(TAG, "From: " + remoteMessage.getFrom());
+        Log.e(TAG, "Collapse Key: " + remoteMessage.getCollapseKey());
+        Log.e(TAG, "Priority: " + remoteMessage.getPriority());
+        Log.e(TAG, "Original Priority: " + remoteMessage.getOriginalPriority());
+        Log.e(TAG, "Sent Time: " + remoteMessage.getSentTime());
+        Log.e(TAG, "TTL: " + remoteMessage.getTtl());
 
         if (remoteMessage.getNotification() != null) {
-            Log.e(TAG, "Titulo: " + remoteMessage.getNotification().getTitle());
-            Log.e(TAG, "Body: " + remoteMessage.getNotification().getBody());
+            Log.e(TAG, "Notification Title: " + remoteMessage.getNotification().getTitle());
+            Log.e(TAG, "Notification Body: " + remoteMessage.getNotification().getBody());
+        } else {
+            Log.e(TAG, "Notification object is NULL (Data-only push)");
         }
 
         if (remoteMessage.getData().size() > 0) {
@@ -28,9 +34,10 @@ public class MyFirebaseMessagingService extends MessagingService {
                 Log.e(TAG, "   " + entry.getKey() + " = " + entry.getValue());
             }
         }
+        Log.e(TAG, "Pasando mensaje al comportamiento original de Capacitor...");
         Log.e(TAG, "==========================================");
 
-        // Llamamos al super de Capacitor para que el push siga su curso normal
+        // Llamamos al super de Capacitor para no alterar la lógica
         super.onMessageReceived(remoteMessage);
     }
 
