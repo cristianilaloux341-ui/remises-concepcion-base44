@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
   const body = await req.json();
-  const { action, driverId, subscription, orderId, orderData, token, userId, fromName, messageContent, isBroadcast } = body;
+  const { action, driverId, subscription, orderId, orderData, token, userId, fromName, messageContent, isBroadcast, targetDriverId } = body;
 
   const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
   const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
