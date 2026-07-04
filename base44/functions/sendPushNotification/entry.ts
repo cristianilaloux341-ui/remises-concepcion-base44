@@ -312,7 +312,8 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               message: {
                 token: driver.fcm_token,
-                android: { priority: "high" },
+                notification: { title: String(title), body: String(body) },
+                android: { priority: "high", notification: { channel_id: "ride-alerts-urgent" } },
                 data: { 
                   action: "open_messages",
                   title: String(title),
@@ -408,7 +409,8 @@ Deno.serve(async (req) => {
                 body: JSON.stringify({
                   message: {
                     token: driver.fcm_token,
-                    android: { priority: "high" },
+                    notification: { title: String(title), body: String(body) },
+                    android: { priority: "high", notification: { channel_id: "ride-alerts-urgent" } },
                     data: { 
                       orderId: String(orderId), 
                       action: "open_ride",
