@@ -92,8 +92,13 @@ export default function CancellationAlert() {
               <p className="text-red-100 text-xs truncate">Reasignar móvil: {order.driver_name}</p>
             </div>
             <button
-              onClick={() => dismiss(order.id)}
-              className="text-red-200 hover:text-white transition-colors shrink-0"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dismiss(order.id);
+              }}
+              className="text-red-200 hover:text-white transition-colors shrink-0 relative z-10"
             >
               <X className="w-4 h-4" />
             </button>

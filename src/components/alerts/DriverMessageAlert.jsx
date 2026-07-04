@@ -127,8 +127,13 @@ export default function DriverMessageAlert() {
                 </div>
               </div>
               <button
-                onClick={() => dismiss(msg.id)}
-                className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  dismiss(msg.id);
+                }}
+                className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors relative z-10"
               >
                 <X className="w-4 h-4 text-white" />
               </button>
