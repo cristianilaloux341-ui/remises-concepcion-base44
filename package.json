@@ -9,7 +9,8 @@
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync:android": "npx cap sync android && node scripts/patch-android.js"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.35",
