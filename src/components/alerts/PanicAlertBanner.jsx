@@ -113,60 +113,15 @@ export default function PanicAlertBanner() {
   if (panics.length === 0) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-red-900/80 backdrop-blur-sm" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
-      <div className="w-full max-w-md space-y-3 max-h-screen overflow-y-auto py-2">
-        {panics.map((panic) => (
-          <div
-            key={panic.id}
-            className="bg-white rounded-3xl shadow-2xl overflow-hidden border-4 border-red-500 animate-in slide-in-from-top-8 fade-in duration-200"
-          >
-            {/* Header rojo pulsante */}
-            <div className="bg-red-600 px-5 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center animate-ping absolute" />
-                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center relative">
-                  <AlertTriangle className="w-7 h-7 text-white" />
-                </div>
-                <div>
-                  <p className="font-black text-white text-xl leading-tight tracking-wide">🚨 PÁNICO</p>
-                  <p className="text-red-100 text-xs font-bold uppercase tracking-widest">
-                    {panic.created_date ? format(new Date(panic.created_date), "HH:mm:ss") + " hs" : ""}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Cuerpo */}
-            <div className="p-5 space-y-4 bg-red-50">
-              <div className="text-center space-y-1">
-                <p className="text-3xl font-black text-red-700">{panic.driver_name}</p>
-                <p className="text-lg font-bold text-red-600 bg-red-100 rounded-xl py-1 px-3 inline-block">
-                  🚗 {panic.vehicle_plate}
-                </p>
-              </div>
-
-              {(panic.current_lat && panic.current_lng) && (
-                <a
-                  href={`https://www.google.com/maps?q=${panic.current_lat},${panic.current_lng}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 bg-white border border-red-200 rounded-2xl px-4 py-3 text-red-700 font-semibold text-sm hover:bg-red-50 transition-colors"
-                >
-                  <MapPin className="w-5 h-5 shrink-0" />
-                  Ver ubicación en el mapa
-                </a>
-              )}
-
-              <Button
-                className="w-full h-12 rounded-xl bg-red-600 hover:bg-red-700 font-black text-lg gap-2"
-                onClick={() => dismiss(panic)}
-              >
-                <X className="w-5 h-5" /> ATENDIDO — CERRAR ALERTA
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <>
+      {panics.map((panic) => (
+        <div
+          key={panic.id}
+          className="pointer-events-auto w-full bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-red-500 animate-in slide-in-from-right-8 fade-in duration-200 shrink-0"
+        >
+...
+        </div>
+      ))}
+    </>
   );
 }

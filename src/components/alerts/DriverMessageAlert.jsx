@@ -103,12 +103,11 @@ export default function DriverMessageAlert() {
   if (alerts.length === 0) return null;
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
-      <div className="w-full max-w-md space-y-3 max-h-screen overflow-y-auto py-2">
+    <>
         {alerts.map((msg) => (
           <div
             key={msg.id}
-            className="bg-white rounded-3xl shadow-2xl overflow-hidden border-4 border-blue-400 animate-in slide-in-from-bottom-8 fade-in duration-300"
+            className="pointer-events-auto w-full bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-blue-400 animate-in slide-in-from-right-8 fade-in duration-200 shrink-0"
           >
             {/* Header */}
             <div className="bg-blue-600 px-5 py-4 flex items-center justify-between">
@@ -169,13 +168,13 @@ export default function DriverMessageAlert() {
 
         {alerts.length > 1 && (
           <button
+            type="button"
             onClick={dismissAll}
-            className="w-full py-2.5 text-sm text-white/80 hover:text-white font-medium text-center"
+            className="pointer-events-auto w-full py-2 bg-blue-600/90 hover:bg-blue-600 rounded-xl text-sm text-white font-bold text-center shadow-lg animate-in fade-in"
           >
-            Cerrar todas ({alerts.length})
+            Cerrar {alerts.length} mensajes
           </button>
         )}
-      </div>
-    </div>
+    </>
   );
 }

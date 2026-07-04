@@ -74,10 +74,12 @@ export default function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <AgendaAlert />
-      <CancellationAlert />
-      <DriverMessageAlert />
-      <PanicAlertBanner />
+      <div className="fixed top-4 right-4 left-4 md:left-auto z-[9999] flex flex-col gap-3 pointer-events-none md:w-[380px] items-end" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        <PanicAlertBanner />
+        <CancellationAlert />
+        <AgendaAlert />
+        <DriverMessageAlert />
+      </div>
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="lg:pl-64" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>

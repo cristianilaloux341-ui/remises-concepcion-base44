@@ -78,11 +78,11 @@ export default function CancellationAlert() {
   if (alerts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-3 max-w-sm w-full">
+    <>
       {alerts.map((order) => (
         <div
           key={order.id}
-          className="bg-white border-2 border-red-400 rounded-2xl shadow-2xl shadow-red-500/20 overflow-hidden animate-in slide-in-from-right-8 fade-in duration-300"
+          className="pointer-events-auto w-full bg-white border-2 border-red-400 rounded-2xl shadow-xl shadow-red-500/20 overflow-hidden animate-in slide-in-from-right-8 fade-in duration-300 shrink-0"
         >
           {/* Header */}
           <div className="bg-red-500 px-4 py-3 flex items-center gap-2">
@@ -147,6 +147,6 @@ export default function CancellationAlert() {
           </div>
         </div>
       ))}
-    </div>
+    </>
   );
 }

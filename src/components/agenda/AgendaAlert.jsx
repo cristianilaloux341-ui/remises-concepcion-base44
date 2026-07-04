@@ -156,17 +156,14 @@ export default function AgendaAlert() {
   if (alerts.length === 0) return null;
 
   return (
-    // Overlay bloqueante que aparece por encima de todo
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
-      <div className="w-full max-w-md space-y-3 max-h-screen overflow-y-auto py-2">
-
+    <>
         {alerts.map((alert) => {
           const mins = minutesUntil(alert.scheduled_datetime);
           const hora = format(new Date(alert.scheduled_datetime), "HH:mm", { locale: es });
           return (
             <div
               key={alert.id}
-              className="bg-white rounded-3xl shadow-2xl overflow-hidden border-4 border-amber-400"
+              className="pointer-events-auto w-full bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-amber-400 animate-in slide-in-from-right-8 fade-in duration-200 shrink-0"
             >
               {/* Header llamativo */}
               <div className="bg-amber-500 px-5 py-4 flex items-center justify-between">
@@ -269,13 +266,13 @@ export default function AgendaAlert() {
 
         {alerts.length > 1 && (
           <button
+            type="button"
             onClick={dismissAll}
-            className="w-full py-2.5 text-sm text-white/80 hover:text-white font-medium text-center"
+            className="pointer-events-auto w-full py-2 bg-amber-500/90 hover:bg-amber-500 rounded-xl text-sm text-white font-bold text-center shadow-lg animate-in fade-in"
           >
-            Cerrar todas ({alerts.length})
+            Cerrar {alerts.length} alertas
           </button>
         )}
-      </div>
-    </div>
+    </>
   );
 }
