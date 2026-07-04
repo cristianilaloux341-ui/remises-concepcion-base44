@@ -19,7 +19,7 @@ function patchManifest() {
 
   let modified = false;
 
-  // Inyectar Permisos
+  // Inyectar Permisos de forma idempotente
   if (!content.includes('android.permission.FOREGROUND_SERVICE')) {
     content = content.replace(
       '</manifest>',
@@ -30,8 +30,8 @@ function patchManifest() {
     modified = true;
   }
 
-  // Inyectar Servicio
-  if (!content.includes('DriverForegroundService')) {
+  // Inyectar Servicio de forma idempotente
+  if (!content.includes('android:name=".DriverForegroundService"')) {
     content = content.replace(
       '</application>',
       `    <service
@@ -56,6 +56,7 @@ function patchMainActivity() {
     return;
   }
   let content = fs.readFileSync(mainActivityPath, 'utf8');
+  let modified = false;
 
   if (!content.includes('ForegroundServicePlugin.class')) {
     // Agregar Bundle import si no existe
@@ -73,11 +74,13 @@ function patchMainActivity() {
 
     if (content.includes('public class MainActivity extends BridgeActivity {')) {
       content = content.replace('public class MainActivity extends BridgeActivity {', 'public class MainActivity extends BridgeActivity {' + onCreateSnippet);
-      fs.writeFileSync(mainActivityPath, content);
-      console.log('✅ MainActivity.java parcheado correctamente para registrar el plugin nativo.');
-    } else {
-      console.error('❌ No se encontró la firma de MainActivity para parchear.');
+      modified = true;
     }
+  }
+
+  if (modified) {
+    fs.writeFileSync(mainActivityPath, content);
+    console.log('✅ MainActivity.java parcheado correctamente para registrar el plugin nativo.');
   } else {
     console.log('⚡ MainActivity.java ya estaba parcheado.');
   }
