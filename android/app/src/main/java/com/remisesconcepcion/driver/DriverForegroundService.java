@@ -19,13 +19,13 @@ public class DriverForegroundService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d("DriverForeground", "Service onCreate");
+        Log.e("PushDiagnostic", "DriverForegroundService: onCreate");
         createNotificationChannel();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d("DriverForeground", "Service onStartCommand - Conectado a la base");
+        Log.e("PushDiagnostic", "DriverForegroundService: onStartCommand - Conectado a la base");
 
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
@@ -55,7 +55,7 @@ public class DriverForegroundService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Log.d("DriverForeground", "Service onDestroy");
+        Log.e("PushDiagnostic", "DriverForegroundService: onDestroy");
     }
 
     @Override
