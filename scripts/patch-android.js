@@ -22,7 +22,8 @@ function findFile(dir, filename) {
 }
 
 function patchManifest() {
-  const manifestPath = findFile(androidDir, 'AndroidManifest.xml');
+  // Buscar específicamente en la carpeta del app principal para no confundir con plugins
+  const manifestPath = findFile(path.join(androidDir, 'app', 'src', 'main'), 'AndroidManifest.xml');
   
   if (!manifestPath) {
     console.error('❌ AndroidManifest.xml no encontrado en la carpeta android/. Asegurate de haber ejecutado "npx cap sync android" antes.');
@@ -64,7 +65,7 @@ function patchManifest() {
 }
 
 function patchMainActivity() {
-  const mainActivityPath = findFile(androidDir, 'MainActivity.java');
+  const mainActivityPath = findFile(path.join(androidDir, 'app', 'src', 'main', 'java'), 'MainActivity.java');
   
   if (!mainActivityPath) {
     console.error('❌ MainActivity.java no encontrado en la carpeta android/.');
