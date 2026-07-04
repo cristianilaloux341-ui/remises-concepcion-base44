@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { AlertTriangle, X, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
+import { motion } from "framer-motion";
 
 // ── Sonido de pánico ── fuerte, repetitivo, urgente
 let audioCtx = null;
@@ -115,12 +116,40 @@ export default function PanicAlertBanner() {
   return (
     <>
       {panics.map((panic) => (
-        <div
+        <motion.div
+          drag dragMomentum={false} style={{ touchAction: "none" }}
           key={panic.id}
           className="pointer-events-auto w-full bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-red-500 animate-in slide-in-from-right-8 fade-in duration-200 shrink-0"
         >
-...
-        </div>
+          <div className="bg-red-600 px-4 py-3 flex items-center gap-2">
+            <AlertTriangle className="w-6 h-6 text-white shrink-0 animate-pulse" />
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-white text-base leading-tight uppercase">¡ALERTA DE PÁNICO!</p>
+              <p className="text-red-100 text-xs font-bold truncate">Móvil: {panic.driver_name} ({panic.vehicle_plate})</p>
+            </div>
+          </div>
+          <div className="p-4 space-y-4">
+             {panic.current_lat && panic.current_lng ? (
+                <div className="flex items-center gap-2 bg-red-50 p-2 rounded-lg text-sm text-red-800 font-semibold">
+                  <MapPin className="w-4 h-4 text-red-600" /> 
+                  <a href={`https://www.google.com/maps?q=${panic.current_lat},${panic.current_lng}`} target="_blank" rel="noreferrer" className="underline underline-offset-2 decoration-red-300">
+                    Ver ubicación en mapa
+                  </a>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 italic">Sin ubicación reportada</p>
+              )}
+             <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  className="w-full rounded-xl bg-red-600 hover:bg-red-700 font-bold"
+                  onClick={() => dismiss(panic)}
+                >
+                  Marcar como Atendido
+                </Button>
+            </div>
+          </div>
+        </motion.div>
       ))}
     </>
   );

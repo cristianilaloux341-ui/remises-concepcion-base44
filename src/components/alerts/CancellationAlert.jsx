@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { XCircle, Car, MapPin, X } from "lucide-react";
 import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 
 // ── Audio ──────────────────────────────────────────────────────────────────────
 let audioCtx = null;
@@ -80,7 +81,8 @@ export default function CancellationAlert() {
   return (
     <>
       {alerts.map((order) => (
-        <div
+        <motion.div
+          drag dragMomentum={false} style={{ touchAction: "none" }}
           key={order.id}
           className="pointer-events-auto w-full bg-white border-2 border-red-400 rounded-2xl shadow-xl shadow-red-500/20 overflow-hidden animate-in slide-in-from-right-8 fade-in duration-300 shrink-0"
         >
@@ -145,7 +147,7 @@ export default function CancellationAlert() {
               </Button>
             </div>
           </div>
-        </div>
+        </motion.div>
       ))}
     </>
   );
