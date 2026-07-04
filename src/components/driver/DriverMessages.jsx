@@ -10,8 +10,9 @@ import { format } from "date-fns";
 const formatTimeBA = (dateStr) => {
   if (!dateStr) return "";
   try {
-    const d = new Date(dateStr);
-    return d.toLocaleTimeString("es-AR", { timeZone: "America/Buenos_Aires", hour: "2-digit", minute: "2-digit" });
+    const safeDateStr = dateStr.endsWith("Z") ? dateStr : dateStr + "Z";
+    const d = new Date(safeDateStr);
+    return d.toLocaleTimeString("es-AR", { timeZone: "America/Buenos_Aires", hour: "2-digit", minute: "2-digit", hour12: false });
   } catch(e) {
     return format(new Date(dateStr), "HH:mm");
   }

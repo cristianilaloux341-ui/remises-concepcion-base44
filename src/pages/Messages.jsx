@@ -8,6 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Send, Radio, User, MessageCircle, X } from "lucide-react";
 import { format } from "date-fns";
 
+const formatTimeBA = (dateStr) => {
+  if (!dateStr) return "";
+  try {
+    const safeDateStr = dateStr.endsWith("Z") ? dateStr : dateStr + "Z";
+    const d = new Date(safeDateStr);
+    return d.toLocaleTimeString("es-AR", { timeZone: "America/Buenos_Aires", hour: "2-digit", minute: "2-digit", hour12: false });
+  } catch(e) {
+    return format(new Date(dateStr), "HH:mm");
+  }
+};
+
 function playMsgSound() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -186,7 +197,7 @@ export default function Messages() {
                 </div>
                 <p className="text-sm">{msg.content}</p>
                 <p className={`text-xs ${isOperator ? "text-primary-foreground/60" : "text-muted-foreground"} text-right`}>
-                  {format(new Date(msg.created_date), "HH:mm")}
+                  {formatTimeBA(msg.created_date)}
                 </p>
               </div>
             </div>
