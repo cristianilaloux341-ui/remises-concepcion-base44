@@ -7,7 +7,7 @@ import com.google.firebase.messaging.RemoteMessage;
 import java.util.Map;
 
 public class MyFirebaseMessagingService extends MessagingService {
-    private static final String TAG = "FCM_TEST";
+    private static final String TAG = "PushDiagnostic";
 
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
