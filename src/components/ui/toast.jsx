@@ -35,13 +35,22 @@ const toastVariants = cva(
   }
 )
 
+import { motion } from "framer-motion"
+
 const Toast = React.forwardRef(({ className, variant, ...props }, ref) => {
   return (
     <ToastPrimitives.Root
       ref={ref}
-      className={cn(toastVariants({ variant }), className)}
+      asChild
       {...props}
-    />
+    >
+      <motion.li
+        drag
+        dragMomentum={false}
+        className={cn(toastVariants({ variant }), className)}
+        style={{ touchAction: "none" }}
+      />
+    </ToastPrimitives.Root>
   )
 })
 Toast.displayName = ToastPrimitives.Root.displayName
