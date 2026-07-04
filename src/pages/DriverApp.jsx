@@ -15,6 +15,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
+const ForegroundService = registerPlugin('ForegroundService');
 import RideMap from "@/components/map/RideMap";
 import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
@@ -1591,6 +1592,17 @@ export default function DriverApp() {
       driverName: myDriver?.name || null,
     });
   }, [myDriverId, myDriver?.name]);
+
+  // Iniciar/Detener el Foreground Service nativo según el estado del chofer
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      if (myDriverId && myDriver && myDriver.status !== "no_disponible") {
+        ForegroundService.startService().catch(e => console.log("[ForegroundService] Start Error:", e));
+      } else {
+        ForegroundService.stopService().catch(e => console.log("[ForegroundService] Stop Error:", e));
+      }
+    }
+  }, [myDriverId, myDriver?.status]);
 
   // Mostrar guía de batería la primera vez que el chofer entra en servicio
   useEffect(() => {
