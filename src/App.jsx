@@ -91,9 +91,12 @@ const AuthenticatedApp = () => {
   // Seguridad: Validar User-Agent (Contenedor Electron)
   const isDesktopApp = navigator.userAgent.includes('RemisesConcepcion-AdminApp');
   const isDriverApp = location.pathname === '/driver-app' || location.pathname.startsWith('/driver-app');
-  // Parametro bypass: permite entrar desde la web si pasamos ?admin_bypass=supersecreto123 en la URL
+  // Parametro bypass: guardamos el permiso en localStorage para que no se pierda al redireccionar
   const urlParams = new URLSearchParams(window.location.search);
-  const isDevBypass = urlParams.get('admin_bypass') === 'supersecreto123';
+  if (urlParams.get('admin_bypass') === 'supersecreto123') {
+    localStorage.setItem('admin_bypass', 'true');
+  }
+  const isDevBypass = localStorage.getItem('admin_bypass') === 'true';
 
   if (!isDriverApp && !isDesktopApp && !isDevBypass) {
     return <DesktopOnlyError />;
