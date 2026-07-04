@@ -91,8 +91,9 @@ const AuthenticatedApp = () => {
   // Seguridad: Validar User-Agent (Contenedor Electron)
   const isDesktopApp = navigator.userAgent.includes('RemisesConcepcion-AdminApp');
   const isDriverApp = location.pathname === '/driver-app' || location.pathname.startsWith('/driver-app');
-  // Parametro bypass solo para poder seguir editando la web en este editor temporalmente (?dev=1)
-  const isDevBypass = false; // Acceso web cerrado nuevamente
+  // Parametro bypass: permite entrar desde la web si pasamos ?admin_bypass=supersecreto123 en la URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const isDevBypass = urlParams.get('admin_bypass') === 'supersecreto123';
 
   if (!isDriverApp && !isDesktopApp && !isDevBypass) {
     return <DesktopOnlyError />;
