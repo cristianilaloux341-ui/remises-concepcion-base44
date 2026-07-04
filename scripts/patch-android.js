@@ -1,22 +1,35 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const manifestPath = path.resolve(__dirname, '../android/app/src/main/AndroidManifest.xml');
-const mainActivityPath = path.resolve(__dirname, '../android/app/src/main/java/com/remisesconcepcion/driver/MainActivity.java');
+const projectRoot = process.cwd();
+const androidDir = path.join(projectRoot, 'android');
 
 console.log('Iniciando parcheo automático de Android...');
 
+function findFile(dir, filename) {
+  if (!fs.existsSync(dir)) return null;
+  const files = fs.readdirSync(dir);
+  for (const file of files) {
+    const fullPath = path.join(dir, file);
+    if (fs.statSync(fullPath).isDirectory()) {
+      const found = findFile(fullPath, filename);
+      if (found) return found;
+    } else if (file === filename) {
+      return fullPath;
+    }
+  }
+  return null;
+}
+
 function patchManifest() {
-  if (!fs.existsSync(manifestPath)) {
-    console.error('❌ AndroidManifest.xml no encontrado. Asegurate de haber ejecutado "npx cap add android" o "npx cap sync android" antes.');
+  const manifestPath = findFile(androidDir, 'AndroidManifest.xml');
+  
+  if (!manifestPath) {
+    console.error('❌ AndroidManifest.xml no encontrado en la carpeta android/. Asegurate de haber ejecutado "npx cap sync android" antes.');
     return;
   }
+  console.log('📄 Encontrado AndroidManifest.xml en:', manifestPath);
   let content = fs.readFileSync(manifestPath, 'utf8');
-
   let modified = false;
 
   // Inyectar Permisos de forma idempotente
@@ -51,10 +64,14 @@ function patchManifest() {
 }
 
 function patchMainActivity() {
-  if (!fs.existsSync(mainActivityPath)) {
-    console.error('❌ MainActivity.java no encontrado.');
+  const mainActivityPath = findFile(androidDir, 'MainActivity.java');
+  
+  if (!mainActivityPath) {
+    console.error('❌ MainActivity.java no encontrado en la carpeta android/.');
     return;
   }
+  console.log('📄 Encontrado MainActivity.java en:', mainActivityPath);
+  
   let content = fs.readFileSync(mainActivityPath, 'utf8');
   let modified = false;
 
