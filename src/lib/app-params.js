@@ -44,7 +44,7 @@ const getAppParams = () => {
 		token: getAppParamValue("access_token", { removeFromUrl: true }),
 		fromUrl: getAppParamValue("from_url", { defaultValue: window.location.href }),
 		functionsVersion: "v1",
-		appBaseUrl: "https://base44.app",
+		appBaseUrl: typeof window !== 'undefined' ? window.location.origin : "",
 	}
 }
 

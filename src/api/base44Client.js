@@ -1,7 +1,7 @@
 import { createClient } from '@base44/sdk';
 import { appParams } from '@/lib/app-params';
 
-const { appId, token, functionsVersion, appBaseUrl } = appParams;
+const { appId, token, functionsVersion } = appParams;
 
 //Create a client with authentication required
 export const base44 = createClient({
@@ -9,6 +9,6 @@ export const base44 = createClient({
   token,
   functionsVersion: "v1",
   serverUrl: "https://base44.app",
-  appBaseUrl: "https://base44.app",
+  appBaseUrl: typeof window !== 'undefined' ? window.location.origin : "",
   requiresAuth: false,
 });
