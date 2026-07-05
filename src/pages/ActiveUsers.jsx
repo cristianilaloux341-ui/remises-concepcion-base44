@@ -20,7 +20,7 @@ export default function ActiveUsers() {
   const { toast } = useToast();
 
   const localOperator = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
-  let effectiveRole = localOperator ? localOperator.role : user?.role;
+  let effectiveRole = localOperator ? (localOperator.rol || localOperator.role) : user?.role;
   if (effectiveRole === "Administrador General") effectiveRole = "admin";
   if (effectiveRole === "Supervisor") effectiveRole = "supervisor";
   if (effectiveRole === "Operador") effectiveRole = "operador";
@@ -175,7 +175,7 @@ export default function ActiveUsers() {
                       <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                       <div>
                         <p className="font-semibold text-sm">{op.name}</p>
-                        <p className="text-xs text-muted-foreground uppercase">{op.role}</p>
+                        <p className="text-xs text-muted-foreground uppercase">{op.rol || op.role}</p>
                       </div>
                     </div>
                     <span className="text-xs text-muted-foreground">
@@ -266,7 +266,7 @@ export default function ActiveUsers() {
                         {op.name}
                         <div className="text-xs text-muted-foreground font-normal">{op.phone}</div>
                       </td>
-                      <td className="px-4 py-3 uppercase text-xs font-semibold">{op.role}</td>
+                      <td className="px-4 py-3 uppercase text-xs font-semibold">{op.rol || op.role}</td>
                       <td className="px-4 py-3 font-mono font-bold tracking-widest text-base">
                         {showPins ? (op.pin || <span className="text-gray-400 text-sm tracking-normal italic">No tiene</span>) : "••••"}
                       </td>

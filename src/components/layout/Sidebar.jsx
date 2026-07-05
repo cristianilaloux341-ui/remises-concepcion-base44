@@ -63,7 +63,7 @@ export default function Sidebar({ open, onClose }) {
   const [switchOpen, setSwitchOpen] = useState(false);
 
   const displayUser = localOperator || user;
-  let effectiveRole = localOperator?.role || user?.role || "operador";
+  let effectiveRole = localOperator?.rol || localOperator?.role || user?.role || "operador";
   if (effectiveRole === "Administrador General") effectiveRole = "admin";
   if (effectiveRole === "Supervisor") effectiveRole = "supervisor";
   if (effectiveRole === "Operador") effectiveRole = "operador";

@@ -126,7 +126,7 @@ export default function OrderDetail() {
           {(() => {
             try {
               const op = JSON.parse(localStorage.getItem("local_operator") || "null");
-              if (op?.role === "admin" || op?.role === "Administrador General") {
+              if (op?.rol === "Administrador General" || op?.role === "admin" || op?.rol === "admin") {
                 return (
                   <Button
                     variant="destructive"

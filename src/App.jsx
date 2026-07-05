@@ -61,7 +61,8 @@ function AdminRoute({ children, allowRoles = ["admin"] }) {
   const localOperator = (() => {
     try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; }
   })();
-  let effectiveRole = localOperator ? localOperator.role : user?.role;
+  // Asegurar que leemos 'rol' en español para UsuariosSistema o 'role' viejo
+  let effectiveRole = localOperator ? (localOperator.rol || localOperator.role) : user?.role;
   if (effectiveRole === "Administrador General") effectiveRole = "admin";
   if (effectiveRole === "Supervisor") effectiveRole = "supervisor";
   if (effectiveRole === "Operador") effectiveRole = "operador";
