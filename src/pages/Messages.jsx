@@ -62,7 +62,7 @@ export default function Messages() {
 
     const connect = () => {
       unsubscribe?.();
-      unsubscribe = base44.entities.Message.subscribe((event) => {
+      unsubscribe = base44.entities.Message.subscribe(async (event) => {
         lastEvent = Date.now();
         if (event.type === "create") {
           if (seenIdsRef.current.has(event.id)) return;
@@ -74,12 +74,12 @@ export default function Messages() {
             setToast({ from_name: event.data.from_name, content: event.data.content, id: event.id });
             clearTimeout(toastTimerRef.current);
             toastTimerRef.current = setTimeout(() => setToast(null), 5000);
-            // Enviar push real a todos los operadores (para cuando tienen pantalla bloqueada)
-            base44.functions.invoke("sendPushNotification", {
+            // Enviar push real a todos los operadores (bloqueante para asegurar salida)
+            await base44.functions.invoke("sendPushNotification", {
               action: "send_to_operators",
               fromName: event.data.from_name,
               messageContent: event.data.content,
-            }).catch(() => {});
+            }).catch(e => console.error("Push Error (Operators):", e));
           }
         } else if (event.type === "update") {
           setMessages(prev => prev.map(m => m.id === event.id ? { ...m, ...event.data } : m));
@@ -120,7 +120,7 @@ export default function Messages() {
         action: "send_message",
         targetDriverId: targetDriverId === "todos" ? "" : targetDriverId,
         messageContent: content.trim()
-      }).catch(() => {});
+      }).catch(e => console.error("Push send_message error:", e));
       return newMsg;
     },
     onSuccess: () => setContent(""),

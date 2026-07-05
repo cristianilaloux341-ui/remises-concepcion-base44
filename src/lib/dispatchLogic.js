@@ -82,8 +82,8 @@ export async function assignDriverToOrder(order, driver) {
     offered_driver_ids: [...(order.offered_driver_ids || []), driver.id],
   });
 
-  // Enviar notificación push real al dispositivo del chofer (no bloqueante)
-  base44.functions.invoke("sendPushNotification", {
+  // Enviar notificación push real al dispositivo del chofer (bloqueante para asegurar salida)
+  await base44.functions.invoke("sendPushNotification", {
     action: "send",
     driverId: driver.id,
     orderId: order.id,
@@ -92,13 +92,13 @@ export async function assignDriverToOrder(order, driver) {
       dropoff_address: order.dropoff_address,
       fare: order.fare,
     },
-  }).catch(() => {});
+  }).catch((e) => console.error("Push Error:", e));
 
-  // Timeout automático ampliado: 60s para evitar caídas prematuras por ahorro de batería
-  base44.functions.invoke("autoReassignOnTimeout", {
+  // Timeout automático ampliado: 60s
+  await base44.functions.invoke("autoReassignOnTimeout", {
     orderId: order.id,
     timeoutSeconds: 60,
-  }).catch(() => {});
+  }).catch((e) => console.error("Timeout Error:", e));
 }
 
 // Broadcast: marcar el pedido como "pendiente_broadcast" para que TODOS los disponibles lo vean
@@ -115,7 +115,7 @@ export async function broadcastOrder(order, drivers = []) {
 
   // Notificar a todos los móviles disponibles
   const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
-  availableDrivers.forEach(driver => {
+  await Promise.all(availableDrivers.map(driver => 
     base44.functions.invoke("sendPushNotification", {
       action: "send",
       driverId: driver.id,
@@ -126,8 +126,8 @@ export async function broadcastOrder(order, drivers = []) {
         fare: order.fare,
       },
       isBroadcast: true
-    }).catch(() => {});
-  });
+    }).catch(e => console.error("Broadcast Push Error:", e))
+  ));
 }
 
 // Auto-dispatch: intenta asignar por zona; si no hay nadie → broadcast
