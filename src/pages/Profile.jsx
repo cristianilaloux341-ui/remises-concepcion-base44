@@ -24,7 +24,7 @@ export default function Profile() {
       localStorage.clear();
       // Logout and redirect
       await logout(false);
-      window.location.href = "/";
+      window.location.href = "/login";
     } catch (e) {
       setDeleteError("No se pudo eliminar la cuenta. Contactá al administrador.");
       setDeleting(false);
@@ -52,7 +52,12 @@ export default function Profile() {
               <p className="text-xs text-muted-foreground capitalize">{localOperator?.role === "admin" || localOperator?.role === "Administrador General" ? "Directivo" : localOperator ? "Operador" : user?.role === "admin" ? "Directivo" : "Operador"}</p>
             </div>
           </div>
-          <Button variant="outline" className="w-full gap-2" onClick={() => logout()}>
+          <Button variant="outline" className="w-full gap-2" onClick={() => {
+            localStorage.removeItem("local_operator");
+            localStorage.removeItem("admin_bypass");
+            logout(false);
+            window.location.href = "/login";
+          }}>
             <LogOut className="w-4 h-4" /> Cerrar Sesión
           </Button>
         </CardContent>
