@@ -121,7 +121,7 @@ const AuthenticatedApp = () => {
   }
 
   if (authError) {
-    if (authError.type === 'user_not_registered') {
+    if (authError.type === 'user_not_registered' && !isLoginCentral && !isDriverApp) {
       return <UserNotRegisteredError />;
     }
     // Para auth_required y otros errores: dejamos que las rutas manejen la redirección

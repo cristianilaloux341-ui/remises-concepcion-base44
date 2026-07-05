@@ -22,7 +22,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
     setDispatching(true);
     await autoDispatch(order, drivers, bases);
     
-    const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+    const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
     base44.entities.AuditLog.create({
       action: "asignar_viaje",
       user_type: localOp?.role || "operador",
@@ -75,7 +75,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       }
     }
 
-    const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+    const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
 
     if (driver) {
       await assignDriverToOrder(order, driver);

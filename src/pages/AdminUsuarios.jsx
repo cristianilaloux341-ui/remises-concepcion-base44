@@ -18,7 +18,7 @@ export default function AdminUsuarios() {
 
   const getAdminId = () => {
     try {
-      const op = JSON.parse(localStorage.getItem('local_operator'));
+      const op = JSON.parse(sessionStorage.getItem('local_operator'));
       return op?.id;
     } catch { return null; }
   };

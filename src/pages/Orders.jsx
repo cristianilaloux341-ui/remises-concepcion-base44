@@ -17,7 +17,7 @@ export default function Orders() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   
-  const localOperator = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+  const localOperator = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
   let effectiveRole = localOperator ? (localOperator.rol || localOperator.role) : user?.role;
   if (effectiveRole === "Administrador General") effectiveRole = "admin";
   if (effectiveRole === "Supervisor") effectiveRole = "supervisor";

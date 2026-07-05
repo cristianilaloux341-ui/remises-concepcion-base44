@@ -389,7 +389,7 @@ export default function Drivers() {
   const resetDeviceMutation = useMutation({
     mutationFn: (id) => base44.entities.Driver.update(id, { device_id: null, current_session_token: null }),
     onSuccess: () => {
-      const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+      const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
       base44.entities.AuditLog.create({
         action: "resetear_dispositivo",
         user_type: "admin",

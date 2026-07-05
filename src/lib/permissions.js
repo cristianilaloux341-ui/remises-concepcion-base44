@@ -94,7 +94,7 @@ const ACTION_PERMISSIONS = {
  */
 export function getLocalOperator() {
   try {
-    return JSON.parse(localStorage.getItem("local_operator") || "null");
+    return JSON.parse(sessionStorage.getItem("local_operator") || "null");
   } catch {
     return null;
   }

@@ -360,7 +360,7 @@ export default function Moviles() {
         : base44.entities.Movil.create(data);
     },
     onSuccess: () => { 
-      const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+      const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
       base44.entities.AuditLog.create({
         action: editing ? "editar_movil" : "alta_movil",
         user_type: localOp?.role || "operador",

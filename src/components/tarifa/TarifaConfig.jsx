@@ -95,7 +95,7 @@ export default function TarifaConfigPanel() {
       }
     },
     onSuccess: () => {
-      const localOp = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+      const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
       base44.entities.AuditLog.create({
         action: "modificar_tarifa",
         user_type: "admin",
