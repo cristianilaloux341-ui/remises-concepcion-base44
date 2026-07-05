@@ -1,0 +1,55 @@
+{
+  "name": "UsuariosSistema",
+  "type": "object",
+  "properties": {
+    "nombre": {
+      "type": "string",
+      "description": "Nombre y apellido"
+    },
+    "telefono": {
+      "type": "string",
+      "description": "N\u00famero de tel\u00e9fono celular (\u00fanico)"
+    },
+    "pin_hash": {
+      "type": "string",
+      "description": "Hash del c\u00f3digo de acceso (nunca texto plano)"
+    },
+    "rol": {
+      "type": "string",
+      "enum": [
+        "Administrador General",
+        "Supervisor",
+        "Operador"
+      ],
+      "default": "Operador"
+    },
+    "activo": {
+      "type": "boolean",
+      "default": true
+    },
+    "ultimo_acceso": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "nombre",
+    "telefono",
+    "pin_hash",
+    "rol"
+  ],
+  "rls": {
+    "read": false,
+    "create": {
+      "user_condition": {
+        "role": "impossible_role"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "impossible_role"
+      }
+    },
+    "delete": false
+  }
+}
