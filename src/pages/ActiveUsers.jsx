@@ -33,7 +33,24 @@ export default function ActiveUsers() {
 
   const { data: operators = [], isLoading: isLoadingOp } = useQuery({
     queryKey: ["operators_active"],
-    queryFn: () => base44.entities.Operator.list(),
+    queryFn: async () => {
+      try {
+        const admin_id = localOperator ? localOperator.id : null;
+        const res = await base44.functions.invoke('authSystem', {
+          action: 'manage_users',
+          payload: { sub_action: 'list', admin_id }
+        });
+        return res.data?.success ? res.data.usuarios.map(u => ({
+          ...u,
+          name: u.nombre,
+          phone: u.telefono,
+          role: u.rol === "Administrador General" ? "admin" : (u.rol === "Supervisor" ? "supervisor" : "operador"),
+          last_active: u.ultimo_acceso
+        })) : [];
+      } catch (e) {
+        return [];
+      }
+    },
     refetchInterval: tab === "online" ? 15000 : false,
   });
 
@@ -58,7 +75,21 @@ export default function ActiveUsers() {
   });
 
   const toggleOperator = useMutation({
-    mutationFn: ({id, active}) => base44.entities.Operator.update(id, { active }),
+    mutationFn: async ({id, active}) => {
+      const admin_id = localOperator ? localOperator.id : null;
+      const op = operators.find(x => x.id === id);
+      if (!op) throw new Error("Operador no encontrado");
+      const res = await base44.functions.invoke('authSystem', {
+        action: 'manage_users',
+        payload: { 
+          sub_action: 'update', 
+          admin_id, 
+          data: { id, nombre: op.nombre, telefono: op.telefono, rol: op.rol, activo: active } 
+        }
+      });
+      if (!res.data?.success) throw new Error("Error al actualizar");
+      return res.data;
+    },
     onSuccess: (_, {id, active}) => {
       const op = operators.find(x => x.id === id);
       base44.entities.AuditLog.create({
