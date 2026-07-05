@@ -14,10 +14,8 @@ import BaseQueueManager, { QuickAssignInput } from "@/components/operator/BaseQu
 import DispatchPanel from "@/components/operator/DispatchPanel";
 import { reassignAfterReject } from "@/lib/dispatchLogic";
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function Dashboard() {
@@ -167,22 +165,6 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Top Bar for Quick Assign */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-purple-50 border border-purple-200 p-3 rounded-xl">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-purple-500 text-white rounded-lg shadow-sm">
-            <Users className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-purple-900 leading-none">Chóferes en Posición: {availableDrivers.length}</h2>
-            <p className="text-xs text-purple-700 font-medium">Asignación rápida a bases</p>
-          </div>
-        </div>
-        <div className="w-full sm:w-80">
-          <QuickAssignInput drivers={drivers} moviles={moviles} />
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Map */}
         <div className="xl:col-span-2">
@@ -231,6 +213,23 @@ export default function Dashboard() {
           <Users className="w-5 h-5" />
           Colas por Base
         </h2>
+        
+        {/* Top Bar for Quick Assign - Posición de Choferes */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-3 rounded-xl mb-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-yellow-500 text-slate-900 rounded-lg shadow-sm">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white leading-none">Chóferes en Posición: {availableDrivers.length}</h2>
+              <p className="text-xs text-slate-400 font-medium">Asignación rápida a bases</p>
+            </div>
+          </div>
+          <div className="w-full sm:w-80">
+            <QuickAssignInput drivers={drivers} moviles={moviles} />
+          </div>
+        </div>
+
         <BaseQueueManager drivers={drivers} moviles={moviles} />
       </div>
 

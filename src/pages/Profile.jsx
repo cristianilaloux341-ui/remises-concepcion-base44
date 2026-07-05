@@ -44,10 +44,10 @@ export default function Profile() {
         <CardContent className="space-y-3">
           <div className="flex items-center gap-3 p-3 bg-muted rounded-xl">
             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <span className="text-primary font-bold text-lg">{(displayUser?.name || displayUser?.full_name || "U").charAt(0)}</span>
+              <span className="text-primary font-bold text-lg">{(displayUser?.nombre || displayUser?.name || displayUser?.full_name || "U").charAt(0)}</span>
             </div>
             <div>
-              <p className="font-semibold">{displayUser?.name || displayUser?.full_name || "Usuario"}</p>
+              <p className="font-semibold">{displayUser?.nombre || displayUser?.name || displayUser?.full_name || "Usuario"}</p>
               <p className="text-sm text-muted-foreground">{displayUser?.email || displayUser?.phone || ""}</p>
               <p className="text-xs text-muted-foreground capitalize">{displayUser?.rol || displayUser?.role || "Operador"}</p>
             </div>

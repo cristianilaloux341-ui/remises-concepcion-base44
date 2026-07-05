@@ -120,7 +120,7 @@ export default function Sidebar({ open, onClose }) {
             </div>
             <div className="min-w-0">
               <p className="font-semibold text-sm text-sidebar-foreground truncate">
-                {displayUser?.name || displayUser?.full_name || displayUser?.email || "Usuario"}
+                {displayUser?.nombre || displayUser?.name || displayUser?.full_name || displayUser?.email || "Usuario"}
               </p>
               <p className="text-xs text-sidebar-foreground/50">
                 {ROLE_LABELS[effectiveRole] || effectiveRole}
