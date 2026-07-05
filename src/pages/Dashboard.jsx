@@ -167,6 +167,22 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* Top Bar for Quick Assign */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-purple-50 border border-purple-200 p-3 rounded-xl">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-purple-500 text-white rounded-lg shadow-sm">
+            <Users className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-purple-900 leading-none">Chóferes en Posición: {availableDrivers.length}</h2>
+            <p className="text-xs text-purple-700 font-medium">Asignación rápida a bases</p>
+          </div>
+        </div>
+        <div className="w-full sm:w-80">
+          <QuickAssignInput drivers={drivers} moviles={moviles} />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Map */}
         <div className="xl:col-span-2">
@@ -209,23 +225,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Base Queues with integrated Quick Assign Bar */}
+      {/* Base Queues */}
       <div>
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4 bg-purple-50 border border-purple-200 p-3 rounded-xl">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-500 text-white rounded-lg shadow-sm">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-purple-900 leading-none">Chóferes en Posición: {availableDrivers.length}</h2>
-              <p className="text-xs text-purple-700 font-medium">Asignación rápida de móviles a bases</p>
-            </div>
-          </div>
-          <div className="w-full sm:w-80">
-            <QuickAssignInput drivers={drivers} moviles={moviles} />
-          </div>
-        </div>
-        
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Users className="w-5 h-5" />
+          Colas por Base
+        </h2>
         <BaseQueueManager drivers={drivers} moviles={moviles} />
       </div>
 
