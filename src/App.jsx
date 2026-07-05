@@ -7,10 +7,6 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
-import Login from '@/pages/Login';
-import Register from '@/pages/Register';
-import ForgotPassword from '@/pages/ForgotPassword';
-import ResetPassword from '@/pages/ResetPassword';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 
 import AppLayout from '@/components/layout/AppLayout';
@@ -30,7 +26,6 @@ import ZoneSettings from '@/pages/ZoneSettings';
 import Tarifas from '@/pages/Tarifas';
 import Moviles from '@/pages/Moviles';
 import TiempoEspera from '@/pages/TiempoEspera';
-import Usuarios from '@/pages/Usuarios';
 import Backup from '@/pages/Backup';
 import AuditLogs from '@/pages/AuditLogs';
 import ActiveUsers from '@/pages/ActiveUsers';
@@ -97,7 +92,7 @@ const AuthenticatedApp = () => {
   // Seguridad: Validar User-Agent (Contenedor Electron)
   const isDesktopApp = navigator.userAgent.includes('RemisesConcepcion-AdminApp');
   const isDriverApp = location.pathname === '/driver-app' || location.pathname.startsWith('/driver-app');
-  const isLoginCentral = location.pathname === '/login-central';
+  const isLoginCentral = location.pathname === '/login';
   
   // Parametro bypass: guardamos el permiso en localStorage para que no se pierda al redireccionar
   const urlParams = new URLSearchParams(window.location.search);
@@ -138,11 +133,7 @@ const AuthenticatedApp = () => {
 
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/login-central" element={<LoginCentral />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/login" element={<LoginCentral />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       
       {/* Driver mobile app - public, no login needed */}
@@ -164,7 +155,6 @@ const AuthenticatedApp = () => {
           <Route path="/tarifas" element={<AdminRoute allowRoles={["admin"]}><Tarifas /></AdminRoute>} />
           <Route path="/moviles" element={<AdminRoute allowRoles={["admin","supervisor"]}><Moviles /></AdminRoute>} />
           <Route path="/tiempo-espera" element={<AdminRoute allowRoles={["admin"]}><TiempoEspera /></AdminRoute>} />
-          <Route path="/usuarios" element={<AdminRoute allowRoles={["admin"]}><Usuarios /></AdminRoute>} />
           <Route path="/admin/usuarios" element={<AdminRoute allowRoles={["admin", "Administrador General"]}><AdminUsuarios /></AdminRoute>} />
           <Route path="/backup" element={<AdminRoute allowRoles={["admin"]}><Backup /></AdminRoute>} />
           <Route path="/audit" element={<AdminRoute allowRoles={["admin"]}><AuditLogs /></AdminRoute>} />

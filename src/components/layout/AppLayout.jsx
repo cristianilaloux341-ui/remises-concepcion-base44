@@ -63,7 +63,15 @@ export default function AppLayout() {
       try {
         const op = JSON.parse(localStorage.getItem("local_operator"));
         if (op && op.id) {
-          base44.entities.Operator.update(op.id, { last_active: new Date().toISOString() }).catch(()=>{});
+          // Usamos una API function call o ignoramos si no tenemos auth.
+          // El presence lo actualizamos directamente si tenemos base44 funcionando.
+          // Como ahora usan UsuariosSistema, vamos a llamar a una simple func o directo si se permite.
+          // Pero UsuariosSistema tiene RLS update: { role: impossible }. 
+          // Entonces debemos actualizarlo desde authSystem u otro backend function.
+          base44.functions.invoke('authSystem', {
+            action: 'manage_users',
+            payload: { sub_action: 'update_presence', admin_id: op.id }
+          }).catch(()=>{});
         }
       } catch (e) {}
     };

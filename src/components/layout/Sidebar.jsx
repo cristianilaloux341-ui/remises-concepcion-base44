@@ -17,8 +17,7 @@ const NAV_BY_ROLE = {
     { label: "Mensajes",      path: "/messages",      icon: MessageSquare },
     { label: "Mapa",          path: "/map",           icon: MapPin },
     // Administración
-    { label: "Usuarios (Legacy)", path: "/usuarios",      icon: UserCog,       section: "Administración" },
-    { label: "Seguridad y Accesos", path: "/admin/usuarios",  icon: Shield },
+    { label: "Usuarios del Sistema", path: "/admin/usuarios",  icon: Shield, section: "Administración" },
     { label: "Chóferes",      path: "/drivers",       icon: Users },
     { label: "Móviles",       path: "/moviles",       icon: Car },
     { label: "Tiempo Espera", path: "/tiempo-espera", icon: Timer },

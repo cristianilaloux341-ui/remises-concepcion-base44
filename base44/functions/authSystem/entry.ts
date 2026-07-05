@@ -128,6 +128,15 @@ Deno.serve(async (req) => {
         return Response.json({ success: true, usuario_id: newUser.id });
       }
 
+      if (sub_action === "update_presence") {
+        if (admin_id) {
+          await base44.asServiceRole.entities.UsuariosSistema.update(admin_id, {
+            ultimo_acceso: new Date().toISOString()
+          }).catch(()=>{});
+        }
+        return Response.json({ success: true });
+      }
+
       if (sub_action === "update") {
         const updateData = {
           nombre: data.nombre,
