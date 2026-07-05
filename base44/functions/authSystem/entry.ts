@@ -83,10 +83,24 @@ Deno.serve(async (req) => {
     if (action === "manage_users") {
       const { sub_action, admin_id, data } = payload;
       
-      // Verificar si quien ejecuta es admin (esto debería validarse con un JWT real, pero simplificamos con admin_id por ahora)
-      const adminData = await base44.asServiceRole.entities.UsuariosSistema.get(admin_id);
-      if (!adminData || adminData.rol !== "Administrador General" || !adminData.activo) {
-        return Response.json({ error: "Acceso denegado. Se requiere rol de Administrador General." }, { status: 403 });
+      // Verificar si quien ejecuta es admin. Soportamos tanto el viejo sistema (auth.me) como el nuevo (admin_id).
+      let isAuthorized = false;
+      if (admin_id) {
+        const adminData = await base44.asServiceRole.entities.UsuariosSistema.get(admin_id).catch(() => null);
+        if (adminData && adminData.rol === "Administrador General" && adminData.activo) {
+          isAuthorized = true;
+        }
+      }
+      
+      if (!isAuthorized) {
+        const user = await base44.auth.me().catch(() => null);
+        if (user && user.role === "admin") {
+          isAuthorized = true;
+        }
+      }
+
+      if (!isAuthorized) {
+        return Response.json({ error: "Acceso denegado. Se requiere rol de Administrador General o Admin." }, { status: 403 });
       }
 
       if (sub_action === "list") {
