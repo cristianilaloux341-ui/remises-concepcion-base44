@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw, Timer, UserCog, HardDriveDownload, Settings, Eye, ShoppingBag, Shield } from "lucide-react";
+import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw, Timer, UserCog, HardDriveDownload, Settings, Eye, ShoppingBag, Shield, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
@@ -56,7 +56,7 @@ const NAV_BY_ROLE = {
 
 export default function Sidebar({ open, onClose }) {
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [localOperator, setLocalOperator] = useState(() => {
     try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; }
   });
@@ -180,6 +180,17 @@ export default function Sidebar({ open, onClose }) {
               Perfil y Ajustes
             </Button>
           </Link>
+          <Button 
+            variant="ghost" 
+            onClick={() => {
+              onClose();
+              logout();
+            }}
+            className="w-full gap-2 rounded-xl h-9 text-red-500 hover:text-red-600 hover:bg-red-500/10 justify-start"
+          >
+            <LogOut className="w-4 h-4" />
+            Cerrar Sesión
+          </Button>
         </div>
 
         <SwitchUserModal
