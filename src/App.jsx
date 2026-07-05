@@ -176,6 +176,7 @@ const AuthenticatedApp = () => {
 };
 
 function App() {
+  // Cache buster: Forzando actualización de la app pública
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
