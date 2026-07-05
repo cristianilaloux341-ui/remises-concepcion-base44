@@ -184,8 +184,8 @@ export default function Messages() {
             <div key={msg.id} className={`flex ${isOperator ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 space-y-1 ${
                 isOperator
-                  ? "bg-primary text-primary-foreground rounded-br-sm"
-                  : "bg-white border border-border rounded-bl-sm"
+                  ? "bg-slate-900 text-white rounded-br-sm"
+                  : "bg-white text-slate-900 border border-border rounded-bl-sm"
               }`}>
                 <div className="flex items-center gap-2 text-xs opacity-75">
                   <User className="w-3 h-3" />
@@ -196,7 +196,7 @@ export default function Messages() {
                   )}
                 </div>
                 <p className="text-sm">{msg.content}</p>
-                <p className={`text-xs ${isOperator ? "text-primary-foreground/60" : "text-muted-foreground"} text-right`}>
+                <p className={`text-xs ${isOperator ? "text-slate-400" : "text-muted-foreground"} text-right`}>
                   {formatTimeBA(msg.created_date)}
                 </p>
               </div>

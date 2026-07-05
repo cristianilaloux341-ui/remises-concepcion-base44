@@ -173,7 +173,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
                         </span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">
-                            {nroMovil && <span className="text-primary font-bold mr-1">#{nroMovil}</span>}
+                            {nroMovil && <span className="text-slate-900 font-black mr-1">#{nroMovil}</span>}
                             {driver.name}
                           </p>
                         </div>
