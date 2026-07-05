@@ -353,12 +353,12 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
   return (
     <Input 
       ref={quickInputRef}
-      placeholder={isProcessing ? "Asignando..." : "móvil.base (12.3) o móvil.0"} 
+      placeholder={isProcessing ? "Asignando..." : "móvil.base (ej: 12.3) o salir (ej: 12.0)"} 
       value={quickInput}
       onChange={(e) => setQuickInput(e.target.value)}
       onKeyDown={handleQuickAssign}
       disabled={isProcessing}
-      className="bg-white text-slate-900 font-medium text-xs h-8 disabled:opacity-50 placeholder:text-slate-400"
+      className="bg-white text-black font-bold text-sm h-10 border-2 border-purple-300 disabled:opacity-50 placeholder:text-slate-600 shadow-sm"
     />
   );
 }
