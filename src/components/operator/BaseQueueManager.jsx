@@ -358,7 +358,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       onChange={(e) => setQuickInput(e.target.value)}
       onKeyDown={handleQuickAssign}
       disabled={isProcessing}
-      className="bg-white text-xs h-8 disabled:opacity-50"
+      className="bg-white text-slate-900 font-medium text-xs h-8 disabled:opacity-50 placeholder:text-slate-400"
     />
   );
 }
