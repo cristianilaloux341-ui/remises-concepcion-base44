@@ -58,12 +58,12 @@ export default function Sidebar({ open, onClose }) {
   const location = useLocation();
   const { user } = useAuth();
   const [localOperator, setLocalOperator] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; }
+    try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; }
   });
   const [switchOpen, setSwitchOpen] = useState(false);
 
   const displayUser = localOperator || user;
-  let effectiveRole = localOperator?.rol || localOperator?.role || user?.role || "operador";
+  let effectiveRole = localOperator?.rol || localOperator?.role || "operador";
   if (effectiveRole === "Administrador General") effectiveRole = "admin";
   if (effectiveRole === "Supervisor") effectiveRole = "supervisor";
   if (effectiveRole === "Operador") effectiveRole = "operador";
@@ -78,7 +78,7 @@ export default function Sidebar({ open, onClose }) {
 
   const handleSwitchSuccess = (op) => {
     setLocalOperator(op);
-    localStorage.setItem("local_operator", JSON.stringify(op));
+    sessionStorage.setItem("local_operator", JSON.stringify(op));
     setSwitchOpen(false);
     onClose();
     window.location.href = "/";

@@ -108,8 +108,8 @@ export const AuthProvider = ({ children }) => {
   const logout = (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem("local_operator");
-    localStorage.removeItem("admin_bypass");
+    sessionStorage.removeItem("local_operator");
+    sessionStorage.removeItem("local_operator_token");
     
     // NUNCA ir a Base44. Forzar siempre redirección al login local del sistema.
     base44.auth.logout(window.location.origin + "/login");

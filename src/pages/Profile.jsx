@@ -12,7 +12,7 @@ export default function Profile() {
   const [deleteError, setDeleteError] = useState("");
 
   const localOperator = (() => {
-    try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; }
+    try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; }
   })();
   const displayUser = localOperator || user;
 
@@ -21,7 +21,7 @@ export default function Profile() {
     setDeleteError("");
     try {
       // Clear local data
-      localStorage.clear();
+      sessionStorage.clear();
       // Logout and redirect
       await logout(false);
       window.location.href = "/login";
@@ -53,8 +53,8 @@ export default function Profile() {
             </div>
           </div>
           <Button variant="outline" className="w-full gap-2" onClick={() => {
-            localStorage.removeItem("local_operator");
-            localStorage.removeItem("admin_bypass");
+            sessionStorage.removeItem("local_operator");
+            sessionStorage.removeItem("local_operator_token");
             logout(false);
             window.location.href = "/login";
           }}>

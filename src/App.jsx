@@ -59,10 +59,10 @@ class DriverAppErrorBoundary extends Component {
 function AdminRoute({ children, allowRoles = ["admin"] }) {
   const { user } = useAuth();
   const localOperator = (() => {
-    try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; }
+    try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; }
   })();
   // Asegurar que leemos 'rol' en español para UsuariosSistema o 'role' viejo
-  let effectiveRole = localOperator ? (localOperator.rol || localOperator.role) : user?.role;
+  let effectiveRole = localOperator ? (localOperator.rol || localOperator.role) : null;
   if (effectiveRole === "Administrador General") effectiveRole = "admin";
   if (effectiveRole === "Supervisor") effectiveRole = "supervisor";
   if (effectiveRole === "Operador") effectiveRole = "operador";
@@ -95,16 +95,12 @@ const AuthenticatedApp = () => {
   const isDriverApp = location.pathname === '/driver-app' || location.pathname.startsWith('/driver-app');
   const isLoginCentral = location.pathname === '/login';
   
-  // Parametro bypass: guardamos el permiso en localStorage para que no se pierda al redireccionar
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get('admin_bypass') === 'supersecreto123') {
-    localStorage.setItem('admin_bypass', 'true');
-  }
-  const isDevBypass = localStorage.getItem('admin_bypass') === 'true';
-  const hasLocalOperator = localStorage.getItem('local_operator') !== null;
+  const hasLocalOperator = sessionStorage.getItem('local_operator') !== null;
 
-  if (!isDriverApp && !isLoginCentral && !isDesktopApp && !isDevBypass && !hasLocalOperator) {
-    return <DesktopOnlyError />;
+  if (!isDriverApp && !isLoginCentral && !hasLocalOperator) {
+    // Si no está logueado en el sistema interno, lo mandamos directo a login
+    window.location.href = "/login";
+    return null;
   }
 
   // Driver app is fully public - render immediately without any auth checks

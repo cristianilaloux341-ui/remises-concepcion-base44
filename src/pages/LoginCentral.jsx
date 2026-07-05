@@ -28,8 +28,8 @@ export default function LoginCentral() {
       });
 
       if (response.data?.success) {
-        localStorage.setItem("local_operator", JSON.stringify(response.data.usuario));
-        localStorage.setItem("local_operator_token", response.data.token);
+        sessionStorage.setItem("local_operator", JSON.stringify(response.data.usuario));
+        sessionStorage.setItem("local_operator_token", response.data.token);
         // Redirigir al inicio
         window.location.href = "/";
       } else {
