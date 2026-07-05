@@ -105,9 +105,14 @@ export function getLocalOperator() {
  */
 export function getEffectiveRole(platformUser) {
   const op = getLocalOperator();
-  if (op?.role) return op.role;
-  if (platformUser?.role) return platformUser.role;
-  return "operador";
+  let role = op?.rol || op?.role || platformUser?.role || "operador";
+  
+  // Mapear los roles en español de UsuariosSistema a las claves internas
+  if (role === "Administrador General") role = "admin";
+  if (role === "Supervisor") role = "supervisor";
+  if (role === "Operador") role = "operador";
+  
+  return role;
 }
 
 /**
