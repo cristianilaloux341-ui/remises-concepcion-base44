@@ -66,6 +66,8 @@ export default function Sidebar({ open, onClose }) {
   const displayUser = localOperator || user;
   let effectiveRole = localOperator?.role || user?.role || "operador";
   if (effectiveRole === "Administrador General") effectiveRole = "admin";
+  if (effectiveRole === "Supervisor") effectiveRole = "supervisor";
+  if (effectiveRole === "Operador") effectiveRole = "operador";
   const navItems = NAV_BY_ROLE[effectiveRole] || NAV_BY_ROLE["operador"];
 
   // Separar items en secciones

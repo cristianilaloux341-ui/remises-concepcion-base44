@@ -20,7 +20,10 @@ export default function ActiveUsers() {
   const { toast } = useToast();
 
   const localOperator = (() => { try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; } })();
-  const effectiveRole = localOperator ? localOperator.role : user?.role;
+  let effectiveRole = localOperator ? localOperator.role : user?.role;
+  if (effectiveRole === "Administrador General") effectiveRole = "admin";
+  if (effectiveRole === "Supervisor") effectiveRole = "supervisor";
+  if (effectiveRole === "Operador") effectiveRole = "operador";
   const isAdmin = effectiveRole === "admin";
 
   useEffect(() => {

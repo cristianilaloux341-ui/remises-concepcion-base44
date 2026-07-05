@@ -49,7 +49,7 @@ export default function Profile() {
             <div>
               <p className="font-semibold">{displayUser?.name || displayUser?.full_name || "Usuario"}</p>
               <p className="text-sm text-muted-foreground">{displayUser?.email || displayUser?.phone || ""}</p>
-              <p className="text-xs text-muted-foreground capitalize">{localOperator?.role === "admin" ? "Directivo" : localOperator ? "Operador" : user?.role === "admin" ? "Directivo" : "Operador"}</p>
+              <p className="text-xs text-muted-foreground capitalize">{localOperator?.role === "admin" || localOperator?.role === "Administrador General" ? "Directivo" : localOperator ? "Operador" : user?.role === "admin" ? "Directivo" : "Operador"}</p>
             </div>
           </div>
           <Button variant="outline" className="w-full gap-2" onClick={() => logout()}>
