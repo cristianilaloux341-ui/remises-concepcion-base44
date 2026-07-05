@@ -111,8 +111,11 @@ export const AuthProvider = ({ children }) => {
     sessionStorage.removeItem("local_operator");
     sessionStorage.removeItem("local_operator_token");
     
-    // NUNCA ir a Base44. Forzar siempre redirección al login local del sistema.
-    base44.auth.logout(window.location.origin + "/login");
+    // Evitar llamar a base44.auth.logout que redirige al login de plataforma.
+    // Solo redirigimos localmente.
+    if (shouldRedirect) {
+      window.location.href = "/login";
+    }
   };
 
   const navigateToLogin = () => {
