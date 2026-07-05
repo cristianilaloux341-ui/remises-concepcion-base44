@@ -37,6 +37,8 @@ import ActiveUsers from '@/pages/ActiveUsers';
 import Profile from '@/pages/Profile';
 import DesktopOnlyError from '@/components/DesktopOnlyError';
 import { Capacitor } from '@capacitor/core';
+import LoginCentral from '@/pages/LoginCentral';
+import AdminUsuarios from '@/pages/AdminUsuarios';
 
 class DriverAppErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -130,6 +132,7 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/login-central" element={<LoginCentral />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
@@ -155,6 +158,7 @@ const AuthenticatedApp = () => {
           <Route path="/moviles" element={<AdminRoute allowRoles={["admin","supervisor"]}><Moviles /></AdminRoute>} />
           <Route path="/tiempo-espera" element={<AdminRoute allowRoles={["admin"]}><TiempoEspera /></AdminRoute>} />
           <Route path="/usuarios" element={<AdminRoute allowRoles={["admin"]}><Usuarios /></AdminRoute>} />
+          <Route path="/admin/usuarios" element={<AdminRoute allowRoles={["admin", "Administrador General"]}><AdminUsuarios /></AdminRoute>} />
           <Route path="/backup" element={<AdminRoute allowRoles={["admin"]}><Backup /></AdminRoute>} />
           <Route path="/audit" element={<AdminRoute allowRoles={["admin"]}><AuditLogs /></AdminRoute>} />
           <Route path="/active-users" element={<AdminRoute allowRoles={["admin", "supervisor"]}><ActiveUsers /></AdminRoute>} />

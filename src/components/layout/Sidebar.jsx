@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw, Timer, UserCog, HardDriveDownload, Settings, Eye, ShoppingBag } from "lucide-react";
+import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw, Timer, UserCog, HardDriveDownload, Settings, Eye, ShoppingBag, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
@@ -17,7 +17,8 @@ const NAV_BY_ROLE = {
     { label: "Mensajes",      path: "/messages",      icon: MessageSquare },
     { label: "Mapa",          path: "/map",           icon: MapPin },
     // Administración
-    { label: "Usuarios",      path: "/usuarios",      icon: UserCog,       section: "Administración" },
+    { label: "Usuarios (Legacy)", path: "/usuarios",      icon: UserCog,       section: "Administración" },
+    { label: "Seguridad y Accesos", path: "/admin/usuarios",  icon: Shield },
     { label: "Chóferes",      path: "/drivers",       icon: Users },
     { label: "Móviles",       path: "/moviles",       icon: Car },
     { label: "Tiempo Espera", path: "/tiempo-espera", icon: Timer },
@@ -63,7 +64,8 @@ export default function Sidebar({ open, onClose }) {
   const [switchOpen, setSwitchOpen] = useState(false);
 
   const displayUser = localOperator || user;
-  const effectiveRole = localOperator?.role || user?.role || "operador";
+  let effectiveRole = localOperator?.role || user?.role || "operador";
+  if (effectiveRole === "Administrador General") effectiveRole = "admin";
   const navItems = NAV_BY_ROLE[effectiveRole] || NAV_BY_ROLE["operador"];
 
   // Separar items en secciones
