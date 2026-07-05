@@ -143,8 +143,7 @@ export default function Dashboard() {
   const stats = [
     { title: "Activos", value: activeOrders.length, icon: Car, color: "bg-blue-500" },
     { title: "Pendientes", value: pendingOrders.length, icon: Clock, color: "bg-amber-500" },
-    { title: "Completados Hoy", value: completedToday.length, icon: CheckCircle2, color: "bg-green-500" },
-    { title: "Chóferes en Posición", value: availableDrivers.length, icon: Users, color: "bg-purple-500" },
+    { title: "Completados Hoy", value: completedToday.length, icon: CheckCircle2, color: "bg-green-500" }
   ];
 
   return (
@@ -162,13 +161,9 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {stats.map((stat) => (
-          <StatCard key={stat.title} {...stat}>
-            {stat.title === "Chóferes en Posición" && (
-              <QuickAssignInput drivers={drivers} moviles={moviles} />
-            )}
-          </StatCard>
+          <StatCard key={stat.title} {...stat} />
         ))}
       </div>
 
@@ -213,6 +208,24 @@ export default function Dashboard() {
           </Card>
         </div>
       </div>
+
+      {/* Quick Assign Bar */}
+      <Card className="bg-slate-50 border-slate-200">
+        <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-500/10 rounded-lg">
+              <Users className="w-5 h-5 text-purple-500" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Móviles Disponibles</p>
+              <p className="text-xs text-slate-500">{availableDrivers.length} choferes en posición</p>
+            </div>
+          </div>
+          <div className="w-full sm:w-1/3">
+            <QuickAssignInput drivers={drivers} moviles={moviles} />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Base Queues */}
       <div>
