@@ -10,41 +10,15 @@ const DefaultFallback = () => (
 );
 
 function getLocalOperator() {
-  try { return JSON.parse(localStorage.getItem("local_operator") || "null"); } catch { return null; }
+  try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; }
 }
 
 export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthenticatedElement }) {
-  const { isAuthenticated, isLoadingAuth, authChecked, authError, checkUserAuth } = useAuth();
-
   const localOperator = getLocalOperator();
   const isLocallyAuthenticated = !!(localOperator && localOperator.active !== false);
 
-  useEffect(() => {
-    if (!authChecked && !isLoadingAuth) {
-      checkUserAuth();
-    }
-  }, [authChecked, isLoadingAuth, checkUserAuth]);
-
-  // Si hay operador local válido, dejar pasar siempre
-  if (isLocallyAuthenticated) {
-    return <Outlet />;
-  }
-
-  if (isLoadingAuth || !authChecked) {
-    return fallback;
-  }
-
-  if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    }
-    if (authError.type === 'auth_required') {
-      return unauthenticatedElement;
-    }
-    return <Outlet />;
-  }
-
-  if (!isAuthenticated) {
+  // Si no hay operador local validado con PIN, no entra nadie (ni siquiera el admin de Base44)
+  if (!isLocallyAuthenticated) {
     return unauthenticatedElement;
   }
 

@@ -61,7 +61,7 @@ export default function AppLayout() {
   useEffect(() => {
     const updatePresence = () => {
       try {
-        const op = JSON.parse(localStorage.getItem("local_operator"));
+        const op = JSON.parse(sessionStorage.getItem("local_operator"));
         if (op && op.id) {
           // Usamos una API function call o ignoramos si no tenemos auth.
           // El presence lo actualizamos directamente si tenemos base44 funcionando.
