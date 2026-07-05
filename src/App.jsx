@@ -56,16 +56,11 @@ class DriverAppErrorBoundary extends Component {
   }
 }
 
+import { getEffectiveRole } from '@/lib/permissions';
+
 function AdminRoute({ children, allowRoles = ["admin"] }) {
   const { user } = useAuth();
-  const localOperator = (() => {
-    try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; }
-  })();
-  // Asegurar que leemos 'rol' en español para UsuariosSistema o 'role' viejo
-  let effectiveRole = localOperator ? (localOperator.rol || localOperator.role) : null;
-  if (effectiveRole === "Administrador General") effectiveRole = "admin";
-  if (effectiveRole === "Supervisor") effectiveRole = "supervisor";
-  if (effectiveRole === "Operador") effectiveRole = "operador";
+  const effectiveRole = getEffectiveRole(user);
   
   if (!allowRoles.includes(effectiveRole)) return <Navigate to="/" replace />;
   return children;
@@ -152,7 +147,7 @@ const AuthenticatedApp = () => {
           <Route path="/tarifas" element={<AdminRoute allowRoles={["admin"]}><Tarifas /></AdminRoute>} />
           <Route path="/moviles" element={<AdminRoute allowRoles={["admin","supervisor"]}><Moviles /></AdminRoute>} />
           <Route path="/tiempo-espera" element={<AdminRoute allowRoles={["admin"]}><TiempoEspera /></AdminRoute>} />
-          <Route path="/admin/usuarios" element={<AdminRoute allowRoles={["admin", "Administrador General"]}><AdminUsuarios /></AdminRoute>} />
+          <Route path="/admin/usuarios" element={<AdminRoute allowRoles={["admin"]}><AdminUsuarios /></AdminRoute>} />
           <Route path="/backup" element={<AdminRoute allowRoles={["admin"]}><Backup /></AdminRoute>} />
           <Route path="/audit" element={<AdminRoute allowRoles={["admin"]}><AuditLogs /></AdminRoute>} />
           <Route path="/active-users" element={<AdminRoute allowRoles={["admin", "supervisor"]}><ActiveUsers /></AdminRoute>} />

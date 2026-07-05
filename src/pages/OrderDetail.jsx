@@ -2,6 +2,8 @@ import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { getEffectiveRole } from "@/lib/permissions";
+import { useAuth } from "@/lib/AuthContext";
 import { useRealtimeOrders, useRealtimeDrivers } from "@/lib/useRealtimeOrders";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +15,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 export default function OrderDetail() {
+  const { user } = useAuth();
   const urlParams = new URLSearchParams(window.location.search);
   const orderId = window.location.pathname.split("/").pop();
   const navigate = useNavigate();
@@ -125,8 +128,7 @@ export default function OrderDetail() {
           )}
           {(() => {
             try {
-              const op = JSON.parse(sessionStorage.getItem("local_operator") || "null");
-              if (op?.rol === "Administrador General" || op?.role === "admin" || op?.rol === "admin") {
+              if (getEffectiveRole(user) === "admin") {
                 return (
                   <Button
                     variant="destructive"

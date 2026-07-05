@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Activity, Car, Users, ShieldAlert, Smartphone, Ban, Eye, EyeOff, CheckCircle2, Trash2, ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { usePermissions } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -20,10 +21,7 @@ export default function ActiveUsers() {
   const { toast } = useToast();
 
   const localOperator = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
-  let effectiveRole = localOperator ? (localOperator.rol || localOperator.role) : user?.role;
-  if (effectiveRole === "Administrador General") effectiveRole = "admin";
-  if (effectiveRole === "Supervisor") effectiveRole = "supervisor";
-  if (effectiveRole === "Operador") effectiveRole = "operador";
+  const { role: effectiveRole } = usePermissions(user);
   const isAdmin = effectiveRole === "admin";
 
   useEffect(() => {

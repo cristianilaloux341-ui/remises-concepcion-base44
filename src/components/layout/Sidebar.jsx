@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
 import SwitchUserModal from "./SwitchUserModal";
-import { ROLE_LABELS } from "@/lib/permissions";
+import { ROLE_LABELS, getEffectiveRole } from "@/lib/permissions";
 
 // Items visibles por rol
 const NAV_BY_ROLE = {
@@ -63,10 +63,7 @@ export default function Sidebar({ open, onClose }) {
   const [switchOpen, setSwitchOpen] = useState(false);
 
   const displayUser = localOperator || user;
-  let effectiveRole = localOperator?.rol || localOperator?.role || "operador";
-  if (effectiveRole === "Administrador General") effectiveRole = "admin";
-  if (effectiveRole === "Supervisor") effectiveRole = "supervisor";
-  if (effectiveRole === "Operador") effectiveRole = "operador";
+  const effectiveRole = getEffectiveRole(user);
   const navItems = NAV_BY_ROLE[effectiveRole] || NAV_BY_ROLE["operador"];
 
   // Separar items en secciones

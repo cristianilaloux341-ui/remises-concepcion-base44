@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Search } from "lucide-react";
 import OrderCard from "@/components/orders/OrderCard";
 import { useAuth } from "@/lib/AuthContext";
+import { usePermissions } from "@/lib/permissions";
 import { useMutation } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 
@@ -18,10 +19,7 @@ export default function Orders() {
   const { user } = useAuth();
   
   const localOperator = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
-  let effectiveRole = localOperator ? (localOperator.rol || localOperator.role) : user?.role;
-  if (effectiveRole === "Administrador General") effectiveRole = "admin";
-  if (effectiveRole === "Supervisor") effectiveRole = "supervisor";
-  if (effectiveRole === "Operador") effectiveRole = "operador";
+  const { role: effectiveRole } = usePermissions(user);
   const isAdmin = effectiveRole === "admin";
 
   const [search, setSearch] = useState("");
