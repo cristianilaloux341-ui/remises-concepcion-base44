@@ -108,19 +108,31 @@ export default function OrderDetail() {
             <Button
               size="sm"
               className="gap-2 bg-green-600 hover:bg-green-700"
-              onClick={() => updateMutation.mutate({ id: order.id, data: { status: "pendiente" } })}
+              onClick={() => updateMutation.mutate({ id: order.id, data: { status: "pendiente", driver_id: null, driver_name: null } })}
             >
               <RefreshCw className="w-4 h-4" /> Reactivar
             </Button>
           ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
-              onClick={cancelOrder}
-            >
-              <XCircle className="w-4 h-4" /> Cancelar
-            </Button>
+            <>
+              {order.status !== "pendiente" && order.status !== "completado" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => updateMutation.mutate({ id: order.id, data: { status: "pendiente", driver_id: null, driver_name: null } })}
+                >
+                  <RefreshCw className="w-4 h-4" /> Volver a Pendiente
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
+                onClick={cancelOrder}
+              >
+                <XCircle className="w-4 h-4" /> Cancelar
+              </Button>
+            </>
           )}
           {(() => {
             try {
