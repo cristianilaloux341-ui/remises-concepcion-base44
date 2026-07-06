@@ -392,11 +392,16 @@ export default function Drivers() {
     queryFn: () => base44.entities.Movil.list(),
   });
 
-  // Busca el móvil por patente del chofer
-  const getMovil = (driver) =>
-    moviles.find(m => m.dominio && driver.vehicle_plate &&
+  // Busca el móvil por ID guardado o por patente del chofer (legacy)
+  const getMovil = (driver) => {
+    if (driver.vehicle_model) {
+      const m = moviles.find(x => x.id === driver.vehicle_model);
+      if (m) return m;
+    }
+    return moviles.find(m => m.dominio && driver.vehicle_plate &&
       m.dominio.replace(/\s/g,"").toUpperCase() === driver.vehicle_plate.replace(/\s/g,"").toUpperCase()
     );
+  };
 
   const createMutation = useMutation({
     mutationFn: (data) => {
