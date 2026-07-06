@@ -76,7 +76,7 @@ function FitBounds({ bounds }) {
   const map = useMap();
   useEffect(() => {
     if (bounds && bounds.length > 0) {
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+      try { map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15, animate: false }); } catch (e) {}
     }
   }, [bounds, map]);
   return null;
@@ -86,7 +86,7 @@ function CenterMap({ centerOn, zoom }) {
   const map = useMap();
   useEffect(() => {
     if (centerOn && centerOn.length === 2) {
-      map.setView(centerOn, zoom || 15);
+      try { map.setView(centerOn, zoom || 15, { animate: false }); } catch (e) {}
     }
   }, [centerOn, map, zoom]);
   return null;
@@ -95,18 +95,16 @@ function CenterMap({ centerOn, zoom }) {
 function InvalidateSize() {
   const map = useMap();
   useEffect(() => {
-    // Forzar recálculo en móviles — inmediato + diferido para cubrir transiciones
-    map.invalidateSize();
-    const t1 = setTimeout(() => map.invalidateSize(), 200);
-    const t2 = setTimeout(() => map.invalidateSize(), 800);
+    try { if (map?._container) map.invalidateSize(false); } catch (e) {}
+    const t1 = setTimeout(() => { try { if (map?._container) map.invalidateSize(false); } catch (e) {} }, 200);
+    const t2 = setTimeout(() => { try { if (map?._container) map.invalidateSize(false); } catch (e) {} }, 800);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [map]);
 
   useEffect(() => {
-    // Re-invalidar cuando la pestaña vuelve al frente (background → foreground)
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        setTimeout(() => map.invalidateSize(), 300);
+        setTimeout(() => { try { if (map?._container) map.invalidateSize(false); } catch (e) {} }, 300);
       }
     };
     document.addEventListener("visibilitychange", onVisible);
