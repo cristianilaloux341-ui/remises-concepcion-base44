@@ -590,7 +590,7 @@ Deno.serve(async (req) => {
                       driverId: String(driverId),
                       driverName: String(driver.name || ""),
                       base: String(driver.current_base || ""),
-                      apiUrl: `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/sendPushNotification`,
+                      apiUrl: `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/sendPushNotification/invoke`,
                       action: "open_ride",
                       title: String(title),
                       body: String(body),
