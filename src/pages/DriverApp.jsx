@@ -606,6 +606,28 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
 
 // ── Incoming ride alert ───────────────────────────────────────────────────────
 function IncomingAlert({ order, onAccept, onReject }) {
+  const [isValid, setIsValid] = useState(null); // null = checking
+
+  useEffect(() => {
+    let mounted = true;
+    base44.entities.RideOrder.get(order.id).then(fresh => {
+      if (mounted) {
+        if (fresh && fresh.status === 'ofrecido') {
+          setIsValid(true);
+        } else {
+          setIsValid(false);
+          window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+        }
+      }
+    }).catch(() => {
+      if (mounted) setIsValid(true);
+    });
+    return () => { mounted = false; };
+  }, [order.id]);
+
+  if (isValid === false) return null;
+  if (isValid === null) return <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center"><div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>;
+
   return (
     <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
@@ -689,7 +711,30 @@ function IncomingAlert({ order, onAccept, onReject }) {
 
 // ── Broadcast alert (sin zona / primero en aceptar gana) ─────────────────────
 function BroadcastAlert({ order, onAccept, onReject }) {
+  const [isValid, setIsValid] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    base44.entities.RideOrder.get(order.id).then(fresh => {
+      if (mounted) {
+        if (fresh && fresh.status === 'pendiente' && !fresh.driver_id) {
+          setIsValid(true);
+        } else {
+          setIsValid(false);
+          window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+        }
+      }
+    }).catch(() => {
+      if (mounted) setIsValid(true);
+    });
+    return () => { mounted = false; };
+  }, [order.id]);
+
   const cleanNotes = (order.notes || "").replace(/^\[BROADCAST\]\s*/, "").trim();
+
+  if (isValid === false) return null;
+  if (isValid === null) return <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm"></div>;
+
   return (
     <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
@@ -1438,7 +1483,15 @@ export default function DriverApp() {
       if (document.visibilityState === "visible") {
         unlockAudio(); // Reforzar el lock de audio al ver la app
         if (ref.current) {
-          playAlert();
+          base44.entities.RideOrder.get(ref.current.id).then(fresh => {
+             if (fresh && fresh.status === 'ofrecido') {
+                 playAlert();
+             } else {
+                 window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+             }
+          }).catch(() => {
+             playAlert();
+          });
         }
       }
     };
@@ -1703,14 +1756,22 @@ export default function DriverApp() {
       // Escuchar FCM (foreground/background)
       PushNotifications.addListener('pushNotificationReceived', (notification) => {
         console.log("[FCM] Push recibido:", notification);
+        const data = notification.data || notification.notification?.data || {};
         
-        // No programamos alertas locales nativas extras cuando la app está abierta en Android (foreground).
-        // Dejamos que React evalúe el estado local y dibuje el modal en pantalla completa (IncomingAlert)
-        // igual que lo hace en la web.
-        playAlert();
-
-        // Forzar reconexión de WebSocket y fetch
-        window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+        if (data.orderId) {
+            base44.entities.RideOrder.get(data.orderId).then(fresh => {
+                if (fresh && (fresh.status === 'ofrecido' || fresh.status === 'pendiente')) {
+                    playAlert();
+                }
+                window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+            }).catch(() => {
+                playAlert();
+                window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+            });
+        } else {
+            playAlert();
+            window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+        }
       });
     }
   }, []);
@@ -1745,19 +1806,28 @@ export default function DriverApp() {
     // 1. Evaluate Offered
     if (offered) {
       if (offered.id !== prevOfferedId.current) {
-        console.log("[Alert-Background] ¡Viaje ofrecido detectado imperativamente!");
+        console.log("[Alert-Background] Verificando si el viaje ofrecido es real...");
         prevOfferedId.current = offered.id;
-        playAlert();
-        
-        if (Capacitor.isNativePlatform()) {
-          console.log("[Alert-Background] Viaje ofrecido detectado. El modal de React (IncomingAlert) se mostrará en pantalla.");
-        } else {
-          sendSystemNotification(offered);
-          notifySW({ type: "SHOW_NOTIFICATION", order: offered });
-        }
-
-        clearInterval(alertIntervalRef.current);
-        alertIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+        base44.entities.RideOrder.get(offered.id).then(fresh => {
+           if (fresh && fresh.status === 'ofrecido') {
+              playAlert();
+              if (Capacitor.isNativePlatform()) {
+                console.log("[Alert-Background] Viaje ofrecido real.");
+              } else {
+                sendSystemNotification(offered);
+                notifySW({ type: "SHOW_NOTIFICATION", order: offered });
+              }
+              clearInterval(alertIntervalRef.current);
+              alertIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+           } else {
+              prevOfferedId.current = null;
+              window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+           }
+        }).catch(() => {
+           playAlert();
+           clearInterval(alertIntervalRef.current);
+           alertIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+        });
       }
     } else {
       if (prevOfferedId.current) {
@@ -1774,18 +1844,25 @@ export default function DriverApp() {
     // 2. Evaluate Broadcast
     if (broadcast && !offered) {
       if (broadcast.id !== prevBroadcastId.current) {
-        console.log("[Alert-Background] ¡Viaje broadcast detectado imperativamente!");
+        console.log("[Alert-Background] Verificando viaje broadcast...");
         prevBroadcastId.current = broadcast.id;
-        playAlert();
-        
-        if (Capacitor.isNativePlatform()) {
-          console.log("[Alert-Background] Viaje broadcast detectado. El modal de React se mostrará en pantalla.");
-        } else {
-          sendSystemNotification(broadcast);
-        }
-
-        clearInterval(broadcastIntervalRef.current);
-        broadcastIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+        base44.entities.RideOrder.get(broadcast.id).then(fresh => {
+           if (fresh && fresh.status === 'pendiente' && !fresh.driver_id) {
+              playAlert();
+              if (!Capacitor.isNativePlatform()) {
+                sendSystemNotification(broadcast);
+              }
+              clearInterval(broadcastIntervalRef.current);
+              broadcastIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+           } else {
+              prevBroadcastId.current = null;
+              window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+           }
+        }).catch(() => {
+           playAlert();
+           clearInterval(broadcastIntervalRef.current);
+           broadcastIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+        });
       }
     } else {
       if (prevBroadcastId.current) {
