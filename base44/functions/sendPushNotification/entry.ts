@@ -218,18 +218,28 @@ Deno.serve(async (req) => {
   const { action, driverId, subscription, orderId, orderData, token, userId, fromName, messageContent, isBroadcast, targetDriverId } = body;
 
   if (action === 'native_accept') {
-    const { driverName, base } = body;
-    await base44.asServiceRole.entities.RideOrder.update(orderId, { 
-       status: "aceptado", 
-       driver_id: driverId,
-       driver_name: driverName,
-       assigned_base: base
-    });
-    await base44.asServiceRole.entities.Driver.update(driverId, { status: "en_viaje" });
-    return Response.json({ ok: true });
+    console.log("=> ACCIÓN NATIVA: ACEPTAR RECIBIDA.");
+    console.log("=> Payload:", { orderId, driverId, driverName: body.driverName, base: body.base });
+    try {
+      const { driverName, base } = body;
+      await base44.asServiceRole.entities.RideOrder.update(orderId, { 
+         status: "aceptado", 
+         driver_id: driverId,
+         driver_name: driverName,
+         assigned_base: base
+      });
+      await base44.asServiceRole.entities.Driver.update(driverId, { status: "en_viaje" });
+      console.log("=> ACCIÓN NATIVA ACEPTAR: ÉXITO. Viaje y chofer actualizados.");
+      return Response.json({ ok: true });
+    } catch (error) {
+      console.error("=> ERROR EN ACCIÓN NATIVA ACEPTAR:", error.message);
+      return Response.json({ error: error.message }, { status: 500 });
+    }
   }
 
   if (action === 'native_reject') {
+    console.log("=> ACCIÓN NATIVA: RECHAZAR RECIBIDA.");
+    console.log("=> Payload:", { orderId, driverId });
     const order = await base44.asServiceRole.entities.RideOrder.get(orderId);
     if (order) {
       const offered = order.offered_driver_ids || [];
@@ -580,7 +590,7 @@ Deno.serve(async (req) => {
                       driverId: String(driverId),
                       driverName: String(driver.name || ""),
                       base: String(driver.current_base || ""),
-                      apiUrl: `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/sendPushNotification/invoke`,
+                      apiUrl: `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/sendPushNotification`,
                       action: "open_ride",
                       title: String(title),
                       body: String(body),
