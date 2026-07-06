@@ -174,7 +174,8 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       {/* Selector manual */}
       <div className="flex gap-2">
         <input 
-          className="flex-1 h-8 text-sm font-bold text-black rounded-lg border border-input px-3 bg-white placeholder:text-gray-500 placeholder:font-normal"
+          className="flex-1 h-8 text-base font-extrabold text-slate-900 rounded-lg border-2 border-slate-400 px-3 bg-white placeholder:text-slate-500 placeholder:font-normal"
+          style={{ color: "#000000", backgroundColor: "#ffffff" }}
           placeholder="Nº o Nombre para asignar..."
           value={selectedDriverId}
           onChange={(e) => setSelectedDriverId(e.target.value)}
