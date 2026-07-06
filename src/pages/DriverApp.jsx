@@ -1815,11 +1815,16 @@ export default function DriverApp() {
 
   const handleAccept = () => {
     setLocalOverride({ status: "en_viaje" });
-    updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado" } });
-    updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+    // Reutilizamos exactamente la misma función del backend que invoca el botón nativo de Android
+    base44.functions.invoke("sendPushNotification", {
+      action: "native_accept",
+      orderId: offeredOrder.id,
+      driverId: myDriverId,
+      driverName: myDriver?.name || "",
+      base: myDriver?.current_base || ""
+    }).catch(console.error);
   };
   const handleReject = async () => {
-    // La suscripción en tiempo real propagará el cambio automáticamente a todos los dispositivos
     const currentOrder = { ...offeredOrder, offered_driver_ids: [...(offeredOrder.offered_driver_ids || []), myDriverId] };
     await reassignAfterReject(currentOrder, drivers, []);
     
@@ -1829,7 +1834,6 @@ export default function DriverApp() {
       user_name: myDriver?.name || "Chofer",
       details: `Rechazó el viaje de ${offeredOrder?.client_name || "Desconocido"}`
     }).catch(() => {});
-    // No necesita invalidateQueries — la suscripción actualiza instantáneamente
   };
   // Cargar config de minutos de bloqueo post-viaje
   const tarifaMinutosRef = useRef(0);
@@ -1916,8 +1920,14 @@ export default function DriverApp() {
 
   const handleBroadcastAccept = (order) => {
     setLocalOverride({ status: "en_viaje" });
-    updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
-    updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+    // Reutilizamos la misma función del backend para asegurar consistencia
+    base44.functions.invoke("sendPushNotification", {
+      action: "native_accept",
+      orderId: order.id,
+      driverId: myDriverId,
+      driverName: myDriver?.name || "",
+      base: myDriver?.current_base || ""
+    }).catch(console.error);
   };
 
   const handleBroadcastReject = (order) => {

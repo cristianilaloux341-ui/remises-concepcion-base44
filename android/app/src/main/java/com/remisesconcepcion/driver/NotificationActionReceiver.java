@@ -34,25 +34,15 @@ public class NotificationActionReceiver extends BroadcastReceiver {
 
             if ("ACTION_ACCEPT".equals(action)) {
                 Log.e(TAG, "Acción Aceptar recibida.");
-                // Actualizar la notificación a "Viaje aceptado"
-                NotificationCompat.Builder builder = new NotificationCompat.Builder(context, "ride-alerts-urgent-native")
-                        .setSmallIcon(R.mipmap.ic_launcher)
-                        .setContentTitle("Viaje Aceptado")
-                        .setContentText("Notificando a la base...")
-                        .setOngoing(false)
-                        .setAutoCancel(true);
-                notificationManager.notify(notificationId, builder.build());
+                // Cerrar la notificación automáticamente para que no quede pendiente en la barra de estado
+                notificationManager.cancel(notificationId);
                 
-                // Enviar al servidor (escapar quotes simples por seguridad básica)
+                // Enviar al servidor invocando la misma función que usa la aplicación web
                 String dName = driverName != null ? driverName.replace("\"", "\\\"") : "";
                 String bName = base != null ? base.replace("\"", "\\\"") : "";
                 String payload = String.format("{\"action\":\"native_accept\", \"orderId\":\"%s\", \"driverId\":\"%s\", \"driverName\":\"%s\", \"base\":\"%s\"}", 
                         orderId, driverId, dName, bName);
                 sendToServer(apiUrl, payload, pendingResult);
-
-                // No abrimos la app automáticamente para cumplir: "sin necesidad de abrir la aplicación"
-                // Pero sí actualizamos la notificación para que el usuario pueda tocarla y abrirla después si quiere
-
             } else if ("ACTION_REJECT".equals(action)) {
                 Log.e(TAG, "Acción Rechazar recibida.");
                 // Cerrar la notificación

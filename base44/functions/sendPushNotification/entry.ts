@@ -218,21 +218,31 @@ Deno.serve(async (req) => {
   const { action, driverId, subscription, orderId, orderData, token, userId, fromName, messageContent, isBroadcast, targetDriverId } = body;
 
   if (action === 'native_accept') {
-    console.log("=> ACCIÓN NATIVA: ACEPTAR RECIBIDA.");
-    console.log("=> Payload:", { orderId, driverId, driverName: body.driverName, base: body.base });
+    console.log("=> ACCIÓN (NATIVA/UI): ACEPTAR RECIBIDA.");
     try {
       const { driverName, base } = body;
+      
+      const order = await base44.asServiceRole.entities.RideOrder.get(orderId);
+      if (!order || (order.status !== 'ofrecido' && order.status !== 'pendiente')) {
+         console.warn("=> El viaje ya fue tomado o cancelado:", orderId);
+         return Response.json({ error: 'Order already accepted or invalid' }, { status: 400 });
+      }
+
+      const dName = driverName && driverName !== "null" && driverName !== "" ? driverName : order.driver_name;
+      const bName = base && base !== "null" && base !== "" ? base : order.assigned_base;
+
       await base44.asServiceRole.entities.RideOrder.update(orderId, { 
          status: "aceptado", 
          driver_id: driverId,
-         driver_name: driverName && driverName !== "null" ? driverName : null,
-         assigned_base: base && base !== "null" ? base : null
+         driver_name: dName,
+         assigned_base: bName
       });
       await base44.asServiceRole.entities.Driver.update(driverId, { status: "en_viaje" });
-      console.log("=> ACCIÓN NATIVA ACEPTAR: ÉXITO. Viaje y chofer actualizados.");
+      
+      console.log("=> ACCIÓN ACEPTAR: ÉXITO. Viaje y chofer actualizados.");
       return Response.json({ ok: true });
     } catch (error) {
-      console.error("=> ERROR EN ACCIÓN NATIVA ACEPTAR:", error.message);
+      console.error("=> ERROR EN ACCIÓN ACEPTAR:", error.message);
       return Response.json({ error: error.message }, { status: 500 });
     }
   }
