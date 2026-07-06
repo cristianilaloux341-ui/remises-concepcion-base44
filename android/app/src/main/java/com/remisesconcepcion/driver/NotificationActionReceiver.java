@@ -19,6 +19,7 @@ public class NotificationActionReceiver extends BroadcastReceiver {
         Log.e(TAG, "BroadcastReceiver onReceive: " + action);
 
         if ("ACTION_ACCEPT".equals(action) || "ACTION_REJECT".equals(action)) {
+            final PendingResult pendingResult = goAsync();
             // Detener sonido inmediatamente
             MyFirebaseMessagingService.stopAlarmSound();
 
@@ -47,7 +48,7 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                 String bName = base != null ? base.replace("\"", "\\\"") : "";
                 String payload = String.format("{\"action\":\"native_accept\", \"orderId\":\"%s\", \"driverId\":\"%s\", \"driverName\":\"%s\", \"base\":\"%s\"}", 
                         orderId, driverId, dName, bName);
-                sendToServer(apiUrl, payload);
+                sendToServer(apiUrl, payload, pendingResult);
 
                 // No abrimos la app automáticamente para cumplir: "sin necesidad de abrir la aplicación"
                 // Pero sí actualizamos la notificación para que el usuario pueda tocarla y abrirla después si quiere
@@ -59,14 +60,15 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                 
                 // Enviar al servidor
                 String payload = String.format("{\"action\":\"native_reject\", \"orderId\":\"%s\", \"driverId\":\"%s\"}", orderId, driverId);
-                sendToServer(apiUrl, payload);
+                sendToServer(apiUrl, payload, pendingResult);
             }
         }
     }
 
-    private void sendToServer(String apiUrl, String jsonPayload) {
+    private void sendToServer(String apiUrl, String jsonPayload, PendingResult pendingResult) {
         if (apiUrl == null || apiUrl.isEmpty()) {
             Log.e(TAG, "Error: apiUrl es null o vacío");
+            if (pendingResult != null) pendingResult.finish();
             return;
         }
         new Thread(() -> {
@@ -76,8 +78,8 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setDoOutput(true);
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
                 
                 try(OutputStream os = conn.getOutputStream()) {
                     byte[] input = jsonPayload.getBytes("utf-8");
@@ -88,6 +90,10 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                 Log.e(TAG, "Respuesta del servidor para acción nativa: " + code);
             } catch (Exception e) {
                 Log.e(TAG, "Error enviando acción al servidor", e);
+            } finally {
+                if (pendingResult != null) {
+                    pendingResult.finish();
+                }
             }
         }).start();
     }

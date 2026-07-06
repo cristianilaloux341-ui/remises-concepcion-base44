@@ -225,8 +225,8 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.RideOrder.update(orderId, { 
          status: "aceptado", 
          driver_id: driverId,
-         driver_name: driverName,
-         assigned_base: base
+         driver_name: driverName && driverName !== "null" ? driverName : null,
+         assigned_base: base && base !== "null" ? base : null
       });
       await base44.asServiceRole.entities.Driver.update(driverId, { status: "en_viaje" });
       console.log("=> ACCIÓN NATIVA ACEPTAR: ÉXITO. Viaje y chofer actualizados.");
