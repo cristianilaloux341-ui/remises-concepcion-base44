@@ -203,7 +203,7 @@ export default function OrderDetail() {
             {order.fare && (
               <div className="flex items-center gap-2 p-3 bg-muted rounded-xl">
                 <DollarSign className="w-5 h-5 text-green-600" />
-                <span className="font-bold text-lg">${order.fare.toLocaleString()}</span>
+                <span className="font-bold text-lg">${Number(order.fare).toLocaleString()}</span>
               </div>
             )}
 
@@ -215,7 +215,7 @@ export default function OrderDetail() {
             )}
 
             <div className="text-xs text-muted-foreground">
-              Creado: {format(new Date(order.created_date), "dd MMM yyyy · HH:mm", { locale: es })}
+              Creado: {order.created_date ? format(new Date(order.created_date), "dd MMM yyyy · HH:mm", { locale: es }) : "Fecha desconocida"}
             </div>
           </CardContent>
         </Card>
@@ -230,7 +230,7 @@ export default function OrderDetail() {
                 <label className="text-sm font-medium">
                   {order.driver_id ? "Reasignar Conductor" : "Asignar Conductor"}
                 </label>
-                <Select value={order.driver_id || ""} onValueChange={handleAssignDriver}>
+                <Select value={order.driver_id || undefined} onValueChange={handleAssignDriver}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar conductor" />
                   </SelectTrigger>
