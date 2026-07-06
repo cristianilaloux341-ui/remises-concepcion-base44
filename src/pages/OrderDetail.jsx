@@ -81,10 +81,6 @@ export default function OrderDetail() {
     );
   }
 
-  const handleStatusChange = (status) => {
-    updateMutation.mutate({ id: order.id, data: { status } });
-  };
-
   const handleAssignDriver = (driverId) => {
     const driver = drivers.find(d => d.id === driverId);
     updateMutation.mutate({
@@ -218,24 +214,6 @@ export default function OrderDetail() {
               <CardTitle className="text-base">Acciones</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Cambiar Estado</label>
-                <Select value={order.status} onValueChange={handleStatusChange}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="ofrecido">Ofrecido</SelectItem>
-                    <SelectItem value="aceptado">Aceptado</SelectItem>
-                    <SelectItem value="en_camino">En Camino</SelectItem>
-                    <SelectItem value="en_viaje">En Viaje</SelectItem>
-                    <SelectItem value="completado">Completado</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   {order.driver_id ? "Reasignar Conductor" : "Asignar Conductor"}
