@@ -239,8 +239,8 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
     if (!normalized) { setError("Ingresá tu número de celular"); return; }
     const found = debugArray(safeDriversList, 'safeDriversList').find(d => {
       const dp = (d.phone || "").replace(/\s|-|\(|\)/g, "");
-      // Exigir al menos 6 dígitos para búsquedas parciales, evitando que "123" coincida con "3442123"
-      const isPartialMatch = normalized.length >= 6 && (dp.endsWith(normalized) || normalized.endsWith(dp));
+      // Exigir al menos 6 dígitos para búsquedas parciales y verificar ambos lados para evitar que un teléfono corto como "3" coincida con "3442640443"
+      const isPartialMatch = normalized.length >= 6 && dp.length >= 6 && (dp.endsWith(normalized) || normalized.endsWith(dp));
       return dp === normalized || isPartialMatch;
     });
     if (!found) {
@@ -1171,14 +1171,17 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
 
           {/* Cola compacta */}
           <div className="flex gap-1.5 flex-wrap">
-            {baseQueue.map((d, i) => (
-              <span
-                key={d.id}
-                className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${d.id === driver.id ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"}`}
-              >
-                {i + 1}.{d.vehicle_model ? ` #${d.vehicle_model}` : ""} {d.name.split(" ")[0]}
-              </span>
-            ))}
+            {baseQueue.map((d, i) => {
+              const showModel = d.vehicle_model && d.vehicle_model.length < 10;
+              return (
+                <span
+                  key={d.id}
+                  className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${d.id === driver.id ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"}`}
+                >
+                  {i + 1}.{showModel ? ` #${d.vehicle_model}` : ""} {d.name.split(" ")[0]}
+                </span>
+              );
+            })}
           </div>
 
           {/* Botones */}
