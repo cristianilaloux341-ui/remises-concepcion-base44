@@ -45,6 +45,13 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <receiver android:name=".NotificationActionReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="ACTION_ACCEPT" />
+                <action android:name="ACTION_REJECT" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <!-- Permissions -->

@@ -217,6 +217,41 @@ Deno.serve(async (req) => {
 
   const { action, driverId, subscription, orderId, orderData, token, userId, fromName, messageContent, isBroadcast, targetDriverId } = body;
 
+  if (action === 'native_accept') {
+    const { driverName, base } = body;
+    await base44.asServiceRole.entities.RideOrder.update(orderId, { 
+       status: "aceptado", 
+       driver_id: driverId,
+       driver_name: driverName,
+       assigned_base: base
+    });
+    await base44.asServiceRole.entities.Driver.update(driverId, { status: "en_viaje" });
+    return Response.json({ ok: true });
+  }
+
+  if (action === 'native_reject') {
+    const order = await base44.asServiceRole.entities.RideOrder.get(orderId);
+    if (order) {
+      const offered = order.offered_driver_ids || [];
+      if (!offered.includes(driverId)) offered.push(driverId);
+      
+      await base44.asServiceRole.entities.RideOrder.update(orderId, { 
+         status: "pendiente",
+         driver_id: null,
+         offered_driver_ids: offered
+      });
+    }
+    
+    await base44.asServiceRole.entities.AuditLog.create({
+      action: "rechazar_viaje",
+      user_type: "chofer",
+      user_name: "App Nativa",
+      details: `Rechazó el viaje nativamente (ID: ${orderId})`
+    });
+
+    return Response.json({ ok: true });
+  }
+
   const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
   const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
 
@@ -339,10 +374,13 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               message: {
                 token: driver.fcm_token,
-                notification: { title: String(title), body: String(bodyStr) },
-                android: { priority: "high", notification: { channel_id: "ride-alerts-urgent" } },
+                android: { priority: "high" },
                 data: { 
                   orderId: String(orderId), 
+                  driverId: String(driver.id),
+                  driverName: String(driver.name || ""),
+                  base: String(driver.current_base || ""),
+                  apiUrl: `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/sendPushNotification/invoke`,
                   action: "open_ride",
                   title: String(title),
                   body: String(bodyStr),
@@ -536,10 +574,13 @@ Deno.serve(async (req) => {
                 body: JSON.stringify({
                   message: {
                     token: driver.fcm_token,
-                    notification: { title: String(title), body: String(body) },
-                    android: { priority: "high", notification: { channel_id: "ride-alerts-urgent" } },
+                    android: { priority: "high" },
                     data: { 
                       orderId: String(orderId), 
+                      driverId: String(driverId),
+                      driverName: String(driver.name || ""),
+                      base: String(driver.current_base || ""),
+                      apiUrl: `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/sendPushNotification/invoke`,
                       action: "open_ride",
                       title: String(title),
                       body: String(body),
