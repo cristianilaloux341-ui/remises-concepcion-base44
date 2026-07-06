@@ -610,7 +610,11 @@ function IncomingAlert({ order, onAccept, onReject }) {
     <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
         <div className="bg-amber-500 px-5 py-4 flex items-center gap-3 animate-pulse">
-          <Bell className="w-6 h-6 text-white" />
+          <img 
+            src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg" 
+            alt="RC" 
+            className="w-10 h-10 rounded-xl object-cover border border-white/30 shadow-sm"
+          />
           <div>
             <p className="font-bold text-white text-lg leading-tight">¡Nuevo Viaje!</p>
             <p className="text-amber-100 text-xs">Respondé antes de que se reasigne</p>
@@ -690,7 +694,11 @@ function BroadcastAlert({ order, onAccept, onReject }) {
     <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
         <div className="bg-orange-500 px-5 py-4 flex items-center gap-3 animate-pulse">
-          <Bell className="w-6 h-6 text-white" />
+          <img 
+            src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg" 
+            alt="RC" 
+            className="w-10 h-10 rounded-xl object-cover border border-white/30 shadow-sm"
+          />
           <div>
             <p className="font-bold text-white text-base leading-tight">📢 Viaje a todos los móviles</p>
             <p className="text-orange-100 text-xs font-semibold">⚡ El primero en aceptar lo lleva</p>

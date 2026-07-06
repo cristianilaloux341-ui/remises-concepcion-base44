@@ -55,8 +55,12 @@ export default function LoginCentral() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden">
         <div className="bg-primary p-6 text-center">
-          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-            <Car className="w-8 h-8 text-white" />
+          <div className="w-20 h-20 mx-auto mb-4">
+            <img 
+              src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg" 
+              alt="Logo" 
+              className="w-full h-full object-cover rounded-2xl shadow-lg border-2 border-white/20"
+            />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Central de Despacho</h1>
           <p className="text-primary-foreground/80 text-sm mt-1">Acceso seguro para operadores</p>
