@@ -10,12 +10,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Clock, Car, MapPin, Bell, BellOff, CheckCircle2, XCircle, Zap, Tag, ChevronDown } from "lucide-react";
+import { Plus, Clock, Car, MapPin, Bell, CheckCircle2, XCircle, Zap, Tag, RefreshCw, Calculator } from "lucide-react";
 import AddressAutocomplete from "@/components/orders/AddressAutocomplete";
 
 const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 import { useLocation, useNavigate } from "react-router-dom";
-import { format, formatDistanceToNow, isPast, differenceInMinutes } from "date-fns";
+import { format, formatDistanceToNow, isPast, differenceInMinutes, addDays, addWeeks, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { autoDispatch, assignDriverToOrder, detectZoneFromAddress } from "@/lib/dispatchLogic";
 import PullToRefresh from "@/components/ui/pull-to-refresh";
@@ -37,6 +37,14 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
     require_specific_driver: false, preferred_driver_id: "", preferred_driver_name: "",
     fare: "", notes: ""
   });
+  
+  // Estado para la recurrencia
+  const [recurrence, setRecurrence] = useState({
+    type: "none",
+    endDate: format(addMonths(new Date(), 1), "yyyy-MM-dd"),
+    days: [] // para "custom"
+  });
+
   const [clients, setClients] = useState([]);
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [filteredClients, setFilteredClients] = useState([]);
@@ -77,6 +85,26 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
     setShowClientSuggestions(false);
   };
 
+  const calcularTarifaManualmente = async () => {
+    if (!form.pickup_address || !form.dropoff_address) {
+      alert("Se requiere una dirección de origen y una de destino para calcular la tarifa automáticamente.");
+      return;
+    }
+    setCalculandoTarifa(true);
+    try {
+      const distMetros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address);
+      if (distMetros) {
+        const fare = calcularImporte(distMetros, tariffConfig);
+        setForm(f => ({ ...f, fare }));
+      } else {
+        alert("No se pudo calcular la ruta. Ingrese la tarifa manualmente.");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setCalculandoTarifa(false);
+  };
+
   // Auto-detect zone y calcular tarifa con debounce
   useEffect(() => {
     clearTimeout(debounceTimer.current);
@@ -94,7 +122,7 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
       }
 
       // Auto-calculate fare via OSRM
-      if (form.pickup_address && form.dropoff_address && tariffConfig) {
+      if (form.pickup_address && form.dropoff_address && tariffConfig && !form.fare) {
         setCalculandoTarifa(true);
         try {
           const distMetros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address);
@@ -105,17 +133,17 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
         } catch (_) {}
         setCalculandoTarifa(false);
       }
-    }, 800);
+    }, 1000);
 
     return () => clearTimeout(debounceTimer.current);
   }, [form.pickup_address, form.dropoff_address, tariffConfig]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-2">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1 relative">
           <Label>Cliente</Label>
-          <Input value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} />
+          <Input className="bg-white text-black font-bold" value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} />
           {showClientSuggestions && filteredClients.length > 0 && (
             <div className="absolute top-[100%] left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-10 mt-1">
               {filteredClients.map(client => (
@@ -124,8 +152,8 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
                   className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 border-b last:border-b-0 transition-colors"
                   onClick={() => handleSelectClient(client)}
                 >
-                  <div className="font-medium">{client.name}</div>
-                  <div className="text-xs text-gray-500">{client.phone || "Sin teléfono"}</div>
+                  <div className="font-bold text-black">{client.name}</div>
+                  <div className="text-xs text-gray-700">{client.phone || "Sin teléfono"}</div>
                 </button>
               ))}
             </div>
@@ -133,7 +161,7 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
         </div>
         <div className="space-y-1">
           <Label>Teléfono</Label>
-          <Input value={form.client_phone} onChange={e => setForm({ ...form, client_phone: e.target.value })} />
+          <Input className="bg-white text-black font-bold" value={form.client_phone} onChange={e => setForm({ ...form, client_phone: e.target.value })} />
         </div>
       </div>
 
@@ -143,21 +171,23 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
           value={form.pickup_address}
           onChange={v => setForm({ ...form, pickup_address: v })}
           placeholder="Calle y altura..."
+          className="bg-white text-black font-bold"
         />
       </div>
       <div className="space-y-1">
-        <Label>Destino (opcional)</Label>
+        <Label>Destino (requerido para tarifa autom.)</Label>
         <AddressAutocomplete
           value={form.dropoff_address}
           onChange={v => setForm({ ...form, dropoff_address: v })}
           placeholder="Destino..."
+          className="bg-white text-black font-bold"
         />
       </div>
 
       <div className="space-y-1">
         <Label className="flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" /> Zona</Label>
         <Select value={form.zone || ""} onValueChange={v => setForm({ ...form, zone: v })}>
-          <SelectTrigger><SelectValue placeholder="Seleccionar zona..." /></SelectTrigger>
+          <SelectTrigger className="bg-white text-black font-bold"><SelectValue placeholder="Seleccionar zona..." /></SelectTrigger>
           <SelectContent>
             {ZONES.map(z => <SelectItem key={z} value={z}>{z}</SelectItem>)}
           </SelectContent>
@@ -166,31 +196,88 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label>Fecha y hora del viaje</Label>
-          <Input type="datetime-local" value={form.scheduled_datetime}
+          <Label>Fecha y hora del primer viaje</Label>
+          <Input className="bg-white text-black font-bold" type="datetime-local" value={form.scheduled_datetime}
             onChange={e => setForm({ ...form, scheduled_datetime: e.target.value })} />
         </div>
         <div className="space-y-1">
           <Label>Alertar X min antes</Label>
-          <Input type="number" min={1} value={form.notify_minutes_before}
+          <Input className="bg-white text-black font-bold" type="number" min={1} value={form.notify_minutes_before}
             onChange={e => setForm({ ...form, notify_minutes_before: Number(e.target.value) })} />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="flex items-center gap-1.5">
-            Tarifa (opcional)
-            {calculandoTarifa && <span className="text-xs text-blue-500 animate-pulse">calculando...</span>}
+      {/* Recurrencia Automática (solo al crear nuevo, no al editar) */}
+      {!ride && (
+        <div className="space-y-3 p-3 bg-slate-100 border border-slate-300 rounded-lg">
+          <Label className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
+            <RefreshCw className="w-4 h-4 text-blue-600" /> Repetir Viaje (Automático)
           </Label>
-          <Input type="number" value={form.fare} onChange={e => setForm({ ...form, fare: e.target.value })} placeholder={calculandoTarifa ? "..." : "0"} />
+          <Select value={recurrence.type} onValueChange={v => setRecurrence({ ...recurrence, type: v })}>
+            <SelectTrigger className="bg-white text-black font-bold border-slate-400">
+              <SelectValue placeholder="Sin repetición" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Una sola vez</SelectItem>
+              <SelectItem value="daily">Todos los días (Lunes a Domingo)</SelectItem>
+              <SelectItem value="weekdays">Días hábiles (Lunes a Viernes)</SelectItem>
+              <SelectItem value="custom">Días específicos de la semana...</SelectItem>
+              <SelectItem value="weekly">Semanalmente (mismo día)</SelectItem>
+              <SelectItem value="monthly">Mensualmente (mismo día)</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {recurrence.type === "custom" && (
+            <div className="flex gap-1.5 justify-between mt-2">
+              {[{l:'D', v:0}, {l:'L', v:1}, {l:'M', v:2}, {l:'X', v:3}, {l:'J', v:4}, {l:'V', v:5}, {l:'S', v:6}].map(d => {
+                const isSelected = recurrence.days.includes(d.v);
+                return (
+                  <Button
+                    key={d.v}
+                    type="button"
+                    variant={isSelected ? "default" : "outline"}
+                    className={`w-10 h-10 p-0 rounded-full font-bold ${isSelected ? 'bg-blue-600 text-white' : 'bg-white text-black border-slate-300'}`}
+                    onClick={() => {
+                      setRecurrence({
+                        ...recurrence,
+                        days: isSelected ? recurrence.days.filter(x => x !== d.v) : [...recurrence.days, d.v]
+                      });
+                    }}
+                  >
+                    {d.l}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
+
+          {recurrence.type !== "none" && (
+            <div className="space-y-1 pt-2">
+              <Label className="font-bold text-slate-700">Repetir hasta la fecha:</Label>
+              <Input type="date" className="bg-white text-black font-bold border-slate-400" value={recurrence.endDate} onChange={e => setRecurrence({...recurrence, endDate: e.target.value})} />
+              <p className="text-[10px] text-slate-500">Se generarán los viajes automáticamente hasta esta fecha.</p>
+            </div>
+          )}
         </div>
+      )}
+
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <Label className="flex items-center gap-1.5 font-bold">
+            Tarifa del Viaje
+            {calculandoTarifa && <span className="text-xs text-blue-500 animate-pulse">calculando automática...</span>}
+          </Label>
+          <button type="button" onClick={calcularTarifaManualmente} className="text-xs font-bold text-blue-600 underline flex items-center gap-1">
+            <Calculator className="w-3 h-3"/> Forzar Cálculo
+          </button>
+        </div>
+        <Input className="bg-white text-black font-bold text-lg" type="number" value={form.fare} onChange={e => setForm({ ...form, fare: e.target.value })} placeholder={calculandoTarifa ? "Calculando..." : "0"} />
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 bg-white p-3 rounded-md border">
         <Switch checked={form.require_specific_driver}
           onCheckedChange={v => setForm({ ...form, require_specific_driver: v })} />
-        <Label>Requiere móvil específico</Label>
+        <Label className="font-bold text-black">Asignar a un móvil en específico</Label>
       </div>
 
       {form.require_specific_driver && (
@@ -207,11 +294,11 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
               }
             }}
           >
-            <SelectTrigger><SelectValue placeholder="Seleccionar móvil..." /></SelectTrigger>
+            <SelectTrigger className="bg-white text-black font-bold"><SelectValue placeholder="Seleccionar móvil..." /></SelectTrigger>
             <SelectContent>
               <SelectItem value="ninguno">Sin preferencia</SelectItem>
               {drivers.map(d => (
-                <SelectItem key={d.id} value={d.id}>{d.name} — {d.vehicle_plate}</SelectItem>
+                <SelectItem key={d.id} value={d.id} className="font-bold">{d.name} — {d.vehicle_plate}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -220,12 +307,14 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
 
       <div className="space-y-1">
         <Label>Notas</Label>
-        <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="h-16" />
+        <Textarea className="bg-white text-black font-bold h-16" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
       </div>
 
-      <div className="flex gap-2 pt-2">
-        <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-        <Button className="flex-1" onClick={() => onSave(form)}>Guardar Agenda</Button>
+      <div className="flex gap-2 pt-4">
+        <Button variant="outline" className="flex-1 font-bold bg-white text-black" onClick={onClose}>Cancelar</Button>
+        <Button className="flex-1 font-bold" onClick={() => onSave({ form, recurrence })}>
+          {ride ? "Actualizar Viaje" : "Guardar Agenda/s"}
+        </Button>
       </div>
     </div>
   );
@@ -270,7 +359,7 @@ export default function Agenda() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async (form) => {
+    mutationFn: async ({ form, recurrence }) => {
       const dataToSave = { ...form };
       if (dataToSave.fare && String(dataToSave.fare).trim() !== "") {
         dataToSave.fare = Number(dataToSave.fare);
@@ -281,10 +370,49 @@ export default function Agenda() {
       if (editing?.id) {
         return await base44.entities.ScheduledRide.update(editing.id, dataToSave);
       } else {
-        return await base44.entities.ScheduledRide.create(dataToSave);
+        const records = [dataToSave];
+        
+        // Lógica de recurrencia
+        if (recurrence && recurrence.type !== "none" && recurrence.endDate) {
+           let current = new Date(form.scheduled_datetime);
+           const end = new Date(recurrence.endDate);
+           end.setHours(23, 59, 59, 999);
+           let count = 0;
+
+           while (count < 90) { // Safety cap
+               if (recurrence.type === "daily") {
+                   current = addDays(current, 1);
+               } else if (recurrence.type === "weekdays") {
+                   current = addDays(current, 1);
+                   if (current.getDay() === 0 || current.getDay() === 6) continue;
+               } else if (recurrence.type === "weekly") {
+                   current = addWeeks(current, 1);
+               } else if (recurrence.type === "monthly") {
+                   current = addMonths(current, 1);
+               } else if (recurrence.type === "custom") {
+                   current = addDays(current, 1);
+                   if (!recurrence.days.includes(current.getDay())) continue;
+               }
+
+               if (current > end) break;
+
+               records.push({
+                   ...dataToSave,
+                   scheduled_datetime: current.toISOString(),
+                   status: "pendiente"
+               });
+               count++;
+           }
+        }
+        
+        if (records.length > 1) {
+            return await base44.entities.ScheduledRide.bulkCreate(records);
+        } else {
+            return await base44.entities.ScheduledRide.create(records[0]);
+        }
       }
     },
-    onMutate: async (form) => {
+    onMutate: async ({ form }) => {
       await queryClient.cancelQueries({ queryKey: ["scheduled"] });
       const previous = queryClient.getQueryData(["scheduled"]);
       
@@ -303,7 +431,7 @@ export default function Agenda() {
       
       return { previous };
     },
-    onError: (err, newRide, context) => {
+    onError: (err, variables, context) => {
       if (context?.previous) queryClient.setQueryData(["scheduled"], context.previous);
     },
     onSettled: () => {
@@ -361,19 +489,19 @@ export default function Agenda() {
       <div className="space-y-6 pb-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Agenda</h1>
-          <p className="text-muted-foreground mt-1">Viajes programados</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-black">Agenda</h1>
+          <p className="text-muted-foreground mt-1 font-bold">Viajes programados</p>
         </div>
-        <Button className="rounded-xl gap-2" onClick={() => { setEditing(null); setShowForm(true); }}>
+        <Button className="rounded-xl gap-2 font-bold" onClick={() => { setEditing(null); setShowForm(true); }}>
           <Plus className="w-4 h-4" /> Nueva Agenda
         </Button>
       </div>
 
       {/* Upcoming */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Próximos</h2>
+        <h2 className="text-sm font-bold text-black uppercase tracking-wide">Próximos</h2>
         {upcoming.length === 0 ? (
-          <Card><CardContent className="p-8 text-center text-muted-foreground">Sin viajes programados</CardContent></Card>
+          <Card><CardContent className="p-8 text-center text-muted-foreground font-bold">Sin viajes programados</CardContent></Card>
         ) : upcoming.map(ride => {
           const mins = minutesUntil(ride.scheduled_datetime);
           const isUrgent = mins <= (ride.notify_minutes_before ?? 10) && mins >= 0;
@@ -384,64 +512,64 @@ export default function Agenda() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold">{ride.client_name}</p>
-                      <Badge className={STATUS_COLORS[ride.status] + " border-0 text-xs"}>{ride.status}</Badge>
+                      <p className="font-bold text-black text-lg">{ride.client_name}</p>
+                      <Badge className={STATUS_COLORS[ride.status] + " border-0 text-xs font-bold"}>{ride.status}</Badge>
                       {isUrgent && <Badge className="bg-amber-500 text-white border-0 text-xs animate-pulse">¡{Math.max(0, mins)} min!</Badge>}
                     </div>
-                    <p className="text-xs text-muted-foreground">{ride.client_phone}</p>
+                    <p className="text-sm text-black font-bold">{ride.client_phone}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-bold text-sm">{format(new Date(ride.scheduled_datetime), "HH:mm", { locale: es })}</p>
-                    <p className="text-xs text-muted-foreground">{format(new Date(ride.scheduled_datetime), "dd/MM/yy")}</p>
+                    <p className="font-bold text-lg text-black">{format(new Date(ride.scheduled_datetime), "HH:mm", { locale: es })}</p>
+                    <p className="text-sm text-black font-bold">{format(new Date(ride.scheduled_datetime), "dd/MM/yy")}</p>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <p className="text-xs flex items-center gap-1.5 text-muted-foreground">
-                    <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />{ride.pickup_address}
+                  <p className="text-sm flex items-center gap-1.5 font-bold text-black">
+                    <div className="w-3 h-3 rounded-full bg-green-500 shrink-0" />{ride.pickup_address}
                   </p>
                   {ride.dropoff_address && (
-                    <p className="text-xs flex items-center gap-1.5 text-muted-foreground">
-                      <MapPin className="w-3 h-3 text-red-500 shrink-0" />{ride.dropoff_address}
+                    <p className="text-sm flex items-center gap-1.5 font-bold text-black">
+                      <MapPin className="w-4 h-4 text-red-500 shrink-0" />{ride.dropoff_address}
                     </p>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                <div className="flex items-center gap-2 text-sm text-black font-bold flex-wrap">
                   {ride.zone && (
                     <>
-                      <Tag className="w-3 h-3 text-purple-500" />
-                      <span className="text-purple-600 font-medium">{ride.zone}</span>
+                      <Tag className="w-4 h-4 text-purple-600" />
+                      <span className="text-purple-700 font-bold">{ride.zone}</span>
                       <span>·</span>
                     </>
                   )}
-                  <Bell className="w-3 h-3" />
-                  <span>Alerta {ride.notify_minutes_before ?? 10} min antes</span>
+                  <Bell className="w-4 h-4" />
+                  <span>Alerta {ride.notify_minutes_before ?? 10} min</span>
                   {ride.require_specific_driver && ride.preferred_driver_name && (
                     <>
                       <span>·</span>
-                      <Car className="w-3 h-3 text-blue-500" />
-                      <span className="text-blue-600 font-medium">{ride.preferred_driver_name}</span>
+                      <Car className="w-4 h-4 text-blue-600" />
+                      <span className="text-blue-700 font-bold">{ride.preferred_driver_name}</span>
                     </>
                   )}
-                  {ride.fare && <><span>·</span><span className="font-bold text-green-600">${ride.fare}</span></>}
+                  {ride.fare && <><span>·</span><span className="font-bold text-green-700 text-base">${ride.fare}</span></>}
                 </div>
 
                 <div className="flex gap-2">
                   {["pendiente", "notificado"].includes(ride.status) && (
                     <>
-                      <Button size="sm" className="flex-1 gap-1 h-8 rounded-lg"
+                      <Button size="sm" className="flex-1 gap-1 h-10 rounded-lg font-bold"
                         onClick={() => dispatchMutation.mutate(ride)}
                         disabled={dispatchMutation.isPending}>
-                        <Zap className="w-3 h-3" /> Despachar Ahora
+                        <Zap className="w-4 h-4" /> Despachar Ahora
                       </Button>
-                      <Button size="sm" variant="outline" className="h-8 px-3 rounded-lg"
+                      <Button size="sm" variant="outline" className="h-10 px-4 rounded-lg font-bold text-black bg-white"
                         onClick={() => { setEditing(ride); setShowForm(true); }}>
                         Editar
                       </Button>
-                      <Button size="sm" variant="outline" className="h-8 px-3 rounded-lg border-red-200 text-red-500 hover:bg-red-50"
+                      <Button size="sm" variant="outline" className="h-10 px-3 rounded-lg border-red-300 text-red-600 hover:bg-red-50 bg-white"
                         onClick={() => cancelMutation.mutate(ride.id)}>
-                        <XCircle className="w-3 h-3" />
+                        <XCircle className="w-5 h-5" />
                       </Button>
                     </>
                   )}
@@ -455,17 +583,17 @@ export default function Agenda() {
       {/* Past */}
       {past.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Historial reciente</h2>
+          <h2 className="text-sm font-bold text-black uppercase tracking-wide mt-6">Historial reciente</h2>
           {past.map(ride => (
-            <Card key={ride.id} className="opacity-70">
+            <Card key={ride.id} className="opacity-80">
               <CardContent className="p-3 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">{ride.client_name}</p>
-                  <p className="text-xs text-muted-foreground">{ride.pickup_address}</p>
+                  <p className="text-sm font-bold text-black">{ride.client_name}</p>
+                  <p className="text-xs text-black font-medium">{ride.pickup_address}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <p className="text-xs text-muted-foreground">{format(new Date(ride.scheduled_datetime), "dd/MM HH:mm")}</p>
-                  <Badge className={STATUS_COLORS[ride.status] + " border-0 text-xs"}>{ride.status}</Badge>
+                  <p className="text-xs text-black font-bold">{format(new Date(ride.scheduled_datetime), "dd/MM HH:mm")}</p>
+                  <Badge className={STATUS_COLORS[ride.status] + " border-0 text-xs font-bold"}>{ride.status}</Badge>
                 </div>
               </CardContent>
             </Card>
@@ -476,12 +604,12 @@ export default function Agenda() {
       <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setEditing(null); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? "Editar Agenda" : "Nueva Agenda"}</DialogTitle>
+            <DialogTitle className="font-bold text-black text-xl">{editing ? "Editar Agenda" : "Nueva Agenda"}</DialogTitle>
           </DialogHeader>
           <ScheduledForm
             ride={editing}
             drivers={drivers}
-            onSave={(form) => saveMutation.mutate(form)}
+            onSave={(payload) => saveMutation.mutate(payload)}
             onClose={() => { setShowForm(false); setEditing(null); }}
           />
         </DialogContent>
