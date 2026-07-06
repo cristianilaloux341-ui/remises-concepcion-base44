@@ -183,6 +183,34 @@ Deno.serve(async (req) => {
 
   const body = await req.json();
   console.log("=> BODY:", JSON.stringify(body));
+  
+  // Interceptar payload de automación de entidad (RideOrder)
+  if (body.event && body.event.entity_name === "RideOrder" && body.data) {
+    // Cuando pasa a ofrecido
+    const isStatusChanged = !body.old_data || body.changed_fields?.includes("status");
+    if (body.data.status === "ofrecido" && body.data.driver_id && isStatusChanged) {
+      body.action = "send";
+      body.driverId = body.data.driver_id;
+      body.orderId = body.data.id;
+      body.orderData = {
+        pickup_address: body.data.pickup_address,
+        dropoff_address: body.data.dropoff_address,
+        fare: body.data.fare
+      };
+      body.isBroadcast = false;
+    }
+    // Cuando pasa a pendiente y no tiene chofer (broadcast)
+    else if (body.data.status === "pendiente" && !body.data.driver_id && body.data.notes?.includes("[BROADCAST]") && isStatusChanged) {
+      body.action = "broadcast_trigger"; // Nuevo action para manejar el broadcast desde el backend
+      body.orderId = body.data.id;
+      body.orderData = {
+        pickup_address: body.data.pickup_address,
+        dropoff_address: body.data.dropoff_address,
+        fare: body.data.fare
+      };
+    }
+  }
+
   const { action, driverId, subscription, orderId, orderData, token, userId, fromName, messageContent, isBroadcast, targetDriverId } = body;
 
   const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
@@ -256,6 +284,99 @@ Deno.serve(async (req) => {
 
   // ── Send push to a driver ─────────────────────────────────────────────────
   
+  if (action === 'broadcast_trigger') {
+    try {
+      const availableDrivers = await base44.asServiceRole.entities.Driver.filter({ status: 'disponible' });
+      const title = '📢 Viaje a todos los móviles';
+      const bodyStr = orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}` : 'Viaje a todos los móviles';
+      
+      const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
+      let tokenRes = null;
+      let sa = null;
+
+      if (saStr) {
+        sa = JSON.parse(saStr);
+        if (sa.private_key) {
+          const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
+          const now = Math.floor(Date.now() / 1000);
+          const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
+            iss: sa.client_email,
+            scope: 'https://www.googleapis.com/auth/firebase.messaging',
+            aud: 'https://oauth2.googleapis.com/token',
+            exp: now + 3600,
+            iat: now
+          })));
+          
+          const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
+          const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+          const rsaKey = await crypto.subtle.importKey("pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+          const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`));
+          const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
+          
+          tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+          }).then(r => r.json());
+        }
+      }
+
+      for (const driver of availableDrivers) {
+        if (!driver.current_base) continue;
+
+        let sentViaFcm = false;
+        if (driver.fcm_token && tokenRes && tokenRes.access_token) {
+          const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${tokenRes.access_token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              message: {
+                token: driver.fcm_token,
+                notification: { title: String(title), body: String(bodyStr) },
+                android: { priority: "high", notification: { channel_id: "ride-alerts-urgent" } },
+                data: { 
+                  orderId: String(orderId), 
+                  action: "open_ride",
+                  title: String(title),
+                  body: String(bodyStr),
+                  type: "broadcast"
+                }
+              }
+            })
+          });
+          if (fcmRes.ok) sentViaFcm = true;
+        }
+
+        if (!sentViaFcm && driver.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+          let sub;
+          try { sub = JSON.parse(driver.push_subscription); } catch (_) { continue; }
+          const payload = JSON.stringify({
+            type: 'NEW_RIDE',
+            orderId,
+            driverId: driver.id,
+            title,
+            body: bodyStr,
+            actions: [
+              { action: 'accept', title: '✅ Tomar' },
+              { action: 'reject', title: '❌ Ignorar' }
+            ]
+          });
+          const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+          if (status === 410 || status === 404) {
+            await base44.asServiceRole.entities.Driver.update(driver.id, { push_subscription: null });
+          }
+        }
+      }
+      return Response.json({ ok: true, broadcast: true });
+    } catch (err) {
+      console.error("Broadcast trigger error:", err);
+      return Response.json({ error: err.message }, { status: 500 });
+    }
+  }
+
   // ── Send push to a driver for a MESSAGE ──────────────────────────────────
   if (action === 'send_message') {
     if (!messageContent) {
