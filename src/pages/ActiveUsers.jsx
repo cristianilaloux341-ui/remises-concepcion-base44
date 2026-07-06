@@ -172,8 +172,8 @@ export default function ActiveUsers() {
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                       <div>
-                        <p className="font-semibold text-sm">{op.name}</p>
-                        <p className="text-xs text-muted-foreground uppercase">{op.rol || op.role}</p>
+                        <p className="font-semibold text-sm text-black">{op.name}</p>
+                        <p className="text-xs text-black uppercase">{op.rol || op.role}</p>
                       </div>
                     </div>
                     <span className="text-xs text-muted-foreground">
@@ -204,8 +204,8 @@ export default function ActiveUsers() {
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                       <div>
-                        <p className="font-semibold text-sm">{d.name}</p>
-                        <p className="text-xs text-muted-foreground">{d.vehicle_plate} • {d.status.replace("_", " ")}</p>
+                        <p className="font-semibold text-sm text-black">{d.name}</p>
+                        <p className="text-xs text-black">{d.vehicle_plate} • {d.status.replace("_", " ")}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -260,9 +260,9 @@ export default function ActiveUsers() {
                 <tbody className="divide-y">
                   {operators.map(op => (
                     <tr key={op.id} className="hover:bg-muted/10">
-                      <td className="px-4 py-3 font-medium">
+                      <td className="px-4 py-3 font-medium text-black">
                         {op.name}
-                        <div className="text-xs text-muted-foreground font-normal">{op.phone}</div>
+                        <div className="text-xs text-black font-normal">{op.phone}</div>
                       </td>
                       <td className="px-4 py-3 uppercase text-xs font-semibold">{op.rol || op.role}</td>
                       <td className="px-4 py-3 font-mono font-bold tracking-widest text-base">
@@ -315,9 +315,9 @@ export default function ActiveUsers() {
                 <tbody className="divide-y">
                   {drivers.map(d => (
                     <tr key={d.id} className="hover:bg-muted/10">
-                      <td className="px-4 py-3 font-medium">
+                      <td className="px-4 py-3 font-medium text-black">
                         {d.name}
-                        <div className="text-xs text-muted-foreground font-normal">{d.vehicle_plate}</div>
+                        <div className="text-xs text-black font-normal">{d.vehicle_plate}</div>
                       </td>
                       <td className="px-4 py-3 font-mono font-bold tracking-widest text-base">
                         {showPins ? (d.pin || <span className="text-gray-400 text-sm tracking-normal italic">No tiene</span>) : "••••"}

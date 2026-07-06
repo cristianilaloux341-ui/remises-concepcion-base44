@@ -66,7 +66,7 @@ export default function OrderCard({ order, onClick, isAdmin, onDelete }) {
           <span className="font-bold text-sm">${order.fare.toLocaleString()}</span>
         )}
         {order.driver_name && (
-          <span className="text-xs text-muted-foreground">🚗 {order.driver_name}</span>
+          <span className="text-xs font-bold text-black">🚗 {order.driver_name}</span>
         )}
       </div>
     </Card>

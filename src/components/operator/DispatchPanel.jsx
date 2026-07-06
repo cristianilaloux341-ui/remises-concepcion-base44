@@ -257,9 +257,9 @@ export default function DispatchPanel({ orders, drivers, bases, moviles, onOrder
                 <div>
                   <p className="font-semibold text-sm">{order.client_name}</p>
                   {order.driver_name && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <p className="text-xs font-bold text-black flex items-center gap-1">
                       <User className="w-3 h-3" />{order.driver_name}
-                      {order.assigned_base && <span className="ml-1">· {order.assigned_base}</span>}
+                      {order.assigned_base && <span className="ml-1 font-normal text-gray-600">· {order.assigned_base}</span>}
                     </p>
                   )}
                 </div>
