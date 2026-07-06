@@ -186,9 +186,12 @@ Deno.serve(async (req) => {
   
   // Interceptar payload de automación de entidad (RideOrder)
   if (body.event && body.event.entity_name === "RideOrder" && body.data) {
+    console.log("=> INTERCEPT RIDE ORDER AUTOMATION:", body.data.id, "STATUS:", body.data.status);
     // Cuando pasa a ofrecido
     const isStatusChanged = !body.old_data || body.changed_fields?.includes("status");
+    console.log("=> isStatusChanged:", isStatusChanged, "old_status:", body.old_data?.status);
     if (body.data.status === "ofrecido" && body.data.driver_id && isStatusChanged) {
+      console.log("=> AUTOMATION SETTING ACTION TO SEND FOR DRIVER:", body.data.driver_id);
       body.action = "send";
       body.driverId = body.data.driver_id;
       body.orderId = body.data.id;
@@ -201,6 +204,7 @@ Deno.serve(async (req) => {
     }
     // Cuando pasa a pendiente y no tiene chofer (broadcast)
     else if (body.data.status === "pendiente" && !body.data.driver_id && body.data.notes?.includes("[BROADCAST]") && isStatusChanged) {
+      console.log("=> AUTOMATION SETTING ACTION TO BROADCAST");
       body.action = "broadcast_trigger"; // Nuevo action para manejar el broadcast desde el backend
       body.orderId = body.data.id;
       body.orderData = {
