@@ -70,27 +70,8 @@ function DriverForm({ onSubmit, isSubmitting, initial, moviles = [] }) {
             onChange={e => {
               const nombre = e.target.value;
               set("name", nombre);
-              // Autocompletar desde móvil si el nombre coincide con el titular
-              if (nombre.length >= 3) {
-                const normalizar = s => s?.toLowerCase().replace(/\s+/g, " ").trim() || "";
-                const match = moviles.find(m =>
-                  normalizar(m.apellido_nombre).includes(normalizar(nombre)) ||
-                  normalizar(nombre).includes(normalizar(m.apellido_nombre))
-                );
-                if (match) {
-                  setMovilNumero(String(match.numero_movil));
-                  setForm(p => ({
-                    ...p,
-                    name: nombre,
-                    vehicle_model: match.id,
-                    vehicle_plate: match.dominio || p.vehicle_plate,
-                    vehicle_color: match.color || p.vehicle_color,
-                    dni: match.dni || p.dni,
-                    fecha_nacimiento: match.fecha_nacimiento || p.fecha_nacimiento,
-                    direccion: match.direccion || p.direccion,
-                  }));
-                }
-              }
+              // NOTA: Se eliminó el autocompletado agresivo aquí porque 
+              // sobreescribía los datos del móvil incorrectamente si los nombres coincidían parcialmente.
             }}
             required
           />

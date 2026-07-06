@@ -239,7 +239,9 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
     if (!normalized) { setError("Ingresá tu número de celular"); return; }
     const found = debugArray(safeDriversList, 'safeDriversList').find(d => {
       const dp = (d.phone || "").replace(/\s|-|\(|\)/g, "");
-      return dp === normalized || dp.endsWith(normalized) || normalized.endsWith(dp);
+      // Exigir al menos 6 dígitos para búsquedas parciales, evitando que "123" coincida con "3442123"
+      const isPartialMatch = normalized.length >= 6 && (dp.endsWith(normalized) || normalized.endsWith(dp));
+      return dp === normalized || isPartialMatch;
     });
     if (!found) {
       setError("No se encontró ningún chofer con ese número. Verificá con el operador.");
