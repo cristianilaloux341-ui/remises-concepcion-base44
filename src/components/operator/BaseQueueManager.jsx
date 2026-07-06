@@ -287,10 +287,10 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     // Auto-crear Chofer si no existe (Modo Prueba / Carga Rápida)
     if (!driver) {
       try {
-        const fakePlate = `TEST${movilNum}`;
+        const fakePlate = `TEST-${movilNum}`;
         driver = await base44.entities.Driver.create({
           name: `Móvil ${movilNum}`,
-          phone: `000000000${movilNum}`,
+          phone: `${movilNum}n`,
           vehicle_plate: fakePlate,
           vehicle_model: String(movilNum),
           status: "disponible"
