@@ -16,8 +16,8 @@ export default function OrderCard({ order, onClick, isAdmin, onDelete }) {
             <User className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <p className="font-semibold text-sm">{order.client_name}</p>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <p className="font-bold text-black text-sm">{order.client_name}</p>
+            <p className="font-bold text-black text-xs flex items-center gap-1">
               <Phone className="w-3 h-3" />
               {order.client_phone}
             </p>
@@ -66,7 +66,7 @@ export default function OrderCard({ order, onClick, isAdmin, onDelete }) {
           <span className="font-bold text-sm">${order.fare.toLocaleString()}</span>
         )}
         {order.driver_name && (
-          <span className="text-xs font-bold text-black">🚗 {order.driver_name}</span>
+          <span className="text-sm font-extrabold text-black bg-gray-100 px-2 py-1 rounded-md border border-gray-300">🚗 {order.driver_name}</span>
         )}
       </div>
     </Card>

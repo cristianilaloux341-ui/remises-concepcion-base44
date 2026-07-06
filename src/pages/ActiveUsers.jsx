@@ -260,9 +260,9 @@ export default function ActiveUsers() {
                 <tbody className="divide-y">
                   {operators.map(op => (
                     <tr key={op.id} className="hover:bg-muted/10">
-                      <td className="px-4 py-3 font-medium text-black">
+                      <td className="px-4 py-3 font-bold text-black text-base">
                         {op.name}
-                        <div className="text-xs text-black font-normal">{op.phone}</div>
+                        <div className="text-sm text-black font-bold mt-1">{op.phone}</div>
                       </td>
                       <td className="px-4 py-3 uppercase text-xs font-semibold">{op.rol || op.role}</td>
                       <td className="px-4 py-3 font-mono font-bold tracking-widest text-base">
@@ -315,9 +315,9 @@ export default function ActiveUsers() {
                 <tbody className="divide-y">
                   {drivers.map(d => (
                     <tr key={d.id} className="hover:bg-muted/10">
-                      <td className="px-4 py-3 font-medium text-black">
+                      <td className="px-4 py-3 font-bold text-black text-base">
                         {d.name}
-                        <div className="text-xs text-black font-normal">{d.vehicle_plate}</div>
+                        <div className="text-sm text-black font-bold mt-1">{d.vehicle_plate}</div>
                       </td>
                       <td className="px-4 py-3 font-mono font-bold tracking-widest text-base">
                         {showPins ? (d.pin || <span className="text-gray-400 text-sm tracking-normal italic">No tiene</span>) : "••••"}

@@ -128,8 +128,8 @@ export default function AdminUsuarios() {
               <tbody className="divide-y">
                 {usuarios.map(u => (
                   <tr key={u.id} className={!u.activo ? "bg-red-50/30" : "hover:bg-gray-50/50 transition-colors"}>
-                    <td className="px-4 py-3 font-medium text-black">{u.nombre}</td>
-                    <td className="px-4 py-3 text-black">{u.telefono}</td>
+                    <td className="px-4 py-3 font-bold text-black text-base">{u.nombre}</td>
+                    <td className="px-4 py-3 font-bold text-black text-base">{u.telefono}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                         u.rol === 'Administrador General' ? 'bg-purple-100 text-purple-800' :
