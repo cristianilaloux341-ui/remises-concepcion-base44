@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 // Tiempo real — sin polling
 import { Button } from "@/components/ui/button";
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
@@ -1341,6 +1341,7 @@ function notifySW(message) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function DriverApp() {
+  const queryClient = useQueryClient();
   const [myDriverId, setMyDriverId] = useState(() => localStorage.getItem("my_driver_id") || "");
   const [savedDriverId, setSavedDriverId] = useState(() => localStorage.getItem("remembered_driver_id") || "");
   const [selectedBase, setSelectedBase] = useState("");
@@ -1593,6 +1594,27 @@ export default function DriverApp() {
   // ── Tiempo real: suscripciones en lugar de polling ────────────────────────
   const { drivers, isLoading: driversLoading, error: driversError } = useRealtimeDrivers();
   const { orders } = useRealtimeOrders({ limit: 50 });
+
+  // Sincronización agresiva de la UI cuando el teléfono se desbloquea / la app vuelve a primer plano
+  useEffect(() => {
+    const handleSync = () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers"] });
+    };
+    window.addEventListener("radiocab_reconnect", handleSync);
+    
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        handleSync();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    
+    return () => {
+      window.removeEventListener("radiocab_reconnect", handleSync);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [queryClient]);
 
   // Timeout de seguridad: si después de 8s sigue cargando, mostrar reintento
   useEffect(() => {
