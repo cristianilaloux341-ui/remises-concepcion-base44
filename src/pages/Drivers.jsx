@@ -68,23 +68,11 @@ function DriverForm({ onSubmit, isSubmitting, initial, moviles = [] }) {
           <Input
             value={form.name}
             onChange={e => {
-              const nombre = e.target.value;
-              set("name", nombre);
-              // NOTA: Se eliminó el autocompletado agresivo aquí porque 
-              // sobreescribía los datos del móvil incorrectamente si los nombres coincidían parcialmente.
+              set("name", e.target.value);
             }}
             required
           />
-          {form.name.length >= 3 && (() => {
-            const normalizar = s => s?.toLowerCase().replace(/\s+/g, " ").trim() || "";
-            const match = moviles.find(m =>
-              normalizar(m.apellido_nombre).includes(normalizar(form.name)) ||
-              normalizar(form.name).includes(normalizar(m.apellido_nombre))
-            );
-            return match ? (
-              <p className="text-xs text-green-600">✓ Coincide con Móvil {match.numero_movil} — {match.apellido_nombre}</p>
-            ) : null;
-          })()}
+          {/* Se eliminó la validación visual de coincidencia de nombres para evitar falsos positivos con nombres vacíos */}
         </div>
         <div className="space-y-1">
           <Label>Teléfono *</Label>

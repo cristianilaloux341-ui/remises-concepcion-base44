@@ -2101,7 +2101,7 @@ export default function DriverApp() {
             className="text-xs text-gray-500 underline"
             onClick={() => {
               localStorage.removeItem("my_driver_id");
-              // NO borramos remembered_driver_id para que aparezca la pantalla de acceso rápido
+              localStorage.removeItem("remembered_driver_id"); // Borramos para que no quede atrapado en el usuario equivocado
               setMyDriverId("");
             }}
           >
