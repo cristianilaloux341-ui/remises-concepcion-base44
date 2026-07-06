@@ -140,8 +140,8 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
           <div className="bg-white rounded-lg border border-amber-200 px-3 py-2 flex items-center gap-2">
             <Car className="w-4 h-4 text-amber-500 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold truncate">{suggestedDriver.name}</p>
-              <p className="text-xs text-muted-foreground font-mono">{suggestedDriver.vehicle_plate} · {suggestedDriver.current_base}</p>
+              <p className="text-sm font-extrabold text-black truncate">{suggestedDriver.name}</p>
+              <p className="text-sm font-extrabold text-black font-mono">{suggestedDriver.vehicle_plate} · {suggestedDriver.current_base}</p>
             </div>
             <Badge className="text-xs bg-amber-100 text-amber-700 border-0 shrink-0">1° en zona</Badge>
           </div>
@@ -163,7 +163,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       {/* Auto-asignar */}
       <Button
         size="sm"
-        className="w-full gap-2 rounded-lg h-8"
+        className="w-full gap-2 rounded-lg h-8 font-extrabold"
         onClick={handleAutoAssign}
         disabled={dispatching}
       >
@@ -174,7 +174,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       {/* Selector manual */}
       <div className="flex gap-2">
         <input 
-          className="flex-1 h-8 text-xs rounded-lg border border-input px-3 bg-white"
+          className="flex-1 h-8 text-sm font-bold text-black rounded-lg border border-input px-3 bg-white placeholder:text-gray-500 placeholder:font-normal"
           placeholder="Nº o Nombre para asignar..."
           value={selectedDriverId}
           onChange={(e) => setSelectedDriverId(e.target.value)}
