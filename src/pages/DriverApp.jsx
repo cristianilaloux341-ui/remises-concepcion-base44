@@ -1308,6 +1308,15 @@ export default function DriverApp() {
 
   // Register SW and request notification permission on load
   useEffect(() => {
+    // Force logout once to fix corrupted driver bindings from previous partial match bug
+    if (!localStorage.getItem("force_logout_v2")) {
+      localStorage.removeItem("my_driver_id");
+      localStorage.removeItem("remembered_driver_id");
+      localStorage.setItem("force_logout_v2", "true");
+      setMyDriverId("");
+      return; // Stop execution to let the state clear and re-render the login screen
+    }
+
     registerSW();
 
     // Si la app fue abierta desde un tap de "Aceptar" en pantalla bloqueada
