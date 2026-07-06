@@ -578,7 +578,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
 
             <div className="flex gap-2">
               <input 
-                className="flex-1 h-9 text-sm rounded-lg border border-input px-3 bg-white"
+                className="flex-1 h-9 text-base font-extrabold text-slate-900 rounded-lg border-2 border-slate-400 px-3 bg-white placeholder:text-slate-500 placeholder:font-normal"
+                style={{ color: "#000000", backgroundColor: "#ffffff" }}
                 placeholder="Nº de móvil para asignar..."
                 value={manualDriverInput}
                 onChange={(e) => {
