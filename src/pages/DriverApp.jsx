@@ -1316,6 +1316,13 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
 // ── Register Service Worker ───────────────────────────────────────────────────
 async function registerSW() {
   if (!("serviceWorker" in navigator)) return null;
+  
+  // Desactivación condicional: Si es nativo, bloqueamos el SW web y borramos cualquier residuo
+  if (Capacitor.isNativePlatform()) {
+    navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(reg => reg.unregister()));
+    return null;
+  }
+  
   try {
     const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
     // Forzar activación inmediata del nuevo SW si hay una actualización pendiente

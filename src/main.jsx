@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
+import { Capacitor } from '@capacitor/core'
 
 // Si el usuario tuvo un service worker corrupto, lo borramos inmediatamente al iniciar React
 if ('serviceWorker' in navigator) {
@@ -49,8 +50,8 @@ if (window.location.hostname !== 'localhost') {
 
 // Detección de emulador removida para evitar falsos positivos en Capacitor
 
-// Registrar el Service Worker para PWA y push notifications
-if ('serviceWorker' in navigator) {
+// Registrar el Service Worker para PWA y push notifications (Solo en Web, bloqueado en Nativo)
+if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {
       // SW registration failed silently
