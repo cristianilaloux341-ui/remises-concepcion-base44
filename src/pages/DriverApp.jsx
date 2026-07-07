@@ -104,6 +104,9 @@ function unlockAudio() {
 }
 
 function playAlert() {
+  // Si estamos en la app Nativa, el sonido lo maneja Android de forma nativa
+  if (Capacitor.isNativePlatform()) return;
+
   try { navigator.vibrate?.([500, 200, 500, 200, 1000, 300, 500]); } catch (_) {}
   
   // Alarma HTML5 (suena más fuerte y sortea bloqueos de background mejor)
@@ -135,6 +138,7 @@ function playAlert() {
 }
 
 function stopAlert() {
+  if (Capacitor.isNativePlatform()) return; // Android lo para nativamente
   try {
     if (alarmAudioElement) {
       alarmAudioElement.pause();
