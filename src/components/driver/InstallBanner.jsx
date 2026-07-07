@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Download, X, Share } from "lucide-react";
+import { Capacitor } from '@capacitor/core';
 
 export default function InstallBanner() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -8,6 +9,11 @@ export default function InstallBanner() {
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
 
   useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      setShow(false);
+      return;
+    }
+    
     // Si ya está instalada como PWA, no mostrar nada
     const isStandalone =
       window.navigator.standalone === true ||

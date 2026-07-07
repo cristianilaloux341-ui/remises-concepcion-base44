@@ -1933,7 +1933,9 @@ export default function DriverApp() {
 
   const handleAccept = () => {
     setLocalOverride({ status: "en_viaje" });
-    // Reutilizamos exactamente la misma función del backend que invoca el botón nativo de Android
+    updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
+    updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+    // Notificamos al backend para limpiar notificaciones
     base44.functions.invoke("sendPushNotification", {
       action: "native_accept",
       orderId: offeredOrder.id,
@@ -2038,7 +2040,9 @@ export default function DriverApp() {
 
   const handleBroadcastAccept = (order) => {
     setLocalOverride({ status: "en_viaje" });
-    // Reutilizamos la misma función del backend para asegurar consistencia
+    updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
+    updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+    // Notificamos al backend para limpiar notificaciones
     base44.functions.invoke("sendPushNotification", {
       action: "native_accept",
       orderId: order.id,
