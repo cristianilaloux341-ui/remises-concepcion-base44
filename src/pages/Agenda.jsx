@@ -58,18 +58,38 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
     base44.entities.Client.list().then(data => setClients(data)).catch(() => {});
   }, []);
 
+  const geocodeAddress = async (address) => {
+    try {
+      const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address });
+      const predictions = res.data?.predictions;
+      if (!predictions || predictions.length === 0) return null;
+      const details = await base44.functions.invoke("geocodeRoute", {
+        action: "placedetails",
+        place_id: predictions[0].place_id,
+        description: predictions[0].description,
+      });
+      if (details.data?.lat && details.data?.lng) return { lat: details.data.lat, lng: details.data.lng };
+    } catch (_) {}
+    return null;
+  };
+
   // Filtrar clientes cuando cambia el nombre o teléfono
   useEffect(() => {
-    const query = (form.client_name + form.client_phone).toLowerCase().trim();
-    if (!query) {
+    const nameQ = form.client_name.toLowerCase().trim();
+    const phoneQ = form.client_phone.toLowerCase().trim();
+    
+    if (!nameQ && !phoneQ) {
       setFilteredClients([]);
       setShowClientSuggestions(false);
       return;
     }
-    const filtered = clients.filter(c =>
-      c.name.toLowerCase().includes(query) ||
-      (c.phone && c.phone.toLowerCase().includes(query))
-    ).slice(0, 5);
+
+    const filtered = clients.filter(c => {
+      const matchName = nameQ ? c.name?.toLowerCase().includes(nameQ) : false;
+      const matchPhone = phoneQ ? c.phone?.toLowerCase().includes(phoneQ) : false;
+      return matchName || matchPhone;
+    }).slice(0, 6);
+    
     setFilteredClients(filtered);
     setShowClientSuggestions(filtered.length > 0);
   }, [form.client_name, form.client_phone, clients]);
@@ -92,7 +112,9 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
     }
     setCalculandoTarifa(true);
     try {
-      const distMetros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address);
+      const origenCoords = await geocodeAddress(form.pickup_address);
+      const destinoCoords = await geocodeAddress(form.dropoff_address);
+      const distMetros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address, origenCoords, destinoCoords);
       if (distMetros) {
         const fare = calcularImporte(distMetros, tariffConfig);
         setForm(f => ({ ...f, fare }));
@@ -125,7 +147,9 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
       if (form.pickup_address && form.dropoff_address && tariffConfig && !form.fare) {
         setCalculandoTarifa(true);
         try {
-          const distMetros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address);
+          const origenCoords = await geocodeAddress(form.pickup_address);
+          const destinoCoords = await geocodeAddress(form.dropoff_address);
+          const distMetros = await calcularDistanciaRuta(form.pickup_address, form.dropoff_address, origenCoords, destinoCoords);
           if (distMetros) {
             const fare = calcularImporte(distMetros, tariffConfig);
             setForm(f => ({ ...f, fare }));
@@ -446,17 +470,37 @@ export default function Agenda() {
 
   const dispatchMutation = useMutation({
     mutationFn: async (ride) => {
+      // 1. Geocodificar para auto-asignacion correcta si es necesario
+      let lat = undefined;
+      let lng = undefined;
+      try {
+        const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: ride.pickup_address });
+        const predictions = res.data?.predictions;
+        if (predictions?.length > 0) {
+          const details = await base44.functions.invoke("geocodeRoute", {
+            action: "placedetails",
+            place_id: predictions[0].place_id,
+            description: predictions[0].description,
+          });
+          lat = details.data?.lat;
+          lng = details.data?.lng;
+        }
+      } catch (e) {}
+
       // Crear el pedido como pendiente
       const order = await base44.entities.RideOrder.create({
         client_name: ride.client_name,
         client_phone: ride.client_phone || "",
         pickup_address: ride.pickup_address,
+        pickup_lat: lat,
+        pickup_lng: lng,
         dropoff_address: ride.dropoff_address || "",
         zone: ride.zone || undefined,
         fare: ride.fare && String(ride.fare).trim() !== "" && Number(ride.fare) > 0 ? Number(ride.fare) : undefined,
         notes: ride.notes || "",
         status: "pendiente",
       });
+      
       // Auto-asignar por zona (o broadcast si no hay nadie)
       // Si tiene móvil preferido, asignar directo
       if (ride.preferred_driver_id) {
