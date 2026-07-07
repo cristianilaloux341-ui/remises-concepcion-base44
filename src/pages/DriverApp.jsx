@@ -1462,6 +1462,8 @@ export default function DriverApp() {
         const orderId = msg.orderId || msg.payload?.orderId;
         if (orderId && myDriverId) {
           notifySW({ type: "ACK_REJECT_ORDER", orderId }); // Send ACK
+          setLocalOverride({ status: "disponible" });
+          updateDriver.mutate({ id: myDriverId, data: { status: "disponible" } });
           Promise.all([
             base44.entities.RideOrder.get(orderId),
             base44.entities.Driver.list()
@@ -1946,6 +1948,11 @@ export default function DriverApp() {
   };
   const handleReject = async () => {
     const currentOrder = { ...offeredOrder, offered_driver_ids: [...(offeredOrder.offered_driver_ids || []), myDriverId] };
+    
+    // Regresamos al chofer a "disponible" ya que rechazó el viaje
+    setLocalOverride({ status: "disponible" });
+    updateDriver.mutate({ id: myDriverId, data: { status: "disponible" } });
+
     await reassignAfterReject(currentOrder, drivers, []);
     
     base44.entities.AuditLog.create({

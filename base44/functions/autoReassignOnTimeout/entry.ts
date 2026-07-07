@@ -43,6 +43,11 @@ Deno.serve(async (req) => {
 
         if (available.length === 0) {
           // Sin más choferes — volver a pendiente
+          if (currentDriver && currentDriver.status === 'ofrecido') {
+            await base44.asServiceRole.entities.Driver.update(currentDriver.id, {
+              status: 'disponible'
+            });
+          }
           await base44.asServiceRole.entities.RideOrder.update(orderId, {
             status: 'pendiente',
             driver_id: null,
@@ -59,7 +64,21 @@ Deno.serve(async (req) => {
 
         const nextDriver = sameBaseQueue.length > 0 ? sameBaseQueue[0] : available[0];
 
-        // Reasignar
+        // Regresar al chofer anterior a disponible (por no responder a tiempo)
+        if (currentDriver && currentDriver.status === 'ofrecido') {
+          await base44.asServiceRole.entities.Driver.update(currentDriver.id, {
+            status: 'disponible'
+          });
+        }
+
+        // Marcar al nuevo chofer como ofrecido para sacarlo de la cola
+        if (nextDriver) {
+          await base44.asServiceRole.entities.Driver.update(nextDriver.id, {
+            status: 'ofrecido'
+          });
+        }
+
+        // Reasignar la orden
         await base44.asServiceRole.entities.RideOrder.update(orderId, {
           status: 'ofrecido',
           driver_id: nextDriver.id,

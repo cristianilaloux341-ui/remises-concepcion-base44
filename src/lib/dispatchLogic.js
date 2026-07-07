@@ -82,6 +82,12 @@ export async function assignDriverToOrder(order, driver) {
     offered_driver_ids: [...(order.offered_driver_ids || []), driver.id],
   });
 
+  // Sacamos temporalmente al chofer de "disponible" a "ofrecido" para que 
+  // desaparezca de la cola de la base mientras decide si acepta el viaje
+  await base44.entities.Driver.update(driver.id, {
+    status: "ofrecido"
+  });
+
   // Enviar notificación push real al dispositivo del chofer (en segundo plano)
   base44.functions.invoke("sendPushNotification", {
     action: "send",
