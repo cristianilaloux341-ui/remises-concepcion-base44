@@ -22,45 +22,19 @@ export function getBaseQueue(drivers, baseName) {
     .sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at));
 }
 
-// Find best driver for an order: zone-first (FIFO), then nearest base
+// Find best driver for an order: strictly by zone (FIFO)
 export async function findBestDriver(order, drivers, bases) {
   if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in findBestDriver!", drivers); return null; }
-  if (!Array.isArray(bases)) { console.error("[CRITICAL ERROR] bases is not array in findBestDriver!", bases); bases = BASES; }
   const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
   if (!availableDrivers.length) return null;
 
-  // 1) If order has a zone, try that zone first (FIFO)
+  // Sólo asignar a los de la zona correspondiente
   if (order.zone) {
     const zoneQueue = getBaseQueue(availableDrivers, order.zone);
     if (zoneQueue.length > 0) return zoneQueue[0];
   }
 
-  // 2) If pickup coordinates available, find nearest base with available drivers
-  if (order.pickup_lat && order.pickup_lng) {
-    const basesWithDrivers = BASES.filter(b => availableDrivers.some(d => d.current_base === b));
-    
-    let nearestBase = null;
-    let minDist = Infinity;
-
-    for (const baseName of basesWithDrivers) {
-      const baseInfo = bases.find(b => b.name === baseName);
-      if (baseInfo?.lat && baseInfo?.lng) {
-        const dist = getDistance(order.pickup_lat, order.pickup_lng, baseInfo.lat, baseInfo.lng);
-        if (dist < minDist) { minDist = dist; nearestBase = baseName; }
-      }
-    }
-
-    if (nearestBase) {
-      const queue = getBaseQueue(availableDrivers, nearestBase);
-      if (queue.length > 0) return queue[0];
-    }
-  }
-
-  // 3) No zone / no coords: first in any queue (FIFO global)
-  for (const baseName of BASES) {
-    const queue = getBaseQueue(availableDrivers, baseName);
-    if (queue.length > 0) return queue[0];
-  }
+  // Se eliminó la lógica de proximidad GPS porque causa asignaciones a zonas incorrectas.
   return null;
 }
 
@@ -156,28 +130,8 @@ export async function autoDispatch(order, drivers, bases) {
     return "broadcast";
   }
 
-  // 2) Sin zona (no se detectó ni se asignó ninguna) → buscar por coordenadas (base más cercana)
-  if (order.pickup_lat && order.pickup_lng) {
-    const basesWithDrivers = BASES.filter(b => availableDrivers.some(d => d.current_base === b));
-    let nearestBase = null;
-    let minDist = Infinity;
-    for (const baseName of basesWithDrivers) {
-      const baseInfo = bases.find(b => b.name === baseName);
-      if (baseInfo?.lat && baseInfo?.lng) {
-        const dist = getDistance(order.pickup_lat, order.pickup_lng, baseInfo.lat, baseInfo.lng);
-        if (dist < minDist) { minDist = dist; nearestBase = baseName; }
-      }
-    }
-    if (nearestBase) {
-      const queue = getBaseQueue(availableDrivers, nearestBase);
-      if (queue.length > 0) {
-        await assignDriverToOrder(order, queue[0]);
-        return "assigned";
-      }
-    }
-  }
-
-  // 3) Sin nadie en zona → broadcast a todos
+  // 2) Sin zona -> pasamos a BROADCAST directo. 
+  // No usamos coordenadas GPS para adivinar la base porque causa asignaciones cruzadas.
   await broadcastOrder(order, drivers);
   return "broadcast";
 }

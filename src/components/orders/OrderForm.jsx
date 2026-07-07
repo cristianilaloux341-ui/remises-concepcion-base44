@@ -161,12 +161,12 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     return () => clearTimeout(timeout);
   }, [form.pickup_address, form.pickup_lat, form.pickup_lng]);
 
-  // Auto-suggest best driver when pickup changes
+  // Auto-suggest best driver when zone or pickup changes
   useEffect(() => {
     if (!form.pickup_address || availableDrivers.length === 0) { setSuggestedDriver(null); return; }
-    findBestDriver({ pickup_address: form.pickup_address, pickup_lat: form.pickup_lat, pickup_lng: form.pickup_lng }, drivers, bases)
+    findBestDriver({ zone: form.zone, pickup_address: form.pickup_address, pickup_lat: form.pickup_lat, pickup_lng: form.pickup_lng }, drivers, bases)
       .then(d => setSuggestedDriver(d));
-  }, [form.pickup_address, drivers.length]);
+  }, [form.zone, form.pickup_address, drivers.length]);
 
   const handleAddressClientSelect = (clientData) => {
     // Force unconditional update — use the exact row's data (identified by addressId)
@@ -203,7 +203,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
 
   const handleAutoAssign = async () => {
     setAutoAssigning(true);
-    const driver = await findBestDriver({ pickup_address: form.pickup_address }, drivers, bases);
+    const driver = await findBestDriver({ zone: form.zone, pickup_address: form.pickup_address }, drivers, bases);
     if (driver) {
       setForm(prev => ({ ...prev, driver_id: driver.id, driver_name: driver.name, status: "ofrecido" }));
       setSuggestedDriver(driver);
