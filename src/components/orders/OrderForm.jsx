@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, UserPlus, Wand2, Calculator } from "lucide-react";
-import { findBestDriver, detectZoneFromAddress, detectZoneFromCoords, learnZoneMapping, parseAddress } from "@/lib/dispatchLogic";
+import { findBestDriver, detectZoneFromAddress, detectZoneFromCoords, learnZoneMapping, parseAddress, getBaseQueue } from "@/lib/dispatchLogic";
 import PickupAutocomplete from "@/components/orders/PickupAutocomplete";
 import AddressAutocomplete from "@/components/orders/AddressAutocomplete";
 import { recordAddressUsage } from "@/hooks/useAddressSuggestions";
@@ -547,6 +547,28 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
               <Car className="w-3.5 h-3.5" /> Asignación de Móvil
             </p>
+
+            {/* Cola de móviles en la zona seleccionada */}
+            {form.zone && (
+              <div className="bg-white rounded-xl border p-3">
+                <p className="text-xs font-bold text-slate-500 mb-2">Móviles en cola para {form.zone}:</p>
+                <div className="flex flex-wrap gap-2">
+                  {getBaseQueue(availableDrivers, form.zone).map((d, i) => (
+                    <Badge 
+                      key={d.id} 
+                      variant="outline"
+                      className={`cursor-pointer px-2 py-1 text-xs transition-colors ${form.driver_id === d.id ? 'bg-green-500 text-white border-green-600 hover:bg-green-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'}`}
+                      onClick={() => handleDriverChange(d.id)}
+                    >
+                      {i + 1}. {d.name.split(" ")[0]} {d.vehicle_model ? `#${d.vehicle_model}` : ''}
+                    </Badge>
+                  ))}
+                  {getBaseQueue(availableDrivers, form.zone).length === 0 && (
+                    <span className="text-xs text-amber-600">No hay móviles en esta base en este momento.</span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Sugerencia automática */}
             {suggestedDriver && !form.driver_id && (
