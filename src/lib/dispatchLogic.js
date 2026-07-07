@@ -150,9 +150,13 @@ export async function autoDispatch(order, drivers, bases) {
       await assignDriverToOrder(order, zoneQueue[0]);
       return "assigned";
     }
+    // Si la zona fue solicitada explícitamente pero no hay nadie, 
+    // pasamos a BROADCAST directo, NO le asignamos a la fuerza a otra base.
+    await broadcastOrder(order, drivers);
+    return "broadcast";
   }
 
-  // 2) Sin zona o zona vacía → buscar por coordenadas (base más cercana)
+  // 2) Sin zona (no se detectó ni se asignó ninguna) → buscar por coordenadas (base más cercana)
   if (order.pickup_lat && order.pickup_lng) {
     const basesWithDrivers = BASES.filter(b => availableDrivers.some(d => d.current_base === b));
     let nearestBase = null;
