@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Phone, MapPin, User, DollarSign, Trash2, Loader2, XCircle, RefreshCw } from "lucide-react";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
 import RideMap from "@/components/map/RideMap";
+import { assignDriverToOrder } from "@/lib/dispatchLogic";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -81,17 +82,21 @@ export default function OrderDetail() {
     );
   }
 
-  const handleAssignDriver = (driverId) => {
+  const handleAssignDriver = async (driverId) => {
     const driver = drivers.find(d => d.id === driverId);
-    updateMutation.mutate({
-      id: order.id,
-      data: {
-        driver_id: driverId,
-        driver_name: driver?.name || "",
-        status: "ofrecido",
-        offered_driver_ids: [...(order.offered_driver_ids || []), driverId],
-      },
-    });
+    if (driver) {
+      await assignDriverToOrder(order, driver);
+      queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
+    } else {
+      updateMutation.mutate({
+        id: order.id,
+        data: {
+          driver_id: driverId,
+          status: "ofrecido",
+          offered_driver_ids: [...(order.offered_driver_ids || []), driverId],
+        },
+      });
+    }
   };
 
   const availableDrivers = drivers.filter(d => d.status === "disponible" || d.id === order?.driver_id);

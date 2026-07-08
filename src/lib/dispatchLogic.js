@@ -48,6 +48,27 @@ export function findDriverInZone(zone, drivers) {
 
 // Assign driver to order (direct / zone-based)
 export async function assignDriverToOrder(order, driver) {
+  // Mover a los móviles salteados al final de la cola
+  try {
+    if (driver.current_base && driver.status === "disponible") {
+      const allDrivers = await base44.entities.Driver.filter({ status: "disponible", current_base: driver.current_base });
+      const queue = allDrivers.sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at));
+      const driverIndex = queue.findIndex(d => d.id === driver.id);
+      
+      if (driverIndex > 0) {
+        const skippedDrivers = queue.slice(0, driverIndex);
+        const baseTime = new Date();
+        await Promise.all(skippedDrivers.map((d, i) => 
+          base44.entities.Driver.update(d.id, {
+            queue_entered_at: new Date(baseTime.getTime() + (i * 1000)).toISOString()
+          })
+        ));
+      }
+    }
+  } catch (e) {
+    console.error("Error penalizing skipped drivers", e);
+  }
+
   await base44.entities.RideOrder.update(order.id, {
     status: "ofrecido",
     driver_id: driver.id,

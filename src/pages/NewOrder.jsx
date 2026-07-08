@@ -12,11 +12,40 @@ export default function NewOrder() {
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
+      // Guardamos la asignación manual para hacerla pasar por assignDriverToOrder
+      const manualDriverId = data.driver_id;
+      const manualDriverName = data.driver_name;
+      const manualStatus = data.status;
+
+      if (manualDriverId) {
+        data.driver_id = null;
+        data.driver_name = null;
+        data.status = "pendiente";
+      }
+
       // 1. Crear la orden
       const newOrder = await base44.entities.RideOrder.create(data);
 
-      // 2. Si ya viene con driver asignado desde el formulario, no hacer nada más
-      if (newOrder.driver_id) return newOrder;
+      const [drivers, bases] = await Promise.all([
+        base44.entities.Driver.list(),
+        base44.entities.Base.list(),
+      ]);
+
+      // 2. Si ya viene con driver asignado desde el formulario, asignarlo pasando por dispatch logic (para empujar a los salteados y enviar push)
+      if (manualDriverId) {
+        const driver = drivers.find(d => d.id === manualDriverId);
+        if (driver) {
+          await assignDriverToOrder(newOrder, driver);
+        } else {
+          // Asignación manual sin entidad de chofer real (forzada)
+          await base44.entities.RideOrder.update(newOrder.id, {
+            driver_id: manualDriverId,
+            driver_name: manualDriverName,
+            status: manualStatus,
+          });
+        }
+        return newOrder;
+      }
 
       // 3. Auto-despacho: prioridad 1 = misma zona, prioridad 2 = proximidad (sin zona)
       if (newOrder.status === "pendiente") {
