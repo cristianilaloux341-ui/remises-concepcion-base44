@@ -103,15 +103,19 @@ export async function assignDriverToOrder(order, driver) {
     },
   }).catch((e) => console.error("Push Error:", e));
 
-  // Obtener tiempo máximo de respuesta desde TarifaConfig
+  // Obtener configuración desde TarifaConfig
   const tarifaConfigs = await base44.entities.TarifaConfig.list();
-  const timeoutSeconds = tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos ?? 60;
+  const config = tarifaConfigs[0];
+  const timeoutSeconds = config?.tiempo_maximo_respuesta_segundos ?? 60;
+  const autoReassignActive = config?.auto_reasignacion_activa ?? true;
 
-  // Timeout automático dinámico (en segundo plano)
-  base44.functions.invoke("autoReassignOnTimeout", {
-    orderId: order.id,
-    timeoutSeconds: timeoutSeconds,
-  }).catch((e) => console.error("Timeout Error:", e));
+  // Solo si está activa, iniciamos el Timeout automático dinámico (en segundo plano)
+  if (autoReassignActive !== false) {
+    base44.functions.invoke("autoReassignOnTimeout", {
+      orderId: order.id,
+      timeoutSeconds: timeoutSeconds,
+    }).catch((e) => console.error("Timeout Error:", e));
+  }
 }
 
 // Broadcast: marcar el pedido como "pendiente_broadcast" para que TODOS los disponibles lo vean

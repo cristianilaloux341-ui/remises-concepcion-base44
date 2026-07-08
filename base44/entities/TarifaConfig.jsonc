@@ -76,6 +76,11 @@
       "type": "number",
       "default": 60,
       "description": "Segundos m\u00e1ximos que tiene el chofer para aceptar un viaje antes de que se reasigne"
+    },
+    "auto_reasignacion_activa": {
+      "type": "boolean",
+      "default": true,
+      "description": "Indica si el sistema debe reasignar autom\u00e1ticamente los viajes si los choferes no responden a tiempo."
     }
   },
   "required": []

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { DollarSign, Save, Loader2, Lock, Moon, Sun, KeyRound, Timer } from "lucide-react";
 
 const DEFAULTS = {
@@ -21,6 +22,7 @@ const DEFAULTS = {
   nocturna_hora_fin: 6,
   minutos_libre_post_viaje: 0,
   tiempo_maximo_respuesta_segundos: 60,
+  auto_reasignacion_activa: true,
 };
 
 function CampoMoneda({ label, description, field, form, onChange }) {
@@ -77,6 +79,7 @@ export default function TarifaConfigPanel() {
          nocturna_hora_fin: config.nocturna_hora_fin ?? DEFAULTS.nocturna_hora_fin,
          minutos_libre_post_viaje: config.minutos_libre_post_viaje ?? DEFAULTS.minutos_libre_post_viaje,
          tiempo_maximo_respuesta_segundos: config.tiempo_maximo_respuesta_segundos ?? DEFAULTS.tiempo_maximo_respuesta_segundos,
+         auto_reasignacion_activa: config.auto_reasignacion_activa ?? DEFAULTS.auto_reasignacion_activa,
        });
     }
   }, [config?.id]);
@@ -84,7 +87,10 @@ export default function TarifaConfigPanel() {
   const saveMutation = useMutation({
     mutationFn: async (data) => {
       const numData = Object.fromEntries(
-        Object.entries(data).map(([k, v]) => [k, Number(v)])
+        Object.entries(data).map(([k, v]) => {
+          if (typeof v === 'boolean') return [k, v];
+          return [k, Number(v)];
+        })
       );
       // Preservar la clave existente
       if (config?.clave_modificacion) {
@@ -382,6 +388,21 @@ export default function TarifaConfigPanel() {
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">seg</span>
               </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-4 border-t">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Reasignación automática de viajes</p>
+                <p className="text-sm text-muted-foreground">
+                  Si está activado, el sistema saltará automáticamente al siguiente móvil de la cola si el tiempo máximo se agota sin respuesta.
+                </p>
+              </div>
+              <Switch
+                checked={form.auto_reasignacion_activa}
+                onCheckedChange={(val) => handleChange("auto_reasignacion_activa", val)}
+              />
             </div>
           </div>
         </CardContent>
