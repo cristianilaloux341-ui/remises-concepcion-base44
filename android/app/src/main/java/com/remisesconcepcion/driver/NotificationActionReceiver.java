@@ -43,6 +43,14 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                 String payload = String.format("{\"action\":\"native_accept\", \"orderId\":\"%s\", \"driverId\":\"%s\", \"driverName\":\"%s\", \"base\":\"%s\"}", 
                         orderId, driverId, dName, bName);
                 sendToServer(apiUrl, payload, pendingResult);
+
+                // Abrir la app y pasar el parámetro para que React también se entere
+                Intent launchIntent = new Intent(context, MainActivity.class);
+                launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                launchIntent.putExtra("radiocab_action", "accept");
+                launchIntent.putExtra("orderId", orderId);
+                context.startActivity(launchIntent);
+                
             } else if ("ACTION_REJECT".equals(action)) {
                 Log.e(TAG, "Acción Rechazar recibida.");
                 // Cerrar la notificación
@@ -51,6 +59,13 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                 // Enviar al servidor
                 String payload = String.format("{\"action\":\"native_reject\", \"orderId\":\"%s\", \"driverId\":\"%s\"}", orderId, driverId);
                 sendToServer(apiUrl, payload, pendingResult);
+
+                // Abrir la app y pasar el parámetro de rechazo
+                Intent launchIntent = new Intent(context, MainActivity.class);
+                launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                launchIntent.putExtra("radiocab_action", "reject");
+                launchIntent.putExtra("orderId", orderId);
+                context.startActivity(launchIntent);
             }
         }
     }
