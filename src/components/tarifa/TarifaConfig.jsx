@@ -20,6 +20,7 @@ const DEFAULTS = {
   nocturna_hora_inicio: 22,
   nocturna_hora_fin: 6,
   minutos_libre_post_viaje: 0,
+  tiempo_maximo_respuesta_segundos: 60,
 };
 
 function CampoMoneda({ label, description, field, form, onChange }) {
@@ -75,6 +76,7 @@ export default function TarifaConfigPanel() {
          nocturna_hora_inicio: config.nocturna_hora_inicio ?? DEFAULTS.nocturna_hora_inicio,
          nocturna_hora_fin: config.nocturna_hora_fin ?? DEFAULTS.nocturna_hora_fin,
          minutos_libre_post_viaje: config.minutos_libre_post_viaje ?? DEFAULTS.minutos_libre_post_viaje,
+         tiempo_maximo_respuesta_segundos: config.tiempo_maximo_respuesta_segundos ?? DEFAULTS.tiempo_maximo_respuesta_segundos,
        });
     }
   }, [config?.id]);
@@ -332,31 +334,54 @@ export default function TarifaConfigPanel() {
         </CardContent>
       </Card>
 
-      {/* Restricción post-viaje */}
+      {/* Tiempos del sistema */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Timer className="w-5 h-5 text-orange-500" />
-            Tiempo de espera post-viaje
+            Tiempos del sistema
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Minutos que debe esperar el chofer antes de poder ponerse libre luego de completar un viaje. <strong>0 = sin restricción</strong>.
-          </p>
-          <div className="space-y-1.5 max-w-xs">
-            <Label className="text-sm font-semibold">Minutos de espera obligatoria</Label>
-            <div className="relative">
-              <Input
-                type="number"
-                min={0}
-                max={60}
-                step={1}
-                className="pr-14"
-                value={form.minutos_libre_post_viaje}
-                onChange={(e) => handleChange("minutos_libre_post_viaje", e.target.value)}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">min</span>
+        <CardContent className="space-y-6">
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-slate-800">Tiempo de espera post-viaje</p>
+            <p className="text-sm text-muted-foreground">
+              Minutos que debe esperar el chofer antes de poder ponerse libre luego de completar un viaje. <strong>0 = sin restricción</strong>.
+            </p>
+            <div className="space-y-1.5 max-w-xs">
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={0}
+                  max={60}
+                  step={1}
+                  className="pr-14"
+                  value={form.minutos_libre_post_viaje}
+                  onChange={(e) => handleChange("minutos_libre_post_viaje", e.target.value)}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">min</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-4 border-t">
+            <p className="text-sm font-semibold text-slate-800">Tiempo máximo para aceptar viaje</p>
+            <p className="text-sm text-muted-foreground">
+              Segundos máximos que tiene un chofer para aceptar un viaje antes de que se reasigne al próximo.
+            </p>
+            <div className="space-y-1.5 max-w-xs">
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={10}
+                  max={300}
+                  step={1}
+                  className="pr-14"
+                  value={form.tiempo_maximo_respuesta_segundos}
+                  onChange={(e) => handleChange("tiempo_maximo_respuesta_segundos", e.target.value)}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">seg</span>
+              </div>
             </div>
           </div>
         </CardContent>

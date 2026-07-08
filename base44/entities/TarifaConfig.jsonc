@@ -71,6 +71,11 @@
       "type": "number",
       "default": 0,
       "description": "Minutos que debe esperar el chofer antes de poder ponerse libre luego de completar un viaje (0 = sin restricci\u00f3n)"
+    },
+    "tiempo_maximo_respuesta_segundos": {
+      "type": "number",
+      "default": 60,
+      "description": "Segundos m\u00e1ximos que tiene el chofer para aceptar un viaje antes de que se reasigne"
     }
   },
   "required": []

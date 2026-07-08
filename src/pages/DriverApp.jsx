@@ -611,6 +611,35 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
 // ── Incoming ride alert ───────────────────────────────────────────────────────
 function IncomingAlert({ order, onAccept, onReject }) {
   const [isValid, setIsValid] = useState(null); // null = checking
+  const [timeLeft, setTimeLeft] = useState(null);
+  const [totalTime, setTotalTime] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    base44.entities.TarifaConfig.list().then(configs => {
+      if (mounted) {
+        const timeoutSecs = configs[0]?.tiempo_maximo_respuesta_segundos ?? 60;
+        setTotalTime(timeoutSecs);
+        // Calculate remaining time based on when the order was updated to 'ofrecido'
+        const elapsed = Math.floor((Date.now() - new Date(order.updated_date || Date.now()).getTime()) / 1000);
+        setTimeLeft(Math.max(0, timeoutSecs - elapsed));
+      }
+    }).catch(() => {
+      if (mounted) {
+        setTotalTime(60);
+        setTimeLeft(60);
+      }
+    });
+    return () => { mounted = false; };
+  }, [order.updated_date]);
+
+  useEffect(() => {
+    if (timeLeft === null || timeLeft <= 0) return;
+    const timer = setInterval(() => {
+      setTimeLeft(prev => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft]);
 
   useEffect(() => {
     let mounted = true;
@@ -645,6 +674,12 @@ function IncomingAlert({ order, onAccept, onReject }) {
             <p className="font-bold text-white text-lg leading-tight">¡Nuevo Viaje!</p>
             <p className="text-amber-100 text-xs">Respondé antes de que se reasigne</p>
           </div>
+          {timeLeft !== null && totalTime !== null && (
+            <div className="bg-amber-600/20 px-4 py-2 flex items-center justify-between">
+              <span className="text-xs font-semibold text-amber-900 flex items-center gap-1.5"><Timer className="w-3.5 h-3.5"/> Tiempo para responder</span>
+              <span className={`font-bold font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-amber-700'}`}>00:{String(timeLeft).padStart(2, '0')}</span>
+            </div>
+          )}
         </div>
 
         <div className="p-5 space-y-4">

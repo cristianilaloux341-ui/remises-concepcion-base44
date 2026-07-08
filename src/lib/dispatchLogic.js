@@ -74,10 +74,14 @@ export async function assignDriverToOrder(order, driver) {
     },
   }).catch((e) => console.error("Push Error:", e));
 
-  // Timeout automático ampliado: 60s (en segundo plano)
+  // Obtener tiempo máximo de respuesta desde TarifaConfig
+  const tarifaConfigs = await base44.entities.TarifaConfig.list();
+  const timeoutSeconds = tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos ?? 60;
+
+  // Timeout automático dinámico (en segundo plano)
   base44.functions.invoke("autoReassignOnTimeout", {
     orderId: order.id,
-    timeoutSeconds: 60,
+    timeoutSeconds: timeoutSeconds,
   }).catch((e) => console.error("Timeout Error:", e));
 }
 
