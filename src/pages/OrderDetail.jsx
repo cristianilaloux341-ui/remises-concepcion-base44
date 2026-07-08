@@ -60,7 +60,7 @@ export default function OrderDetail() {
       // Set queue_entered_at far in the past so driver appears first
       await base44.entities.Driver.update(order.driver_id, {
         status: "disponible",
-        queue_entered_at: new Date("2000-01-01").toISOString(),
+        queue_entered_at: new Date(Date.now() - 31536000000).toISOString(),
       });
     }
     queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });

@@ -15,11 +15,21 @@ export function getDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Helper to safely and stably sort a queue
+export function sortQueue(driversArray) {
+  return driversArray.sort((a, b) => {
+    const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : 0;
+    const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : 0;
+    const tA = isNaN(timeA) ? 0 : timeA;
+    const tB = isNaN(timeB) ? 0 : timeB;
+    if (tA !== tB) return tA - tB;
+    return (a.id || "").localeCompare(b.id || "");
+  });
+}
+
 // Get ordered queue for a base (FIFO by queue_entered_at)
 export function getBaseQueue(drivers, baseName) {
-  return drivers
-    .filter(d => d.current_base === baseName && d.status === "disponible")
-    .sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at));
+  return sortQueue(drivers.filter(d => d.current_base === baseName && d.status === "disponible"));
 }
 
 // Find best driver for an order: strictly by zone (FIFO)
@@ -41,9 +51,7 @@ export async function findBestDriver(order, drivers, bases) {
 // Find first available driver in the exact zone (FIFO queue by queue_entered_at)
 export function findDriverInZone(zone, drivers) {
   if (!zone) return null;
-  return drivers
-    .filter(d => d.status === "disponible" && d.current_base === zone)
-    .sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at))[0] || null;
+  return getBaseQueue(drivers, zone)[0] || null;
 }
 
 // Assign driver to order (direct / zone-based)
@@ -52,7 +60,7 @@ export async function assignDriverToOrder(order, driver) {
   try {
     if (driver.current_base && driver.status === "disponible") {
       const allDrivers = await base44.entities.Driver.filter({ status: "disponible", current_base: driver.current_base });
-      const queue = allDrivers.sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at));
+      const queue = sortQueue(allDrivers);
       const driverIndex = queue.findIndex(d => d.id === driver.id);
       
       if (driverIndex > 0) {
@@ -180,9 +188,7 @@ export async function reassignAfterReject(order, drivers, bases) {
 
   // Next driver in same base (FIFO)
   const lastBase = order.assigned_base || order.zone;
-  const sameBaseQueue = available
-    .filter(d => d.current_base === lastBase)
-    .sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at));
+  const sameBaseQueue = sortQueue(available.filter(d => d.current_base === lastBase));
 
   if (sameBaseQueue.length > 0) {
     await assignDriverToOrder(order, sameBaseQueue[0]);
