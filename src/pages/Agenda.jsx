@@ -358,12 +358,18 @@ export default function Agenda() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (params.get("new") === "true") {
+    if (params.get("new") === "true" || location.state?.openNew) {
       setEditing(null);
       setShowForm(true);
-      navigate("/agenda", { replace: true });
+      
+      // Limpiamos la URL y el state para no reabrir por accidente al refrescar
+      if (params.get("new") === "true") {
+        navigate("/agenda", { replace: true, state: {} });
+      } else if (location.state?.openNew) {
+        navigate("/agenda", { replace: true, state: {} });
+      }
     }
-  }, [location.search, navigate]);
+  }, [location.search, location.state, navigate]);
 
   const { data: rides = [] } = useQuery({
     queryKey: ["scheduled"],

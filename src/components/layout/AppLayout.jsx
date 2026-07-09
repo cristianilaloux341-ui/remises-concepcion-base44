@@ -30,13 +30,26 @@ export default function AppLayout() {
   // Accesos directos de teclado
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (['F2', 'F3', 'F5', 'F7'].includes(e.key)) {
+      if (['F1', 'F2', 'F3', 'F5', 'F7'].includes(e.key)) {
         e.preventDefault();
         e.stopPropagation();
         
         switch (e.key) {
+          case 'F1':
+            if (location.pathname !== '/orders/new') {
+              navigate('/orders/new');
+            }
+            // Dar tiempo a que el componente se monte si venimos de otra página
+            setTimeout(() => {
+              const input = document.getElementById('pickup-address-input');
+              if (input) {
+                input.focus();
+                input.select();
+              }
+            }, 150);
+            break;
           case 'F2':
-            navigate('/agenda?new=true');
+            navigate('/agenda', { state: { openNew: true } });
             break;
           case 'F3':
             navigate('/agenda');
@@ -55,7 +68,7 @@ export default function AppLayout() {
     // Usamos document y { capture: true } para atajar el evento ANTES que cualquier otro componente o el propio navegador
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [navigate]);
+  }, [navigate, location.pathname]);
 
   // Monitoreo de actividad del operador
   useEffect(() => {

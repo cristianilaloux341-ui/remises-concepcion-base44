@@ -10,29 +10,6 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 
 import AppLayout from '@/components/layout/AppLayout';
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-
-function GlobalShortcuts() {
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "F1") {
-        e.preventDefault();
-        // Si no estamos ya en /orders/new o en el Dashboard (que tiene el form), navegamos
-        if (window.location.pathname !== "/" && window.location.pathname !== "/orders/new") {
-          navigate("/");
-        }
-        // El foco lo maneja PickupAutocomplete de forma global
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [navigate]);
-
-  return null;
-}
 import Dashboard from '@/pages/Dashboard';
 import Orders from '@/pages/Orders';
 import NewOrder from '@/pages/NewOrder';
@@ -189,7 +166,6 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
-          <GlobalShortcuts />
           <AuthenticatedApp />
         </Router>
         <Toaster />

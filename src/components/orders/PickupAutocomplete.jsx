@@ -16,18 +16,6 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
   const containerRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Escuchar tecla F1 en toda la ventana
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "F1") {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
   useEffect(() => { setInputValue(value || ""); }, [value]);
 
   // Click outside
@@ -130,6 +118,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
         <div className="w-3 h-3 rounded-full bg-green-500" />
       </div>
       <Input
+        id="pickup-address-input"
         ref={inputRef}
         className={cn("pl-8", className)}
         placeholder={placeholder || "Dirección o nombre del cliente..."}
