@@ -81,6 +81,11 @@
       "type": "boolean",
       "default": true,
       "description": "Indica si el sistema debe reasignar autom\u00e1ticamente los viajes si los choferes no responden a tiempo."
+    },
+    "auto_aceptar_viajes": {
+      "type": "boolean",
+      "default": false,
+      "description": "Si est\u00e1 activo, al asignar un viaje pasa directo a aceptado/en_viaje (ideal para radio)."
     }
   },
   "required": []

@@ -82,9 +82,10 @@ export async function assignDriverToOrder(order, driver) {
   const config = tarifaConfigs[0];
   const timeoutSeconds = config?.tiempo_maximo_respuesta_segundos ?? 60;
   const autoReassignActive = config?.auto_reasignacion_activa ?? true;
+  const autoAcceptActive = config?.auto_aceptar_viajes ?? false;
 
-  const targetOrderStatus = autoReassignActive ? "ofrecido" : "aceptado";
-  const targetDriverStatus = autoReassignActive ? "ofrecido" : "en_viaje";
+  const targetOrderStatus = autoAcceptActive ? "aceptado" : "ofrecido";
+  const targetDriverStatus = autoAcceptActive ? "en_viaje" : "ofrecido";
 
   await base44.entities.RideOrder.update(order.id, {
     status: targetOrderStatus,
