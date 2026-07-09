@@ -113,6 +113,7 @@ export async function assignDriverToOrder(order, driver) {
   if (autoReassignActive !== false) {
     base44.functions.invoke("autoReassignOnTimeout", {
       orderId: order.id,
+      driverId: driver.id,
       timeoutSeconds: timeoutSeconds,
     }).catch((e) => console.error("Timeout Error:", e));
   }

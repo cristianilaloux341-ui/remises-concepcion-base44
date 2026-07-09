@@ -5,7 +5,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { orderId, timeoutSeconds = 30 } = await req.json();
+    const { orderId, driverId, timeoutSeconds = 30 } = await req.json();
 
     if (!orderId) {
       return Response.json({ error: 'Missing orderId' }, { status: 400 });
@@ -23,6 +23,11 @@ Deno.serve(async (req) => {
 
         if (!order || !['ofrecido', 'pendiente'].includes(order.status)) {
           return; // Ya fue aceptada o completada
+        }
+
+        // Si el operador asignó el viaje manualmente a otro móvil en este tiempo, ignorar este timeout
+        if (driverId && order.driver_id !== driverId) {
+          return;
         }
 
         // Obtener driver actual
