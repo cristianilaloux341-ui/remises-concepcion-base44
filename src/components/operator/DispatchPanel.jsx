@@ -87,8 +87,11 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       }).catch(() => {});
     } else {
       // Forzar asignación sin entidad (ignora registro completamente, solo guarda nombre)
+      const tarifaConfigs = await base44.entities.TarifaConfig.list();
+      const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
+      
       await base44.entities.RideOrder.update(order.id, {
-        status: "ofrecido",
+        status: autoReassignActive ? "ofrecido" : "aceptado",
         driver_id: `manual-${inputTrimmed}`,
         driver_name: isNaN(movilNum) ? inputTrimmed : `Móvil ${movilNum}`,
       });

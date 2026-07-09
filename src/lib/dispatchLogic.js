@@ -77,18 +77,26 @@ export async function assignDriverToOrder(order, driver) {
     console.error("Error penalizing skipped drivers", e);
   }
 
+  // Obtener configuración desde TarifaConfig primero
+  const tarifaConfigs = await base44.entities.TarifaConfig.list();
+  const config = tarifaConfigs[0];
+  const timeoutSeconds = config?.tiempo_maximo_respuesta_segundos ?? 60;
+  const autoReassignActive = config?.auto_reasignacion_activa ?? true;
+
+  const targetOrderStatus = autoReassignActive ? "ofrecido" : "aceptado";
+  const targetDriverStatus = autoReassignActive ? "ofrecido" : "en_viaje";
+
   await base44.entities.RideOrder.update(order.id, {
-    status: "ofrecido",
+    status: targetOrderStatus,
     driver_id: driver.id,
     driver_name: driver.name,
     assigned_base: driver.current_base,
     offered_driver_ids: [...(order.offered_driver_ids || []), driver.id],
   });
 
-  // Sacamos temporalmente al chofer de "disponible" a "ofrecido" para que 
-  // desaparezca de la cola de la base mientras decide si acepta el viaje
+  // Actualizamos al chofer (a ofrecido si es automático, o directo a en_viaje si está en manual por base)
   await base44.entities.Driver.update(driver.id, {
-    status: "ofrecido"
+    status: targetDriverStatus
   });
 
   // Enviar notificación push real al dispositivo del chofer (en segundo plano)
@@ -102,12 +110,6 @@ export async function assignDriverToOrder(order, driver) {
       fare: order.fare,
     },
   }).catch((e) => console.error("Push Error:", e));
-
-  // Obtener configuración desde TarifaConfig
-  const tarifaConfigs = await base44.entities.TarifaConfig.list();
-  const config = tarifaConfigs[0];
-  const timeoutSeconds = config?.tiempo_maximo_respuesta_segundos ?? 60;
-  const autoReassignActive = config?.auto_reasignacion_activa ?? true;
 
   // Solo si está activa, iniciamos el Timeout automático dinámico (en segundo plano)
   if (autoReassignActive !== false) {
