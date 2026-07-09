@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -229,6 +229,13 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
   const [quickInput, setQuickInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const quickInputRef = useRef(null);
+
+  React.useEffect(() => {
+    // Al montar el componente, enfocamos automáticamente este input
+    if (quickInputRef.current) {
+      quickInputRef.current.focus();
+    }
+  }, []);
 
   const handleQuickAssign = async (e) => {
     if (e.key !== "Enter" || !quickInput.trim()) return;
