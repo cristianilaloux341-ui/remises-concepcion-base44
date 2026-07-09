@@ -83,10 +83,10 @@ export async function assignDriverToOrder(order, driver) {
   const timeoutSeconds = config?.tiempo_maximo_respuesta_segundos ?? 60;
   const autoReassignActive = config?.auto_reasignacion_activa ?? true;
   
-  // Siempre que asigna el operador (radio/teléfono) el viaje entra como aceptado, 
-  // ya que los móviles actualmente no usan la app para contestar.
-  const targetOrderStatus = "aceptado";
-  const targetDriverStatus = "en_viaje";
+  const autoAceptarViajes = config?.auto_aceptar_viajes ?? false;
+
+  const targetOrderStatus = autoAceptarViajes ? "aceptado" : "ofrecido";
+  const targetDriverStatus = autoAceptarViajes ? "en_viaje" : "ofrecido";
 
   await base44.entities.RideOrder.update(order.id, {
     status: targetOrderStatus,
@@ -96,12 +96,10 @@ export async function assignDriverToOrder(order, driver) {
     offered_driver_ids: [...(order.offered_driver_ids || []), driver.id],
   });
 
-  // Actualizamos al chofer (a ofrecido si es automático, o directo a en_viaje si está en manual por base)
   await base44.entities.Driver.update(driver.id, {
     status: targetDriverStatus
   });
 
-  // Enviar notificación push real al dispositivo del chofer (en segundo plano)
   base44.functions.invoke("sendPushNotification", {
     action: "send",
     driverId: driver.id,
@@ -113,9 +111,14 @@ export async function assignDriverToOrder(order, driver) {
     },
   }).catch((e) => console.error("Push Error:", e));
 
-  // Al estar forzado a "aceptado", el timeout de reasignación automática 
-  // ya no es necesario (se abortaría igual porque el estado no es ofrecido).
-  // if (autoReassignActive !== false) { ... }
+  // Si no se auto-acepta y la reasignación está activa, disparamos el timeout
+  if (targetOrderStatus === "ofrecido" && autoReassignActive) {
+    base44.functions.invoke("autoReassignOnTimeout", {
+      orderId: order.id,
+      driverId: driver.id,
+      timeoutSeconds: timeoutSeconds
+    }).catch(e => console.error("AutoReassign Trigger Error:", e));
+  }
 }
 
 // Broadcast: marcar el pedido como "pendiente_broadcast" para que TODOS los disponibles lo vean

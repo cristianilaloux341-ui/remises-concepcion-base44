@@ -121,9 +121,19 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
         }
       }
 
-      // Si estaba en viaje, forzamos su disponibilidad para reasignarlo
-      if (driver.status === "en_viaje") {
-        await base44.entities.Driver.update(driver.id, { status: "disponible" });
+      // Finalizar cualquier viaje activo al ponerlo en posición
+      if (["en_viaje", "aceptado", "en_camino"].includes(driver.status)) {
+        try {
+          const activeOrders = await base44.entities.RideOrder.filter({
+            driver_id: driver.id,
+            status: { $in: ["aceptado", "en_camino", "en_viaje"] }
+          });
+          for (const o of activeOrders) {
+            await base44.entities.RideOrder.update(o.id, { status: "completado" });
+          }
+        } catch (e) {
+          console.error("Error completando orden activa", e);
+        }
       }
 
       return base44.entities.Driver.update(driver.id, {
@@ -312,11 +322,19 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       }
     }
 
-    if (driver.status === "en_viaje") {
-      // Para pruebas, forzamos que vuelva a estar disponible
+    // Finalizar cualquier viaje activo al ponerlo en posición o sacarlo de servicio
+    if (["en_viaje", "aceptado", "en_camino"].includes(driver.status)) {
       try {
-        await base44.entities.Driver.update(driver.id, { status: "disponible" });
-      } catch (e) {}
+        const activeOrders = await base44.entities.RideOrder.filter({
+          driver_id: driver.id,
+          status: { $in: ["aceptado", "en_camino", "en_viaje"] }
+        });
+        for (const o of activeOrders) {
+          await base44.entities.RideOrder.update(o.id, { status: "completado" });
+        }
+      } catch (e) {
+        console.error("Error completando orden activa", e);
+      }
     }
 
     // Salida de servicio rápida con .00 o .0
