@@ -82,10 +82,11 @@ export async function assignDriverToOrder(order, driver) {
   const config = tarifaConfigs[0];
   const timeoutSeconds = config?.tiempo_maximo_respuesta_segundos ?? 60;
   const autoReassignActive = config?.auto_reasignacion_activa ?? true;
-  const autoAcceptActive = config?.auto_aceptar_viajes ?? false;
-
-  const targetOrderStatus = autoAcceptActive ? "aceptado" : "ofrecido";
-  const targetDriverStatus = autoAcceptActive ? "en_viaje" : "ofrecido";
+  
+  // Siempre que asigna el operador (radio/teléfono) el viaje entra como aceptado, 
+  // ya que los móviles actualmente no usan la app para contestar.
+  const targetOrderStatus = "aceptado";
+  const targetDriverStatus = "en_viaje";
 
   await base44.entities.RideOrder.update(order.id, {
     status: targetOrderStatus,
@@ -112,14 +113,9 @@ export async function assignDriverToOrder(order, driver) {
     },
   }).catch((e) => console.error("Push Error:", e));
 
-  // Solo si está activa, iniciamos el Timeout automático dinámico (en segundo plano)
-  if (autoReassignActive !== false) {
-    base44.functions.invoke("autoReassignOnTimeout", {
-      orderId: order.id,
-      driverId: driver.id,
-      timeoutSeconds: timeoutSeconds,
-    }).catch((e) => console.error("Timeout Error:", e));
-  }
+  // Al estar forzado a "aceptado", el timeout de reasignación automática 
+  // ya no es necesario (se abortaría igual porque el estado no es ofrecido).
+  // if (autoReassignActive !== false) { ... }
 }
 
 // Broadcast: marcar el pedido como "pendiente_broadcast" para que TODOS los disponibles lo vean

@@ -196,7 +196,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     }
     const driver = drivers.find(d => d.id === driverId);
     if (driver) {
-      setForm(prev => ({ ...prev, driver_id: driverId, driver_name: driver.name, status: "ofrecido" }));
+      setForm(prev => ({ ...prev, driver_id: driverId, driver_name: driver.name, status: "aceptado" }));
       setManualDriverInput(driver.name);
     }
   };
@@ -205,7 +205,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     setAutoAssigning(true);
     const driver = await findBestDriver({ zone: form.zone, pickup_address: form.pickup_address }, drivers, bases);
     if (driver) {
-      setForm(prev => ({ ...prev, driver_id: driver.id, driver_name: driver.name, status: "ofrecido" }));
+      setForm(prev => ({ ...prev, driver_id: driver.id, driver_name: driver.name, status: "aceptado" }));
       setSuggestedDriver(driver);
     }
     setAutoAssigning(false);
@@ -300,12 +300,12 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       if (driver) {
         data.driver_id = driver.id;
         data.driver_name = driver.name;
-        data.status = "ofrecido";
+        data.status = "aceptado";
       } else {
         // Fuerza sin entidad para pruebas
         data.driver_id = `manual-${inputTrimmed}`;
         data.driver_name = isNaN(movilNum) ? inputTrimmed : `Móvil ${movilNum}`;
-        data.status = "ofrecido";
+        data.status = "aceptado";
       }
     } else if (!data.driver_id) {
       delete data.driver_id; 
