@@ -273,16 +273,10 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
     if (!/^\d+$/.test(pin)) { setError("El PIN solo puede contener números"); return; }
     if (pin !== pinConfirm) { setError("Los PINs no coinciden"); return; }
     
-    const deviceId = getDeviceId();
-    if (foundDriver.device_id && foundDriver.device_id !== deviceId) {
-      setError("Dispositivo no autorizado. Pida al administrador que habilite este nuevo teléfono desde la base.");
-      return;
-    }
-
     setLoading(true);
     try {
       const sessionToken = getSessionToken();
-      await base44.entities.Driver.update(foundDriver.id, { pin, device_id: deviceId, current_session_token: sessionToken });
+      await base44.entities.Driver.update(foundDriver.id, { pin, current_session_token: sessionToken });
       unlockAudio();
       if (remember) localStorage.setItem("remembered_driver_id", foundDriver.id);
       else localStorage.removeItem("remembered_driver_id");
@@ -298,16 +292,10 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
     if (!pin) { setError("Ingresá tu PIN"); return; }
     if (pin !== foundDriver.pin) { setError("PIN incorrecto"); return; }
     
-    const deviceId = getDeviceId();
-    if (foundDriver.device_id && foundDriver.device_id !== deviceId) {
-      setError("Dispositivo no autorizado. Pida al administrador que habilite este nuevo teléfono desde la base.");
-      return;
-    }
-
     setLoading(true);
     try {
       const sessionToken = getSessionToken();
-      await base44.entities.Driver.update(foundDriver.id, { device_id: deviceId, current_session_token: sessionToken });
+      await base44.entities.Driver.update(foundDriver.id, { current_session_token: sessionToken });
       unlockAudio();
       if (remember) localStorage.setItem("remembered_driver_id", foundDriver.id);
       else localStorage.removeItem("remembered_driver_id");
@@ -374,11 +362,6 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
               disabled={loading}
               className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-base py-3.5 rounded-xl transition-all disabled:opacity-50"
               onClick={async () => { 
-                const deviceId = getDeviceId();
-                if (savedDriver.device_id && savedDriver.device_id !== deviceId) {
-                  setError("Dispositivo no autorizado. Pida al operador que habilite este teléfono.");
-                  return;
-                }
                 setLoading(true);
                 try {
                   const sessionToken = getSessionToken();
