@@ -1847,7 +1847,10 @@ export default function DriverApp() {
                 window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
             });
         } else {
-            playAlert();
+            // Si es un mensaje de chat u otra cosa sin orderId, NO disparamos la alarma de viaje.
+            if (data.type === 'message' || data.action === 'open_messages' || data.type === 'NEW_MESSAGE') {
+                try { navigator.vibrate?.([200, 100, 200]); } catch (_) {}
+            }
             window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
       });
