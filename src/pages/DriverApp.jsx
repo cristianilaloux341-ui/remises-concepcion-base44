@@ -1695,13 +1695,18 @@ export default function DriverApp() {
     if (myDriverRaw && myDriverRaw.current_session_token) {
       const localSession = localStorage.getItem("session_token");
       if (localSession && myDriverRaw.current_session_token !== localSession) {
-         localStorage.removeItem("my_driver_id");
-         localStorage.removeItem("remembered_driver_id");
-         localStorage.removeItem("session_token");
-         window.location.reload();
+         // Verificar directamente con la DB para evitar deslogueos por caché local desactualizada al iniciar sesión
+         base44.entities.Driver.get(myDriverRaw.id).then(freshDriver => {
+           if (freshDriver && freshDriver.current_session_token !== localSession) {
+             localStorage.removeItem("my_driver_id");
+             localStorage.removeItem("remembered_driver_id");
+             localStorage.removeItem("session_token");
+             window.location.reload();
+           }
+         }).catch(() => {});
       }
     }
-  }, [myDriverRaw?.current_session_token]);
+  }, [myDriverRaw?.current_session_token, myDriverRaw?.id]);
 
   // Limpiar el override cuando los datos reales del servidor ya coinciden
   // Usamos un pequeño delay para evitar flash si la suscripción llega antes de lo esperado
