@@ -1691,27 +1691,10 @@ export default function DriverApp() {
   const safeOrders = Array.isArray(orders) ? orders : [];
   const myDriverRaw = debugArray(safeDrivers, 'safeDrivers').find(d => d.id === myDriverId);
 
-  // Verificación de sesión única (Forzar deslogueo si hay otra sesión activa)
+  // Verificación de sesión única temporalmente desactivada para evitar falsos deslogueos
   useEffect(() => {
-    if (myDriverRaw && myDriverRaw.current_session_token) {
-      const localSession = localStorage.getItem("session_token");
-      const loginTime = parseInt(localStorage.getItem("session_login_time") || "0", 10);
-      
-      // Ignorar validación durante los primeros 15 segundos para dar tiempo a la DB a replicar
-      if (Date.now() - loginTime < 15000) return;
-
-      if (localSession && myDriverRaw.current_session_token !== localSession) {
-         // Verificar directamente con la DB para evitar deslogueos por caché local desactualizada al iniciar sesión
-         base44.entities.Driver.get(myDriverRaw.id).then(freshDriver => {
-           if (freshDriver && freshDriver.current_session_token !== localSession) {
-             localStorage.removeItem("my_driver_id");
-             localStorage.removeItem("remembered_driver_id");
-             localStorage.removeItem("session_token");
-             window.location.reload();
-           }
-         }).catch(() => {});
-      }
-    }
+    // La verificación estricta de sesión se desactivó temporalmente porque estaba
+    // causando que los choferes sean expulsados inmediatamente al loguearse.
   }, [myDriverRaw?.current_session_token, myDriverRaw?.id]);
 
   // Limpiar el override cuando los datos reales del servidor ya coinciden
