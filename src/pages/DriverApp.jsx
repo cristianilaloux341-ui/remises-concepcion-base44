@@ -1401,8 +1401,8 @@ function notifySW(message) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function DriverApp() {
   const queryClient = useQueryClient();
-  const [myDriverId, setMyDriverId] = useState(() => localStorage.getItem("my_driver_id") || "");
-  const [savedDriverId, setSavedDriverId] = useState(() => localStorage.getItem("remembered_driver_id") || "");
+  const [myDriverId, setMyDriverId] = useState(() => sessionStorage.getItem("my_driver_id") || localStorage.getItem("my_driver_id") || "");
+  const [savedDriverId, setSavedDriverId] = useState(() => sessionStorage.getItem("remembered_driver_id") || localStorage.getItem("remembered_driver_id") || "");
   const [selectedBase, setSelectedBase] = useState("");
   const [showMessages, setShowMessages] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
@@ -2117,6 +2117,7 @@ export default function DriverApp() {
             savedDriverId={savedDriverId}
             onSelect={(id, isFirstTime) => {
               setMyDriverId(id);
+              sessionStorage.setItem("my_driver_id", id);
               localStorage.setItem("my_driver_id", id);
               if (isFirstTime) {
                 setShowSetupGuide(true);
@@ -2126,6 +2127,8 @@ export default function DriverApp() {
             onClearSaved={() => {
               localStorage.removeItem("remembered_driver_id");
               localStorage.removeItem("my_driver_id");
+              sessionStorage.removeItem("remembered_driver_id");
+              sessionStorage.removeItem("my_driver_id");
               setSavedDriverId("");
               setMyDriverId("");
             }}
@@ -2161,7 +2164,7 @@ export default function DriverApp() {
           )}
           <button
             className="text-xs text-gray-600 underline block mx-auto"
-            onClick={() => { localStorage.removeItem("my_driver_id"); setMyDriverId(""); }}
+            onClick={() => { localStorage.removeItem("my_driver_id"); sessionStorage.removeItem("my_driver_id"); setMyDriverId(""); }}
           >
             {canGoBack ? "Volver al inicio" : "Cancelar"}
           </button>
@@ -2273,6 +2276,8 @@ export default function DriverApp() {
             onClick={() => {
               localStorage.removeItem("my_driver_id");
               localStorage.removeItem("remembered_driver_id"); // Borramos para que no quede atrapado en el usuario equivocado
+              sessionStorage.removeItem("my_driver_id");
+              sessionStorage.removeItem("remembered_driver_id");
               setMyDriverId("");
             }}
           >
