@@ -184,13 +184,16 @@ export async function reassignAfterReject(order, drivers, bases) {
   const offeredIds = order.offered_driver_ids || [];
   const available = drivers.filter(d => d.status === "disponible" && d.current_base && !offeredIds.includes(d.id));
 
-  if (!available.length) {
+  const tarifaConfigs = await base44.entities.TarifaConfig.list();
+  const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
+
+  if (!available.length || !autoReassignActive) {
     await base44.entities.RideOrder.update(order.id, {
       status: "pendiente",
       driver_id: null,
       driver_name: null,
     });
-    return "sin_moviles";
+    return !autoReassignActive ? "manual" : "sin_moviles";
   }
 
   // Next driver in same base (FIFO)
