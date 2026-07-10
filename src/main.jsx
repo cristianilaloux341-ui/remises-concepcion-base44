@@ -4,23 +4,7 @@ import App from '@/App.jsx'
 import '@/index.css'
 import { Capacitor } from '@capacitor/core'
 
-// Si el usuario tuvo un service worker corrupto, lo borramos inmediatamente al iniciar React
-try {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(regs => {
-      regs.forEach(reg => reg.unregister());
-    }).catch(() => {});
-  }
-} catch (e) {}
-
-// Limpiamos los caches estáticos para obligar a que cargue todo fresco
-try {
-  if ('caches' in window) {
-    caches.keys().then(keys => {
-      keys.forEach(k => caches.delete(k));
-    }).catch(() => {});
-  }
-} catch (e) {}
+// (Limpieza de cachés y SW removida: causaba reseteos constantes de la app)
 
 // Sync dark mode with system preference
 const applyTheme = () => {

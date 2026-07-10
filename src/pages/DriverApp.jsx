@@ -1386,9 +1386,9 @@ async function registerSW() {
       if (!newWorker) return;
       newWorker.addEventListener("statechange", () => {
         if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-          // Nuevo SW instalado — forzar skip waiting y recargar
+          // Nuevo SW instalado — forzar skip waiting pero NO recargar automáticamente
+          // para evitar que la app se resetee mientras el chofer está ingresando
           newWorker.postMessage({ type: "SKIP_WAITING" });
-          window.location.reload();
         }
       });
     });
@@ -1426,15 +1426,6 @@ export default function DriverApp() {
 
   // Register SW and request notification permission on load
   useEffect(() => {
-    // Force logout once to fix corrupted driver bindings from previous partial match bug
-    if (!localStorage.getItem("force_logout_v3")) {
-      localStorage.removeItem("my_driver_id");
-      localStorage.removeItem("remembered_driver_id");
-      localStorage.setItem("force_logout_v3", "true");
-      setMyDriverId("");
-      return; // Stop execution to let the state clear and re-render the login screen
-    }
-
     registerSW();
 
     // Si la app fue abierta desde un tap de "Aceptar" en pantalla bloqueada
