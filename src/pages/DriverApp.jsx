@@ -150,8 +150,12 @@ function stopAlert() {
 // Request notification permission and send system notification
 async function requestNotificationPermission() {
   if (!("Notification" in window)) return;
-  if (Notification.permission === "default") {
-    await Notification.requestPermission();
+  try {
+    if (Notification.permission === "default") {
+      await Notification.requestPermission();
+    }
+  } catch (e) {
+    console.warn("Notification permission error", e);
   }
 }
 
@@ -600,7 +604,13 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
           {driversError && (
             <div className="bg-red-900/30 border border-red-700 rounded-xl p-3 text-center">
               <p className="text-red-400 text-xs font-bold mb-1">¡Error en la conexión!</p>
-              <p className="text-red-300 text-[10px] break-words font-mono">{driversError}</p>
+              <p className="text-red-300 text-[10px] break-words font-mono mb-2">{driversError}</p>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="bg-red-600 text-white text-xs px-4 py-1.5 rounded-lg font-bold"
+              >
+                Reintentar
+              </button>
             </div>
           )}
         </div>
@@ -1361,7 +1371,9 @@ async function registerSW() {
   
   // Desactivación condicional: Si es nativo, bloqueamos el SW web y borramos cualquier residuo
   if (Capacitor.isNativePlatform()) {
-    navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(reg => reg.unregister()));
+    try {
+      navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(reg => reg.unregister())).catch(() => {});
+    } catch(e) {}
     return null;
   }
   

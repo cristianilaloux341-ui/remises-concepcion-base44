@@ -9,8 +9,9 @@ export async function withRetry(fn, { retries = 3, baseDelayMs = 1000 } = {}) {
       return await fn();
     } catch (err) {
       lastError = err;
-      const isNetworkError = err?.message?.includes("Network Error") || err?.code === "ERR_NETWORK";
-      const isServerError = err?.response?.status >= 500;
+      const msg = (err?.message || "").toLowerCase();
+      const isNetworkError = msg.includes("network error") || err?.code === "ERR_NETWORK" || msg.includes("failed to fetch") || msg.includes("network request failed") || msg.includes("load failed");
+      const isServerError = err?.response?.status >= 500 || err?.status >= 500;
       if (!isNetworkError && !isServerError) throw err; // error no recuperable
       if (attempt < retries) {
         const delay = baseDelayMs * Math.pow(2, attempt); // 1s, 2s, 4s

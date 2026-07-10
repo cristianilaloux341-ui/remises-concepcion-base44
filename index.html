@@ -56,13 +56,17 @@
       // PWABuilder detection snippet
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          if (navigator.userAgent.includes('RemisesConcepcion')) {
-            // Eliminar SW en la app de escritorio (Electron) para evitar bloqueos
-            navigator.serviceWorker.getRegistrations().then(regs => {
-              for (let r of regs) r.unregister();
-            });
-          } else {
-            navigator.serviceWorker.register('/sw.js', { scope: '/' });
+          try {
+            if (navigator.userAgent.includes('RemisesConcepcion')) {
+              // Eliminar SW en la app de escritorio (Electron) para evitar bloqueos
+              navigator.serviceWorker.getRegistrations().then(regs => {
+                for (let r of regs) r.unregister();
+              }).catch(e => console.warn('SW unregister failed:', e));
+            } else {
+              navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(e => console.warn('SW register failed:', e));
+            }
+          } catch (err) {
+            console.warn('SW Init failed:', err);
           }
         });
       }
