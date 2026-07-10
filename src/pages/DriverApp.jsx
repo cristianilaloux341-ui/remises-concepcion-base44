@@ -200,6 +200,7 @@ const getSessionToken = () => {
     token = Math.random().toString(36).substring(2) + Date.now().toString(36);
     localStorage.setItem("session_token", token);
   }
+  localStorage.setItem("session_login_time", Date.now().toString());
   return token;
 };
 
@@ -1694,6 +1695,11 @@ export default function DriverApp() {
   useEffect(() => {
     if (myDriverRaw && myDriverRaw.current_session_token) {
       const localSession = localStorage.getItem("session_token");
+      const loginTime = parseInt(localStorage.getItem("session_login_time") || "0", 10);
+      
+      // Ignorar validación durante los primeros 15 segundos para dar tiempo a la DB a replicar
+      if (Date.now() - loginTime < 15000) return;
+
       if (localSession && myDriverRaw.current_session_token !== localSession) {
          // Verificar directamente con la DB para evitar deslogueos por caché local desactualizada al iniciar sesión
          base44.entities.Driver.get(myDriverRaw.id).then(freshDriver => {
