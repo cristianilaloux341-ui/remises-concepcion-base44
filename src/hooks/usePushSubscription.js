@@ -77,7 +77,9 @@ export function usePushSubscription(driverId) {
     }
 
     async function registerWeb() {
-      if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+      try {
+        if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+      } catch (e) { return; }
       try {
         // Obtener VAPID public key del backend
         const res = await base44.functions.invoke("sendPushNotification", {

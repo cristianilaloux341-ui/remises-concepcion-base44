@@ -5,17 +5,22 @@ import '@/index.css'
 import { Capacitor } from '@capacitor/core'
 
 // Si el usuario tuvo un service worker corrupto, lo borramos inmediatamente al iniciar React
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs => {
-    regs.forEach(reg => reg.unregister());
-  });
-}
+try {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(reg => reg.unregister());
+    }).catch(() => {});
+  }
+} catch (e) {}
+
 // Limpiamos los caches estáticos para obligar a que cargue todo fresco
-if ('caches' in window) {
-  caches.keys().then(keys => {
-    keys.forEach(k => caches.delete(k));
-  });
-}
+try {
+  if ('caches' in window) {
+    caches.keys().then(keys => {
+      keys.forEach(k => caches.delete(k));
+    }).catch(() => {});
+  }
+} catch (e) {}
 
 // Sync dark mode with system preference
 const applyTheme = () => {
@@ -51,13 +56,17 @@ if (window.location.hostname !== 'localhost') {
 // Detección de emulador removida para evitar falsos positivos en Capacitor
 
 // Registrar el Service Worker para PWA y push notifications (Solo en Web, bloqueado en Nativo)
-if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // SW registration failed silently
+try {
+  if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
+    window.addEventListener('load', () => {
+      try {
+        navigator.serviceWorker.register('/sw.js').catch(() => {
+          // SW registration failed silently
+        });
+      } catch (e) {}
     });
-  });
-}
+  }
+} catch (e) {}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <App />

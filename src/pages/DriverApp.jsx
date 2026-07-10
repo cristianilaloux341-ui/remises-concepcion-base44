@@ -15,7 +15,6 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
-const ForegroundService = registerPlugin('ForegroundService');
 import RideMap from "@/components/map/RideMap";
 import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
@@ -162,7 +161,9 @@ async function requestNotificationPermission() {
 function sendSystemNotification(order) {
   // Delegamos al SW para que la notificación funcione en segundo plano
   // Si no hay SW activo, fallback a Notification API directa
-  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) return; // SW lo maneja
+  try {
+    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) return; // SW lo maneja
+  } catch(e) {}
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   try {
     const n = new Notification("🚖 ¡Nuevo Viaje! — " + (order.client_name || ""), {
@@ -1396,8 +1397,10 @@ async function registerSW() {
 }
 
 function notifySW(message) {
-  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
-  navigator.serviceWorker.controller.postMessage(message);
+  try {
+    if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
+    navigator.serviceWorker.controller.postMessage(message);
+  } catch(e) {}
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -1492,7 +1495,9 @@ export default function DriverApp() {
 
   // Escuchar mensajes del SW
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
+    try {
+      if (!("serviceWorker" in navigator)) return;
+    } catch(e) { return; }
     const handler = (event) => {
       const msg = event.data;
       if (!msg) return;
@@ -1747,15 +1752,8 @@ export default function DriverApp() {
   }, [myDriverId, myDriver?.name]);
 
   // Iniciar/Detener el Foreground Service nativo según el estado del chofer
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      if (myDriverId && myDriver && myDriver.status !== "no_disponible") {
-        ForegroundService.startService().catch(e => console.log("[ForegroundService] Start Error:", e));
-      } else {
-        ForegroundService.stopService().catch(e => console.log("[ForegroundService] Stop Error:", e));
-      }
-    }
-  }, [myDriverId, myDriver?.status]);
+  // [REMOVIDO] - Causaba crashes nativos en Android 14 (SecurityException) al iniciar sin ForegroundServiceType.
+  // El plugin @capacitor-community/background-geolocation ya se encarga de mantener un servicio en primer plano válido.
 
   // Mostrar guía de batería la primera vez que el chofer entra en servicio
   useEffect(() => {
