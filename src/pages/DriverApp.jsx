@@ -616,30 +616,32 @@ function IncomingAlert({ order, onAccept, onReject }) {
 
   useEffect(() => {
     let mounted = true;
+    let timer;
     base44.entities.TarifaConfig.list().then(configs => {
-      if (mounted) {
-        const timeoutSecs = configs[0]?.tiempo_maximo_respuesta_segundos ?? 60;
-        setTotalTime(timeoutSecs);
-        // Calculate remaining time based on when the order was updated to 'ofrecido'
+      if (!mounted) return;
+      const timeoutSecs = configs[0]?.tiempo_maximo_respuesta_segundos ?? 60;
+      setTotalTime(timeoutSecs);
+      
+      const updateTimer = () => {
         const elapsed = Math.floor((Date.now() - new Date(order.updated_date || Date.now()).getTime()) / 1000);
-        setTimeLeft(Math.max(0, timeoutSecs - elapsed));
-      }
+        const remaining = Math.max(0, timeoutSecs - elapsed);
+        setTimeLeft(remaining);
+        if (remaining <= 0) clearInterval(timer);
+      };
+      
+      updateTimer();
+      timer = setInterval(updateTimer, 1000);
     }).catch(() => {
       if (mounted) {
         setTotalTime(60);
         setTimeLeft(60);
       }
     });
-    return () => { mounted = false; };
+    return () => { 
+      mounted = false; 
+      if (timer) clearInterval(timer);
+    };
   }, [order.updated_date]);
-
-  useEffect(() => {
-    if (timeLeft === null || timeLeft <= 0) return;
-    const timer = setInterval(() => {
-      setTimeLeft(prev => Math.max(0, prev - 1));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [timeLeft]);
 
   useEffect(() => {
     let mounted = true;
