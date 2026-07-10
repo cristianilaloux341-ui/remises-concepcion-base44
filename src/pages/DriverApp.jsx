@@ -356,10 +356,10 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Último chofer</p>
             <div className="flex items-center gap-3 p-3 bg-gray-800 rounded-xl">
               <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
-                <span className="text-white font-bold text-sm">{savedDriver.name.charAt(0)}</span>
+                <span className="text-white font-bold text-sm">{(savedDriver.name || "C").charAt(0)}</span>
               </div>
               <div>
-                <p className="font-semibold text-white">{savedDriver.name}</p>
+                <p className="font-semibold text-white">{savedDriver.name || "Chofer"}</p>
                 <p className="text-xs text-gray-400 font-mono">{savedDriver.vehicle_plate}</p>
               </div>
             </div>
@@ -386,7 +386,7 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
               }}
             >
               <LogIn className="inline w-4 h-4 mr-2" />
-              Entrar como {savedDriver.name.split(" ")[0]}
+              Entrar como {(savedDriver.name || "Chofer").split(" ")[0]}
             </button>
             <button
               className="w-full text-gray-500 text-sm underline py-1"
@@ -719,7 +719,7 @@ function IncomingAlert({ order, onAccept, onReject }) {
           {order.fare && (
             <div className="flex items-center justify-between px-1">
               <span className="text-gray-500 text-sm">Tarifa</span>
-              <span className="text-2xl font-bold text-green-600">${order.fare.toLocaleString()}</span>
+              <span className="text-2xl font-bold text-green-600">${Number(order.fare).toLocaleString()}</span>
             </div>
           )}
 
@@ -820,7 +820,7 @@ function BroadcastAlert({ order, onAccept, onReject }) {
           {order.fare && (
             <div className="flex items-center justify-between px-1">
               <span className="text-gray-500 text-sm">Tarifa</span>
-              <span className="text-2xl font-bold text-green-600">${order.fare.toLocaleString()}</span>
+              <span className="text-2xl font-bold text-green-600">${Number(order.fare).toLocaleString()}</span>
             </div>
           )}
           {cleanNotes && (
@@ -1157,7 +1157,7 @@ function AvailableOrders({ orders, onTake }) {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-400">{order.client_name}</span>
-            {order.fare && <span className="font-bold text-green-600 text-lg">${order.fare.toLocaleString()}</span>}
+            {order.fare && <span className="font-bold text-green-600 text-lg">${Number(order.fare).toLocaleString()}</span>}
           </div>
           <Button className="w-full rounded-xl h-11 font-bold" onClick={() => onTake(order)}>
             Tomar este Viaje
@@ -1272,7 +1272,7 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
                   key={d.id}
                   className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${d.id === driver.id ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"}`}
                 >
-                  {i + 1}.{showModel ? ` #${d.vehicle_model}` : ""} {d.name.split(" ")[0]}
+                  {i + 1}.{showModel ? ` #${d.vehicle_model}` : ""} {(d.name || "Chofer").split(" ")[0]}
                 </span>
               );
             })}

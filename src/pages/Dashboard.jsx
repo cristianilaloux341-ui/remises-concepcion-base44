@@ -263,7 +263,7 @@ export default function Dashboard() {
                   </div>
                   {alert.current_lat && alert.current_lng && (
                     <p className="text-xs text-gray-500 font-mono">
-                      📍 {alert.current_lat.toFixed(4)}, {alert.current_lng.toFixed(4)}
+                      📍 {Number(alert.current_lat).toFixed(4)}, {Number(alert.current_lng).toFixed(4)}
                     </p>
                   )}
                   <p className="text-xs text-gray-400">{format(new Date(alert.created_date), "HH:mm:ss")}</p>
