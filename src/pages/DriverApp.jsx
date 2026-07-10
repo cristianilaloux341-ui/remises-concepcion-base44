@@ -278,9 +278,15 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
       const sessionToken = getSessionToken();
       await base44.entities.Driver.update(foundDriver.id, { pin, current_session_token: sessionToken });
       unlockAudio();
-      if (remember) localStorage.setItem("remembered_driver_id", foundDriver.id);
-      else localStorage.removeItem("remembered_driver_id");
-      onSelect(foundDriver.id, !localStorage.getItem(`setup_done_${foundDriver.id}`));
+      const isOp = typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator") !== null;
+      if (remember) {
+        if (!isOp) localStorage.setItem("remembered_driver_id", foundDriver.id);
+        sessionStorage.setItem("remembered_driver_id", foundDriver.id);
+      } else {
+        localStorage.removeItem("remembered_driver_id");
+        sessionStorage.removeItem("remembered_driver_id");
+      }
+      onSelect(foundDriver.id, !isOp && !localStorage.getItem(`setup_done_${foundDriver.id}`));
     } catch (_) {
       setError("Error al guardar el PIN. Intentá de nuevo.");
     }
@@ -297,9 +303,15 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
       const sessionToken = getSessionToken();
       await base44.entities.Driver.update(foundDriver.id, { current_session_token: sessionToken });
       unlockAudio();
-      if (remember) localStorage.setItem("remembered_driver_id", foundDriver.id);
-      else localStorage.removeItem("remembered_driver_id");
-      onSelect(foundDriver.id, !localStorage.getItem(`setup_done_${foundDriver.id}`));
+      const isOp = typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator") !== null;
+      if (remember) {
+        if (!isOp) localStorage.setItem("remembered_driver_id", foundDriver.id);
+        sessionStorage.setItem("remembered_driver_id", foundDriver.id);
+      } else {
+        localStorage.removeItem("remembered_driver_id");
+        sessionStorage.removeItem("remembered_driver_id");
+      }
+      onSelect(foundDriver.id, !isOp && !localStorage.getItem(`setup_done_${foundDriver.id}`));
     } catch (_) {
       setError("Error al conectar. Intentá de nuevo.");
     }
@@ -1365,8 +1377,9 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
 async function registerSW() {
   if (!("serviceWorker" in navigator)) return null;
   
-  // Desactivación condicional: Si es nativo, bloqueamos el SW web y borramos cualquier residuo
-  if (Capacitor.isNativePlatform()) {
+  // Desactivación condicional: Si es nativo, o si es un operador (para no pisar tabs), bloqueamos el SW web
+  const isOperator = typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator") !== null;
+  if (Capacitor.isNativePlatform() || isOperator) {
     try {
       navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(reg => reg.unregister())).catch(() => {});
     } catch(e) {}
@@ -1401,8 +1414,15 @@ function notifySW(message) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function DriverApp() {
   const queryClient = useQueryClient();
-  const [myDriverId, setMyDriverId] = useState(() => sessionStorage.getItem("my_driver_id") || localStorage.getItem("my_driver_id") || "");
-  const [savedDriverId, setSavedDriverId] = useState(() => sessionStorage.getItem("remembered_driver_id") || localStorage.getItem("remembered_driver_id") || "");
+  const isOperator = typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator") !== null;
+  const [myDriverId, setMyDriverId] = useState(() => {
+    if (isOperator) return sessionStorage.getItem("my_driver_id") || "";
+    return sessionStorage.getItem("my_driver_id") || localStorage.getItem("my_driver_id") || "";
+  });
+  const [savedDriverId, setSavedDriverId] = useState(() => {
+    if (isOperator) return sessionStorage.getItem("remembered_driver_id") || "";
+    return sessionStorage.getItem("remembered_driver_id") || localStorage.getItem("remembered_driver_id") || "";
+  });
   const [selectedBase, setSelectedBase] = useState("");
   const [showMessages, setShowMessages] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
@@ -2118,10 +2138,12 @@ export default function DriverApp() {
             onSelect={(id, isFirstTime) => {
               setMyDriverId(id);
               sessionStorage.setItem("my_driver_id", id);
-              localStorage.setItem("my_driver_id", id);
+              if (!isOperator) {
+                localStorage.setItem("my_driver_id", id);
+              }
               if (isFirstTime) {
                 setShowSetupGuide(true);
-                localStorage.setItem(`setup_done_${id}`, "1");
+                if (!isOperator) localStorage.setItem(`setup_done_${id}`, "1");
               }
             }}
             onClearSaved={() => {
@@ -2140,11 +2162,13 @@ export default function DriverApp() {
 
   // Spinner mientras carga — cuando termina de cargar y no encontró al chofer, volver al login
   if (driversLoading || !myDriverRaw) {
-    const canGoBack = !driversLoading && !myDriverRaw;
+    const driverWasDeleted = !driversLoading && safeDrivers.length > 0 && !myDriverRaw;
+    const isTemporarilyEmpty = !driversLoading && safeDrivers.length === 0;
+
     return (
       <div className="h-[100dvh] bg-gray-950 flex items-center justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="text-center space-y-4 px-6">
-          {!loadTimeout ? (
+          {(!loadTimeout && !driverWasDeleted) ? (
             <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
           ) : (
             <div className="w-10 h-10 rounded-full bg-red-900/40 flex items-center justify-center mx-auto">
@@ -2152,21 +2176,27 @@ export default function DriverApp() {
             </div>
           )}
           <p className="text-gray-400 text-sm">
-            {canGoBack ? "Perfil no encontrado" : loadTimeout ? "Sin conexión — verificá tu internet" : "Conectando..."}
+            {driverWasDeleted ? "Perfil no encontrado o eliminado" : (loadTimeout || isTemporarilyEmpty) ? "Sin conexión — reconectando..." : "Conectando..."}
           </p>
-          {loadTimeout && (
+          {(loadTimeout || isTemporarilyEmpty) && !driverWasDeleted && (
             <button
               className="w-full bg-blue-600 text-white text-sm font-bold py-3 rounded-xl"
-              onClick={() => { setLoadTimeout(false); window.location.reload(); }}
+              onClick={() => { setLoadTimeout(false); window.dispatchEvent(new CustomEvent('force-driver-refresh')); }}
             >
-              Reintentar
+              Forzar Reconexión
             </button>
           )}
           <button
             className="text-xs text-gray-600 underline block mx-auto"
-            onClick={() => { localStorage.removeItem("my_driver_id"); sessionStorage.removeItem("my_driver_id"); setMyDriverId(""); }}
+            onClick={() => { 
+              localStorage.removeItem("my_driver_id"); 
+              sessionStorage.removeItem("my_driver_id"); 
+              localStorage.removeItem("remembered_driver_id");
+              sessionStorage.removeItem("remembered_driver_id");
+              setMyDriverId(""); 
+            }}
           >
-            {canGoBack ? "Volver al inicio" : "Cancelar"}
+            {driverWasDeleted ? "Volver al inicio" : "Cancelar e ir al login"}
           </button>
         </div>
       </div>
