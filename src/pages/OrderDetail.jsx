@@ -62,6 +62,12 @@ export default function OrderDetail() {
         status: "disponible",
         queue_entered_at: new Date(Date.now() - 31536000000).toISOString(),
       });
+      
+      base44.functions.invoke("sendPushNotification", {
+        action: "cancel_ride",
+        driverId: order.driver_id,
+        orderId: order.id
+      }).catch(e => console.error("Cancel push error:", e));
     }
     queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
   };

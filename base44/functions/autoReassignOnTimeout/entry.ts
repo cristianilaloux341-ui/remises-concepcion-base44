@@ -21,22 +21,31 @@ Deno.serve(async (req) => {
         const orders = await base44.asServiceRole.entities.RideOrder.filter({ id: orderId });
         const order = orders[0];
 
-        if (!order || !['ofrecido', 'pendiente'].includes(order.status)) {
-          return; // Ya fue aceptada o completada
+        if (!order || ['aceptado', 'en_camino', 'en_viaje', 'completado', 'cancelado', 'rechazado'].includes(order.status)) {
+          console.log(`Auto-reassign abortado: el viaje ${orderId} ya está en estado final/aceptado: ${order?.status}`);
+          return; 
         }
 
         // Si el operador asignó el viaje manualmente a otro móvil en este tiempo, ignorar este timeout
-        if (driverId && order.driver_id !== driverId) {
+        if (driverId && order.driver_id && order.driver_id !== driverId) {
+          console.log(`Auto-reassign abortado: el viaje ${orderId} fue asignado a otro móvil manualmente`);
           return;
         }
 
         // Obtener driver actual
-        const drivers = await base44.asServiceRole.entities.Driver.filter({ id: order.driver_id });
+        const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
         const currentDriver = drivers[0];
 
-        // Si el driver cambió a "en_viaje", no hacer nada
-        if (currentDriver?.status === 'en_viaje') {
-          return;
+        // Si el driver cambió a "en_viaje" o "disponible", ignorar
+        if (currentDriver && ['en_viaje', 'disponible'].includes(currentDriver.status)) {
+          console.log(`Auto-reassign abortado: el driver ${driverId} ya no está ofrecido (estado: ${currentDriver.status})`);
+          // A menos que la orden siga colgada sin chofer y ofrecida (reparación)
+          if (order.status === 'ofrecido' && order.driver_id === driverId) {
+             // Forzaremos continuar para reasignar
+             console.log("Forzando reasignación porque la orden quedó en ofrecido con un driver que se liberó/ocupó");
+          } else {
+             return;
+          }
         }
 
         // El chofer NO respondió — obtener todos los drivers disponibles

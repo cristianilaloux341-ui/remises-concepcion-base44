@@ -52,6 +52,18 @@ public class MyFirebaseMessagingService extends MessagingService {
         }
         
         String type = data.get("type");
+        
+        if ("cancelar".equals(type)) {
+            Log.e(TAG, "=> RECIBIDA ORDEN DE CANCELAR: Apagando sonido y limpiando notificación");
+            stopAlarmSound();
+            String orderId = data.get("orderId");
+            if (orderId != null) {
+                NotificationManager notificationManager = (NotificationManager) getApplicationContext().getSystemService(Context.NOTIFICATION_SERVICE);
+                notificationManager.cancel(orderId.hashCode());
+            }
+            return;
+        }
+        
         if ("ofrecido".equals(type) || "broadcast".equals(type)) {
             Log.e(TAG, "Construyendo notificación interactiva nativa para viaje...");
             showInteractiveNotification(data);
