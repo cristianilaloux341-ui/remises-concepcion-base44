@@ -578,6 +578,18 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
             <LogIn className="inline w-4 h-4 mr-2" />
             Continuar
           </button>
+          
+          <button
+            className="w-full text-xs text-gray-500 underline py-2 mt-2"
+            onClick={() => {
+              if ('caches' in window) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+              navigator.serviceWorker?.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+              window.location.reload(true);
+            }}
+          >
+            ¿Problemas para entrar? Toca aquí para actualizar
+          </button>
+
           {safeDriversList.length === 0 && !driversError && (
             <div className="text-center">
               <p className="text-xs text-gray-600">No hay chóferes registrados. Pedile al operador que te agregue.</p>
@@ -1682,11 +1694,7 @@ export default function DriverApp() {
   const safeOrders = Array.isArray(orders) ? orders : [];
   const myDriverRaw = debugArray(safeDrivers, 'safeDrivers').find(d => d.id === myDriverId);
 
-  // Verificación de sesión única temporalmente desactivada para evitar falsos deslogueos
-  useEffect(() => {
-    // La verificación estricta de sesión se desactivó temporalmente porque estaba
-    // causando que los choferes sean expulsados inmediatamente al loguearse.
-  }, [myDriverRaw?.current_session_token, myDriverRaw?.id]);
+  // Verificación de sesión única desactivada para permitir multi-dispositivo
 
   // Limpiar el override cuando los datos reales del servidor ya coinciden
   // Usamos un pequeño delay para evitar flash si la suscripción llega antes de lo esperado

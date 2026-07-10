@@ -1,7 +1,14 @@
 // Service Worker — Remises Concepción
 // v2026-06-29b — remove fetch intercept for electron
 
-const CACHE_NAME = "radiocab-v12";
+const CACHE_NAME = "radiocab-v13";
+
+self.addEventListener("install", (e) => self.skipWaiting());
+self.addEventListener("activate", (e) => {
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))))
+  self.clients.claim();
+});
+
 
 // Responder a skip waiting para actualizaciones inmediatas
 self.addEventListener("message", (event) => {
