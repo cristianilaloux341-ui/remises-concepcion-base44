@@ -1980,6 +1980,10 @@ export default function DriverApp() {
   });
 
   const handleAccept = () => {
+    stopAlert();
+    clearInterval(alertIntervalRef.current);
+    if (Capacitor.isNativePlatform()) LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
+
     setLocalOverride({ status: "en_viaje" });
     updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
@@ -1993,6 +1997,10 @@ export default function DriverApp() {
     }).catch(console.error);
   };
   const handleReject = async () => {
+    stopAlert();
+    clearInterval(alertIntervalRef.current);
+    if (Capacitor.isNativePlatform()) LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
+
     const currentOrder = { ...offeredOrder, offered_driver_ids: [...(offeredOrder.offered_driver_ids || []), myDriverId] };
     
     // Regresamos al chofer a "disponible" ya que rechazó el viaje
@@ -2092,6 +2100,10 @@ export default function DriverApp() {
   };
 
   const handleBroadcastAccept = (order) => {
+    stopAlert();
+    clearInterval(broadcastIntervalRef.current);
+    if (Capacitor.isNativePlatform()) LocalNotifications.cancel({ notifications: [{ id: 77777 }] }).catch(()=>{});
+
     setLocalOverride({ status: "en_viaje" });
     updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
@@ -2106,6 +2118,10 @@ export default function DriverApp() {
   };
 
   const handleBroadcastReject = (order) => {
+    stopAlert();
+    clearInterval(broadcastIntervalRef.current);
+    if (Capacitor.isNativePlatform()) LocalNotifications.cancel({ notifications: [{ id: 77777 }] }).catch(()=>{});
+
     const updated = [...dismissedBroadcasts, order.id];
     setDismissedBroadcasts(updated);
     localStorage.setItem(`dismissed_bc_${myDriverId}`, JSON.stringify(updated));
