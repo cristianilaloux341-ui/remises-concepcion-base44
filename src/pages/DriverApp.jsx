@@ -2395,7 +2395,7 @@ export default function DriverApp() {
 
       {/* Taxímetro ocasional */}
       {showOcasional && (
-        <OcasionalMeter onClose={() => setShowOcasional(false)} />
+        <OcasionalMeter onClose={() => setShowOcasional(false)} driver={myDriver} />
       )}
     </div>
   );

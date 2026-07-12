@@ -10,8 +10,9 @@ import { DollarSign, Timer, Navigation, CheckCircle2, XCircle, Car, Zap, Clock }
  * - El tiempo corre desde que se pulsa "Iniciar" hasta "Terminar".
  * - No depende de ninguna API externa.
  */
-export default function OcasionalMeter({ onClose }) {
+export default function OcasionalMeter({ onClose, driver }) {
   const [phase, setPhase] = useState("idle"); // 'idle' | 'running' | 'done'
+  const [guardando, setGuardando] = useState(false);
   const [importeActual, setImporteActual] = useState(0);
   const [metrosRecorridos, setMetrosRecorridos] = useState(0);
   const [segundosTotales, setSegundosTotales] = useState(0);
@@ -116,12 +117,34 @@ export default function OcasionalMeter({ onClose }) {
     }, 1000);
   };
 
-  const terminarViaje = () => {
+  const terminarViaje = async () => {
     if (gpsWatchRef.current !== null) {
       navigator.geolocation.clearWatch(gpsWatchRef.current);
       gpsWatchRef.current = null;
     }
     clearInterval(timerRef.current);
+    setGuardando(true);
+
+    const importeFinal = recalcular(metrosRef.current, segundosRef.current);
+
+    try {
+      await base44.entities.RideOrder.create({
+        client_name: "Viaje Ocasional (Calle)",
+        pickup_address: "Viaje en calle",
+        status: "completado",
+        driver_id: driver?.id || "",
+        driver_name: driver?.name || "",
+        importe_real_actual: importeFinal,
+        fare: importeFinal,
+        source: "operador",
+        segundos_espera_acumulados: segundosRef.current,
+        distancia_teorica_metros: Math.round(metrosRef.current)
+      });
+    } catch (e) {
+      console.error("Error guardando viaje ocasional", e);
+    }
+
+    setGuardando(false);
     setPhase("done");
   };
 
@@ -249,10 +272,11 @@ export default function OcasionalMeter({ onClose }) {
         </div>
 
         <button
-          className="mt-4 w-full h-16 rounded-2xl bg-green-500 text-white font-black text-xl flex items-center justify-center gap-3 shadow-lg shadow-green-500/30 active:scale-95 transition-all shrink-0"
+          disabled={guardando}
+          className="mt-4 w-full h-16 rounded-2xl bg-green-500 text-white font-black text-xl flex items-center justify-center gap-3 shadow-lg shadow-green-500/30 active:scale-95 transition-all shrink-0 disabled:opacity-50"
           onClick={terminarViaje}
         >
-          <CheckCircle2 className="w-7 h-7" /> Terminar · ${importeActual.toLocaleString()}
+          <CheckCircle2 className="w-7 h-7" /> {guardando ? "Guardando..." : `Terminar · $${importeActual.toLocaleString()}`}
         </button>
         <button
           className="mt-2 w-full h-11 rounded-2xl border border-red-500/30 text-red-400 font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shrink-0"
