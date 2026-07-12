@@ -645,21 +645,24 @@ export default function Drivers() {
                   );
                 })()}
 
-                <div className="flex items-center gap-2">
-                  <Select
-                    value={driver.status}
-                    onValueChange={(val) => updateMutation.mutate({ id: driver.id, data: { status: val } })}
-                  >
-                    <SelectTrigger className="flex-1 h-9 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="disponible">Disponible</SelectItem>
-                      <SelectItem value="en_viaje">En Viaje</SelectItem>
-                      <SelectItem value="no_disponible">No Disponible</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  <div className="flex-1 min-w-[120px]">
+                    <Select
+                      value={driver.status}
+                      onValueChange={(val) => updateMutation.mutate({ id: driver.id, data: { status: val } })}
+                    >
+                      <SelectTrigger className="w-full h-9 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="disponible">Disponible</SelectItem>
+                        <SelectItem value="en_viaje">En Viaje</SelectItem>
+                        <SelectItem value="no_disponible">No Disponible</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <Button
                     variant="outline"
                     size="icon"
                     className="h-9 w-9"
@@ -714,8 +717,9 @@ export default function Drivers() {
                    >
                      <Trash2 className="w-4 h-4" />
                    </Button>
-                </div>
-              </CardContent>
+                   </div>
+                   </div>
+                   </CardContent>
             </Card>
           ))}
         </div>
