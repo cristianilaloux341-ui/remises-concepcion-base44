@@ -522,7 +522,14 @@ export default function Drivers() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {drivers.map(driver => (
+          {[...drivers].sort((a, b) => {
+            const movilA = getMovil(a);
+            const movilB = getMovil(b);
+            const numA = movilA ? Number(movilA.numero_movil) : Infinity;
+            const numB = movilB ? Number(movilB.numero_movil) : Infinity;
+            if (numA === numB) return (a.name || "").localeCompare(b.name || "");
+            return numA - numB;
+          }).map(driver => (
             <Card key={driver.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">

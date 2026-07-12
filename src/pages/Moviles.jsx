@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Car, Plus, Edit, AlertTriangle, CheckCircle2, XCircle, Search, ClipboardList, Ban, PauseCircle, X, ArrowLeft } from "lucide-react";
+import { Car, Plus, Edit, AlertTriangle, CheckCircle2, XCircle, Search, ClipboardList, Ban, PauseCircle, X, ArrowLeft, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
@@ -332,6 +333,7 @@ export default function Moviles() {
   const [editing, setEditing] = useState(null);
   const [reinscripcionMovil, setReinscripcionMovil] = useState(null);
   const [alertMovil, setAlertMovil] = useState(null); // móvil cuyas alertas se muestran en popup previo
+  const [deleteConfirmMovil, setDeleteConfirmMovil] = useState(null);
 
   const { data: moviles = [], error: errorMoviles } = useQuery({
     queryKey: ["moviles"],
@@ -341,6 +343,22 @@ export default function Moviles() {
   const { data: drivers = [], isSuccess: driversLoaded, error: errorDrivers } = useQuery({
     queryKey: ["drivers-list"],
     queryFn: () => base44.entities.Driver.list(),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.Movil.delete(id),
+    onSuccess: () => {
+      const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+      base44.entities.AuditLog.create({
+        action: "eliminar_movil",
+        user_type: localOp?.role || "operador",
+        user_name: localOp?.name || "Operador",
+        details: `Eliminó el móvil N° ${deleteConfirmMovil?.numero_movil || ""}`
+      }).catch(() => {});
+      qc.invalidateQueries({ queryKey: ["moviles"] });
+      setDeleteConfirmMovil(null);
+    },
+    onError: (err) => alert("Error al eliminar: " + (err?.response?.data?.error || err?.message || JSON.stringify(err)))
   });
 
   const saveMutation = useMutation({
@@ -403,7 +421,7 @@ export default function Moviles() {
     String(m.numero_movil).includes(search) ||
     m.apellido_nombre?.toLowerCase().includes(search.toLowerCase()) ||
     m.dni?.includes(search)
-  );
+  ).sort((a, b) => Number(a.numero_movil) - Number(b.numero_movil));
 
   const vencidos = moviles.filter(m => {
     const campos = [m.vtv_vencimiento, m.seguro_riesgos_personales_vencimiento, m.seguro_automotor_vencimiento, m.buena_conducta_vencimiento];
@@ -548,6 +566,9 @@ export default function Moviles() {
                     <Button variant="ghost" size="icon" title="Lista de reinscripción" onClick={() => setReinscripcionMovil(prev => prev?.id === m.id ? null : m)}>
                       <ClipboardList className="w-4 h-4 text-blue-500" />
                     </Button>
+                    <Button variant="ghost" size="icon" title="Eliminar" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirmMovil(m)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -619,6 +640,30 @@ export default function Moviles() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteConfirmMovil} onOpenChange={(v) => !v && setDeleteConfirmMovil(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              Eliminar Móvil
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Eliminar el móvil <strong>N° {deleteConfirmMovil?.numero_movil}</strong>? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex gap-3 mt-2">
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteMutation.mutate(deleteConfirmMovil.id)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
