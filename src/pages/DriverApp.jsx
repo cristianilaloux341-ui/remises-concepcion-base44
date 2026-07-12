@@ -1229,15 +1229,21 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
           <p className="text-gray-500 text-sm mt-1">Estás en: <span className="font-semibold text-gray-700">{driver.current_base}</span></p>
         </div>
         <div className="space-y-2 flex-1">
-          {BASES.filter(b => b !== driver.current_base).map(b => (
-            <button
-              key={b}
-              className={`w-full text-left px-4 py-4 rounded-2xl font-semibold text-base border-2 transition-all ${newBase === b ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-200 text-gray-800 active:bg-gray-100"}`}
-              onClick={() => setNewBase(b)}
-            >
-              {b}
-            </button>
-          ))}
+          {BASES.filter(b => b !== driver.current_base).map(b => {
+            const count = drivers.filter(d => d.current_base === b && d.status === "disponible").length;
+            return (
+              <button
+                key={b}
+                className={`w-full text-left px-4 py-4 rounded-2xl font-semibold text-base border-2 transition-all flex justify-between items-center ${newBase === b ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-200 text-gray-800 active:bg-gray-100"}`}
+                onClick={() => setNewBase(b)}
+              >
+                <span>{b}</span>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${newBase === b ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"}`}>
+                  {count} {count === 1 ? "móvil" : "móviles"}
+                </span>
+              </button>
+            );
+          })}
         </div>
         <div className="mt-4 space-y-2 shrink-0">
           <Button
@@ -1350,15 +1356,21 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
         <p className="text-gray-500 text-sm mt-1">Tocá tu base para quedar en posición</p>
       </div>
       <div className="space-y-2 flex-1">
-        {BASES.map(b => (
-          <button
-            key={b}
-            className={`w-full text-left px-4 py-4 rounded-2xl font-semibold text-base border-2 transition-all ${selectedBase === b ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-200 text-gray-800 active:bg-gray-100"}`}
-            onClick={() => onBaseChange(b)}
-          >
-            {b}
-          </button>
-        ))}
+        {BASES.map(b => {
+          const count = drivers.filter(d => d.current_base === b && d.status === "disponible").length;
+          return (
+            <button
+              key={b}
+              className={`w-full text-left px-4 py-4 rounded-2xl font-semibold text-base border-2 transition-all flex justify-between items-center ${selectedBase === b ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-200 text-gray-800 active:bg-gray-100"}`}
+              onClick={() => onBaseChange(b)}
+            >
+              <span>{b}</span>
+              <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${selectedBase === b ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"}`}>
+                {count} {count === 1 ? "móvil" : "móviles"}
+              </span>
+            </button>
+          );
+        })}
       </div>
       <div className="mt-4 shrink-0">
         <Button
