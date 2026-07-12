@@ -138,8 +138,11 @@ export default function OcasionalMeter({ onClose, driver }) {
         fare: importeFinal,
         source: "operador",
         segundos_espera_acumulados: segundosRef.current,
-        distancia_teorica_metros: Math.round(metrosRef.current)
+        distancia_teorica_metros: Math.round(metrosRef.current),
+        created_date: new Date().toISOString()
       });
+      // Forzar recarga de los viajes para que aparezca en estadísticas
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } catch (e) {
       console.error("Error guardando viaje ocasional", e);
     }
