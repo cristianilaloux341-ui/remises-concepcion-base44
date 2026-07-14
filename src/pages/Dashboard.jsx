@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -71,14 +72,17 @@ export default function Dashboard() {
             o.start(); o.stop(ctx.currentTime + 0.3);
           } catch (_) {}
 
-          // Burbuja visual desactivada
-          /*
+          // Burbuja visual de Nuevo Viaje con botón de acción
           toast({
             title: "🚕 ¡Nuevo viaje entrante!",
             description: `${event.data.pickup_address} (${event.data.client_name || 'Cliente'})`,
-            variant: "default",
+            action: (
+              <ToastAction altText="Ver" onClick={() => window.location.href = `/orders/${event.id}`}>
+                Ver Viaje
+              </ToastAction>
+            ),
+            duration: 10000,
           });
-          */
         }
       }
     });
@@ -183,7 +187,18 @@ export default function Dashboard() {
               <p className="text-xs text-slate-400 font-medium">Asignación rápida a bases</p>
             </div>
           </div>
-          <div className="w-full sm:w-80">
+          <div className="hidden xl:flex items-center gap-2 overflow-x-auto">
+            {bases.map(b => {
+              const q = drivers.filter(d => d.current_base === b.name && d.status === "disponible");
+              return (
+                <div key={b.name} className="flex flex-col items-center justify-center bg-slate-800 rounded-lg px-2 py-1 min-w-[3rem]">
+                  <span className="text-[10px] text-slate-400 truncate w-full text-center max-w-[4rem]">{b.name.split("-")[1]}</span>
+                  <span className="text-sm font-bold text-white">{q.length}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="w-full sm:w-80 shrink-0">
             <QuickAssignInput drivers={drivers} moviles={moviles} />
           </div>
         </div>

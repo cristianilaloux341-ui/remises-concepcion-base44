@@ -1745,13 +1745,20 @@ export default function DriverApp() {
     ? { ...myDriverRaw, ...(localOverride ?? {}) }
     : null;
 
+  const isLocallyBusy = localOverride && ["en_viaje", "aceptado", "en_camino"].includes(localOverride.status);
+  const ignoredOrderId = localOverride?._ignoredOrderId || null;
+
   const activeOrder = debugArray(safeOrders, 'safeOrders').find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
-  const offeredOrder = debugArray(safeOrders, 'safeOrders').find(o => o.driver_id === myDriverId && o.status === "ofrecido");
+  
+  // Ocultar burbujas de oferta si ya aceptamos/rechazamos localmente
+  const offeredOrder = isLocallyBusy ? null : debugArray(safeOrders, 'safeOrders').find(o => o.driver_id === myDriverId && o.status === "ofrecido" && o.id !== ignoredOrderId);
+  
   // Broadcast: pedido pendiente (sin chofer asignado) que este chofer no rechazó — solo si está libre y en base
-  const broadcastOrder = myDriver?.status === "disponible" && myDriver?.current_base && !activeOrder && !offeredOrder
+  const broadcastOrder = (myDriver?.status === "disponible" && myDriver?.current_base && !activeOrder && !offeredOrder && !isLocallyBusy)
     ? debugArray(safeOrders, 'safeOrders').find(o =>
         o.status === "pendiente" &&
         !o.driver_id &&
+        o.id !== ignoredOrderId &&
         (!Array.isArray(dismissedBroadcasts) ? false : !dismissedBroadcasts.includes(o.id))
       )
     : null;
@@ -1996,7 +2003,7 @@ export default function DriverApp() {
     clearInterval(alertIntervalRef.current);
     if (Capacitor.isNativePlatform()) LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
 
-    setLocalOverride({ status: "en_viaje" });
+    setLocalOverride({ status: "en_viaje", _ignoredOrderId: offeredOrder.id });
     updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
     // Notificamos al backend para limpiar notificaciones
@@ -2016,7 +2023,7 @@ export default function DriverApp() {
     const currentOrder = { ...offeredOrder, offered_driver_ids: [...(offeredOrder.offered_driver_ids || []), myDriverId] };
     
     // Regresamos al chofer a "disponible" ya que rechazó el viaje
-    setLocalOverride({ status: "disponible" });
+    setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder.id });
     updateDriver.mutate({ id: myDriverId, data: { status: "disponible" } });
 
     await reassignAfterReject(currentOrder, drivers, []);
@@ -2116,7 +2123,7 @@ export default function DriverApp() {
     clearInterval(broadcastIntervalRef.current);
     if (Capacitor.isNativePlatform()) LocalNotifications.cancel({ notifications: [{ id: 77777 }] }).catch(()=>{});
 
-    setLocalOverride({ status: "en_viaje" });
+    setLocalOverride({ status: "en_viaje", _ignoredOrderId: order.id });
     updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
     // Notificamos al backend para limpiar notificaciones
@@ -2134,6 +2141,7 @@ export default function DriverApp() {
     clearInterval(broadcastIntervalRef.current);
     if (Capacitor.isNativePlatform()) LocalNotifications.cancel({ notifications: [{ id: 77777 }] }).catch(()=>{});
 
+    setLocalOverride(prev => ({ ...(prev || {}), _ignoredOrderId: order.id }));
     const updated = [...dismissedBroadcasts, order.id];
     setDismissedBroadcasts(updated);
     localStorage.setItem(`dismissed_bc_${myDriverId}`, JSON.stringify(updated));
