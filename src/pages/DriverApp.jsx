@@ -1238,9 +1238,12 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
                 onClick={() => setNewBase(b)}
               >
                 <span>{b}</span>
-                <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${newBase === b ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"}`}>
-                  {count} {count === 1 ? "móvil" : "móviles"}
-                </span>
+                <div className="flex items-center gap-2">
+                  {count > 0 && <span className="flex w-2 h-2 rounded-full bg-green-500"></span>}
+                  <span className={`text-xs px-3 py-1.5 rounded-full font-bold ${newBase === b ? "bg-white/20 text-white" : count > 0 ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                    {count} en espera
+                  </span>
+                </div>
               </button>
             );
           })}
@@ -1365,9 +1368,12 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
               onClick={() => onBaseChange(b)}
             >
               <span>{b}</span>
-              <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${selectedBase === b ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"}`}>
-                {count} {count === 1 ? "móvil" : "móviles"}
-              </span>
+              <div className="flex items-center gap-2">
+                {count > 0 && <span className="flex w-2 h-2 rounded-full bg-green-500"></span>}
+                <span className={`text-xs px-3 py-1.5 rounded-full font-bold ${selectedBase === b ? "bg-white/20 text-white" : count > 0 ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                  {count} en espera
+                </span>
+              </div>
             </button>
           );
         })}
