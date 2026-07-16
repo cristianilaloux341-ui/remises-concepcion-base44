@@ -97,11 +97,12 @@ const AuthenticatedApp = () => {
   // Seguridad: Validar User-Agent (Contenedor Electron)
   const isDesktopApp = navigator.userAgent.includes('RemisesConcepcion-AdminApp');
   const isDriverApp = location.pathname === '/driver-app' || location.pathname.startsWith('/driver-app');
+  const isClientApp = location.pathname === '/client' || location.pathname.startsWith('/client/');
   const isLoginCentral = location.pathname === '/login';
   
   const hasLocalOperator = sessionStorage.getItem('local_operator') !== null;
 
-  if (!isDriverApp && !isLoginCentral && !hasLocalOperator) {
+  if (!isDriverApp && !isClientApp && !isLoginCentral && !hasLocalOperator) {
     // Si no está logueado en el sistema interno, lo mandamos directo a login
     window.location.href = "/login";
     return null;
@@ -112,6 +113,25 @@ const AuthenticatedApp = () => {
     return (
       <Routes>
         <Route path="/driver-app" element={<DriverAppErrorBoundary><DriverApp /></DriverAppErrorBoundary>} />
+      </Routes>
+    );
+  }
+
+  // Client app demo is fully public - render immediately without any auth checks
+  if (isClientApp) {
+    return (
+      <Routes>
+        <Route path="/client" element={<Navigate to="/client/splash" replace />} />
+        <Route path="/client/splash" element={<ClientSplash />} />
+        <Route path="/client/home" element={<ClientHome />} />
+        <Route path="/client/request" element={<ClientRequest />} />
+        <Route path="/client/fare" element={<ClientFare />} />
+        <Route path="/client/searching" element={<ClientSearching />} />
+        <Route path="/client/assigned" element={<ClientAssigned />} />
+        <Route path="/client/active-ride" element={<ClientActiveRide />} />
+        <Route path="/client/finished" element={<Navigate to="/client/rating" replace />} />
+        <Route path="/client/rating" element={<ClientRating />} />
+        <Route path="/client/profile" element={<ClientProfile />} />
       </Routes>
     );
   }
