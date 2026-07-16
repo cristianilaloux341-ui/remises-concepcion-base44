@@ -22,7 +22,7 @@ export default function ActiveRide() {
           <div className="w-px h-10 bg-slate-200"></div>
           <div className="space-y-1">
             <p className="text-xs font-bold text-slate-400">DESTINO</p>
-            <p className="font-bold text-slate-800 text-sm w-40 truncate">Alto Palermo Shopping</p>
+            <p className="font-bold text-slate-800 text-sm w-40 truncate">Hospital Urquiza</p>
           </div>
         </div>
       </div>

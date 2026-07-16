@@ -38,7 +38,7 @@ export default function Home() {
             </div>
             <div>
               <p className="font-bold text-slate-800">Casa</p>
-              <p className="text-sm text-slate-500 truncate">San Martín 1234</p>
+              <p className="text-sm text-slate-500 truncate">9 de Julio 1250</p>
             </div>
           </div>
           <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform" onClick={() => navigate('/app-cliente/request')}>
@@ -47,7 +47,7 @@ export default function Home() {
             </div>
             <div>
               <p className="font-bold text-slate-800">Trabajo</p>
-              <p className="text-sm text-slate-500 truncate">Belgrano 456</p>
+              <p className="text-sm text-slate-500 truncate">Leguizamón 350</p>
             </div>
           </div>
         </div>
