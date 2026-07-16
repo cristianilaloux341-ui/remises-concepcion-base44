@@ -53,7 +53,7 @@ export default function DriverAssigned() {
 
         {/* Navegación al siguiente paso (para la demo) */}
         <button 
-          onClick={() => navigate('/client/active-ride')}
+          onClick={() => navigate('/app-cliente/active-ride')}
           className="w-full h-16 bg-blue-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-blue-600/30 active:scale-95 transition-transform"
         >
           [DEMO] Simular Inicio de Viaje

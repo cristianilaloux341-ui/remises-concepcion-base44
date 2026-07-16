@@ -7,7 +7,7 @@ export default function Searching() {
   
   useEffect(() => {
     // Simular búsqueda y transición automática a conductor asignado
-    const t = setTimeout(() => navigate('/client/assigned'), 3500);
+    const t = setTimeout(() => navigate('/app-cliente/assigned'), 3500);
     return () => clearTimeout(t);
   }, [navigate]);
 

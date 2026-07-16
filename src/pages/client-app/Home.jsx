@@ -12,7 +12,7 @@ export default function Home() {
       
       {/* Top Bar */}
       <div className="absolute top-0 inset-x-0 p-5 z-10 flex justify-between items-center bg-gradient-to-b from-white/90 to-transparent pt-14">
-        <button onClick={() => navigate('/client/profile')} className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-slate-100">
+        <button onClick={() => navigate('/app-cliente/profile')} className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-slate-100">
           <Menu className="w-6 h-6 text-slate-800" />
         </button>
         <div className="bg-white px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2 border border-slate-100">
@@ -26,13 +26,13 @@ export default function Home() {
         
         <h2 className="text-2xl font-bold text-slate-900 mt-2">¿A dónde vamos?</h2>
         
-        <button onClick={() => navigate('/client/request')} className="w-full bg-slate-50 p-5 rounded-2xl flex items-center gap-4 text-left active:bg-slate-100 transition-colors border border-slate-100 shadow-sm">
+        <button onClick={() => navigate('/app-cliente/request')} className="w-full bg-slate-50 p-5 rounded-2xl flex items-center gap-4 text-left active:bg-slate-100 transition-colors border border-slate-100 shadow-sm">
           <Search className="w-6 h-6 text-slate-500" />
           <span className="text-lg text-slate-500 font-medium">Buscar destino...</span>
         </button>
 
         <div className="flex gap-4 overflow-x-auto pb-4 pt-2 hide-scrollbar -mx-6 px-6">
-          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform" onClick={() => navigate('/client/request')}>
+          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform" onClick={() => navigate('/app-cliente/request')}>
             <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
               <Star className="w-6 h-6 text-blue-600" />
             </div>
@@ -41,7 +41,7 @@ export default function Home() {
               <p className="text-sm text-slate-500 truncate">San Martín 1234</p>
             </div>
           </div>
-          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform" onClick={() => navigate('/client/request')}>
+          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform" onClick={() => navigate('/app-cliente/request')}>
             <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center">
               <Clock className="w-6 h-6 text-slate-600" />
             </div>

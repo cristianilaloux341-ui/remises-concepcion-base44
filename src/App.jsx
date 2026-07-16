@@ -97,7 +97,7 @@ const AuthenticatedApp = () => {
   // Seguridad: Validar User-Agent (Contenedor Electron)
   const isDesktopApp = navigator.userAgent.includes('RemisesConcepcion-AdminApp');
   const isDriverApp = location.pathname === '/driver-app' || location.pathname.startsWith('/driver-app');
-  const isClientApp = location.pathname === '/client' || location.pathname.startsWith('/client/');
+  const isClientApp = location.pathname === '/app-cliente' || location.pathname.startsWith('/app-cliente/');
   const isLoginCentral = location.pathname === '/login';
   
   const hasLocalOperator = sessionStorage.getItem('local_operator') !== null;
@@ -121,18 +121,18 @@ const AuthenticatedApp = () => {
   if (isClientApp) {
     return (
       <Routes>
-        <Route path="/client" element={<Navigate to="/client/splash" replace />} />
-        <Route path="/client/splash" element={<ClientSplash />} />
-        <Route path="/client/home" element={<ClientHome />} />
-        <Route path="/client/request" element={<ClientRequest />} />
-        <Route path="/client/fare" element={<ClientFare />} />
-        <Route path="/client/searching" element={<ClientSearching />} />
-        <Route path="/client/assigned" element={<ClientAssigned />} />
-        <Route path="/client/active-ride" element={<ClientActiveRide />} />
-        <Route path="/client/finished" element={<Navigate to="/client/rating" replace />} />
-        <Route path="/client/rating" element={<ClientRating />} />
-        <Route path="/client/profile" element={<ClientProfile />} />
-        <Route path="*" element={<Navigate to="/client/splash" replace />} />
+        <Route path="/app-cliente" element={<Navigate to="/app-cliente/splash" replace />} />
+        <Route path="/app-cliente/splash" element={<ClientSplash />} />
+        <Route path="/app-cliente/home" element={<ClientHome />} />
+        <Route path="/app-cliente/request" element={<ClientRequest />} />
+        <Route path="/app-cliente/fare" element={<ClientFare />} />
+        <Route path="/app-cliente/searching" element={<ClientSearching />} />
+        <Route path="/app-cliente/assigned" element={<ClientAssigned />} />
+        <Route path="/app-cliente/active-ride" element={<ClientActiveRide />} />
+        <Route path="/app-cliente/finished" element={<Navigate to="/app-cliente/rating" replace />} />
+        <Route path="/app-cliente/rating" element={<ClientRating />} />
+        <Route path="/app-cliente/profile" element={<ClientProfile />} />
+        <Route path="*" element={<Navigate to="/app-cliente/splash" replace />} />
       </Routes>
     );
   }
@@ -162,17 +162,17 @@ const AuthenticatedApp = () => {
       <Route path="/driver-app" element={<DriverApp />} />
 
       {/* Client Demo App - Independent Flow */}
-      <Route path="/client" element={<Navigate to="/client/splash" replace />} />
-      <Route path="/client/splash" element={<ClientSplash />} />
-      <Route path="/client/home" element={<ClientHome />} />
-      <Route path="/client/request" element={<ClientRequest />} />
-      <Route path="/client/fare" element={<ClientFare />} />
-      <Route path="/client/searching" element={<ClientSearching />} />
-      <Route path="/client/assigned" element={<ClientAssigned />} />
-      <Route path="/client/active-ride" element={<ClientActiveRide />} />
-      <Route path="/client/finished" element={<Navigate to="/client/rating" replace />} />
-      <Route path="/client/rating" element={<ClientRating />} />
-      <Route path="/client/profile" element={<ClientProfile />} />
+      <Route path="/app-cliente" element={<Navigate to="/app-cliente/splash" replace />} />
+      <Route path="/app-cliente/splash" element={<ClientSplash />} />
+      <Route path="/app-cliente/home" element={<ClientHome />} />
+      <Route path="/app-cliente/request" element={<ClientRequest />} />
+      <Route path="/app-cliente/fare" element={<ClientFare />} />
+      <Route path="/app-cliente/searching" element={<ClientSearching />} />
+      <Route path="/app-cliente/assigned" element={<ClientAssigned />} />
+      <Route path="/app-cliente/active-ride" element={<ClientActiveRide />} />
+      <Route path="/app-cliente/finished" element={<Navigate to="/app-cliente/rating" replace />} />
+      <Route path="/app-cliente/rating" element={<ClientRating />} />
+      <Route path="/app-cliente/profile" element={<ClientProfile />} />
 
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<AppLayout />}>

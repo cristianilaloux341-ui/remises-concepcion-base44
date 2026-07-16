@@ -73,7 +73,7 @@ export default function FareEstimate() {
         </div>
 
         <button 
-          onClick={() => navigate('/client/searching')}
+          onClick={() => navigate('/app-cliente/searching')}
           className="w-full h-16 bg-slate-900 text-white rounded-2xl font-bold text-xl shadow-lg active:scale-95 transition-transform"
         >
           Confirmar Evoloux {selected === 'x' ? 'X' : 'XL'}

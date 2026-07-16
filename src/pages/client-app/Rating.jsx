@@ -41,7 +41,7 @@ export default function Rating() {
       </div>
 
       <button 
-        onClick={() => navigate('/client/home')}
+        onClick={() => navigate('/app-cliente/home')}
         className={`w-full h-16 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all ${rating > 0 ? 'bg-blue-600 text-white shadow-blue-600/30' : 'bg-slate-100 text-slate-400'}`}
       >
         {rating > 0 ? 'Enviar calificación' : 'Omitir'}

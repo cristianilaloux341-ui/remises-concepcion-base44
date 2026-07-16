@@ -48,7 +48,7 @@ export default function ActiveRide() {
         </div>
 
         <button 
-          onClick={() => navigate('/client/finished')}
+          onClick={() => navigate('/app-cliente/finished')}
           className="w-full h-16 bg-slate-900 text-white rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform mt-2"
         >
           [DEMO] Simular Fin de Viaje
