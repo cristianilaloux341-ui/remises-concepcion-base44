@@ -2036,13 +2036,11 @@ export default function DriverApp() {
     setLocalOverride({ status: "en_viaje", _ignoredOrderId: offeredOrder?.id });
     updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
-    // Notificamos al backend para limpiar notificaciones
+    // Notificamos al backend para limpiar notificaciones y APAGAR el sonido nativo de Android
     base44.functions.invoke("sendPushNotification", {
-      action: "native_accept",
+      action: "cancel_ride",
       orderId: offeredOrder.id,
-      driverId: myDriverId,
-      driverName: myDriver?.name || "",
-      base: myDriver?.current_base || ""
+      driverId: myDriverId
     }).catch(console.error);
   };
   const handleReject = async () => {
@@ -2059,6 +2057,13 @@ export default function DriverApp() {
     // Regresamos al chofer a "disponible" ya que rechazó el viaje
     setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
     updateDriver.mutate({ id: myDriverId, data: { status: "disponible" } });
+
+    // Apagar sonido nativo en Android
+    base44.functions.invoke("sendPushNotification", {
+      action: "cancel_ride",
+      orderId: offeredOrder?.id,
+      driverId: myDriverId
+    }).catch(console.error);
 
     await reassignAfterReject(currentOrder, drivers, []);
     
@@ -2164,13 +2169,11 @@ export default function DriverApp() {
     setLocalOverride({ status: "en_viaje", _ignoredOrderId: order?.id });
     updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
-    // Notificamos al backend para limpiar notificaciones
+    // Notificamos al backend para apagar el sonido nativo de Android
     base44.functions.invoke("sendPushNotification", {
-      action: "native_accept",
+      action: "cancel_ride",
       orderId: order.id,
-      driverId: myDriverId,
-      driverName: myDriver?.name || "",
-      base: myDriver?.current_base || ""
+      driverId: myDriverId
     }).catch(console.error);
   };
 
@@ -2187,6 +2190,13 @@ export default function DriverApp() {
     const updated = [...dismissedBroadcasts, order.id];
     setDismissedBroadcasts(updated);
     localStorage.setItem(`dismissed_bc_${myDriverId}`, JSON.stringify(updated));
+
+    // Apagar sonido nativo en Android
+    base44.functions.invoke("sendPushNotification", {
+      action: "cancel_ride",
+      orderId: order?.id,
+      driverId: myDriverId
+    }).catch(console.error);
   };
 
   // Count unread messages for badge
