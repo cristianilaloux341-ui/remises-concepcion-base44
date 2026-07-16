@@ -1466,7 +1466,7 @@ export default function DriverApp() {
     const autoAcceptOrderId = urlParams.get("accept");
     if (autoAcceptOrderId && myDriverId) {
       setLocalOverride({ status: "en_viaje", _ignoredOrderId: autoAcceptOrderId });
-      updateOrder.mutate({ id: autoAcceptOrderId, data: { status: "aceptado" } });
+      updateOrder.mutate({ id: autoAcceptOrderId, data: { status: "aceptado", driver_id: myDriverId } });
       updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
       window.history.replaceState({}, "", "/driver-app");
     }
@@ -1902,9 +1902,16 @@ export default function DriverApp() {
 
     const safeOrds = Array.isArray(incomingOrders) ? incomingOrders : [];
     const activeOrder = safeOrds.find(o => o.driver_id === dId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
-    const offered = safeOrds.find(o => o.driver_id === dId && o.status === "ofrecido");
-    const broadcast = driver?.status === "disponible" && driver?.current_base && !activeOrder && !offered
-      ? safeOrds.find(o => o.status === "pendiente" && !o.driver_id && (!dismissed || !dismissed.includes(o.id)))
+    
+    const isLocallyBusy = 
+      (driver && ["en_viaje", "aceptado", "en_camino"].includes(driver.status)) || 
+      !!activeOrder;
+
+    const ignoredOrderId = driver?._ignoredOrderId || null;
+
+    const offered = isLocallyBusy ? null : safeOrds.find(o => o.driver_id === dId && o.status === "ofrecido" && o.id !== ignoredOrderId);
+    const broadcast = (!isLocallyBusy && driver?.status === "disponible" && driver?.current_base && !offered)
+      ? safeOrds.find(o => o.status === "pendiente" && !o.driver_id && o.id !== ignoredOrderId && (!dismissed || !dismissed.includes(o.id)))
       : null;
 
     offeredOrderRef.current = offered || null;
@@ -1915,6 +1922,7 @@ export default function DriverApp() {
         console.log("[Alert-Background] Verificando si el viaje ofrecido es real...");
         prevOfferedId.current = offered.id;
         base44.entities.RideOrder.get(offered.id).then(fresh => {
+           if (prevOfferedId.current !== offered.id) return; // Prevent race conditions if state changed
            if (fresh && fresh.status === 'ofrecido') {
               playAlert();
               if (Capacitor.isNativePlatform()) {
@@ -1930,6 +1938,7 @@ export default function DriverApp() {
               window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
            }
         }).catch(() => {
+           if (prevOfferedId.current !== offered.id) return;
            playAlert();
            clearInterval(alertIntervalRef.current);
            alertIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
@@ -1953,6 +1962,7 @@ export default function DriverApp() {
         console.log("[Alert-Background] Verificando viaje broadcast...");
         prevBroadcastId.current = broadcast.id;
         base44.entities.RideOrder.get(broadcast.id).then(fresh => {
+           if (prevBroadcastId.current !== broadcast.id) return;
            if (fresh && fresh.status === 'pendiente' && !fresh.driver_id) {
               playAlert();
               if (!Capacitor.isNativePlatform()) {
@@ -1965,6 +1975,7 @@ export default function DriverApp() {
               window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
            }
         }).catch(() => {
+           if (prevBroadcastId.current !== broadcast.id) return;
            playAlert();
            clearInterval(broadcastIntervalRef.current);
            broadcastIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
