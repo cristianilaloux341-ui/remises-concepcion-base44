@@ -102,8 +102,8 @@ const AuthenticatedApp = () => {
   
   const hasLocalOperator = sessionStorage.getItem('local_operator') !== null;
 
+  // Permitimos a isClientApp pasar directamente sin chequear login interno
   if (!isDriverApp && !isClientApp && !isLoginCentral && !hasLocalOperator) {
-    // Si no está logueado en el sistema interno, lo mandamos directo a login
     window.location.href = "/login";
     return null;
   }
@@ -132,6 +132,7 @@ const AuthenticatedApp = () => {
         <Route path="/client/finished" element={<Navigate to="/client/rating" replace />} />
         <Route path="/client/rating" element={<ClientRating />} />
         <Route path="/client/profile" element={<ClientProfile />} />
+        <Route path="*" element={<Navigate to="/client/splash" replace />} />
       </Routes>
     );
   }
