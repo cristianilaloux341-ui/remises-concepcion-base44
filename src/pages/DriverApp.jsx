@@ -1456,6 +1456,7 @@ export default function DriverApp() {
   const prevOfferedId = useRef(null);
   const offeredOrderRef = useRef(null);
   const prevBroadcastId = useRef(null);
+  const ignoredOrdersRef = useRef(new Set());
 
   // Register SW and request notification permission on load
   useEffect(() => {
@@ -1465,6 +1466,8 @@ export default function DriverApp() {
     const urlParams = new URLSearchParams(window.location.search);
     const autoAcceptOrderId = urlParams.get("accept");
     if (autoAcceptOrderId && myDriverId) {
+      ignoredOrdersRef.current.add(autoAcceptOrderId);
+      if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
       setLocalOverride({ status: "en_viaje", _ignoredOrderId: autoAcceptOrderId });
       updateOrder.mutate({ id: autoAcceptOrderId, data: { status: "aceptado", driver_id: myDriverId } });
       updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
@@ -1472,6 +1475,8 @@ export default function DriverApp() {
     }
     const autoRejectOrderId = urlParams.get("reject");
     if (autoRejectOrderId && myDriverId) {
+      ignoredOrdersRef.current.add(autoRejectOrderId);
+      if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
       setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
       updateDriver.mutate({ id: myDriverId, data: { status: "disponible" } });
       Promise.all([
@@ -1531,6 +1536,8 @@ export default function DriverApp() {
       if (msg.type === "SW_ACCEPT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "accept")) {
         const orderId = msg.orderId || msg.payload?.orderId;
         if (orderId && myDriverId) {
+          ignoredOrdersRef.current.add(orderId);
+          if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
           notifySW({ type: "ACK_ACCEPT_ORDER", orderId }); // Send ACK immediately so SW doesn't spawn a new tab
           setLocalOverride({ status: "en_viaje" });
           updateOrder.mutate({ id: orderId, data: { status: "aceptado" } });
@@ -1542,6 +1549,8 @@ export default function DriverApp() {
       if (msg.type === "SW_REJECT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "reject")) {
         const orderId = msg.orderId || msg.payload?.orderId;
         if (orderId && myDriverId) {
+          ignoredOrdersRef.current.add(orderId);
+          if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
           notifySW({ type: "ACK_REJECT_ORDER", orderId }); // Send ACK
           setLocalOverride({ status: "disponible" });
           updateDriver.mutate({ id: myDriverId, data: { status: "disponible" } });
@@ -1909,9 +1918,9 @@ export default function DriverApp() {
 
     const ignoredOrderId = driver?._ignoredOrderId || null;
 
-    const offered = isLocallyBusy ? null : safeOrds.find(o => o.driver_id === dId && o.status === "ofrecido" && o.id !== ignoredOrderId);
+    const offered = isLocallyBusy ? null : safeOrds.find(o => o.driver_id === dId && o.status === "ofrecido" && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId);
     const broadcast = (!isLocallyBusy && driver?.status === "disponible" && driver?.current_base && !offered)
-      ? safeOrds.find(o => o.status === "pendiente" && !o.driver_id && o.id !== ignoredOrderId && (!dismissed || !dismissed.includes(o.id)))
+      ? safeOrds.find(o => o.status === "pendiente" && !o.driver_id && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId && (!dismissed || !dismissed.includes(o.id)))
       : null;
 
     offeredOrderRef.current = offered || null;
@@ -2018,9 +2027,13 @@ export default function DriverApp() {
   const handleAccept = () => {
     stopAlert();
     clearInterval(alertIntervalRef.current);
-    if (Capacitor.isNativePlatform()) LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
+    if (Capacitor.isNativePlatform()) {
+      LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
+      PushNotifications.removeAllDeliveredNotifications().catch(()=>{});
+    }
 
-    setLocalOverride({ status: "en_viaje", _ignoredOrderId: offeredOrder.id });
+    if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
+    setLocalOverride({ status: "en_viaje", _ignoredOrderId: offeredOrder?.id });
     updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
     // Notificamos al backend para limpiar notificaciones
@@ -2035,12 +2048,16 @@ export default function DriverApp() {
   const handleReject = async () => {
     stopAlert();
     clearInterval(alertIntervalRef.current);
-    if (Capacitor.isNativePlatform()) LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
+    if (Capacitor.isNativePlatform()) {
+      LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
+      PushNotifications.removeAllDeliveredNotifications().catch(()=>{});
+    }
 
+    if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
     const currentOrder = { ...offeredOrder, offered_driver_ids: [...(offeredOrder.offered_driver_ids || []), myDriverId] };
     
     // Regresamos al chofer a "disponible" ya que rechazó el viaje
-    setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder.id });
+    setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
     updateDriver.mutate({ id: myDriverId, data: { status: "disponible" } });
 
     await reassignAfterReject(currentOrder, drivers, []);
@@ -2138,9 +2155,13 @@ export default function DriverApp() {
   const handleBroadcastAccept = (order) => {
     stopAlert();
     clearInterval(broadcastIntervalRef.current);
-    if (Capacitor.isNativePlatform()) LocalNotifications.cancel({ notifications: [{ id: 77777 }] }).catch(()=>{});
+    if (Capacitor.isNativePlatform()) {
+      LocalNotifications.cancel({ notifications: [{ id: 77777 }] }).catch(()=>{});
+      PushNotifications.removeAllDeliveredNotifications().catch(()=>{});
+    }
 
-    setLocalOverride({ status: "en_viaje", _ignoredOrderId: order.id });
+    if (order?.id) ignoredOrdersRef.current.add(order.id);
+    setLocalOverride({ status: "en_viaje", _ignoredOrderId: order?.id });
     updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
     // Notificamos al backend para limpiar notificaciones
@@ -2156,9 +2177,13 @@ export default function DriverApp() {
   const handleBroadcastReject = (order) => {
     stopAlert();
     clearInterval(broadcastIntervalRef.current);
-    if (Capacitor.isNativePlatform()) LocalNotifications.cancel({ notifications: [{ id: 77777 }] }).catch(()=>{});
+    if (Capacitor.isNativePlatform()) {
+      LocalNotifications.cancel({ notifications: [{ id: 77777 }] }).catch(()=>{});
+      PushNotifications.removeAllDeliveredNotifications().catch(()=>{});
+    }
 
-    setLocalOverride(prev => ({ ...(prev || {}), _ignoredOrderId: order.id }));
+    if (order?.id) ignoredOrdersRef.current.add(order.id);
+    setLocalOverride(prev => ({ ...(prev || {}), _ignoredOrderId: order?.id }));
     const updated = [...dismissedBroadcasts, order.id];
     setDismissedBroadcasts(updated);
     localStorage.setItem(`dismissed_bc_${myDriverId}`, JSON.stringify(updated));
