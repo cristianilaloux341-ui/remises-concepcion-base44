@@ -10,6 +10,15 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 
 import AppLayout from '@/components/layout/AppLayout';
+import ClientSplash from '@/pages/client-app/Splash';
+import ClientHome from '@/pages/client-app/Home';
+import ClientRequest from '@/pages/client-app/RequestRide';
+import ClientFare from '@/pages/client-app/FareEstimate';
+import ClientSearching from '@/pages/client-app/Searching';
+import ClientAssigned from '@/pages/client-app/DriverAssigned';
+import ClientActiveRide from '@/pages/client-app/ActiveRide';
+import ClientRating from '@/pages/client-app/Rating';
+import ClientProfile from '@/pages/client-app/Profile';
 import Dashboard from '@/pages/Dashboard';
 import Orders from '@/pages/Orders';
 import NewOrder from '@/pages/NewOrder';
@@ -130,6 +139,19 @@ const AuthenticatedApp = () => {
       
       {/* Driver mobile app - public, no login needed */}
       <Route path="/driver-app" element={<DriverApp />} />
+
+      {/* Client Demo App - Independent Flow */}
+      <Route path="/client" element={<Navigate to="/client/splash" replace />} />
+      <Route path="/client/splash" element={<ClientSplash />} />
+      <Route path="/client/home" element={<ClientHome />} />
+      <Route path="/client/request" element={<ClientRequest />} />
+      <Route path="/client/fare" element={<ClientFare />} />
+      <Route path="/client/searching" element={<ClientSearching />} />
+      <Route path="/client/assigned" element={<ClientAssigned />} />
+      <Route path="/client/active-ride" element={<ClientActiveRide />} />
+      <Route path="/client/finished" element={<Navigate to="/client/rating" replace />} />
+      <Route path="/client/rating" element={<ClientRating />} />
+      <Route path="/client/profile" element={<ClientProfile />} />
 
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<AppLayout />}>
