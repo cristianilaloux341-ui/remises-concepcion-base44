@@ -100,17 +100,6 @@ export async function assignDriverToOrder(order, driver) {
     status: targetDriverStatus
   });
 
-  base44.functions.invoke("sendPushNotification", {
-    action: "send",
-    driverId: driver.id,
-    orderId: order.id,
-    orderData: {
-      pickup_address: order.pickup_address,
-      dropoff_address: order.dropoff_address,
-      fare: order.fare,
-    },
-  }).catch((e) => console.error("Push Error:", e));
-
   // Si no se auto-acepta y la reasignación está activa, disparamos el timeout
   if (targetOrderStatus === "ofrecido" && autoReassignActive) {
     base44.functions.invoke("autoReassignOnTimeout", {
@@ -132,22 +121,6 @@ export async function broadcastOrder(order, drivers = []) {
     // Prefijo especial para que DriverApp lo detecte como broadcast urgente
     notes: order.notes ? `[BROADCAST] ${order.notes}` : "[BROADCAST]",
   });
-
-  // Notificar a todos los móviles disponibles (en segundo plano)
-  const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
-  availableDrivers.forEach(driver => 
-    base44.functions.invoke("sendPushNotification", {
-      action: "send",
-      driverId: driver.id,
-      orderId: order.id,
-      orderData: {
-        pickup_address: order.pickup_address,
-        dropoff_address: order.dropoff_address,
-        fare: order.fare,
-      },
-      isBroadcast: true
-    }).catch(e => console.error("Broadcast Push Error:", e))
-  );
 }
 
 // Auto-dispatch: intenta asignar por zona; si no hay nadie → broadcast

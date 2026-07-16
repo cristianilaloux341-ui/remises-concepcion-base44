@@ -1465,13 +1465,15 @@ export default function DriverApp() {
     const urlParams = new URLSearchParams(window.location.search);
     const autoAcceptOrderId = urlParams.get("accept");
     if (autoAcceptOrderId && myDriverId) {
-      setLocalOverride({ status: "en_viaje" });
+      setLocalOverride({ status: "en_viaje", _ignoredOrderId: autoAcceptOrderId });
       updateOrder.mutate({ id: autoAcceptOrderId, data: { status: "aceptado" } });
       updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
       window.history.replaceState({}, "", "/driver-app");
     }
     const autoRejectOrderId = urlParams.get("reject");
     if (autoRejectOrderId && myDriverId) {
+      setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
+      updateDriver.mutate({ id: myDriverId, data: { status: "disponible" } });
       Promise.all([
         base44.entities.RideOrder.get(autoRejectOrderId),
         base44.entities.Driver.list()
@@ -1751,12 +1753,16 @@ export default function DriverApp() {
     ? { ...myDriverRaw, ...(localOverride ?? {}) }
     : null;
 
-  const isLocallyBusy = localOverride && ["en_viaje", "aceptado", "en_camino"].includes(localOverride.status);
-  const ignoredOrderId = localOverride?._ignoredOrderId || null;
-
   const activeOrder = debugArray(safeOrders, 'safeOrders').find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
+
+  const isLocallyBusy = 
+    (localOverride && ["en_viaje", "aceptado", "en_camino"].includes(localOverride.status)) || 
+    ["en_viaje", "aceptado", "en_camino"].includes(myDriverRaw?.status) || 
+    !!activeOrder;
+
+  const ignoredOrderId = localOverride?._ignoredOrderId || null;
   
-  // Ocultar burbujas de oferta si ya aceptamos/rechazamos localmente
+  // Ocultar burbujas de oferta si ya aceptamos/rechazamos localmente o estamos en viaje
   const offeredOrder = isLocallyBusy ? null : debugArray(safeOrders, 'safeOrders').find(o => o.driver_id === myDriverId && o.status === "ofrecido" && o.id !== ignoredOrderId);
   
   // Broadcast: pedido pendiente (sin chofer asignado) que este chofer no rechazó — solo si está libre y en base
@@ -1862,15 +1868,9 @@ export default function DriverApp() {
         const data = notification.data || notification.notification?.data || {};
         
         if (data.orderId) {
-            base44.entities.RideOrder.get(data.orderId).then(fresh => {
-                if (fresh && (fresh.status === 'ofrecido' || fresh.status === 'pendiente')) {
-                    playAlert();
-                }
-                window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
-            }).catch(() => {
-                playAlert();
-                window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
-            });
+            // En vez de disparar la alarma a ciegas, forzamos la sincronización.
+            // evaluateAlerts se encargará de sonar la alarma de manera segura respetando localOverride.
+            window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         } else {
             // Si es un mensaje de chat u otra cosa sin orderId, NO disparamos la alarma de viaje.
             if (data.type === 'message' || data.action === 'open_messages' || data.type === 'NEW_MESSAGE') {
