@@ -32,21 +32,7 @@
     <title>RC Chófer — Remises Concepción</title>
   </head>
   <body>
-    <div id="error-overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:red; color:white; padding:20px; z-index:999999; font-family:monospace; overflow:auto;">
-      <h3>CRITICAL BOOT ERROR</h3>
-      <pre id="error-log"></pre>
-      <button onclick="window.location.reload()" style="padding:10px; background:white; color:red; border:none; margin-top:10px;">RELOAD</button>
-    </div>
-    <script>
-      window.onerror = function(msg, url, line, col, error) {
-        document.getElementById('error-overlay').style.display = 'block';
-        document.getElementById('error-log').innerText += msg + '\n' + (error ? error.stack : '') + '\n\n';
-      };
-      window.addEventListener('unhandledrejection', function(event) {
-        document.getElementById('error-overlay').style.display = 'block';
-        document.getElementById('error-log').innerText += 'Unhandled Promise: ' + (event.reason ? (event.reason.stack || event.reason) : event) + '\n\n';
-      });
-    </script>
+    <!-- Agresivo overlay rojo removido para permitir reintentos silenciosos de red en producción -->
     <div id="root">
       <div style="display: flex; height: 100vh; width: 100vw; align-items: center; justify-content: center; background-color: #030712; color: white; font-family: sans-serif; flex-direction: column; padding: 20px; box-sizing: border-box;">
         <img src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg" alt="RC" style="width: 120px; height: 120px; border-radius: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 20px; object-fit: cover;" />
