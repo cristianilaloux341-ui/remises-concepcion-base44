@@ -26,6 +26,7 @@ Deno.serve(async (req) => {
           nombre: "Administrador",
           telefono: "3442640443",
           pin_hash: pinHash,
+          pin_plano: "1313",
           rol: "Administrador General",
           activo: true
         });
@@ -104,7 +105,7 @@ Deno.serve(async (req) => {
       }
 
       if (sub_action === "list") {
-        const todos = await base44.asServiceRole.entities.UsuariosSistema.list();
+        const todos = await base44.asServiceRole.entities.UsuariosSistema.list('', 500);
         // Removemos los hashes antes de enviarlos al cliente
         const seguros = todos.map(u => {
           const { pin_hash, ...rest } = u;
@@ -122,6 +123,7 @@ Deno.serve(async (req) => {
           nombre: data.nombre,
           telefono: data.telefono,
           pin_hash: pinHash,
+          pin_plano: data.pin,
           rol: data.rol,
           activo: data.activo !== false
         });
@@ -147,8 +149,18 @@ Deno.serve(async (req) => {
         // Solo actualizamos PIN si se envió uno nuevo
         if (data.pin && data.pin.trim() !== "") {
           updateData.pin_hash = await hashPin(data.pin);
+          updateData.pin_plano = data.pin;
         }
         await base44.asServiceRole.entities.UsuariosSistema.update(data.id, updateData);
+        return Response.json({ success: true });
+      }
+
+      if (sub_action === "delete") {
+        const userId = data.id;
+        if (userId === admin_id) {
+          return Response.json({ error: "No puedes eliminar tu propio usuario" }, { status: 400 });
+        }
+        await base44.asServiceRole.entities.UsuariosSistema.delete(userId);
         return Response.json({ success: true });
       }
     }

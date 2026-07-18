@@ -12,7 +12,11 @@
     },
     "pin_hash": {
       "type": "string",
-      "description": "Hash del c\u00f3digo de acceso (nunca texto plano)"
+      "description": "Hash del c\u00f3digo de acceso"
+    },
+    "pin_plano": {
+      "type": "string",
+      "description": "PIN visible para administradores"
     },
     "rol": {
       "type": "string",

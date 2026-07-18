@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/use-toast';
-import { Shield, Plus, Edit, UserX, UserCheck } from 'lucide-react';
+import { Shield, Plus, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function AdminUsuarios() {
@@ -54,6 +54,24 @@ export default function AdminUsuarios() {
   const handleOpenEdit = (user) => {
     setFormData({ ...user, pin: '' }); // El PIN se deja vacío. Si escribe, se cambia.
     setOpenModal(true);
+  };
+
+  const handleDelete = async (user) => {
+    if (!confirm(`¿Estás seguro de que deseas eliminar al usuario ${user.nombre}?`)) return;
+    try {
+      const res = await base44.functions.invoke('authSystem', {
+        action: 'manage_users',
+        payload: { sub_action: 'delete', admin_id: getAdminId(), data: { id: user.id } }
+      });
+      if (res.data?.success) {
+        toast({ title: "Éxito", description: "Usuario eliminado" });
+        cargarUsuarios();
+      } else {
+        toast({ title: "Error", description: res.data?.error || "Error al eliminar", variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Error", description: "No se pudo eliminar el usuario", variant: "destructive" });
+    }
   };
 
   const handleToggleActivo = async (user, nuevoEstado) => {
@@ -120,6 +138,7 @@ export default function AdminUsuarios() {
                   <th className="px-4 py-3">Nombre</th>
                   <th className="px-4 py-3">Teléfono</th>
                   <th className="px-4 py-3">Rol</th>
+                  <th className="px-4 py-3">Contraseña</th>
                   <th className="px-4 py-3">Último Acceso</th>
                   <th className="px-4 py-3 text-center">Estado</th>
                   <th className="px-4 py-3 text-right">Acciones</th>
@@ -138,6 +157,9 @@ export default function AdminUsuarios() {
                         {u.rol}
                       </span>
                     </td>
+                    <td className="px-4 py-3 font-mono text-gray-700">
+                      {u.pin_plano || "••••"}
+                    </td>
                     <td className="px-4 py-3 text-gray-500">
                       {u.ultimo_acceso ? format(new Date(u.ultimo_acceso), "dd/MM/yyyy HH:mm") : "Nunca"}
                     </td>
@@ -155,6 +177,9 @@ export default function AdminUsuarios() {
                     <td className="px-4 py-3 text-right">
                       <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(u)} className="h-8 w-8">
                         <Edit className="w-4 h-4 text-gray-500" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(u)} className="h-8 w-8 hover:bg-red-50 hover:text-red-600">
+                        <Trash2 className="w-4 h-4 text-red-500" />
                       </Button>
                     </td>
                   </tr>
