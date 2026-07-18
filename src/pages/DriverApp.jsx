@@ -8,10 +8,12 @@ import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2, Zap } from "lucide-react";
+import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2, Zap, Settings } from "lucide-react";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
 import { withRetry } from "@/lib/retryFetch";
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { App } from '@capacitor/app';
+import PullToRefresh from "@/components/ui/pull-to-refresh";
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
@@ -137,42 +139,22 @@ function playAlert() {
 }
 
 function stopAlert() {
-  if (Capacitor.isNativePlatform()) return; // Android lo para nativamente
-  try {
-    if (alarmAudioElement) {
-      alarmAudioElement.pause();
-      alarmAudioElement.currentTime = 0;
-    }
-  } catch (_) {}
+  if (Capacitor.isNativePlatform()) return;
+  try { if (alarmAudioElement) { alarmAudioElement.pause(); alarmAudioElement.currentTime = 0; } } catch (_) {}
 }
 
-// Request notification permission and send system notification
 async function requestNotificationPermission() {
   if (!("Notification" in window)) return;
-  try {
-    if (Notification.permission === "default") {
-      await Notification.requestPermission();
-    }
-  } catch (e) {
-    console.warn("Notification permission error", e);
-  }
+  try { if (Notification.permission === "default") await Notification.requestPermission(); } catch (e) {}
 }
 
 function sendSystemNotification(order) {
-  // Delegamos al SW para que la notificación funcione en segundo plano
-  // Si no hay SW activo, fallback a Notification API directa
-  try {
-    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) return; // SW lo maneja
-  } catch(e) {}
+  try { if ("serviceWorker" in navigator && navigator.serviceWorker.controller) return; } catch(e) {}
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   try {
     const n = new Notification("🚖 ¡Nuevo Viaje! — " + (order.client_name || ""), {
       body: `${order.pickup_address}${order.dropoff_address ? " → " + order.dropoff_address : ""}${order.fare ? "  $" + order.fare : ""}`,
-      icon: "/icon-192.png",
-      badge: "/icon-72.png",
-      vibrate: [500, 200, 500, 200, 1000],
-      requireInteraction: true,
-      tag: "ride-offer",
+      icon: "/icon-192.png", badge: "/icon-72.png", vibrate: [500, 200, 500, 200, 1000], requireInteraction: true, tag: "ride-offer",
     });
     setTimeout(() => n.close(), 30000);
   } catch (_) {}
@@ -684,7 +666,7 @@ function IncomingAlert({ order, onAccept, onReject }) {
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
-      <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
+      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden shadow-2xl">
         <div className="bg-amber-500 px-5 py-4 flex items-center gap-3 animate-pulse">
           <img 
             src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg" 
@@ -705,30 +687,30 @@ function IncomingAlert({ order, onAccept, onReject }) {
 
         <div className="p-5 space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
               <Phone className="w-5 h-5 text-gray-500" />
             </div>
             <div>
-              <p className="font-semibold">{order.client_name}</p>
+              <p className="font-semibold dark:text-white">{order.client_name}</p>
             </div>
           </div>
 
-          <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-2xl p-4 space-y-3">
             <div className="flex items-start gap-3">
               <div className="w-5 h-5 rounded-full bg-green-500 mt-0.5 shrink-0" />
               <div>
                 <p className="text-xs text-gray-400 font-medium">RECOGIDA</p>
-                <p className="font-semibold text-sm">{order.pickup_address}</p>
+                <p className="font-semibold text-sm dark:text-white">{order.pickup_address}</p>
               </div>
             </div>
             {order.dropoff_address && (
               <>
-                <div className="ml-2.5 w-px h-4 bg-gray-300" />
+                <div className="ml-2.5 w-px h-4 bg-gray-300 dark:bg-gray-600" />
                 <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs text-gray-400 font-medium">DESTINO</p>
-                    <p className="font-semibold text-sm">{order.dropoff_address}</p>
+                    <p className="font-semibold text-sm dark:text-white">{order.dropoff_address}</p>
                   </div>
                 </div>
               </>
@@ -772,32 +754,22 @@ function IncomingAlert({ order, onAccept, onReject }) {
 // ── Broadcast alert (sin zona / primero en aceptar gana) ─────────────────────
 function BroadcastAlert({ order, onAccept, onReject }) {
   const [isValid, setIsValid] = useState(null);
-
   useEffect(() => {
     let mounted = true;
     base44.entities.RideOrder.get(order.id).then(fresh => {
       if (mounted) {
-        if (fresh && fresh.status === 'pendiente' && !fresh.driver_id) {
-          setIsValid(true);
-        } else {
-          setIsValid(false);
-          window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
-        }
+        if (fresh && fresh.status === 'pendiente' && !fresh.driver_id) setIsValid(true);
+        else { setIsValid(false); window.dispatchEvent(new CustomEvent("radiocab_reconnect")); }
       }
-    }).catch(() => {
-      if (mounted) setIsValid(true);
-    });
+    }).catch(() => { if (mounted) setIsValid(true); });
     return () => { mounted = false; };
   }, [order.id]);
-
   const cleanNotes = (order.notes || "").replace(/^\[BROADCAST\]\s*/, "").trim();
-
   if (isValid === false) return null;
   if (isValid === null) return <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm"></div>;
-
   return (
     <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
-      <div className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl">
+      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden shadow-2xl">
         <div className="bg-orange-500 px-5 py-4 flex items-center gap-3 animate-pulse">
           <img 
             src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg" 
@@ -815,22 +787,22 @@ function BroadcastAlert({ order, onAccept, onReject }) {
               Zona solicitada: {order.zone}
             </div>
           )}
-          <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-2xl p-4 space-y-3">
             <div className="flex items-start gap-3">
               <div className="w-5 h-5 rounded-full bg-green-500 mt-0.5 shrink-0" />
               <div>
                 <p className="text-xs text-gray-400 font-medium">RECOGIDA</p>
-                <p className="font-semibold text-sm">{order.pickup_address}</p>
+                <p className="font-semibold text-sm dark:text-white">{order.pickup_address}</p>
               </div>
             </div>
             {order.dropoff_address && (
               <>
-                <div className="ml-2.5 w-px h-4 bg-gray-300" />
+                <div className="ml-2.5 w-px h-4 bg-gray-300 dark:bg-gray-600" />
                 <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs text-gray-400 font-medium">DESTINO</p>
-                    <p className="font-semibold text-sm">{order.dropoff_address}</p>
+                    <p className="font-semibold text-sm dark:text-white">{order.dropoff_address}</p>
                   </div>
                 </div>
               </>
@@ -1011,12 +983,12 @@ function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
   if (showCobro) {
     const importeFinal = order.importe_real_actual || importeActual;
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50 space-y-6">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-slate-900 space-y-6">
         <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center">
           <DollarSign className="w-12 h-12 text-green-600" />
         </div>
         <div className="text-center space-y-1">
-          <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">COBRAR AL PASAJERO</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">COBRAR AL PASAJERO</p>
           <p className="text-6xl font-black text-green-600">${Math.round(importeFinal).toLocaleString()}</p>
           {order.importe_estimado && importeFinal !== order.importe_estimado && (
             <p className="text-xs text-gray-400">
@@ -1035,20 +1007,20 @@ function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
             </p>
           )}
         </div>
-        <div className="w-full max-w-xs bg-white rounded-2xl border border-gray-200 p-4 space-y-2 text-sm">
+        <div className="w-full max-w-xs bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 p-4 space-y-2 text-sm">
           <div className="flex justify-between text-gray-500">
             <span>Recogida</span>
-            <span className="font-medium text-gray-700 text-right max-w-[60%]">{order.pickup_address}</span>
+            <span className="font-medium text-gray-700 dark:text-gray-300 text-right max-w-[60%]">{order.pickup_address}</span>
           </div>
           {order.dropoff_address && (
             <div className="flex justify-between text-gray-500">
               <span>Destino</span>
-              <span className="font-medium text-gray-700 text-right max-w-[60%]">{order.dropoff_address}</span>
+              <span className="font-medium text-gray-700 dark:text-gray-300 text-right max-w-[60%]">{order.dropoff_address}</span>
             </div>
           )}
           <div className="flex justify-between text-gray-500">
             <span>Pasajero</span>
-            <span className="font-medium text-gray-700">{order.client_name}</span>
+            <span className="font-medium text-gray-700 dark:text-gray-300">{order.client_name}</span>
           </div>
         </div>
         <p className="text-sm text-gray-400">Viaje completado ✓</p>
@@ -1161,14 +1133,14 @@ function AvailableOrders({ orders, onTake }) {
         {orders.length} viaje(s) disponible(s) — elegí uno
       </p>
       {orders.map(order => (
-        <div key={order.id} className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3 shadow-sm">
+        <div key={order.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-4 space-y-3 shadow-sm">
           <div className="space-y-2">
             <div className="flex items-start gap-2 text-sm">
               <div className="w-4 h-4 rounded-full bg-green-500 mt-0.5 shrink-0" />
-              <span className="font-semibold">{order.pickup_address}</span>
+              <span className="font-semibold dark:text-white">{order.pickup_address}</span>
             </div>
             {order.dropoff_address && (
-              <div className="flex items-start gap-2 text-sm text-gray-500">
+              <div className="flex items-start gap-2 text-sm text-gray-500 dark:text-gray-400">
                 <MapPin className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
                 <span>{order.dropoff_address}</span>
               </div>
@@ -1187,23 +1159,15 @@ function AvailableOrders({ orders, onTake }) {
   );
 }
 
-// ── Off service screen ────────────────────────────────────────────────────────
 function OffServiceScreen({ onGoOnService }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 space-y-6">
-      <div className="w-24 h-24 rounded-full bg-red-100 flex items-center justify-center">
-        <PowerOff className="w-10 h-10 text-red-400" />
-      </div>
+      <div className="w-24 h-24 rounded-full bg-red-100 flex items-center justify-center"><PowerOff className="w-10 h-10 text-red-400" /></div>
       <div className="text-center">
         <p className="text-xl font-bold text-gray-800">Fuera de Servicio</p>
         <p className="text-gray-500 text-sm mt-1">No recibirás viajes mientras estés fuera de servicio</p>
       </div>
-      <Button
-        className="h-14 px-8 rounded-2xl text-base font-bold bg-green-500 hover:bg-green-600 gap-2 shadow-lg shadow-green-500/20"
-        onClick={onGoOnService}
-      >
-        <Wifi className="w-5 h-5" /> Entrar en Servicio
-      </Button>
+      <Button className="h-14 px-8 rounded-2xl text-base font-bold bg-green-500 hover:bg-green-600 gap-2 shadow-lg shadow-green-500/20" onClick={onGoOnService}><Wifi className="w-5 h-5" /> Entrar en Servicio</Button>
     </div>
   );
 }
@@ -1225,8 +1189,8 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
     return (
       <div className="flex-1 flex flex-col px-4 py-6 overflow-y-auto">
         <div className="text-center mb-4">
-          <p className="text-xl font-bold text-gray-800">Cambiar de Base</p>
-          <p className="text-gray-500 text-sm mt-1">Estás en: <span className="font-semibold text-gray-700">{driver.current_base}</span></p>
+          <p className="text-xl font-bold text-gray-800 dark:text-white">Cambiar de Base</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Estás en: <span className="font-semibold text-gray-700 dark:text-gray-300">{driver.current_base}</span></p>
         </div>
         <div className="space-y-2 flex-1">
           {BASES.filter(b => b !== driver.current_base).map(b => {
@@ -1234,7 +1198,7 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
             return (
               <button
                 key={b}
-                className={`w-full text-left px-4 py-4 rounded-2xl font-semibold text-base border-2 transition-all flex justify-between items-center ${newBase === b ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-200 text-gray-800 active:bg-gray-100"}`}
+                className={`w-full text-left px-4 py-4 rounded-2xl font-semibold text-base border-2 transition-all flex justify-between items-center ${newBase === b ? "bg-blue-600 border-blue-600 text-white" : "bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-800 dark:text-white active:bg-gray-100 dark:active:bg-slate-800"}`}
                 onClick={() => setNewBase(b)}
               >
                 <span>{b}</span>
@@ -1352,11 +1316,11 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
   return (
     <div className="flex-1 flex flex-col px-4 py-6 overflow-y-auto">
       <div className="text-center mb-5">
-        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
+        <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center mx-auto mb-3">
           <Car className="w-8 h-8 text-gray-400" />
         </div>
-        <p className="text-xl font-bold text-gray-800">¿En qué base estás?</p>
-        <p className="text-gray-500 text-sm mt-1">Tocá tu base para quedar en posición</p>
+        <p className="text-xl font-bold text-gray-800 dark:text-white">¿En qué base estás?</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Tocá tu base para quedar en posición</p>
       </div>
       <div className="space-y-2 flex-1">
         {BASES.map(b => {
@@ -1364,7 +1328,7 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
           return (
             <button
               key={b}
-              className={`w-full text-left px-4 py-4 rounded-2xl font-semibold text-base border-2 transition-all flex justify-between items-center ${selectedBase === b ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-200 text-gray-800 active:bg-gray-100"}`}
+              className={`w-full text-left px-4 py-4 rounded-2xl font-semibold text-base border-2 transition-all flex justify-between items-center ${selectedBase === b ? "bg-blue-600 border-blue-600 text-white" : "bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-800 dark:text-white active:bg-gray-100 dark:active:bg-slate-800"}`}
               onClick={() => onBaseChange(b)}
             >
               <span>{b}</span>
@@ -1391,29 +1355,20 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
   );
 }
 
-// ── Register Service Worker ───────────────────────────────────────────────────
 async function registerSW() {
   if (!("serviceWorker" in navigator)) return null;
-  
-  // Desactivación condicional: Si es nativo, o si es un operador (para no pisar tabs), bloqueamos el SW web
   const isOperator = typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator") !== null;
   if (Capacitor.isNativePlatform() || isOperator) {
-    try {
-      navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(reg => reg.unregister())).catch(() => {});
-    } catch(e) {}
+    try { navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(reg => reg.unregister())).catch(() => {}); } catch(e) {}
     return null;
   }
-  
   try {
     const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-    // Forzar activación inmediata del nuevo SW si hay una actualización pendiente
     reg.addEventListener("updatefound", () => {
       const newWorker = reg.installing;
       if (!newWorker) return;
       newWorker.addEventListener("statechange", () => {
         if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-          // Nuevo SW instalado — forzar skip waiting pero NO recargar automáticamente
-          // para evitar que la app se resetee mientras el chofer está ingresando
           newWorker.postMessage({ type: "SKIP_WAITING" });
         }
       });
@@ -1447,7 +1402,30 @@ export default function DriverApp() {
   const [showStats, setShowStats] = useState(false);
   const [showBatteryGuide, setShowBatteryGuide] = useState(false);
   const [showOcasional, setShowOcasional] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
+
+  const overlays = useRef({ showMessages, showSetupGuide, showStats, showOcasional, showBatteryGuide, showSettings });
+  useEffect(() => {
+    overlays.current = { showMessages, showSetupGuide, showStats, showOcasional, showBatteryGuide, showSettings };
+  }, [showMessages, showSetupGuide, showStats, showOcasional, showBatteryGuide, showSettings]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const listener = App.addListener('backButton', () => {
+       const o = overlays.current;
+       if (o.showBatteryGuide) setShowBatteryGuide(false);
+       else if (o.showSettings) setShowSettings(false);
+       else if (o.showSetupGuide) setShowSetupGuide(false);
+       else if (o.showStats) setShowStats(false);
+       else if (o.showOcasional) setShowOcasional(false);
+       else if (o.showMessages) setShowMessages(false);
+       else {
+         App.minimizeApp();
+       }
+    });
+    return () => { listener.then(l => l.remove()); };
+  }, []);
   const [loadTimeout, setLoadTimeout] = useState(false);
   // Bloqueo post-viaje: segundos restantes para poder ponerse libre
   const [libreBlockedSegs, setLibreBlockedSegs] = useState(0);
@@ -2393,38 +2371,40 @@ export default function DriverApp() {
             )
           )}
           <button
-            className="text-xs text-gray-500 underline"
-            onClick={() => {
-              localStorage.removeItem("my_driver_id");
-              localStorage.removeItem("remembered_driver_id"); // Borramos para que no quede atrapado en el usuario equivocado
-              sessionStorage.removeItem("my_driver_id");
-              sessionStorage.removeItem("remembered_driver_id");
-              setMyDriverId("");
-            }}
+            className="p-2 rounded-xl bg-gray-700/50 text-gray-400"
+            onClick={() => setShowSettings(true)}
+            title="Ajustes de cuenta"
           >
-            Salir
+            <Settings className="w-4 h-4" />
           </button>
         </div>
       </div>
 
       {/* Body */}
-      {activeOrder ? (
-        <ActiveRideScreen order={activeOrder} driver={myDriver} onStatusChange={handleStatusChange} onCancelRide={handleCancelRide} />
-      ) : myDriver.status === "no_disponible" ? (
-        <OffServiceScreen onGoOnService={handleGoOnService} />
-      ) : (
-        <IdleScreen
-          driver={myDriver}
-          drivers={safeDrivers}
-          selectedBase={selectedBase}
-          onBaseChange={setSelectedBase}
-          onEnter={handleEnterBase}
-          onChangeBase={handleChangeBase}
-          onGoOffService={handleGoOffService}
-          driverId={myDriverId}
-          libreBlockedSegs={libreBlockedSegs}
-        />
-      )}
+      <PullToRefresh onRefresh={() => {
+         queryClient.invalidateQueries({ queryKey: ["orders"] });
+         queryClient.invalidateQueries({ queryKey: ["drivers"] });
+         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+         return new Promise(resolve => setTimeout(resolve, 500));
+      }}>
+        {activeOrder ? (
+          <ActiveRideScreen order={activeOrder} driver={myDriver} onStatusChange={handleStatusChange} onCancelRide={handleCancelRide} />
+        ) : myDriver.status === "no_disponible" ? (
+          <OffServiceScreen onGoOnService={handleGoOnService} />
+        ) : (
+          <IdleScreen
+            driver={myDriver}
+            drivers={safeDrivers}
+            selectedBase={selectedBase}
+            onBaseChange={setSelectedBase}
+            onEnter={handleEnterBase}
+            onChangeBase={handleChangeBase}
+            onGoOffService={handleGoOffService}
+            driverId={myDriverId}
+            libreBlockedSegs={libreBlockedSegs}
+          />
+        )}
+      </PullToRefresh>
 
       {offeredOrder && (
         <IncomingAlert order={offeredOrder} onAccept={handleAccept} onReject={handleReject} />
@@ -2469,6 +2449,51 @@ export default function DriverApp() {
       {showOcasional && (
         <OcasionalMeter onClose={() => setShowOcasional(false)} driver={myDriver} />
       )}
+
+      {/* Ajustes de cuenta */}
+      {showSettings && (
+        <DriverSettings
+          driver={myDriver}
+          onClose={() => setShowSettings(false)}
+          onLogout={() => {
+            localStorage.removeItem("my_driver_id");
+            localStorage.removeItem("remembered_driver_id");
+            sessionStorage.removeItem("my_driver_id");
+            sessionStorage.removeItem("remembered_driver_id");
+            setMyDriverId("");
+            setShowSettings(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function DriverSettings({ driver, onClose, onLogout }) {
+  const handleDeleteAccount = async () => {
+    if (window.confirm("¿Estás seguro que querés eliminar tu cuenta? Vas a perder el acceso y el operador tendrá que registrarte nuevamente.")) {
+      try {
+        await base44.entities.Driver.delete(driver.id);
+        onLogout();
+      } catch (e) {
+        alert("Error al eliminar la cuenta.");
+      }
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 space-y-6 shadow-2xl">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Ajustes de cuenta</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Chofer: {driver.name}</p>
+        </div>
+        <div className="space-y-3">
+          <Button variant="outline" className="w-full h-12 rounded-xl dark:border-slate-700 dark:text-white" onClick={onLogout}>Cerrar Sesión</Button>
+          <Button variant="destructive" className="w-full h-12 rounded-xl" onClick={handleDeleteAccount}>Eliminar Mi Cuenta</Button>
+          <Button variant="ghost" className="w-full h-12 rounded-xl dark:text-gray-300" onClick={onClose}>Cancelar</Button>
+        </div>
+      </div>
     </div>
   );
 }
