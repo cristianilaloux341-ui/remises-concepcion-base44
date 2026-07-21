@@ -13,7 +13,7 @@
     "sync:android": "npx cap sync android && node scripts/patch-android.js"
   },
   "dependencies": {
-    "@base44/sdk": "^0.8.39",
+    "@base44/sdk": "^0.8.40",
     "@base44/vite-plugin": "^1.0.30",
     "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor/android": "^8.4.1",
