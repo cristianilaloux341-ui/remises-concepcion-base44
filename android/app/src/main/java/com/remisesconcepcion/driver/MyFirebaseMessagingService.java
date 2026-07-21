@@ -49,6 +49,14 @@ public class MyFirebaseMessagingService extends MessagingService {
         String type = data.get("type");
         String orderId = data.get("orderId");
 
+        if ("cancelar".equals(type) || "ride_cancelled".equals(type) || "ride_reassigned".equals(type)) {
+            Log.e(TAG, "=> RECIBIDA ORDEN REMOTA DE CIERRE: " + type);
+            if (orderId != null) {
+                RideAlertController.getInstance().stopAlert(getApplicationContext(), orderId, "Comando remoto: " + type);
+            }
+            return;
+        }
+
         // Parsear assignmentAttempt con try/catch (default 1)
         int incomingAttempt = 1;
         try {
@@ -57,25 +65,34 @@ public class MyFirebaseMessagingService extends MessagingService {
                 incomingAttempt = Integer.parseInt(attemptStr);
             }
         } catch (NumberFormatException e) {
-            Log.e(TAG, "assignmentAttempt inválido, usando default 1. Error: " + e.getMessage());
+            Log.e(TAG, "assignmentAttempt inválido, usando default 1.");
         }
 
-        // VALIDACIÓN GATEKEEPER
-        if (orderId != null && RideStateManager.isResolved(getApplicationContext(), orderId, incomingAttempt)) {
-            Log.e(TAG, "=> PUSH DESCARTADO SILENCIOSAMENTE: El orderId " + orderId + " ya fue resuelto localmente para el intento " + incomingAttempt + " o superior.");
-            return;
-        }
+        boolean isOfferPush = "ofrecido".equals(type) || "broadcast".equals(type);
         
-        if ("cancelar".equals(type) || "ride_cancelled".equals(type) || "ride_reassigned".equals(type)) {
-            Log.e(TAG, "=> RECIBIDA ORDEN REMOTA DE CIERRE: " + type);
-            String orderId = data.get("orderId");
-            if (orderId != null) {
-                RideAlertController.getInstance().stopAlert(getApplicationContext(), orderId, "Comando remoto: " + type);
+        if (isOfferPush) {
+            // 1. Validar antigüedad (sentAt > 2 minutos)
+            String sentAtStr = data.get("sentAt");
+            if (sentAtStr != null && !sentAtStr.isEmpty()) {
+                try {
+                    long sentAtMillis = Long.parseLong(sentAtStr);
+                    if (System.currentTimeMillis() - sentAtMillis > 2 * 60 * 1000) {
+                        Log.e(TAG, "=> PUSH DE OFERTA DESCARTADO: Expiró (antigüedad > 2 min).");
+                        return;
+                    }
+                } catch (NumberFormatException e) {
+                    Log.e(TAG, "sentAt inválido, omitiendo validación de antigüedad.");
+                }
+            } else {
+                Log.e(TAG, "sentAt ausente en payload FCM. Omitiendo validación de antigüedad.");
             }
-            return;
-        }
-        
-        if ("ofrecido".equals(type) || "broadcast".equals(type)) {
+
+            // 2. Validar contra el Gatekeeper de resoluciones locales
+            if (orderId != null && RideStateManager.isResolved(getApplicationContext(), orderId, incomingAttempt)) {
+                Log.e(TAG, "=> PUSH DE OFERTA DESCARTADO: viaje ya resuelto (intento " + incomingAttempt + ").");
+                return;
+            }
+            
             Log.e(TAG, "Construyendo notificación interactiva nativa para viaje...");
             showInteractiveNotification(data);
         }

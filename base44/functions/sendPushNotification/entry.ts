@@ -198,7 +198,8 @@ Deno.serve(async (req) => {
       body.orderData = {
         pickup_address: body.data.pickup_address,
         dropoff_address: body.data.dropoff_address,
-        fare: body.data.fare
+        fare: body.data.fare,
+        assignment_attempt: body.data.assignment_attempt
       };
       body.isBroadcast = false;
     }
@@ -210,7 +211,8 @@ Deno.serve(async (req) => {
       body.orderData = {
         pickup_address: body.data.pickup_address,
         dropoff_address: body.data.dropoff_address,
-        fare: body.data.fare
+        fare: body.data.fare,
+        assignment_attempt: body.data.assignment_attempt
       };
     }
   }
@@ -463,7 +465,9 @@ Deno.serve(async (req) => {
                   action: "open_ride",
                   title: String(title),
                   body: String(bodyStr),
-                  type: "broadcast"
+                  type: "broadcast",
+                  assignmentAttempt: String(orderData?.assignment_attempt || body.assignmentAttempt || 1),
+                  sentAt: String(Date.now())
                 }
               }
             })
@@ -675,7 +679,9 @@ Deno.serve(async (req) => {
                     action: "open_ride",
                     title: String(title),
                     body: String(body),
-                    type: isBroadcast ? "broadcast" : "ofrecido"
+                    type: isBroadcast ? "broadcast" : "ofrecido",
+                    assignmentAttempt: String(orderData?.assignment_attempt || body.assignmentAttempt || 1),
+                    sentAt: String(Date.now())
                   }
                 }
               };

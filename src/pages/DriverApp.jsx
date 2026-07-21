@@ -2023,9 +2023,8 @@ export default function DriverApp() {
       });
 
       if (res.data.accepted) {
-        if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
-        setLocalOverride({ status: "en_viaje", _ignoredOrderId: offeredOrder.id });
-        updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+        if(Capacitor.isNativePlatform()&&offeredOrder?.id){Capacitor.Plugins.ForegroundService?.markRideResolved({orderId:offeredOrder.id,assignmentAttempt:offeredOrder.assignment_attempt||1,resolutionType:"ACCEPTED"}).catch(()=>{});stopNativeRideAlert(offeredOrder.id);}
+        if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id); setLocalOverride({ status: "en_viaje", _ignoredOrderId: offeredOrder.id }); updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
         
         base44.functions.invoke("sendPushNotification", {
           action: "cancel_ride",
@@ -2067,7 +2066,7 @@ export default function DriverApp() {
     }).catch(console.error);
 
     await reassignAfterReject(currentOrder, drivers, []);
-    
+    if(Capacitor.isNativePlatform()&&offeredOrder?.id){Capacitor.Plugins.ForegroundService?.markRideResolved({orderId:offeredOrder.id,assignmentAttempt:offeredOrder.assignment_attempt||1,resolutionType:"REJECTED"}).catch(()=>{});stopNativeRideAlert(offeredOrder.id);}
     base44.entities.AuditLog.create({
       action: "rechazar_viaje",
       user_type: "chofer",
@@ -2178,9 +2177,8 @@ export default function DriverApp() {
       });
 
       if (res.data.accepted) {
-        if (order?.id) ignoredOrdersRef.current.add(order.id);
-        setLocalOverride({ status: "en_viaje", _ignoredOrderId: order.id });
-        updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+        if(Capacitor.isNativePlatform()&&order?.id){Capacitor.Plugins.ForegroundService?.markRideResolved({orderId:order.id,assignmentAttempt:order.assignment_attempt||1,resolutionType:"ACCEPTED"}).catch(()=>{});stopNativeRideAlert(order.id);}
+        if (order?.id) ignoredOrdersRef.current.add(order.id); setLocalOverride({ status: "en_viaje", _ignoredOrderId: order.id }); updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
         
         base44.functions.invoke("sendPushNotification", {
           action: "cancel_ride",
@@ -2213,6 +2211,7 @@ export default function DriverApp() {
     const updated = [...dismissedBroadcasts, order.id];
     setDismissedBroadcasts(updated);
     localStorage.setItem(`dismissed_bc_${myDriverId}`, JSON.stringify(updated));
+    if(Capacitor.isNativePlatform()&&order?.id){Capacitor.Plugins.ForegroundService?.markRideResolved({orderId:order.id,assignmentAttempt:order.assignment_attempt||1,resolutionType:"REJECTED"}).catch(()=>{});}
 
     // Apagar sonido nativo en Android
     base44.functions.invoke("sendPushNotification", {
