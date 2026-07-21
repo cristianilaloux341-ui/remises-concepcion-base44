@@ -53,7 +53,7 @@ export async function tryManualCandidate(b44: any, baseId: string, order: any, d
 
     // 3. Bloquear Base
     const baseRes = await b44.entities.Base.updateMany(
-      { id: baseId, dispatch_status: 'procesando', lock_token: token },
+      { id: baseId, lock_token: token },
       { $set: { dispatch_status: 'esperando_manual', active_order_id: order.id, manual_reservation_token: token, lock_token: null, lock_expires_at: null } }
     );
 
@@ -95,8 +95,8 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
     await failureInjector.hit('AFTER_AUTO_DRIVER_RESERVE');
 
     const rideRes = await b44.entities.RideOrder.updateMany(
-      { id: order.id, status: 'procesando_despacho', reservation_token: token },
-      { $set: { status: 'ofrecido', reserved_driver_id: driver.id } }
+      { id: order.id },
+      { $set: { status: 'ofrecido', reservation_token: token, reserved_driver_id: driver.id } }
     );
     if ((rideRes.matchedCount ?? rideRes.modifiedCount ?? 0) !== 1) {
       await b44.entities.Driver.updateMany({ id: driver.id, reservation_token: token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } });
