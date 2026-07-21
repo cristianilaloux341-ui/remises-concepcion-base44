@@ -88,12 +88,14 @@ export async function assignDriverToOrder(order, driver) {
   const targetOrderStatus = autoAceptarViajes ? "aceptado" : "ofrecido";
   const targetDriverStatus = autoAceptarViajes ? "en_viaje" : "ofrecido";
 
+  const newAttempt = (order.assignment_attempt || 0) + 1;
   await base44.entities.RideOrder.update(order.id, {
     status: targetOrderStatus,
     driver_id: driver.id,
     driver_name: driver.name,
     assigned_base: driver.current_base,
     offered_driver_ids: [...(order.offered_driver_ids || []), driver.id],
+    assignment_attempt: newAttempt
   });
 
   await base44.entities.Driver.update(driver.id, {
@@ -105,7 +107,8 @@ export async function assignDriverToOrder(order, driver) {
     base44.functions.invoke("autoReassignOnTimeout", {
       orderId: order.id,
       driverId: driver.id,
-      timeoutSeconds: timeoutSeconds
+      timeoutSeconds: timeoutSeconds,
+      assignmentAttempt: newAttempt
     }).catch(e => console.error("AutoReassign Trigger Error:", e));
   }
 }
@@ -113,13 +116,15 @@ export async function assignDriverToOrder(order, driver) {
 // Broadcast: marcar el pedido como "pendiente_broadcast" para que TODOS los disponibles lo vean
 // El primero en aceptar gana. Se usa cuando no hay nadie en la zona.
 export async function broadcastOrder(order, drivers = []) {
+  const newAttempt = (order.assignment_attempt || 0) + 1;
   await base44.entities.RideOrder.update(order.id, {
     status: "pendiente",
     driver_id: null,
     driver_name: null,
     assigned_base: null,
     // Prefijo especial para que DriverApp lo detecte como broadcast urgente
-    notes: order.notes ? `[BROADCAST] ${order.notes}` : "[BROADCAST]",
+    notes: order.notes ? (order.notes.startsWith("[BROADCAST]") ? order.notes : `[BROADCAST] ${order.notes}`) : "[BROADCAST]",
+    assignment_attempt: newAttempt
   });
 }
 

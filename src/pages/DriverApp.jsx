@@ -610,7 +610,7 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
 }
 
 // ── Incoming ride alert ───────────────────────────────────────────────────────
-function IncomingAlert({ order, onAccept, onReject }) {
+function IncomingAlert({ order, onAccept, onReject, isAccepting }) {
   const [isValid, setIsValid] = useState(null); // null = checking
   const [timeLeft, setTimeLeft] = useState(null);
   const [totalTime, setTotalTime] = useState(null);
@@ -733,14 +733,16 @@ function IncomingAlert({ order, onAccept, onReject }) {
               size="lg"
               className="rounded-2xl h-14 bg-green-500 hover:bg-green-600 text-base font-bold gap-2 shadow-lg shadow-green-500/30"
               onClick={onAccept}
+              disabled={isAccepting}
             >
-              <CheckCircle2 className="w-5 h-5" /> Aceptar
+              <CheckCircle2 className="w-5 h-5" /> {isAccepting ? "Aceptando..." : "Aceptar"}
             </Button>
             <Button
               size="lg"
               variant="outline"
               className="rounded-2xl h-14 border-red-200 text-red-500 hover:bg-red-50 text-base font-bold gap-2"
               onClick={onReject}
+              disabled={isAccepting}
             >
               <XCircle className="w-5 h-5" /> Rechazar
             </Button>
@@ -752,7 +754,7 @@ function IncomingAlert({ order, onAccept, onReject }) {
 }
 
 // ── Broadcast alert (sin zona / primero en aceptar gana) ─────────────────────
-function BroadcastAlert({ order, onAccept, onReject }) {
+function BroadcastAlert({ order, onAccept, onReject, isAccepting }) {
   const [isValid, setIsValid] = useState(null);
   useEffect(() => {
     let mounted = true;
@@ -818,10 +820,10 @@ function BroadcastAlert({ order, onAccept, onReject }) {
             <p className="text-sm text-gray-500 italic px-1">"{cleanNotes}"</p>
           )}
           <div className="grid grid-cols-2 gap-3 pt-1">
-            <Button size="lg" className="rounded-2xl h-14 bg-green-500 hover:bg-green-600 text-base font-bold gap-2 shadow-lg shadow-green-500/30" onClick={onAccept}>
-              <CheckCircle2 className="w-5 h-5" /> Tomar
+            <Button size="lg" className="rounded-2xl h-14 bg-green-500 hover:bg-green-600 text-base font-bold gap-2 shadow-lg shadow-green-500/30" onClick={onAccept} disabled={isAccepting}>
+              <CheckCircle2 className="w-5 h-5" /> {isAccepting ? "Aceptando..." : "Tomar"}
             </Button>
-            <Button size="lg" variant="outline" className="rounded-2xl h-14 border-gray-200 text-gray-500 hover:bg-gray-50 text-base font-bold gap-2" onClick={onReject}>
+            <Button size="lg" variant="outline" className="rounded-2xl h-14 border-gray-200 text-gray-500 hover:bg-gray-50 text-base font-bold gap-2" onClick={onReject} disabled={isAccepting}>
               <XCircle className="w-5 h-5" /> Ignorar
             </Button>
           </div>
@@ -1404,6 +1406,7 @@ export default function DriverApp() {
   const [showOcasional, setShowOcasional] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
+  const [isAccepting, setIsAccepting] = useState(false);
 
   const overlays = useRef({ showMessages, showSetupGuide, showStats, showOcasional, showBatteryGuide, showSettings });
   useEffect(() => {
@@ -2009,16 +2012,36 @@ export default function DriverApp() {
       PushNotifications.removeAllDeliveredNotifications().catch(()=>{});
     }
 
-    if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
-    setLocalOverride({ status: "en_viaje", _ignoredOrderId: offeredOrder?.id });
-    updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
-    updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
-    // Notificamos al backend para limpiar notificaciones y APAGAR el sonido nativo de Android
-    base44.functions.invoke("sendPushNotification", {
-      action: "cancel_ride",
-      orderId: offeredOrder.id,
-      driverId: myDriverId
-    }).catch(console.error);
+    setIsAccepting(true);
+
+    try {
+      const res = await base44.functions.invoke("acceptRide", {
+        orderId: offeredOrder.id,
+        driverId: myDriverId,
+        assignmentAttempt: offeredOrder.assignment_attempt || 1,
+        sessionToken: getSessionToken()
+      });
+
+      if (res.data.accepted) {
+        if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
+        setLocalOverride({ status: "en_viaje", _ignoredOrderId: offeredOrder.id });
+        updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+        
+        base44.functions.invoke("sendPushNotification", {
+          action: "cancel_ride",
+          orderId: offeredOrder.id,
+          driverId: myDriverId
+        }).catch(console.error);
+      } else {
+        setLocalOverride({ status: "disponible" });
+        alert("Este viaje ya fue tomado o reasignado.");
+        window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+      }
+    } catch (error) {
+      alert("Error de red. Intente nuevamente.");
+    } finally {
+      setIsAccepting(false);
+    }
   };
   const handleReject = async () => {
     await stopNativeRideAlert(offeredOrder?.id);
@@ -2144,16 +2167,36 @@ export default function DriverApp() {
       PushNotifications.removeAllDeliveredNotifications().catch(()=>{});
     }
 
-    if (order?.id) ignoredOrdersRef.current.add(order.id);
-    setLocalOverride({ status: "en_viaje", _ignoredOrderId: order?.id });
-    updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
-    updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
-    // Notificamos al backend para apagar el sonido nativo de Android
-    base44.functions.invoke("sendPushNotification", {
-      action: "cancel_ride",
-      orderId: order.id,
-      driverId: myDriverId
-    }).catch(console.error);
+    setIsAccepting(true);
+
+    try {
+      const res = await base44.functions.invoke("acceptRide", {
+        orderId: order.id,
+        driverId: myDriverId,
+        assignmentAttempt: order.assignment_attempt || 1,
+        sessionToken: getSessionToken()
+      });
+
+      if (res.data.accepted) {
+        if (order?.id) ignoredOrdersRef.current.add(order.id);
+        setLocalOverride({ status: "en_viaje", _ignoredOrderId: order.id });
+        updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+        
+        base44.functions.invoke("sendPushNotification", {
+          action: "cancel_ride",
+          orderId: order.id,
+          driverId: myDriverId
+        }).catch(console.error);
+      } else {
+        setLocalOverride({ status: "disponible" });
+        alert("Este viaje ya fue tomado o reasignado.");
+        window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+      }
+    } catch (error) {
+      alert("Error de red. Intente nuevamente.");
+    } finally {
+      setIsAccepting(false);
+    }
   };
 
   const handleBroadcastReject = async (order) => {
@@ -2409,13 +2452,14 @@ export default function DriverApp() {
       </PullToRefresh>
 
       {offeredOrder && (
-        <IncomingAlert order={offeredOrder} onAccept={handleAccept} onReject={handleReject} />
+        <IncomingAlert order={offeredOrder} onAccept={handleAccept} onReject={handleReject} isAccepting={isAccepting} />
       )}
       {broadcastOrder && !offeredOrder && (
         <BroadcastAlert
           order={broadcastOrder}
           onAccept={() => handleBroadcastAccept(broadcastOrder)}
           onReject={() => handleBroadcastReject(broadcastOrder)}
+          isAccepting={isAccepting}
         />
       )}
 

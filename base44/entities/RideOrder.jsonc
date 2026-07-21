@@ -113,6 +113,11 @@
       "type": "number",
       "default": 0,
       "description": "Segundos de espera cobrados"
+    },
+    "assignment_attempt": {
+      "type": "number",
+      "default": 1,
+      "description": "Contador de reasignaciones para control transaccional"
     }
   },
   "required": [
