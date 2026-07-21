@@ -5,10 +5,15 @@
     "zone": {
       "type": "string"
     },
-    "backendDispatchEnabled": {
-      "type": "boolean",
-      "default": false,
-      "description": "Kill switch global / zonal"
+    "engineState": {
+      "type": "string",
+      "enum": [
+        "active",
+        "draining",
+        "disabled"
+      ],
+      "default": "disabled",
+      "description": "Estado del motor at\u00f3mico: active (toma viajes), draining (termina los suyos pero no toma nuevos), disabled (solo legacy)."
     },
     "enabledBaseIds": {
       "type": "array",

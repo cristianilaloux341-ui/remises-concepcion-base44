@@ -2,13 +2,11 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
 /**
  * DispatchController.ts
- * Punto único de entrada para todo evento de despacho de la plataforma.
- * No modifica datos directamente; enruta hacia los servicios correspondientes y audita la traza.
+ * Enrutador con adquisición atómica de exclusión mutua.
  */
 export async function triggerDispatch(base44: any, zoneId: string, orderId: string | null = null, requestedBaseId: string | null = null) {
   const correlationId = crypto.randomUUID();
 
-  // 1. Iniciar traza
   await base44.asServiceRole.entities.AuditLog.create({
     action: 'DISPATCH_START',
     user_type: 'sistema',
@@ -18,99 +16,110 @@ export async function triggerDispatch(base44: any, zoneId: string, orderId: stri
   });
 
   try {
-    // 2. Consultar Feature Flag y Evaluar Criterios Estrictos de Piloto
     const configs = await base44.asServiceRole.entities.DispatchConfig.filter({ zone: zoneId });
-    const config = configs.length > 0 ? configs[0] : null;
+    const config = configs.length > 0 ? configs[0] : { engineState: 'disabled', pilotMode: false };
 
     let isBackendEnabled = false;
-
-    if (config?.backendDispatchEnabled === true) {
-      if (config.pilotMode) {
-        // En modo piloto, se exige explícitamente que la base solicitada esté en las permitidas
-        if (requestedBaseId && Array.isArray(config.enabledBaseIds) && config.enabledBaseIds.includes(requestedBaseId)) {
-          isBackendEnabled = true;
-        }
-      } else {
-        isBackendEnabled = true;
-      }
-    }
+    let engineDecisionReason = '';
 
     if (orderId) {
-      // Validación y marcado de Exclusión Mutua en la orden
-      // Si el viaje ya tiene un engine distinto, no lo tocamos.
       const order = await base44.asServiceRole.entities.RideOrder.get(orderId);
-      if (order) {
-        // Marcamos la orden explícitamente según quién la procesa
-        const assignedEngine = isBackendEnabled ? 'backend' : 'legacy';
-        if (!order.dispatch_engine) {
-          await base44.asServiceRole.entities.RideOrder.updateMany(
-            { id: orderId, status: 'pendiente' },
-            { $set: { dispatch_engine: assignedEngine } }
+      if (!order) throw new Error('Order not found');
+
+      if (order.dispatch_engine === 'backend') {
+        // En draining, permitimos que el backend termine su trabajo exclusivo
+        if (config.engineState === 'active' || config.engineState === 'draining') {
+          isBackendEnabled = true;
+          engineDecisionReason = 'already_backend_in_flight';
+        } else {
+          isBackendEnabled = false;
+          engineDecisionReason = 'backend_force_disabled';
+        }
+      } else if (order.dispatch_engine === 'legacy') {
+        isBackendEnabled = false;
+        engineDecisionReason = 'already_legacy_in_flight';
+      } else {
+        // Adquisición atómica si es nulo
+        let wantsBackend = false;
+        // Solo comenzamos nuevos viajes en active
+        if (config.engineState === 'active') {
+          if (config.pilotMode) {
+            if (requestedBaseId && Array.isArray(config.enabledBaseIds) && config.enabledBaseIds.includes(requestedBaseId)) {
+              wantsBackend = true;
+            }
+          } else {
+            wantsBackend = true;
+          }
+        }
+
+        if (wantsBackend) {
+          const res = await base44.asServiceRole.entities.RideOrder.updateMany(
+            { id: orderId, status: 'pendiente', dispatch_engine: null },
+            { $set: { dispatch_engine: 'backend' } }
           );
-        } else if (order.dispatch_engine !== assignedEngine) {
-           await base44.asServiceRole.entities.AuditLog.create({
-             action: 'DISPATCH_ENGINE_MISMATCH',
-             user_type: 'sistema',
-             user_name: 'DispatchController',
-             details: `El viaje ${orderId} ya estaba asignado a ${order.dispatch_engine}, abortando ${assignedEngine}`,
-             metadata: { correlationId, zoneId, orderId }
-           });
-           return { status: 'already_processed_by_other_engine', orderId, zoneId, correlationId };
+          if ((res.matchedCount ?? res.modifiedCount ?? 0) === 1) {
+            isBackendEnabled = true;
+            engineDecisionReason = 'atomic_acquisition_backend';
+          } else {
+            await base44.asServiceRole.entities.AuditLog.create({
+              action: 'DISPATCH_ENGINE_MISMATCH',
+              user_type: 'sistema', user_name: 'DispatchController',
+              details: `Race condition evitada (backend match=0) para ${orderId}`,
+              metadata: { correlationId }
+            });
+            return { status: 'already_processed_by_other_engine', orderId, zoneId, correlationId };
+          }
+        } else {
+          const res = await base44.asServiceRole.entities.RideOrder.updateMany(
+            { id: orderId, status: 'pendiente', dispatch_engine: null },
+            { $set: { dispatch_engine: 'legacy' } }
+          );
+          if ((res.matchedCount ?? res.modifiedCount ?? 0) === 1) {
+            isBackendEnabled = false;
+            engineDecisionReason = 'atomic_acquisition_legacy';
+          } else {
+            await base44.asServiceRole.entities.AuditLog.create({
+              action: 'DISPATCH_ENGINE_MISMATCH',
+              user_type: 'sistema', user_name: 'DispatchController',
+              details: `Race condition evitada (legacy match=0) para ${orderId}`,
+              metadata: { correlationId }
+            });
+            return { status: 'already_processed_by_other_engine', orderId, zoneId, correlationId };
+          }
         }
       }
+    } else {
+      isBackendEnabled = config.engineState === 'active';
+      engineDecisionReason = 'no_order_id_fallback';
     }
 
-    // 3. Enrutamiento
     if (!isBackendEnabled) {
       await base44.asServiceRole.entities.AuditLog.create({
         action: 'DISPATCH_END',
-        user_type: 'sistema',
-        user_name: 'DispatchController',
-        details: `Ejecutando fallback a despacho legacy para zona ${zoneId}`,
+        user_type: 'sistema', user_name: 'DispatchController',
+        details: `Ejecutando fallback a legacy para zona ${zoneId} (${engineDecisionReason})`,
         metadata: { correlationId, zoneId, orderId, result: 'legacy_dispatched' }
       });
-
-      return {
-        status: 'legacy_dispatched',
-        orderId,
-        zoneId,
-        correlationId
-      };
+      return { status: 'legacy_dispatched', orderId, zoneId, correlationId };
     }
 
-    // 4. Delegación a Servicios del Backend (Stage 1+)
     const resultStatus = 'backend_dispatched_mock'; 
-
     await base44.asServiceRole.entities.AuditLog.create({
       action: 'DISPATCH_END',
-      user_type: 'sistema',
-      user_name: 'DispatchController',
-      details: `Procesamiento backend (PILOTO) completado: ${resultStatus}`,
+      user_type: 'sistema', user_name: 'DispatchController',
+      details: `Procesamiento backend completado: ${resultStatus} (${engineDecisionReason})`,
       metadata: { correlationId, zoneId, orderId, result: resultStatus }
     });
 
-    return {
-      status: resultStatus,
-      orderId,
-      zoneId,
-      correlationId
-    };
+    return { status: resultStatus, orderId, zoneId, correlationId };
 
   } catch (error) {
-    // 5. Ante error, NO lanzar fallback automático a legacy para evitar asimetría/doble asignación
     await base44.asServiceRole.entities.AuditLog.create({
-      action: 'DISPATCH_ERROR',
-      user_type: 'sistema',
-      user_name: 'DispatchController',
+      action: 'DISPATCH_CRITICAL_ERROR',
+      user_type: 'sistema', user_name: 'DispatchController',
       details: `Falla crítica en el controlador: ${error.message}`,
       metadata: { correlationId, zoneId, orderId, error: error.message, stack: error.stack }
     });
-
-    return {
-      status: 'persistence_error',
-      orderId,
-      zoneId,
-      correlationId
-    };
+    return { status: 'persistence_error', orderId, zoneId, correlationId };
   }
 }
