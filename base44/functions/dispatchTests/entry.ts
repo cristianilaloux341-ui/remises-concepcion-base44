@@ -158,6 +158,169 @@ Deno.serve(async (req) => {
     }
   });
 
+    // --- SUITE PRIORIDAD 2: FALLOS ENTRE OPERACIONES (Inyección Determinista) ---
+
+  const createInjector = (targetPoint) => ({
+    hit: async (point) => {
+      if (point === targetPoint) throw new Error(`INJECTED_FAILURE_AT_${point}`);
+    }
+  });
+
+  const { tryManualCandidate, assignDriverToOrderAtomic, reassignAfterAutomaticReject, safeAuditLog } = await import('../../shared/DispatchLogic.ts');
+
+  await runTest("Falla después de reservar Driver manual", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "procesando", lock_token: "T1" });
+    const order = await b44.entities.RideOrder.create({ client_name: "O1", pickup_address: "O1", status: "procesando_despacho", reservation_token: "T1" });
+    const driver = await b44.entities.Driver.create({ name: "D1", phone: "1", vehicle_plate: "1", status: "disponible", dispatch_status: "normal" });
+    
+    try {
+      await tryManualCandidate(b44, base.id, order, driver, "T1", createInjector('AFTER_DRIVER_RESERVE'));
+    } catch (e) {
+      if (!e.message.includes('AFTER_DRIVER_RESERVE')) throw e;
+    }
+    
+    const dCheck = await b44.entities.Driver.get(driver.id);
+    if (dCheck.dispatch_status !== "normal" || dCheck.reserved_order_id !== null) throw new Error("El Driver no fue liberado correctamente");
+    
+    const oCheck = await b44.entities.RideOrder.get(order.id);
+    if (oCheck.status !== "procesando_despacho") throw new Error("El RideOrder no conservó su estado de procesamiento");
+    
+    await b44.entities.Base.delete(base.id); await b44.entities.RideOrder.delete(order.id); await b44.entities.Driver.delete(driver.id);
+  });
+
+  await runTest("Falla después de pasar RideOrder a espera manual, antes de actualizar Base", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "procesando", lock_token: "T2" });
+    const order = await b44.entities.RideOrder.create({ client_name: "O2", pickup_address: "O2", status: "procesando_despacho", reservation_token: "T2" });
+    const driver = await b44.entities.Driver.create({ name: "D2", phone: "2", vehicle_plate: "2", status: "disponible", dispatch_status: "normal" });
+    
+    try {
+      await tryManualCandidate(b44, base.id, order, driver, "T2", createInjector('AFTER_RIDE_MANUAL_TRANSITION'));
+    } catch (e) {
+      if (!e.message.includes('AFTER_RIDE_MANUAL_TRANSITION')) throw e;
+    }
+    
+    const oCheck = await b44.entities.RideOrder.get(order.id);
+    if (oCheck.status !== "procesando_despacho" || oCheck.reserved_driver_id !== null) throw new Error("El RideOrder no hizo rollback a procesando_despacho");
+    
+    const dCheck = await b44.entities.Driver.get(driver.id);
+    if (dCheck.dispatch_status !== "normal") throw new Error("El Driver no se liberó");
+
+    await b44.entities.Base.delete(base.id); await b44.entities.RideOrder.delete(order.id); await b44.entities.Driver.delete(driver.id);
+  });
+
+  await runTest("Falla después de transferir Base a esperando_manual", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "procesando", lock_token: "T3" });
+    const order = await b44.entities.RideOrder.create({ client_name: "O3", pickup_address: "O3", status: "procesando_despacho", reservation_token: "T3" });
+    const driver = await b44.entities.Driver.create({ name: "D3", phone: "3", vehicle_plate: "3", status: "disponible", dispatch_status: "normal" });
+    
+    try {
+      await tryManualCandidate(b44, base.id, order, driver, "T3", createInjector('AFTER_BASE_MANUAL_TRANSFER'));
+    } catch (e) {
+      if (!e.message.includes('AFTER_BASE_MANUAL_TRANSFER')) throw e;
+    }
+    
+    const bCheck = await b44.entities.Base.get(base.id);
+    const oCheck = await b44.entities.RideOrder.get(order.id);
+    const dCheck = await b44.entities.Driver.get(driver.id);
+    
+    if (bCheck.dispatch_status !== "esperando_manual" || oCheck.status !== "esperando_confirmacion_manual" || dCheck.dispatch_status !== "manual_pending") {
+      throw new Error("El estado no se conservó como transferencia válida pese al error post-commit");
+    }
+    
+    await b44.entities.Base.delete(base.id); await b44.entities.RideOrder.delete(order.id); await b44.entities.Driver.delete(driver.id);
+  });
+
+  await runTest("Falla después de reservar Driver automático", async () => {
+    const order = await b44.entities.RideOrder.create({ client_name: "O4", pickup_address: "O4", status: "procesando_despacho", reservation_token: "T4" });
+    const driver = await b44.entities.Driver.create({ name: "D4", phone: "4", vehicle_plate: "4", status: "disponible", dispatch_status: "normal" });
+    
+    try {
+      await assignDriverToOrderAtomic(b44, order, driver, "T4", createInjector('AFTER_AUTO_DRIVER_RESERVE'));
+    } catch (e) {}
+    
+    const dCheck = await b44.entities.Driver.get(driver.id);
+    if (dCheck.dispatch_status !== "normal") throw new Error("El Driver no se liberó tras fallo automático");
+    const oCheck = await b44.entities.RideOrder.get(order.id);
+    if (oCheck.status === "ofrecido") throw new Error("El RideOrder quedó en ofrecido pero el driver se liberó");
+    
+    await b44.entities.RideOrder.delete(order.id); await b44.entities.Driver.delete(driver.id);
+  });
+
+  await runTest("Falla después de pasar RideOrder a ofrecido, antes del push", async () => {
+    const order = await b44.entities.RideOrder.create({ client_name: "O5", pickup_address: "O5", status: "procesando_despacho", reservation_token: "T5" });
+    const driver = await b44.entities.Driver.create({ name: "D5", phone: "5", vehicle_plate: "5", status: "disponible", dispatch_status: "normal" });
+    
+    try {
+      await assignDriverToOrderAtomic(b44, order, driver, "T5", createInjector('AFTER_RIDE_OFFER'));
+    } catch (e) {}
+    
+    const dCheck = await b44.entities.Driver.get(driver.id);
+    const oCheck = await b44.entities.RideOrder.get(order.id);
+    
+    if (oCheck.status !== "procesando_despacho") throw new Error("El RideOrder no volvió a procesando_despacho");
+    if (dCheck.dispatch_status !== "normal") throw new Error("El Driver no volvió a normal tras fallo previo a push");
+    
+    await b44.entities.RideOrder.delete(order.id); await b44.entities.Driver.delete(driver.id);
+  });
+
+  await runTest("Falla del push", async () => {
+    const order = await b44.entities.RideOrder.create({ client_name: "O6", pickup_address: "O6", status: "procesando_despacho", reservation_token: "T6" });
+    const driver = await b44.entities.Driver.create({ name: "D6", phone: "6", vehicle_plate: "6", status: "disponible", dispatch_status: "normal" });
+    
+    try {
+      await assignDriverToOrderAtomic(b44, order, driver, "T6", createInjector('BEFORE_PUSH'));
+    } catch (e) {}
+    
+    const oCheck = await b44.entities.RideOrder.get(order.id);
+    if (oCheck.status !== "procesando_despacho") throw new Error("No revirtió el viaje tras DELIVERY_ERROR simulado");
+    
+    await b44.entities.RideOrder.delete(order.id); await b44.entities.Driver.delete(driver.id);
+  });
+
+  await runTest("Falla al liberar Driver durante rechazo automático", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "libre" });
+    const order = await b44.entities.RideOrder.create({ client_name: "O7", pickup_address: "O7", status: "ofrecido", reservation_token: "T7", reserved_driver_id: "D7" });
+    const driver = await b44.entities.Driver.create({ name: "D7", phone: "7", vehicle_plate: "7", status: "disponible", dispatch_status: "automatic_pending", reserved_order_id: order.id, reservation_token: "T7" });
+    
+    try {
+      await reassignAfterAutomaticReject(b44, base.id, order.id, driver.id, "T7", createInjector('DURING_DRIVER_RELEASE'));
+    } catch (e) {
+      if (!e.message.includes('DRIVER_RELEASE_FAILED')) throw e;
+    }
+    
+    const bCheck = await b44.entities.Base.get(base.id);
+    if (bCheck.dispatch_status !== "libre") throw new Error("La Base no se liberó en el finally tras el INCONSISTENT_STATE");
+    
+    await b44.entities.Base.delete(base.id); await b44.entities.RideOrder.delete(order.id); await b44.entities.Driver.delete(driver.id);
+  });
+
+  await runTest("Falla al transferir RideOrder de oldToken a newToken", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "libre" });
+    const order = await b44.entities.RideOrder.create({ client_name: "O8", pickup_address: "O8", status: "ofrecido", reservation_token: "T8", reserved_driver_id: "D8" });
+    const driver = await b44.entities.Driver.create({ name: "D8", phone: "8", vehicle_plate: "8", status: "disponible", dispatch_status: "automatic_pending", reserved_order_id: order.id, reservation_token: "T8" });
+    
+    try {
+      await reassignAfterAutomaticReject(b44, base.id, order.id, driver.id, "T8", createInjector('DURING_TOKEN_TRANSFER'));
+    } catch (e) {}
+    
+    const bCheck = await b44.entities.Base.get(base.id);
+    if (bCheck.dispatch_status !== "libre") throw new Error("La Base no se liberó tras fallar la transferencia de token");
+    const dCheck = await b44.entities.Driver.get(driver.id);
+    if (dCheck.dispatch_status !== "automatic_pending") throw new Error("El Driver se liberó indebidamente antes de transferir el token del viaje");
+    
+    await b44.entities.Base.delete(base.id); await b44.entities.RideOrder.delete(order.id); await b44.entities.Driver.delete(driver.id);
+  });
+
+  await runTest("Falla en AuditLog.create", async () => {
+    let failedLog = false;
+    try {
+      await safeAuditLog(b44, { action: "TEST", user_name: "System" }, createInjector('DURING_AUDIT_LOG'));
+    } catch (e) {
+      failedLog = true; // shouldn't happen, safeAuditLog catches it
+    }
+    if (failedLog) throw new Error("La falla en AuditLog rompió el hilo de ejecución en vez de actuar de fallback");
+  });
+
   return Response.json({
     passed,
     failed,
