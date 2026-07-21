@@ -8,27 +8,31 @@ export default function PullToRefresh({ onRefresh, children }) {
   
   const pullDistance = Math.max(0, currentY - startY);
   const threshold = 60;
-  const isPulling = pullDistance > 0 && window.scrollY === 0;
 
   const handleTouchStart = (e) => {
-    if (window.scrollY === 0) setStartY(e.touches[0].clientY);
+    const scroller = e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-auto');
+    if (!scroller || scroller.scrollTop <= 1) {
+      setStartY(e.touches[0].clientY);
+    }
   };
 
   const handleTouchMove = (e) => {
-    if (startY > 0 && window.scrollY === 0) {
-      setCurrentY(e.touches[0].clientY);
+    if (startY > 0) {
+      const scroller = e.target.closest('.overflow-y-auto') || e.target.closest('.overflow-auto');
+      if (!scroller || scroller.scrollTop <= 1) {
+        setCurrentY(e.touches[0].clientY);
+      } else {
+        setStartY(0);
+        setCurrentY(0);
+      }
     }
   };
 
   const handleTouchEnd = async () => {
-    if (isPulling && pullDistance > threshold && !refreshing) {
+    if (pullDistance > threshold && !refreshing) {
       setRefreshing(true);
       if (onRefresh) {
-        try {
-          await onRefresh();
-        } catch (error) {
-          console.error(error);
-        }
+        try { await onRefresh(); } catch (error) { console.error(error); }
       }
       setRefreshing(false);
     }
@@ -41,10 +45,10 @@ export default function PullToRefresh({ onRefresh, children }) {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      className="min-h-full"
+      className="flex-1 flex flex-col min-h-0 w-full relative"
     >
       <div 
-        className="flex items-center justify-center overflow-hidden transition-all duration-300 ease-out text-muted-foreground"
+        className="shrink-0 flex items-center justify-center overflow-hidden transition-all duration-300 ease-out text-muted-foreground w-full absolute top-0 left-0 z-10"
         style={{ 
           height: refreshing ? '60px' : `${Math.min(pullDistance, 60)}px`,
           opacity: Math.min(pullDistance / threshold, 1)
@@ -56,7 +60,7 @@ export default function PullToRefresh({ onRefresh, children }) {
           <div className="text-xs font-medium">Suelta para actualizar</div>
         )}
       </div>
-      <div className="transition-transform duration-300" style={{ transform: `translateY(${refreshing ? 0 : Math.min(pullDistance * 0.5, 30)}px)` }}>
+      <div className="flex-1 flex flex-col min-h-0 transition-transform duration-300" style={{ transform: `translateY(${refreshing ? 60 : Math.min(pullDistance * 0.5, 30)}px)` }}>
         {children}
       </div>
     </div>
