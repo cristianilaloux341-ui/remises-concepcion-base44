@@ -1721,8 +1721,6 @@ export default function DriverApp() {
   const safeOrders = Array.isArray(orders) ? orders : [];
   const myDriverRaw = debugArray(safeDrivers, 'safeDrivers').find(d => d.id === myDriverId);
 
-  // Verificación de sesión única desactivada para permitir multi-dispositivo
-
   // Limpiar el override cuando los datos reales del servidor ya coinciden
   // Usamos un pequeño delay para evitar flash si la suscripción llega antes de lo esperado
   useEffect(() => {
@@ -1770,10 +1768,6 @@ export default function DriverApp() {
       driverName: myDriver?.name || null,
     });
   }, [myDriverId, myDriver?.name]);
-
-  // Iniciar/Detener el Foreground Service nativo según el estado del chofer
-  // [REMOVIDO] - Causaba crashes nativos en Android 14 (SecurityException) al iniciar sin ForegroundServiceType.
-  // El plugin @capacitor-community/background-geolocation ya se encarga de mantener un servicio en primer plano válido.
 
   // Mostrar guía de batería la primera vez que el chofer entra en servicio
   useEffect(() => {
@@ -1843,8 +1837,6 @@ export default function DriverApp() {
       PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
         const data = notification.notification.data || notification.notification.data?.payload || {};
         if (data.orderId || data.action === "open_messages") {
-          // No hacemos un reload duro de la página web que recarga la UI desde cero.
-          // En vez de eso, Capacitor ya trae la app al frente y nosotros forzamos la reconexión de datos.
           window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
       });
@@ -2002,7 +1994,14 @@ export default function DriverApp() {
     retryDelay: (attempt) => Math.min(1000 * 1.5 ** attempt, 10000),
   });
 
-  const handleAccept = () => {
+  const stopNativeRideAlert = async (orderId) => {
+    if (!Capacitor.isNativePlatform() || !orderId) return;
+    try { await Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId }); }
+    catch (error) { console.warn("No se pudo detener la alerta nativa", error); }
+  };
+
+  const handleAccept = async () => {
+    await stopNativeRideAlert(offeredOrder?.id);
     stopAlert();
     clearInterval(alertIntervalRef.current);
     if (Capacitor.isNativePlatform()) {
@@ -2022,6 +2021,7 @@ export default function DriverApp() {
     }).catch(console.error);
   };
   const handleReject = async () => {
+    await stopNativeRideAlert(offeredOrder?.id);
     stopAlert();
     clearInterval(alertIntervalRef.current);
     if (Capacitor.isNativePlatform()) {
@@ -2135,7 +2135,8 @@ export default function DriverApp() {
     updateDriver.mutate({ id: myDriverId, data: { status: "disponible", current_base: null, queue_entered_at: null } });
   };
 
-  const handleBroadcastAccept = (order) => {
+  const handleBroadcastAccept = async (order) => {
+    await stopNativeRideAlert(order?.id);
     stopAlert();
     clearInterval(broadcastIntervalRef.current);
     if (Capacitor.isNativePlatform()) {
@@ -2155,7 +2156,8 @@ export default function DriverApp() {
     }).catch(console.error);
   };
 
-  const handleBroadcastReject = (order) => {
+  const handleBroadcastReject = async (order) => {
+    await stopNativeRideAlert(order?.id);
     stopAlert();
     clearInterval(broadcastIntervalRef.current);
     if (Capacitor.isNativePlatform()) {
