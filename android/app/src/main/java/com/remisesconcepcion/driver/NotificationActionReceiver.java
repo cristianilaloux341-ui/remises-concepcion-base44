@@ -18,12 +18,19 @@ public class NotificationActionReceiver extends BroadcastReceiver {
         String action = intent.getAction();
         Log.e(TAG, "BroadcastReceiver onReceive: " + action);
 
+        if ("ACTION_DISMISS".equals(action)) {
+            String orderId = intent.getStringExtra("orderId");
+            RideAlertController.getInstance().stopAlert(context, orderId, "Notificación deslizada por el usuario");
+            return;
+        }
+
         if ("ACTION_ACCEPT".equals(action) || "ACTION_REJECT".equals(action)) {
             final PendingResult pendingResult = goAsync();
-            // Detener sonido inmediatamente
-            MyFirebaseMessagingService.stopAlarmSound();
-
             String orderId = intent.getStringExtra("orderId");
+            
+            // Detener sonido a través del controlador central inmediatamente
+            RideAlertController.getInstance().stopAlert(context, orderId, "Acción local en Android: " + action);
+
             String driverId = intent.getStringExtra("driverId");
             String driverName = intent.getStringExtra("driverName");
             String base = intent.getStringExtra("base");

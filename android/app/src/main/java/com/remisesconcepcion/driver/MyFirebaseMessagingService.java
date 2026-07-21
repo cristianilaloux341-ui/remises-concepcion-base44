@@ -10,19 +10,14 @@ import android.media.MediaPlayer;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
-import android.os.VibrationEffect;
-import android.os.Vibrator;
 import android.util.Log;
 import androidx.annotation.NonNull;
-import androidx.core.app.NotificationCompat;
 import com.capacitorjs.plugins.pushnotifications.MessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 import java.util.Map;
 
 public class MyFirebaseMessagingService extends MessagingService {
     private static final String TAG = "PushDiagnostic";
-    public static MediaPlayer mediaPlayer;
-    public static Vibrator vibrator;
 
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
@@ -53,13 +48,11 @@ public class MyFirebaseMessagingService extends MessagingService {
         
         String type = data.get("type");
         
-        if ("cancelar".equals(type)) {
-            Log.e(TAG, "=> RECIBIDA ORDEN DE CANCELAR: Apagando sonido y limpiando notificación");
-            stopAlarmSound();
+        if ("cancelar".equals(type) || "ride_cancelled".equals(type) || "ride_reassigned".equals(type)) {
+            Log.e(TAG, "=> RECIBIDA ORDEN REMOTA DE CIERRE: " + type);
             String orderId = data.get("orderId");
             if (orderId != null) {
-                NotificationManager notificationManager = (NotificationManager) getApplicationContext().getSystemService(Context.NOTIFICATION_SERVICE);
-                notificationManager.cancel(orderId.hashCode());
+                RideAlertController.getInstance().stopAlert(getApplicationContext(), orderId, "Comando remoto: " + type);
             }
             return;
         }
@@ -89,21 +82,6 @@ public class MyFirebaseMessagingService extends MessagingService {
         if (body == null) body = "Tienes un viaje asignado";
 
         Context context = getApplicationContext();
-        NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride-alerts-urgent-native";
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    channelId,
-                    "Alertas Nativas de Viaje",
-                    NotificationManager.IMPORTANCE_HIGH
-            );
-            channel.setSound(null, null); // Sin sonido del sistema, manejamos el MediaPlayer propio para cortarlo al aceptar/rechazar
-            channel.enableVibration(false); // Manejo manual
-            notificationManager.createNotificationChannel(channel);
-        }
-
-        int reqCode = orderId != null ? orderId.hashCode() : 0;
 
         Intent acceptIntent = new Intent(context, NotificationActionReceiver.class);
         acceptIntent.setAction("ACTION_ACCEPT");
@@ -112,80 +90,18 @@ public class MyFirebaseMessagingService extends MessagingService {
         acceptIntent.putExtra("driverName", driverName);
         acceptIntent.putExtra("base", base);
         acceptIntent.putExtra("apiUrl", apiUrl);
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
-        PendingIntent acceptPendingIntent = PendingIntent.getBroadcast(context, reqCode, acceptIntent, flags);
 
         Intent rejectIntent = new Intent(context, NotificationActionReceiver.class);
         rejectIntent.setAction("ACTION_REJECT");
         rejectIntent.putExtra("orderId", orderId);
         rejectIntent.putExtra("driverId", driverId);
         rejectIntent.putExtra("apiUrl", apiUrl);
-        PendingIntent rejectPendingIntent = PendingIntent.getBroadcast(context, reqCode + 1, rejectIntent, flags);
 
         Intent openAppIntent = new Intent(context, MainActivity.class);
         openAppIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent openAppPendingIntent = PendingIntent.getActivity(context, reqCode + 2, openAppIntent, flags);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle(title)
-                .setContentText(body)
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_CALL)
-                .setOngoing(true) // Persistente hasta que responda
-                .setAutoCancel(false)
-                .setContentIntent(openAppPendingIntent)
-                .addAction(0, "✅ ACEPTAR", acceptPendingIntent)
-                .addAction(0, "❌ RECHAZAR", rejectPendingIntent);
-
-        notificationManager.notify(reqCode, builder.build());
-
-        playAlarmSound(context);
-    }
-
-    private void playAlarmSound(Context context) {
-        stopAlarmSound();
-        try {
-            Uri soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-            if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-            
-            mediaPlayer = new MediaPlayer();
-            mediaPlayer.setDataSource(context, soundUri);
-            mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build());
-            mediaPlayer.setLooping(true);
-            mediaPlayer.prepare();
-            mediaPlayer.start();
-            
-            vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
-            if (vibrator != null) {
-                long[] pattern = {0, 500, 200, 500, 200, 1000};
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0));
-                } else {
-                    vibrator.vibrate(pattern, 0);
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error reproduciendo sonido nativo", e);
-        }
-    }
-
-    public static void stopAlarmSound() {
-        if (mediaPlayer != null) {
-            try {
-                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
-                mediaPlayer.release();
-            } catch (Exception e) {}
-            mediaPlayer = null;
-        }
-        if (vibrator != null) {
-            try { vibrator.cancel(); } catch (Exception e) {}
-            vibrator = null;
-        }
+        // Delegar la alerta al controlador centralizado
+        RideAlertController.getInstance().startAlert(context, orderId, title, body, acceptIntent, rejectIntent, openAppIntent);
     }
 
     @Override

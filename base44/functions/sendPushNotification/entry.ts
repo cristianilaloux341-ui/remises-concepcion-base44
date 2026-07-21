@@ -216,6 +216,9 @@ Deno.serve(async (req) => {
   }
 
   const { action, driverId, subscription, orderId, orderData, token, userId, fromName, messageContent, isBroadcast, targetDriverId } = body;
+  
+  // BANDERA DE ROLLBACK (Data-only vs Default)
+  const USE_DATA_ONLY = true;
 
   if (action === 'cancel_ride') {
     console.log("=> ACCIÓN: CANCELAR VIAJE (LIMPIAR PANTALLA) RECIBIDA.");
@@ -641,29 +644,53 @@ Deno.serve(async (req) => {
             }).then(r => r.json());
 
             if (tokenRes.access_token) {
+              // ── DEDUPLICACIÓN DE PUSH ──
+              const dedupeSignature = `push_${orderId}_${driverId}_${isBroadcast ? "broadcast" : "ofrecido"}`;
+              const dedupeLogs = await base44.asServiceRole.entities.AuditLog.filter({ action: "push_dedupe", user_name: dedupeSignature }, "-created_date", 1);
+              if (dedupeLogs && dedupeLogs.length > 0) {
+                 const lastTime = new Date(dedupeLogs[0].created_date).getTime();
+                 if (Date.now() - lastTime < 15000) { // 15 segundos
+                    console.log(`=> DEDUPLICATION: Ignorando push duplicado para firma ${dedupeSignature}`);
+                    return Response.json({ ok: true, deduplicated: true });
+                 }
+              }
+
+              await base44.asServiceRole.entities.AuditLog.create({
+                 action: "push_dedupe",
+                 user_name: dedupeSignature,
+                 details: `Push enviado a ${driverId} para ${orderId}`,
+                 user_type: "sistema"
+              }).catch(() => {});
+
+              const fcmPayload = {
+                message: {
+                  token: driver.fcm_token,
+                  android: { priority: "high" },
+                  data: { 
+                    orderId: String(orderId), 
+                    driverId: String(driverId),
+                    driverName: String(driver.name || ""),
+                    base: String(driver.current_base || ""),
+                    apiUrl: `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/sendPushNotification/invoke`,
+                    action: "open_ride",
+                    title: String(title),
+                    body: String(body),
+                    type: isBroadcast ? "broadcast" : "ofrecido"
+                  }
+                }
+              };
+              
+              if (!USE_DATA_ONLY) {
+                  fcmPayload.message.notification = { title: String(title), body: String(body) };
+              }
+
               const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${tokenRes.access_token}`,
                   'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                  message: {
-                    token: driver.fcm_token,
-                    android: { priority: "high" },
-                    data: { 
-                      orderId: String(orderId), 
-                      driverId: String(driverId),
-                      driverName: String(driver.name || ""),
-                      base: String(driver.current_base || ""),
-                      apiUrl: `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/sendPushNotification/invoke`,
-                      action: "open_ride",
-                      title: String(title),
-                      body: String(body),
-                      type: isBroadcast ? "broadcast" : "ofrecido"
-                    }
-                  }
-                })
+                body: JSON.stringify(fcmPayload)
               });
               if (fcmRes.ok) return Response.json({ ok: true, via: 'fcm' });
             }

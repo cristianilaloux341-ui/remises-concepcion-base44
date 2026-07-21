@@ -13,6 +13,15 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class ForegroundServicePlugin extends Plugin {
 
     @PluginMethod
+    public void stopRideAlert(PluginCall call) {
+        String orderId = call.getString("orderId");
+        if (orderId != null) {
+            RideAlertController.getInstance().stopAlert(getContext(), orderId, "Comando puente desde ReactJS (stopRideAlert)");
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
     public void startService(PluginCall call) {
         Log.e("PushDiagnostic", "ForegroundServicePlugin: startService() llamado desde React JS");
         try {
