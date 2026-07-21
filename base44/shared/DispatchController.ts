@@ -103,11 +103,11 @@ export async function triggerDispatch(base44: any, zoneId: string, orderId: stri
       return { status: 'legacy_dispatched', orderId, zoneId, correlationId };
     }
 
-    const resultStatus = 'backend_dispatched_mock'; 
+    const resultStatus = 'backend_dispatched'; 
     await base44.asServiceRole.entities.AuditLog.create({
       action: 'DISPATCH_END',
       user_type: 'sistema', user_name: 'DispatchController',
-      details: `Procesamiento backend completado: ${resultStatus} (${engineDecisionReason})`,
+      details: `Adquisición atómica completada: ${resultStatus} (${engineDecisionReason})`,
       metadata: { correlationId, zoneId, orderId, result: resultStatus }
     });
 
