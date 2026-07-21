@@ -38,6 +38,7 @@ import TiempoEspera from '@/pages/TiempoEspera';
 import Backup from '@/pages/Backup';
 import AuditLogs from '@/pages/AuditLogs';
 import ActiveUsers from '@/pages/ActiveUsers';
+import PilotObservability from '@/pages/PilotObservability';
 import Profile from '@/pages/Profile';
 import DesktopOnlyError from '@/components/DesktopOnlyError';
 import { Capacitor } from '@capacitor/core';
@@ -198,6 +199,7 @@ const AuthenticatedApp = () => {
           <Route path="/backup" element={<AdminRoute allowRoles={["admin"]}><Backup /></AdminRoute>} />
           <Route path="/audit" element={<AdminRoute allowRoles={["admin"]}><AuditLogs /></AdminRoute>} />
           <Route path="/active-users" element={<AdminRoute allowRoles={["admin", "supervisor"]}><ActiveUsers /></AdminRoute>} />
+          <Route path="/pilot-observability" element={<AdminRoute allowRoles={["admin"]}><PilotObservability /></AdminRoute>} />
           <Route path="/profile" element={<Profile />} />
         </Route>
       </Route>

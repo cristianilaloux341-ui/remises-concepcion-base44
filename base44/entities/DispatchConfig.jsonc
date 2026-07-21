@@ -8,7 +8,25 @@
     "backendDispatchEnabled": {
       "type": "boolean",
       "default": false,
-      "description": "Feature flag principal de zona"
+      "description": "Kill switch global / zonal"
+    },
+    "enabledBaseIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Bases habilitadas para el piloto"
+    },
+    "enabledDriverIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Choferes habilitados para el piloto"
+    },
+    "pilotMode": {
+      "type": "boolean",
+      "default": true
     },
     "notes": {
       "type": "string"
