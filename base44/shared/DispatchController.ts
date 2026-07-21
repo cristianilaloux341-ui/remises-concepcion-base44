@@ -54,7 +54,7 @@ export async function triggerDispatch(base44: any, zoneId: string, orderId: stri
 
         if (wantsBackend) {
           const res = await base44.asServiceRole.entities.RideOrder.updateMany(
-            { id: orderId, status: 'pendiente', dispatch_engine: null },
+            { id: orderId, status: 'pendiente', $or: [{ dispatch_engine: null }, { dispatch_engine: { $exists: false } }] },
             { $set: { dispatch_engine: 'backend' } }
           );
           if ((res.matchedCount ?? res.modifiedCount ?? 0) === 1) {
@@ -71,7 +71,7 @@ export async function triggerDispatch(base44: any, zoneId: string, orderId: stri
           }
         } else {
           const res = await base44.asServiceRole.entities.RideOrder.updateMany(
-            { id: orderId, status: 'pendiente', dispatch_engine: null },
+            { id: orderId, status: 'pendiente', $or: [{ dispatch_engine: null }, { dispatch_engine: { $exists: false } }] },
             { $set: { dispatch_engine: 'legacy' } }
           );
           if ((res.matchedCount ?? res.modifiedCount ?? 0) === 1) {
