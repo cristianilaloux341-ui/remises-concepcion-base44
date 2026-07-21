@@ -47,6 +47,24 @@ public class MyFirebaseMessagingService extends MessagingService {
         }
         
         String type = data.get("type");
+        String orderId = data.get("orderId");
+
+        // Parsear assignmentAttempt con try/catch (default 1)
+        int incomingAttempt = 1;
+        try {
+            String attemptStr = data.get("assignmentAttempt");
+            if (attemptStr != null && !attemptStr.isEmpty()) {
+                incomingAttempt = Integer.parseInt(attemptStr);
+            }
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "assignmentAttempt inválido, usando default 1. Error: " + e.getMessage());
+        }
+
+        // VALIDACIÓN GATEKEEPER
+        if (orderId != null && RideStateManager.isResolved(getApplicationContext(), orderId, incomingAttempt)) {
+            Log.e(TAG, "=> PUSH DESCARTADO SILENCIOSAMENTE: El orderId " + orderId + " ya fue resuelto localmente para el intento " + incomingAttempt + " o superior.");
+            return;
+        }
         
         if ("cancelar".equals(type) || "ride_cancelled".equals(type) || "ride_reassigned".equals(type)) {
             Log.e(TAG, "=> RECIBIDA ORDEN REMOTA DE CIERRE: " + type);

@@ -13,6 +13,34 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class ForegroundServicePlugin extends Plugin {
 
     @PluginMethod
+    public void markRideResolved(PluginCall call) {
+        String orderId = call.getString("orderId");
+        Integer attempt = call.getInt("assignmentAttempt", 1);
+        String resolution = call.getString("resolutionType", "UNKNOWN");
+
+        if (orderId == null || orderId.trim().isEmpty()) {
+            call.reject("orderId cannot be empty");
+            return;
+        }
+        if (attempt < 1) {
+            call.reject("assignmentAttempt must be >= 1");
+            return;
+        }
+        if (!"ACCEPTED".equals(resolution) && !"REJECTED".equals(resolution) && !"CANCELLED".equals(resolution) && !"EXPIRED".equals(resolution)) {
+            call.reject("Invalid resolutionType: " + resolution);
+            return;
+        }
+
+        boolean success = RideStateManager.markResolved(getContext(), orderId, attempt, resolution);
+        if (success) {
+            Log.e("PushDiagnostic", "RideStateManager: Registrado " + orderId + " como " + resolution + " (Intento: " + attempt + ")");
+            call.resolve();
+        } else {
+            call.reject("Failed to save resolved state via commit()");
+        }
+    }
+
+    @PluginMethod
     public void stopRideAlert(PluginCall call) {
         String orderId = call.getString("orderId");
         if (orderId != null) {
