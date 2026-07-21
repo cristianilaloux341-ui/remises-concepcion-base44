@@ -90,6 +90,32 @@
       ],
       "default": "disponible"
     },
+    "dispatch_status": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "automatic_pending",
+        "manual_pending"
+      ],
+      "default": "normal"
+    },
+    "modo_despacho": {
+      "type": "string",
+      "enum": [
+        "automatico",
+        "manual"
+      ],
+      "default": "automatico"
+    },
+    "reserved_order_id": {
+      "type": "string"
+    },
+    "reservation_token": {
+      "type": "string"
+    },
+    "manual_reservation_token": {
+      "type": "string"
+    },
     "current_base": {
       "type": "string",
       "enum": [

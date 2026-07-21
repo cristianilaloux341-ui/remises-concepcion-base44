@@ -25,6 +25,11 @@
     },
     "device": {
       "type": "string"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Datos estructurados para reconstrucci\u00f3n de trazas (tokens, IDs, matchedCount)"
     }
   },
   "required": [

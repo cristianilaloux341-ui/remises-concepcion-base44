@@ -1,0 +1,55 @@
+{
+  "name": "DispatchMetrics",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string"
+    },
+    "zone": {
+      "type": "string"
+    },
+    "time_to_find_driver_ms": {
+      "type": "number",
+      "default": 0
+    },
+    "reject_count": {
+      "type": "number",
+      "default": 0
+    },
+    "skip_count": {
+      "type": "number",
+      "default": 0
+    },
+    "assignment_attempts": {
+      "type": "number",
+      "default": 1
+    },
+    "time_in_manual_wait_ms": {
+      "type": "number",
+      "default": 0
+    },
+    "expired_locks": {
+      "type": "number",
+      "default": 0
+    },
+    "reconciliations_triggered": {
+      "type": "number",
+      "default": 0
+    },
+    "push_success_count": {
+      "type": "number",
+      "default": 0
+    },
+    "push_fail_count": {
+      "type": "number",
+      "default": 0
+    },
+    "total_dispatch_time_ms": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "order_id"
+  ]
+}

@@ -55,6 +55,8 @@
       "type": "string",
       "enum": [
         "pendiente",
+        "procesando_despacho",
+        "esperando_confirmacion_manual",
         "ofrecido",
         "aceptado",
         "en_camino",
@@ -64,6 +66,15 @@
         "rechazado"
       ],
       "default": "pendiente"
+    },
+    "reservation_token": {
+      "type": "string"
+    },
+    "manual_reservation_token": {
+      "type": "string"
+    },
+    "reserved_driver_id": {
+      "type": "string"
     },
     "assigned_base": {
       "type": "string",

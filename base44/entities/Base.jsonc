@@ -23,6 +23,27 @@
     },
     "address": {
       "type": "string"
+    },
+    "dispatch_status": {
+      "type": "string",
+      "enum": [
+        "libre",
+        "procesando",
+        "esperando_manual"
+      ],
+      "default": "libre"
+    },
+    "lock_token": {
+      "type": "string"
+    },
+    "lock_expires_at": {
+      "type": "number"
+    },
+    "active_order_id": {
+      "type": "string"
+    },
+    "manual_reservation_token": {
+      "type": "string"
     }
   },
   "required": [
