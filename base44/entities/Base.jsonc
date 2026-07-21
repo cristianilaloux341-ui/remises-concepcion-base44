@@ -44,6 +44,12 @@
     },
     "manual_reservation_token": {
       "type": "string"
+    },
+    "manual_requested_at": {
+      "type": "number"
+    },
+    "manual_expires_at": {
+      "type": "number"
     }
   },
   "required": [

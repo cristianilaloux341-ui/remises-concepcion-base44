@@ -150,3 +150,70 @@ export async function reassignAfterAutomaticReject(b44: any, baseId: string, ord
     }
   }
 }
+
+export async function cleanupExpiredTechnicalLock(b44: any, baseId: string, expectedToken: string, now: number) {
+  const base = await b44.entities.Base.get(baseId);
+  if (!base || base.dispatch_status === 'esperando_manual' || base.lock_token !== expectedToken) {
+    return { status: 'already_recovered', baseId, token: expectedToken };
+  }
+  if (!base.lock_expires_at || base.lock_expires_at >= now) {
+    return { status: 'lock_renewed', baseId, token: expectedToken };
+  }
+
+  const drivers = await b44.entities.Driver.filter({ reservation_token: expectedToken });
+  if (drivers.length > 0) {
+    await b44.entities.Driver.updateMany(
+      { id: drivers[0].id, reservation_token: expectedToken },
+      { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } }
+    );
+  }
+
+  const orders = await b44.entities.RideOrder.filter({ reservation_token: expectedToken });
+  if (orders.length > 0) {
+    await b44.entities.RideOrder.updateMany(
+      { id: orders[0].id, reservation_token: expectedToken },
+      { $set: { status: 'pendiente', reservation_token: null, reserved_driver_id: null } }
+    );
+  }
+
+  const bRes = await b44.entities.Base.updateMany(
+    { id: baseId, lock_token: expectedToken },
+    { $set: { dispatch_status: 'libre', lock_token: null, lock_expires_at: null, active_order_id: null } }
+  );
+  if ((bRes.matchedCount ?? bRes.modifiedCount ?? 0) !== 1) return { status: 'already_recovered', baseId, token: expectedToken };
+
+  return { status: 'recovered', baseId, orderId: orders[0]?.id, driverId: drivers[0]?.id, token: expectedToken };
+}
+
+export async function cleanupExpiredManualWait(b44: any, baseId: string, expectedToken: string, now: number) {
+  const base = await b44.entities.Base.get(baseId);
+  if (!base || base.manual_reservation_token !== expectedToken) return { status: 'already_recovered', baseId, token: expectedToken };
+  if (!base.manual_expires_at || base.manual_expires_at >= now) return { status: 'lock_renewed', baseId, token: expectedToken };
+
+  const drivers = await b44.entities.Driver.filter({ manual_reservation_token: expectedToken });
+  if (drivers.length > 0) {
+    await b44.entities.Driver.updateMany(
+      { id: drivers[0].id, manual_reservation_token: expectedToken },
+      { $set: { dispatch_status: 'normal', reserved_order_id: null, manual_reservation_token: null } }
+    );
+  }
+
+  const orders = await b44.entities.RideOrder.filter({ manual_reservation_token: expectedToken });
+  if (orders.length > 0) {
+    await b44.entities.RideOrder.updateMany(
+      { id: orders[0].id, manual_reservation_token: expectedToken },
+      { $set: { status: 'pendiente', manual_reservation_token: null, reserved_driver_id: null } }
+    );
+  }
+
+  const bRes = await b44.entities.Base.updateMany(
+    { id: baseId, manual_reservation_token: expectedToken },
+    { $set: { dispatch_status: 'libre', manual_reservation_token: null, manual_expires_at: null, manual_requested_at: null, active_order_id: null } }
+  );
+  
+  if ((bRes.matchedCount ?? bRes.modifiedCount ?? 0) === 1) {
+     await safeAuditLog(b44, { action: 'MANUAL_TIMEOUT', user_type: 'sistema', user_name: 'System', details: `Timeout manual expirado para token ${expectedToken}` });
+     return { status: 'recovered', baseId, token: expectedToken };
+  }
+  return { status: 'already_recovered', baseId, token: expectedToken };
+}

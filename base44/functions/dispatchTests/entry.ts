@@ -321,6 +321,122 @@ Deno.serve(async (req) => {
     if (failedLog) throw new Error("La falla en AuditLog rompió el hilo de ejecución en vez de actuar de fallback");
   });
 
+  // --- SUITE PRIORIDAD 3: TTL Y RECUPERACIÓN ---
+  const { cleanupExpiredTechnicalLock, cleanupExpiredManualWait } = await import('../../shared/DispatchLogic.ts');
+  const fakeClock = { now: () => 1000000 };
+
+  await runTest("1. Lock técnico vencido sin viaje reservado", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "procesando", lock_token: "TTL1", lock_expires_at: 500000 });
+    try {
+      const res = await cleanupExpiredTechnicalLock(b44, base.id, "TTL1", fakeClock.now());
+      if (res.status !== 'recovered') throw new Error(`Status erróneo: ${res.status}`);
+      const bCheck = await b44.entities.Base.get(base.id);
+      if (bCheck.dispatch_status !== "libre" || bCheck.lock_token !== null) throw new Error("Base no liberada");
+    } finally {
+      await b44.entities.Base.delete(base.id);
+    }
+  });
+
+  await runTest("2. Lock vencido con RideOrder en procesando_despacho", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "procesando", lock_token: "TTL2", lock_expires_at: 500000 });
+    const order = await b44.entities.RideOrder.create({ client_name: "T2", pickup_address: "T2", status: "procesando_despacho", reservation_token: "TTL2" });
+    try {
+      const res = await cleanupExpiredTechnicalLock(b44, base.id, "TTL2", fakeClock.now());
+      if (res.status !== 'recovered') throw new Error(`Status erróneo: ${res.status}`);
+      const bCheck = await b44.entities.Base.get(base.id);
+      const oCheck = await b44.entities.RideOrder.get(order.id);
+      if (bCheck.dispatch_status !== "libre" || oCheck.status !== "pendiente") throw new Error("Entidades no liberadas correctamente");
+    } finally {
+      await b44.entities.Base.delete(base.id); await b44.entities.RideOrder.delete(order.id);
+    }
+  });
+
+  await runTest("3. Lock vencido con Driver automatic_pending", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "procesando", lock_token: "TTL3", lock_expires_at: 500000 });
+    const order = await b44.entities.RideOrder.create({ client_name: "T3", pickup_address: "T3", status: "procesando_despacho", reservation_token: "TTL3" });
+    const driver = await b44.entities.Driver.create({ name: "D3", phone: "3", vehicle_plate: "3", status: "disponible", dispatch_status: "automatic_pending", reservation_token: "TTL3", reserved_order_id: order.id });
+    try {
+      const res = await cleanupExpiredTechnicalLock(b44, base.id, "TTL3", fakeClock.now());
+      if (res.status !== 'recovered') throw new Error(`Status erróneo: ${res.status}`);
+      const bCheck = await b44.entities.Base.get(base.id);
+      const dCheck = await b44.entities.Driver.get(driver.id);
+      const oCheck = await b44.entities.RideOrder.get(order.id);
+      if (bCheck.dispatch_status !== "libre" || dCheck.dispatch_status !== "normal" || oCheck.status !== "pendiente") throw new Error("Driver u orden no liberados");
+    } finally {
+      await b44.entities.Base.delete(base.id); await b44.entities.RideOrder.delete(order.id); await b44.entities.Driver.delete(driver.id);
+    }
+  });
+
+  await runTest("4. Lock vence mientras otro proceso lo renueva", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "procesando", lock_token: "TTL4_NEW", lock_expires_at: 2000000 });
+    try {
+      const res = await cleanupExpiredTechnicalLock(b44, base.id, "TTL4_OLD", fakeClock.now());
+      if (res.status !== 'already_recovered') throw new Error("El limpiador debió abortar por token mismatch");
+      const bCheck = await b44.entities.Base.get(base.id);
+      if (bCheck.lock_token !== "TTL4_NEW") throw new Error("El limpiador rompió el lock del otro proceso");
+    } finally {
+      await b44.entities.Base.delete(base.id);
+    }
+  });
+
+  await runTest("5. Proceso muere después de reservar RideOrder", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "procesando", lock_token: "TTL5", lock_expires_at: 500000 });
+    const order = await b44.entities.RideOrder.create({ client_name: "T5", pickup_address: "T5", status: "procesando_despacho", reservation_token: "TTL5" });
+    try {
+      const res = await cleanupExpiredTechnicalLock(b44, base.id, "TTL5", fakeClock.now());
+      if (res.status !== 'recovered') throw new Error("No reportó recovered");
+      const oCheck = await b44.entities.RideOrder.get(order.id);
+      const bCheck = await b44.entities.Base.get(base.id);
+      if (oCheck.status !== "pendiente" || bCheck.dispatch_status !== "libre") throw new Error("RideOrder o Base huérfanos no recuperados");
+    } finally {
+      await b44.entities.Base.delete(base.id); await b44.entities.RideOrder.delete(order.id);
+    }
+  });
+
+  await runTest("6. Proceso muere después de reservar Driver automático", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "procesando", lock_token: "TTL6", lock_expires_at: 500000 });
+    const order = await b44.entities.RideOrder.create({ client_name: "T6", pickup_address: "T6", status: "procesando_despacho", reservation_token: "TTL6" });
+    const driver = await b44.entities.Driver.create({ name: "D6", phone: "6", vehicle_plate: "6", status: "disponible", dispatch_status: "automatic_pending", reservation_token: "TTL6", reserved_order_id: order.id });
+    try {
+      const res = await cleanupExpiredTechnicalLock(b44, base.id, "TTL6", fakeClock.now());
+      if (res.status !== 'recovered') throw new Error("No reportó recovered");
+      const dCheck = await b44.entities.Driver.get(driver.id);
+      const oCheck = await b44.entities.RideOrder.get(order.id);
+      const bCheck = await b44.entities.Base.get(base.id);
+      if (dCheck.dispatch_status !== "normal" || oCheck.status !== "pendiente" || bCheck.dispatch_status !== "libre") throw new Error("Driver huérfano no recuperado");
+    } finally {
+      await b44.entities.Base.delete(base.id); await b44.entities.RideOrder.delete(order.id); await b44.entities.Driver.delete(driver.id);
+    }
+  });
+
+  await runTest("7. Base esperando_manual no debe expirar con TTL técnico", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "esperando_manual", manual_reservation_token: "TTL7_MANUAL", lock_expires_at: 500000 });
+    try {
+      const res = await cleanupExpiredTechnicalLock(b44, base.id, "TTL7_MANUAL", fakeClock.now());
+      if (res.status !== 'already_recovered') throw new Error("Intentó limpiar un lock manual como técnico");
+      const bCheck = await b44.entities.Base.get(base.id);
+      if (bCheck.dispatch_status !== "esperando_manual") throw new Error("Base manual fue alterada por TTL técnico");
+    } finally {
+      await b44.entities.Base.delete(base.id);
+    }
+  });
+
+  await runTest("8. Timeout operativo de espera manual", async () => {
+    const base = await b44.entities.Base.create({ name: "1-Puerto", dispatch_status: "esperando_manual", manual_reservation_token: "TTL8_M", manual_expires_at: 500000 });
+    const order = await b44.entities.RideOrder.create({ client_name: "T8", pickup_address: "T8", status: "esperando_confirmacion_manual", manual_reservation_token: "TTL8_M" });
+    const driver = await b44.entities.Driver.create({ name: "D8", phone: "8", vehicle_plate: "8", status: "disponible", dispatch_status: "manual_pending", manual_reservation_token: "TTL8_M", reserved_order_id: order.id });
+    try {
+      const res = await cleanupExpiredManualWait(b44, base.id, "TTL8_M", fakeClock.now());
+      if (res.status !== 'recovered') throw new Error(`Estado erróneo en timeout manual: ${res.status}`);
+      const bCheck = await b44.entities.Base.get(base.id);
+      const dCheck = await b44.entities.Driver.get(driver.id);
+      const oCheck = await b44.entities.RideOrder.get(order.id);
+      if (bCheck.dispatch_status !== "libre" || dCheck.dispatch_status !== "normal" || oCheck.status !== "pendiente") throw new Error("Timeout manual no liberó todas las entidades");
+    } finally {
+      await b44.entities.Base.delete(base.id); await b44.entities.RideOrder.delete(order.id); await b44.entities.Driver.delete(driver.id);
+    }
+  });
+
   return Response.json({
     passed,
     failed,
