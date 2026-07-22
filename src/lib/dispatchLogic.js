@@ -122,10 +122,11 @@ export async function reassignAfterReject(order, drivers, bases) {
   const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
 
   if (!available.length || !autoReassignActive) {
-    await base44.entities.RideOrder.update(order.id, {
-      status: "pendiente",
-      driver_id: null,
-      driver_name: null,
+    await base44.functions.invoke("assignRide", {
+      orderId: order.id,
+      forceManual: true,
+      manualDriverName: null,
+      statusOverride: "pendiente"
     });
     return !autoReassignActive ? "manual" : "sin_moviles";
   }

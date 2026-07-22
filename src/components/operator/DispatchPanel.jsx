@@ -86,11 +86,12 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
         details: `Asignó manualmente a ${driver.name} el viaje de ${order.client_name}`
       }).catch(() => {});
     } else {
-      // Forzar asignación sin entidad (ignora registro completamente, solo guarda nombre)
-      await base44.entities.RideOrder.update(order.id, {
-        status: "aceptado",
-        driver_id: `manual-${inputTrimmed}`,
-        driver_name: isNaN(movilNum) ? inputTrimmed : `Móvil ${movilNum}`,
+      // Forzar asignación sin entidad via backend
+      await base44.functions.invoke("assignRide", {
+        orderId: order.id,
+        driverId: `manual-${inputTrimmed}`,
+        forceManual: true,
+        manualDriverName: isNaN(movilNum) ? inputTrimmed : `Móvil ${movilNum}`
       });
       base44.entities.AuditLog.create({
         action: "asignar_viaje_manual_forzado",

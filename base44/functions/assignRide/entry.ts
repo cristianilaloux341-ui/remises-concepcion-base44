@@ -7,12 +7,34 @@ Deno.serve(async (req) => {
   const payload = await req.json();
   const { orderId, driverId } = payload;
 
+  const { forceManual, manualDriverName } = payload;
+
   const orderReq = await b44.entities.RideOrder.get(orderId);
-  const driverReq = await b44.entities.Driver.get(driverId);
-  
-  if (!orderReq || !driverReq) {
-    return Response.json({ success: false, reason: 'Not found' });
+  if (!orderReq) return Response.json({ success: false, reason: 'Order not found' });
+
+  await b44.entities.AuditLog.create({
+    action: 'ASSIGN_RIDE_REQUESTED',
+    user_type: 'sistema',
+    user_name: 'assignRide',
+    details: `Request to assign ride ${orderId} to driver ${forceManual ? manualDriverName : driverId}`
+  }).catch(() => {});
+
+  if (forceManual) {
+    try {
+      await b44.entities.RideOrder.update(orderId, {
+        status: payload.statusOverride || "aceptado",
+        driver_id: driverId || (manualDriverName ? `manual-${manualDriverName}` : null),
+        driver_name: manualDriverName,
+        assigned_base: null
+      });
+      return Response.json({ success: true });
+    } catch (e) {
+      return Response.json({ success: false, reason: e.message });
+    }
   }
+
+  const driverReq = await b44.entities.Driver.get(driverId);
+  if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
 
   try {
     // 1. Penalize skipped drivers in queue

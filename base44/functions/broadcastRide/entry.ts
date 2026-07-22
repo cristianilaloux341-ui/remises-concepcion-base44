@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     });
 
     await b44.entities.AuditLog.create({
-      action: 'BROADCAST_TRIGGERED',
+      action: 'BROADCAST_RIDE_REQUESTED',
       user_type: 'sistema',
       user_name: 'broadcastRide',
       details: `Broadcast emitido para el viaje ${orderId}`
