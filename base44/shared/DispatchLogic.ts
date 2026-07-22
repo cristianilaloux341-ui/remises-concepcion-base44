@@ -103,10 +103,45 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
       return false;
     }
 
+    await safeAuditLog(b44, { action: 'RIDE_ASSIGNED', user_type: 'sistema', user_name: 'DispatchLogic', details: `Viaje ${order.id} asignado a ${driver.id}` }, failureInjector);
+
     await failureInjector.hit('AFTER_RIDE_OFFER');
     await failureInjector.hit('BEFORE_PUSH');
 
-    // Simulate Push
+    const assignmentAttempt = order.assignment_attempt || 1;
+    const idempotencyKey = `RIDE_OFFERED:${order.id}:${assignmentAttempt}`;
+
+    await safeAuditLog(b44, { action: 'PUSH_SEND_STARTED', user_type: 'sistema', user_name: 'DispatchLogic', details: `Iniciando envío directo a ${driver.id}`, metadata: { idempotencyKey } }, failureInjector);
+
+    try {
+      const pushPromise = b44.functions.invoke('sendPushNotification', {
+        action: 'send',
+        driverId: driver.id,
+        orderId: order.id,
+        assignmentAttempt: assignmentAttempt,
+        orderData: {
+          pickup_address: order.pickup_address,
+          dropoff_address: order.dropoff_address,
+          fare: order.fare,
+          zone: order.zone,
+          assignedAt: Date.now()
+        },
+        isBroadcast: false
+      });
+
+      const pushRes = await Promise.race([
+        pushPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('PUSH_TIMEOUT')), 3500))
+      ]);
+
+      if (pushRes.data && pushRes.data.ok) {
+        await safeAuditLog(b44, { action: 'PUSH_SEND_SUCCEEDED', user_type: 'sistema', user_name: 'DispatchLogic', details: `Push enviado a ${driver.id}`, metadata: { idempotencyKey, deduplicated: pushRes.data.deduplicated || false } }, failureInjector);
+      } else {
+        await safeAuditLog(b44, { action: 'PUSH_SEND_FAILED', user_type: 'sistema', user_name: 'DispatchLogic', details: `Push fallido para ${driver.id}`, metadata: { idempotencyKey, res: pushRes?.data } }, failureInjector);
+      }
+    } catch (e) {
+      await safeAuditLog(b44, { action: 'PUSH_SEND_FAILED', user_type: 'sistema', user_name: 'DispatchLogic', details: `Error llamando a push: ${e.message}`, metadata: { idempotencyKey } }, failureInjector);
+    }
     
     return true;
   } catch (e) {
