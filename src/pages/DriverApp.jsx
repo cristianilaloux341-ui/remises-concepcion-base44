@@ -961,12 +961,6 @@ function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
     };
   }, [order.status, order.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Pantalla de cobro final cuando está completado
-  const [showCobro, setShowCobro] = useState(order.status === "completado");
-  useEffect(() => {
-    if (order.status === "completado") setShowCobro(true);
-  }, [order.status]);
-
   const handleNavigate = () => {
     const address = order.status === "en_viaje" ? order.dropoff_address : order.pickup_address;
     if (address) openMapsNavigation(address, driver?.current_lat, driver?.current_lng);
@@ -977,56 +971,8 @@ function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
     if (isFinishing) return; setIsFinishing(true);
     clearTimeout(saveTimeoutRef.current);
     base44.entities.RideOrder.update(order.id, { importe_real_actual: Math.round(importeRef.current) }).catch(() => {});
-    onStatusChange("completado");
+    onStatusChange("completado", Math.round(importeRef.current));
   };
-  // Pantalla de cobro final
-  if (showCobro) {
-    const importeFinal = order.importe_real_actual || importeActual;
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-slate-900 space-y-6">
-        <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center">
-          <DollarSign className="w-12 h-12 text-green-600" />
-        </div>
-        <div className="text-center space-y-1">
-          <p className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">COBRAR AL PASAJERO</p>
-          <p className="text-6xl font-black text-green-600">${Math.round(importeFinal).toLocaleString()}</p>
-          {order.importe_estimado && importeFinal !== order.importe_estimado && (
-            <p className="text-xs text-gray-400">
-              Estimado: ${Math.round(order.importe_estimado).toLocaleString()} · Ajuste: ${Math.round(importeFinal - order.importe_estimado).toLocaleString()}
-            </p>
-          )}
-          {order.segundos_espera_acumulados > 0 && (
-            <p className="text-xs text-amber-600">
-              ⏱ {order.segundos_espera_acumulados}s de espera cobrados
-            </p>
-          )}
-          {distanciaTeórica > 0 && (
-            <p className="text-xs text-gray-400">
-              {(distanciaTeórica / 1000).toFixed(1)} km estimados
-              {metrosRecorridos > 0 ? ` · ${(metrosRecorridos / 1000).toFixed(1)} km reales` : ""}
-            </p>
-          )}
-        </div>
-        <div className="w-full max-w-xs bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 p-4 space-y-2 text-sm">
-          <div className="flex justify-between text-gray-500">
-            <span>Recogida</span>
-            <span className="font-medium text-gray-700 dark:text-gray-300 text-right max-w-[60%]">{order.pickup_address}</span>
-          </div>
-          {order.dropoff_address && (
-            <div className="flex justify-between text-gray-500">
-              <span>Destino</span>
-              <span className="font-medium text-gray-700 dark:text-gray-300 text-right max-w-[60%]">{order.dropoff_address}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-gray-500">
-            <span>Pasajero</span>
-            <span className="font-medium text-gray-700 dark:text-gray-300">{order.client_name}</span>
-          </div>
-        </div>
-        <p className="text-sm text-gray-400">Viaje completado ✓</p>
-      </div>
-    );
-  }
 
   return (
     <div className="flex-1 overflow-y-auto bg-gray-950">
@@ -1155,6 +1101,27 @@ function AvailableOrders({ orders, onTake }) {
           </Button>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ReceiptScreen({ order, importeFinal, onClose }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-slate-900 space-y-6 overflow-y-auto">
+      <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+        <DollarSign className="w-12 h-12 text-green-600" />
+      </div>
+      <div className="text-center space-y-1">
+        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">COBRAR AL PASAJERO</p>
+        <p className="text-6xl font-black text-green-600">${Math.round(importeFinal).toLocaleString()}</p>
+        {order.importe_estimado && importeFinal !== order.importe_estimado && (
+          <p className="text-xs text-gray-400">Estimado: ${Math.round(order.importe_estimado).toLocaleString()} · Ajuste: ${Math.round(importeFinal - order.importe_estimado).toLocaleString()}</p>
+        )}
+        {order.segundos_espera_acumulados > 0 && <p className="text-xs text-amber-600">⏱ {order.segundos_espera_acumulados}s cobrados</p>}
+      </div>
+      <Button className="w-full max-w-xs h-14 rounded-2xl text-base font-bold bg-green-500 hover:bg-green-600 shadow-lg" onClick={onClose}>
+        Entendido ✓
+      </Button>
     </div>
   );
 }
@@ -1405,6 +1372,7 @@ export default function DriverApp() {
   const [showSettings, setShowSettings] = useState(false);
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [receiptOrder, setReceiptOrder] = useState(null);
 
   const overlays = useRef({ showMessages, showSetupGuide, showStats, showOcasional, showBatteryGuide, showSettings });
   useEffect(() => {
@@ -2092,16 +2060,16 @@ export default function DriverApp() {
     return () => clearInterval(t);
   }, [libreBlockedSegs > 0]);
 
-  const handleStatusChange = (newStatus) => {
-    updateOrder.mutate({ id: activeOrder.id, data: { status: newStatus } });
+  const handleStatusChange = (newStatus, finalFare = null) => {
     if (newStatus === "completado") {
-      // Guardar la base del viaje para poder volver si se anula
+      setReceiptOrder({ ...activeOrder, importe_final: finalFare || activeOrder.importe_real_actual || activeOrder.importe_estimado });
       lastRideBaseRef.current = activeOrder.assigned_base || myDriver?.current_base || null;
       const secs = (tarifaMinutosRef.current || 0) * 60;
       if (secs > 0) setLibreBlockedSegs(secs);
       setLocalOverride({ status: "disponible", current_base: null });
       updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
     }
+    updateOrder.mutate({ id: activeOrder.id, data: { status: newStatus } });
   };
   const handleEnterBase = () => {
     const ts = new Date().toISOString();
@@ -2429,7 +2397,9 @@ export default function DriverApp() {
          window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
          return new Promise(resolve => setTimeout(resolve, 500));
       }}>
-        {activeOrder ? (
+        {receiptOrder ? (
+          <ReceiptScreen order={receiptOrder} importeFinal={receiptOrder.importe_final} onClose={() => setReceiptOrder(null)} />
+        ) : activeOrder ? (
           <ActiveRideScreen order={activeOrder} driver={myDriver} onStatusChange={handleStatusChange} onCancelRide={handleCancelRide} />
         ) : myDriver.status === "no_disponible" ? (
           <OffServiceScreen onGoOnService={handleGoOnService} />
