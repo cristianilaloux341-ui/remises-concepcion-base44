@@ -32,10 +32,10 @@ Deno.serve(async (req) => {
     return Response.json({ success: false, reason: 'wrong_driver' });
   }
 
-  if (order.status === 'completado') {
-    if (driver.status === 'disponible' || driver.status === 'no_disponible') {
+  const checkAndRepairDriver = async (currentDriver) => {
+    if (['disponible', 'no_disponible'].includes(currentDriver.status) && !currentDriver.active_order_id && !currentDriver.reserved_order_id && !currentDriver.reservation_token && !currentDriver.manual_reservation_token) {
       await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Already completed perfectly', metadata: { orderId, driverId } });
-      return Response.json({ success: true, idempotent: true });
+      return Response.json({ success: true, idempotent: true, reason: 'ALREADY_PROCESSED' });
     } else {
       const fixRes = await b44.entities.Driver.updateMany(
         { id: driverId },
@@ -43,12 +43,16 @@ Deno.serve(async (req) => {
       );
       if (fixRes.updated === 1) {
          await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Repaired driver state', metadata: { orderId, driverId } });
-         return Response.json({ success: true, idempotent: true, note: 'repaired_driver' });
+         return Response.json({ success: true, idempotent: true, note: 'repaired_driver', reason: 'ALREADY_PROCESSED' });
       } else {
          await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: `Failed to repair driver, raw: ${JSON.stringify(fixRes)}`, metadata: { orderId, driverId } });
          return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION', db_result: fixRes });
       }
     }
+  };
+
+  if (order.status === 'completado') {
+    return await checkAndRepairDriver(driver);
   }
 
   if (!['aceptado', 'en_viaje'].includes(order.status)) {
@@ -62,6 +66,15 @@ Deno.serve(async (req) => {
   );
 
   if (uOrder.updated !== 1) {
+    const freshOrders = await b44.entities.RideOrder.filter({ id: orderId });
+    const freshDrivers = await b44.entities.Driver.filter({ id: driverId });
+    const fOrder = freshOrders[0];
+    const fDriver = freshDrivers[0];
+
+    if (fOrder && fOrder.status === 'completado') {
+      return await checkAndRepairDriver(fDriver || driver);
+    }
+
     await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: `Order condition mismatch, raw: ${JSON.stringify(uOrder)}`, metadata: { orderId, driverId } });
     return Response.json({ success: false, reason: 'race_condition_or_invalid_state', db_result: uOrder });
   }
