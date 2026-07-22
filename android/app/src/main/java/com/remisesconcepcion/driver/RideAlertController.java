@@ -51,17 +51,24 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride-alerts-urgent-native";
+        String channelId = "ride_alerts"; // Actualizado a ride_alerts según requerimiento
 
+        // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    channelId,
-                    "Alertas Nativas de Viaje",
-                    NotificationManager.IMPORTANCE_HIGH
-            );
-            channel.setSound(null, null); // Control manual del sonido
-            channel.enableVibration(false); // Control manual de vibración
-            notificationManager.createNotificationChannel(channel);
+            NotificationChannel existingChannel = notificationManager.getNotificationChannel(channelId);
+            if (existingChannel == null) {
+                Log.e(TAG, "FCM_CHANNEL_NOT_FOUND - Creando canal: " + channelId);
+                NotificationChannel channel = new NotificationChannel(
+                        channelId,
+                        "Alertas de Viaje",
+                        NotificationManager.IMPORTANCE_HIGH
+                );
+                channel.setSound(null, null); // Control manual del sonido en nuestra alerta
+                channel.enableVibration(false); // Control manual de vibración
+                notificationManager.createNotificationChannel(channel);
+            } else {
+                Log.e(TAG, "Canal " + channelId + " encontrado. Importance: " + existingChannel.getImportance());
+            }
         }
 
         int reqCode = orderId != null ? orderId.hashCode() : 0;
@@ -91,7 +98,15 @@ public class RideAlertController {
                 .addAction(0, "✅ ACEPTAR", acceptPendingIntent)
                 .addAction(0, "❌ RECHAZAR", rejectPendingIntent);
 
+        // Check POST_NOTIFICATIONS permission for Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                Log.e(TAG, "FCM_PERMISSION_DENIED - Permiso POST_NOTIFICATIONS no concedido");
+            }
+        }
+
         notificationManager.notify(reqCode, builder.build());
+        Log.e(TAG, "FCM_NOTIFICATION_CREATED - ID " + reqCode);
         logDebug("startAlert: Notificación mostrada con ID " + reqCode);
 
         // Sonido y Vibración

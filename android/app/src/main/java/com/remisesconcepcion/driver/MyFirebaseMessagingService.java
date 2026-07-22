@@ -22,6 +22,7 @@ public class MyFirebaseMessagingService extends MessagingService {
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         Log.e(TAG, "==== LLEGO EL PUSH A ANDROID NATIVO ====");
+        Log.e(TAG, "FCM_MESSAGE_RECEIVED");
         Log.e(TAG, "Timestamp recepción local: " + System.currentTimeMillis());
         Log.e(TAG, "Message ID: " + remoteMessage.getMessageId());
         Log.e(TAG, "From: " + remoteMessage.getFrom());
