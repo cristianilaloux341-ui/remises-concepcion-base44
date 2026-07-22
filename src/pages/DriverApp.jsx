@@ -29,6 +29,7 @@ import DailyStats from "@/components/driver/DailyStats";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
 import BatteryOptimizationGuide from "@/components/driver/BatteryOptimizationGuide";
 import OcasionalMeter from "@/components/driver/OcasionalMeter";
+import ActiveRideScreen from "@/components/driver/ActiveRideScreen";
 
 const debugArray = (arr, name) => {
   if (!Array.isArray(arr)) {
@@ -160,18 +161,6 @@ function sendSystemNotification(order) {
   } catch (_) {}
 }
 
-// ── Navigation helper ─────────────────────────────────────────────────────────
-function openMapsNavigation(address, driverLat, driverLng) {
-  const dest = encodeURIComponent(address);
-  let url;
-  if (driverLat && driverLng) {
-    url = `https://www.google.com/maps/dir/${driverLat},${driverLng}/${dest}`;
-  } else {
-    url = `https://www.google.com/maps/search/?api=1&query=${dest}`;
-  }
-  window.open(url, "_blank");
-}
-
 const getDeviceId = () => {
   let id = localStorage.getItem("device_id");
   if (!id) {
@@ -191,13 +180,7 @@ const getSessionToken = () => {
   return token;
 };
 
-const STATUS_CONFIG = {
-  ofrecido:  { label: "Nuevo Viaje",    bg: "bg-amber-500"  },
-  aceptado:  { label: "Aceptado",       bg: "bg-blue-500"   },
-  en_camino: { label: "En Camino",      bg: "bg-purple-500" },
-  en_viaje:  { label: "En Viaje",       bg: "bg-cyan-500"   },
-  completado:{ label: "Completado",     bg: "bg-green-500"  },
-};
+
 
 // ── Login screen ──────────────────────────────────────────────────────────────
 function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSaved = () => {} }) {
@@ -833,241 +816,7 @@ function BroadcastAlert({ order, onAccept, onReject, isAccepting }) {
   );
 }
 
-// ── Active ride screen ────────────────────────────────────────────────────────
-function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
-  const cfg = STATUS_CONFIG[order.status];
 
-  // ── Taxímetro en tiempo real (solo cuando status === "en_viaje") ────────────
-  const [importeActual, setImporteActual] = useState(order.importe_real_actual || order.importe_estimado || 0);
-  const [metrosRecorridos, setMetrosRecorridos] = useState(0);
-  const [enEspera, setEnEspera] = useState(false);
-
-  // refs para evitar stale closures dentro de intervals/watchers
-  const metrosRef = useRef(0);
-  const importeRef = useRef(importeActual);
-  const contadorParadoRef = useRef(0);
-  const lastPosRef = useRef(null);
-  const gpsWatchRef = useRef(null);
-  const timerRef = useRef(null);
-
-  // Sync importeActual ref
-  useEffect(() => { importeRef.current = importeActual; }, [importeActual]);
-
-  const distanciaTeórica = order.distancia_teorica_metros || 0;
-  const tarifaRef = useRef({
-    bajada_bandera: 500,
-    precio_por_metro: 2,
-    precio_por_minuto_espera: 50,
-    tolerancia_espera_segundos: 120,
-  });
-
-  // Load tarifa config once
-  useEffect(() => {
-    base44.entities.TarifaConfig.list().then(configs => {
-      if (configs[0]) {
-        tarifaRef.current = {
-          bajada_bandera: configs[0].bajada_bandera ?? 500,
-          precio_por_metro: configs[0].precio_por_metro ?? 2,
-          precio_por_minuto_espera: configs[0].precio_por_minuto_espera ?? 50,
-          tolerancia_espera_segundos: configs[0].tolerancia_espera_segundos ?? 120,
-        };
-      }
-    }).catch(() => {});
-  }, []);
-
-  // Guardar importe en DB (debounced)
-  const saveTimeoutRef = useRef(null);
-  const saveImporte = (nuevoImporte, segundosEspera) => {
-    clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => {
-      base44.entities.RideOrder.update(order.id, {
-        importe_real_actual: Math.round(nuevoImporte),
-        segundos_espera_acumulados: segundosEspera,
-      }).catch(() => {});
-    }, 3000); // guarda cada 3s como máximo
-  };
-
-  // Activar GPS + Timer cuando pasa a "en_viaje"
-  useEffect(() => {
-    if (order.status !== "en_viaje") return;
-
-    // Inicializar con el importe actual de la orden
-    const importeInicial = order.importe_real_actual || order.importe_estimado || 0;
-    setImporteActual(importeInicial);
-    importeRef.current = importeInicial;
-    metrosRef.current = 0;
-    contadorParadoRef.current = 0;
-    let segundosEspera = order.segundos_espera_acumulados || 0;
-
-    // GPS tracker
-    if (navigator.geolocation) {
-      gpsWatchRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          const { latitude, longitude, speed } = pos.coords;
-          const speedKmh = (speed || 0) * 3.6;
-
-        if (lastPosRef.current) {
-          const metros = haversineMetros(
-            lastPosRef.current.lat, lastPosRef.current.lng,
-            latitude, longitude
-          );
-          if (metros > 0.5 && metros < 500) { // filtrar saltos de GPS
-            metrosRef.current += metros;
-            setMetrosRecorridos(Math.round(metrosRef.current));
-
-            // Cobro por exceso de distancia
-            const excedente = metrosRef.current - distanciaTeórica;
-            if (excedente > 0) {
-              const base = order.importe_estimado || importeInicial;
-              const nuevo = base + excedente * tarifaRef.current.precio_por_metro;
-              setImporteActual(Math.round(nuevo));
-              importeRef.current = Math.round(nuevo);
-            }
-          }
-        }
-
-        lastPosRef.current = { lat: latitude, lng: longitude };
-
-        // Control de espera por velocidad
-        if (speedKmh < 5) {
-          setEnEspera(true);
-        } else {
-          contadorParadoRef.current = 0;
-          setEnEspera(false);
-        }
-      }, () => {}, { enableHighAccuracy: true, maximumAge: 0 });
-    }
-
-    // Timer cada 1 segundo — cobra espera
-    timerRef.current = setInterval(() => {
-      const speedLow = lastPosRef.current !== null; // si tenemos GPS
-      if (enEspera || contadorParadoRef.current > 0) {
-        contadorParadoRef.current += 1;
-        if (contadorParadoRef.current > tarifaRef.current.tolerancia_espera_segundos) {
-          segundosEspera += 1;
-          const costoPorSegundo = tarifaRef.current.precio_por_minuto_espera / 60;
-          const nuevo = importeRef.current + costoPorSegundo;
-          importeRef.current = nuevo;
-          setImporteActual(Math.round(nuevo));
-          saveImporte(nuevo, segundosEspera);
-        }
-      }
-    }, 1000);
-
-    return () => {
-      if (gpsWatchRef.current) navigator.geolocation.clearWatch(gpsWatchRef.current);
-      clearInterval(timerRef.current);
-      clearTimeout(saveTimeoutRef.current);
-    };
-  }, [order.status, order.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleNavigate = () => {
-    const address = order.status === "en_viaje" ? order.dropoff_address : order.pickup_address;
-    if (address) openMapsNavigation(address, driver?.current_lat, driver?.current_lng);
-  };
-
-  const [isFinishing, setIsFinishing] = useState(false);
-  const handleCompletar = () => {
-    if (isFinishing) return; setIsFinishing(true);
-    clearTimeout(saveTimeoutRef.current);
-    base44.entities.RideOrder.update(order.id, { importe_real_actual: Math.round(importeRef.current) }).catch(() => {});
-    onStatusChange("completado", Math.round(importeRef.current));
-  };
-
-  return (
-    <div className="flex-1 overflow-y-auto bg-gray-950">
-      {/* Panel superior: info + acciones */}
-      <div className="px-4 pt-4 pb-6 space-y-3">
-        {/* Header estado */}
-        <div className="flex items-center justify-between">
-          <p className="font-bold text-white text-base">Viaje en Curso</p>
-          <span className={`${cfg?.bg} text-white text-xs font-bold px-3 py-1 rounded-full`}>{cfg?.label}</span>
-        </div>
-
-        {/* Taxímetro en tiempo real — solo en_viaje */}
-        {order.status === "en_viaje" && (
-          <div className={`rounded-2xl p-4 flex items-center justify-between ${enEspera ? "bg-amber-500/20 border border-amber-500/30" : "bg-green-500/20 border border-green-500/30"}`}>
-            <div className="flex items-center gap-2">
-              {enEspera ? <Timer className="w-5 h-5 text-amber-400" /> : <Navigation className="w-5 h-5 text-green-400" />}
-              <div>
-                <p className="text-xs font-semibold text-gray-400">{enEspera ? "EN ESPERA" : "EN MOVIMIENTO"}</p>
-                {metrosRecorridos > 0 && (
-                  <p className="text-xs text-gray-500">{(metrosRecorridos / 1000).toFixed(2)} km</p>
-                )}
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500">Tarifa actual</p>
-              <p className="text-2xl font-black text-green-400">${importeActual.toLocaleString()}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Direcciones */}
-        <div className="bg-gray-900 rounded-2xl p-3 space-y-2 border border-gray-800">
-          <div className="flex items-start gap-3">
-            <div className="w-4 h-4 rounded-full bg-green-500 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-gray-500">RECOGIDA</p>
-              <p className="font-semibold text-sm text-white">{order.pickup_address}</p>
-            </div>
-          </div>
-          {order.dropoff_address && (
-            <>
-              <div className="ml-2 w-px h-3 bg-gray-700" />
-              <div className="flex items-start gap-3">
-                <MapPin className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-500">DESTINO</p>
-                  <p className="font-semibold text-sm text-white">{order.dropoff_address}</p>
-                </div>
-              </div>
-            </>
-          )}
-          <div className="flex items-center gap-2 text-gray-500 text-xs pt-1 border-t border-gray-800">
-            <Phone className="w-3 h-3" />
-            <span>{order.client_name}</span>
-            {(order.importe_estimado > 0) && (
-              <span className="ml-auto font-semibold text-gray-400">${Math.round(order.importe_estimado).toLocaleString()} est.</span>
-            )}
-          </div>
-        </div>
-
-        {/* Botón navegación */}
-        <button
-          className="w-full h-11 rounded-2xl gap-2 border border-blue-500/40 text-blue-400 bg-blue-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all"
-          onClick={handleNavigate}
-        >
-          <Navigation className="w-4 h-4" />
-          Navegar con Google Maps
-        </button>
-
-        {/* Botones de acción */}
-        {order.status === "aceptado" && (
-          <div className="space-y-2">
-            <button className="w-full h-14 rounded-2xl gap-2 bg-purple-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_camino")}>
-              <Navigation className="w-5 h-5" /> Saliendo a Buscar
-            </button>
-            <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all" onClick={onCancelRide}>
-              <XCircle className="w-4 h-4" /> Anular — volver a mi base
-            </button>
-          </div>
-        )}
-        {order.status === "en_camino" && (
-          <button className="w-full h-14 rounded-2xl gap-2 bg-cyan-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_viaje")}>
-            <Car className="w-5 h-5" /> Pasajero a Bordo
-          </button>
-        )}
-        {order.status === "en_viaje" && (
-          <button className="w-full h-14 rounded-2xl gap-2 bg-green-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg disabled:opacity-50" onClick={handleCompletar} disabled={isFinishing}>
-            <CheckCircle2 className="w-5 h-5" /> {isFinishing ? "Terminando..." : `Terminar Viaje · $${importeActual.toLocaleString()}`}
-          </button>
-        )}
-      </div>
-
-    </div>
-  );
-}
 
 // ── Available orders list ─────────────────────────────────────────────────────
 function AvailableOrders({ orders, onTake }) {
@@ -1707,14 +1456,19 @@ export default function DriverApp() {
     ? { ...myDriverRaw, ...(localOverride ?? {}) }
     : null;
 
-  const activeOrder = debugArray(safeOrders, 'safeOrders').find(o => o.driver_id === myDriverId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
+  const ignoredOrderId = localOverride?._ignoredOrderId || null;
+
+  const activeOrder = debugArray(safeOrders, 'safeOrders').find(o => 
+    o.driver_id === myDriverId && 
+    ["aceptado", "en_camino", "en_viaje"].includes(o.status) &&
+    o.id !== ignoredOrderId &&
+    !ignoredOrdersRef.current.has(o.id)
+  );
 
   const isLocallyBusy = 
     (localOverride && ["en_viaje", "aceptado", "en_camino"].includes(localOverride.status)) || 
     ["en_viaje", "aceptado", "en_camino"].includes(myDriverRaw?.status) || 
     !!activeOrder;
-
-  const ignoredOrderId = localOverride?._ignoredOrderId || null;
   
   // Ocultar burbujas de oferta si ya aceptamos/rechazamos localmente o estamos en viaje
   const offeredOrder = isLocallyBusy ? null : debugArray(safeOrders, 'safeOrders').find(o => o.driver_id === myDriverId && o.status === "ofrecido" && o.id !== ignoredOrderId);
@@ -2060,15 +1814,38 @@ export default function DriverApp() {
     return () => clearInterval(t);
   }, [libreBlockedSegs > 0]);
 
-  const handleStatusChange = (newStatus, finalFare = null) => {
-    if (newStatus === "completado") {
-      setReceiptOrder({ ...activeOrder, importe_final: finalFare || activeOrder.importe_real_actual || activeOrder.importe_estimado });
-      lastRideBaseRef.current = activeOrder.assigned_base || myDriver?.current_base || null;
-      const secs = (tarifaMinutosRef.current || 0) * 60;
-      if (secs > 0) setLibreBlockedSegs(secs);
-      setLocalOverride({ status: "disponible", current_base: null });
-      updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
+  const handleFinishRide = async (finalFare) => {
+    if (!activeOrder) return;
+    const currentOrderId = activeOrder.id;
+    
+    // Optimistic UI - bloquear futuros updates via websocket
+    ignoredOrdersRef.current.add(currentOrderId);
+    
+    setReceiptOrder({ ...activeOrder, importe_final: finalFare || activeOrder.importe_real_actual || activeOrder.importe_estimado });
+    lastRideBaseRef.current = activeOrder.assigned_base || myDriver?.current_base || null;
+    
+    const secs = (tarifaMinutosRef.current || 0) * 60;
+    if (secs > 0) setLibreBlockedSegs(secs);
+    
+    setLocalOverride({ status: "disponible", current_base: null, _ignoredOrderId: currentOrderId });
+    updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
+    
+    try {
+      const res = await base44.functions.invoke("finishRide", {
+        orderId: currentOrderId,
+        driverId: myDriverId,
+        importeFinal: finalFare,
+        sessionToken: getSessionToken()
+      });
+      if (!res.data?.success && !res.data?.idempotent) {
+        console.warn("Fallo al finalizar viaje en backend:", res?.data?.reason);
+      }
+    } catch (e) {
+      console.error("Error de red al finalizar viaje", e);
     }
+  };
+
+  const handleStatusChange = (newStatus) => {
     updateOrder.mutate({ id: activeOrder.id, data: { status: newStatus } });
   };
   const handleEnterBase = () => {
@@ -2400,7 +2177,7 @@ export default function DriverApp() {
         {receiptOrder ? (
           <ReceiptScreen order={receiptOrder} importeFinal={receiptOrder.importe_final} onClose={() => setReceiptOrder(null)} />
         ) : activeOrder ? (
-          <ActiveRideScreen order={activeOrder} driver={myDriver} onStatusChange={handleStatusChange} onCancelRide={handleCancelRide} />
+          <ActiveRideScreen order={activeOrder} driver={myDriver} onStatusChange={handleStatusChange} onCancelRide={handleCancelRide} onFinishRide={handleFinishRide} />
         ) : myDriver.status === "no_disponible" ? (
           <OffServiceScreen onGoOnService={handleGoOnService} />
         ) : (
