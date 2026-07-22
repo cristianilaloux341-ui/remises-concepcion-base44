@@ -56,60 +56,16 @@ export function findDriverInZone(zone, drivers) {
 
 // Assign driver to order (direct / zone-based)
 export async function assignDriverToOrder(order, driver) {
-  // Mover a los móviles salteados al final de la cola
   try {
-    if (driver.current_base && driver.status === "disponible") {
-      const allDrivers = await base44.entities.Driver.filter({ status: "disponible", current_base: driver.current_base });
-      const queue = sortQueue(allDrivers);
-      const driverIndex = queue.findIndex(d => d.id === driver.id);
-      
-      if (driverIndex > 0) {
-        const skippedDrivers = queue.slice(0, driverIndex);
-        const baseTime = new Date();
-        await Promise.all(skippedDrivers.map((d, i) => 
-          base44.entities.Driver.update(d.id, {
-            queue_entered_at: new Date(baseTime.getTime() + (i * 1000)).toISOString()
-          })
-        ));
-      }
+    const res = await base44.functions.invoke("assignRide", {
+      orderId: order.id,
+      driverId: driver.id
+    });
+    if (!res.data || !res.data.success) {
+      console.error("AssignRide backend returned false:", res.data?.reason);
     }
   } catch (e) {
-    console.error("Error penalizing skipped drivers", e);
-  }
-
-  // Obtener configuración desde TarifaConfig primero
-  const tarifaConfigs = await base44.entities.TarifaConfig.list();
-  const config = tarifaConfigs[0];
-  const timeoutSeconds = config?.tiempo_maximo_respuesta_segundos ?? 60;
-  const autoReassignActive = config?.auto_reasignacion_activa ?? true;
-  
-  const autoAceptarViajes = config?.auto_aceptar_viajes ?? false;
-
-  const targetOrderStatus = autoAceptarViajes ? "aceptado" : "ofrecido";
-  const targetDriverStatus = autoAceptarViajes ? "en_viaje" : "ofrecido";
-
-  const newAttempt = (order.assignment_attempt || 0) + 1;
-  await base44.entities.RideOrder.update(order.id, {
-    status: targetOrderStatus,
-    driver_id: driver.id,
-    driver_name: driver.name,
-    assigned_base: driver.current_base,
-    offered_driver_ids: [...(order.offered_driver_ids || []), driver.id],
-    assignment_attempt: newAttempt
-  });
-
-  await base44.entities.Driver.update(driver.id, {
-    status: targetDriverStatus
-  });
-
-  // Si no se auto-acepta y la reasignación está activa, disparamos el timeout
-  if (targetOrderStatus === "ofrecido" && autoReassignActive) {
-    base44.functions.invoke("autoReassignOnTimeout", {
-      orderId: order.id,
-      driverId: driver.id,
-      timeoutSeconds: timeoutSeconds,
-      assignmentAttempt: newAttempt
-    }).catch(e => console.error("AutoReassign Trigger Error:", e));
+    console.error("Error invoking assignRide", e);
   }
 }
 
