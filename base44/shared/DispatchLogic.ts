@@ -35,7 +35,7 @@ export async function tryManualCandidate(b44: any, baseId: string, order: any, d
       { id: driver.id, status: 'disponible', dispatch_status: 'normal', reserved_order_id: null },
       { $set: { dispatch_status: 'manual_pending', reserved_order_id: order.id, manual_reservation_token: token } }
     );
-    if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? 0) !== 1) return false;
+    if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? driverRes.updated ?? 0) !== 1) return false;
 
     await failureInjector.hit('AFTER_DRIVER_RESERVE');
 
@@ -44,7 +44,7 @@ export async function tryManualCandidate(b44: any, baseId: string, order: any, d
       { id: order.id, status: 'procesando_despacho', reservation_token: token },
       { $set: { status: 'esperando_confirmacion_manual', reserved_driver_id: driver.id, manual_reservation_token: token } }
     );
-    if ((rideRes.matchedCount ?? rideRes.modifiedCount ?? 0) !== 1) {
+    if ((rideRes.matchedCount ?? rideRes.modifiedCount ?? rideRes.updated ?? 0) !== 1) {
       await releaseManualDriver(b44, driver.id, order.id, token);
       return false;
     }
@@ -57,7 +57,7 @@ export async function tryManualCandidate(b44: any, baseId: string, order: any, d
       { $set: { dispatch_status: 'esperando_manual', active_order_id: order.id, manual_reservation_token: token, lock_token: null, lock_expires_at: null } }
     );
 
-    if ((baseRes.matchedCount ?? baseRes.modifiedCount ?? 0) !== 1) {
+    if ((baseRes.matchedCount ?? baseRes.modifiedCount ?? baseRes.updated ?? 0) !== 1) {
       // Revertir viaje y chofer
       await b44.entities.RideOrder.updateMany(
         { id: order.id, status: 'esperando_confirmacion_manual', reserved_driver_id: driver.id, manual_reservation_token: token },
@@ -90,7 +90,7 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
       { id: driver.id, status: 'disponible', dispatch_status: 'normal', reserved_order_id: null },
       { $set: { dispatch_status: 'automatic_pending', reserved_order_id: order.id, reservation_token: token } }
     );
-    if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? 0) !== 1) return false;
+    if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? driverRes.updated ?? 0) !== 1) return false;
 
     await failureInjector.hit('AFTER_AUTO_DRIVER_RESERVE');
 
@@ -98,7 +98,7 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
       { id: order.id },
       { $set: { status: 'ofrecido', reservation_token: token, reserved_driver_id: driver.id } }
     );
-    if ((rideRes.matchedCount ?? rideRes.modifiedCount ?? 0) !== 1) {
+    if ((rideRes.matchedCount ?? rideRes.modifiedCount ?? rideRes.updated ?? 0) !== 1) {
       await b44.entities.Driver.updateMany({ id: driver.id, reservation_token: token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } });
       return false;
     }
@@ -168,7 +168,7 @@ export async function reassignAfterAutomaticReject(b44: any, baseId: string, ord
     { id: baseId, dispatch_status: 'libre' },
     { $set: { dispatch_status: 'procesando', lock_token: newToken, lock_expires_at: Date.now() + 30000, active_order_id: orderId } }
   );
-  if ((baseRes.matchedCount ?? baseRes.modifiedCount ?? 0) !== 1) return { status: 'zone_busy' };
+  if ((baseRes.matchedCount ?? baseRes.modifiedCount ?? baseRes.updated ?? 0) !== 1) return { status: 'zone_busy' };
 
   try {
     await failureInjector.hit('DURING_TOKEN_TRANSFER');
@@ -176,14 +176,14 @@ export async function reassignAfterAutomaticReject(b44: any, baseId: string, ord
       { id: orderId, status: 'ofrecido', reserved_driver_id: driverId, reservation_token: oldToken },
       { $set: { status: 'procesando_despacho', reservation_token: newToken, reserved_driver_id: null }, $push: { offered_driver_ids: driverId }, $inc: { assignment_attempt: 1 } }
     );
-    if ((orderRes.matchedCount ?? orderRes.modifiedCount ?? 0) !== 1) return { status: 'already_processed' };
+    if ((orderRes.matchedCount ?? orderRes.modifiedCount ?? orderRes.updated ?? 0) !== 1) return { status: 'already_processed' };
 
     await failureInjector.hit('DURING_DRIVER_RELEASE');
     const driverRes = await b44.entities.Driver.updateMany(
       { id: driverId, dispatch_status: 'automatic_pending', reserved_order_id: orderId, reservation_token: oldToken },
       { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } }
     );
-    if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? 0) !== 1) {
+    if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? driverRes.updated ?? 0) !== 1) {
       await safeAuditLog(b44, { action: 'INCONSISTENT_STATE', user_type: 'sistema', user_name: 'System', details: 'Fallo al liberar Driver durante rechazo automático' }, failureInjector);
       throw new Error('INCONSISTENT_STATE:DRIVER_RELEASE_FAILED');
     }
@@ -229,7 +229,7 @@ export async function cleanupExpiredTechnicalLock(b44: any, baseId: string, expe
     { id: baseId, lock_token: expectedToken },
     { $set: { dispatch_status: 'libre', lock_token: null, lock_expires_at: null, active_order_id: null } }
   );
-  if ((bRes.matchedCount ?? bRes.modifiedCount ?? 0) !== 1) return { status: 'already_recovered', baseId, token: expectedToken };
+  if ((bRes.matchedCount ?? bRes.modifiedCount ?? bRes.updated ?? 0) !== 1) return { status: 'already_recovered', baseId, token: expectedToken };
 
   return { status: 'recovered', baseId, orderId: orders[0]?.id, driverId: drivers[0]?.id, token: expectedToken };
 }
@@ -260,7 +260,7 @@ export async function cleanupExpiredManualWait(b44: any, baseId: string, expecte
     { $set: { dispatch_status: 'libre', manual_reservation_token: null, manual_expires_at: null, manual_requested_at: null, active_order_id: null } }
   );
   
-  if ((bRes.matchedCount ?? bRes.modifiedCount ?? 0) === 1) {
+  if ((bRes.matchedCount ?? bRes.modifiedCount ?? bRes.updated ?? 0) === 1) {
      await safeAuditLog(b44, { action: 'MANUAL_TIMEOUT', user_type: 'sistema', user_name: 'System', details: `Timeout manual expirado para token ${expectedToken}` });
      return { status: 'recovered', baseId, token: expectedToken };
   }
