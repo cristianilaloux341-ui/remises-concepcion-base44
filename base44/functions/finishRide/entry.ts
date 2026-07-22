@@ -41,13 +41,12 @@ Deno.serve(async (req) => {
         { id: driverId },
         { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, active_order_id: null } }
       );
-      const fixMatched = fixRes.matchedCount ?? fixRes.modifiedCount ?? 0;
-      if (fixMatched === 1) {
+      if (fixRes.updated === 1) {
          await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Repaired driver state', metadata: { orderId, driverId } });
          return Response.json({ success: true, idempotent: true, note: 'repaired_driver' });
       } else {
-         await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: 'Failed to repair driver', metadata: { orderId, driverId } });
-         return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION' });
+         await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: `Failed to repair driver, raw: ${JSON.stringify(fixRes)}`, metadata: { orderId, driverId } });
+         return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION', db_result: fixRes });
       }
     }
   }
@@ -62,10 +61,9 @@ Deno.serve(async (req) => {
     { $set: { status: 'completado', importe_real_actual: importeFinal, updated_date: new Date().toISOString() } }
   );
 
-  const matchedOrder = uOrder.matchedCount ?? uOrder.modifiedCount ?? 0;
-  if (matchedOrder !== 1) {
-    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: 'Order condition mismatch', metadata: { orderId, driverId } });
-    return Response.json({ success: false, reason: 'race_condition_or_invalid_state' });
+  if (uOrder.updated !== 1) {
+    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: `Order condition mismatch, raw: ${JSON.stringify(uOrder)}`, metadata: { orderId, driverId } });
+    return Response.json({ success: false, reason: 'race_condition_or_invalid_state', db_result: uOrder });
   }
 
   const uDriver = await b44.entities.Driver.updateMany(
@@ -73,10 +71,9 @@ Deno.serve(async (req) => {
     { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, active_order_id: null } }
   );
 
-  const matchedDriver = uDriver.matchedCount ?? uDriver.modifiedCount ?? 0;
-  if (matchedDriver !== 1) {
-    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: 'Driver update failed', metadata: { orderId, driverId } });
-    return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION' });
+  if (uDriver.updated !== 1) {
+    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: `Driver update failed, raw: ${JSON.stringify(uDriver)}`, metadata: { orderId, driverId } });
+    return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION', db_result: uDriver });
   }
 
   await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_COMMITTED', user_type: 'sistema', user_name: 'finishRide', details: 'Finished successfully', metadata: { orderId, driverId } });
