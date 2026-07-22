@@ -72,16 +72,16 @@ export async function assignDriverToOrder(order, driver) {
 // Broadcast: marcar el pedido como "pendiente_broadcast" para que TODOS los disponibles lo vean
 // El primero en aceptar gana. Se usa cuando no hay nadie en la zona.
 export async function broadcastOrder(order, drivers = []) {
-  const newAttempt = (order.assignment_attempt || 0) + 1;
-  await base44.entities.RideOrder.update(order.id, {
-    status: "pendiente",
-    driver_id: null,
-    driver_name: null,
-    assigned_base: null,
-    // Prefijo especial para que DriverApp lo detecte como broadcast urgente
-    notes: order.notes ? (order.notes.startsWith("[BROADCAST]") ? order.notes : `[BROADCAST] ${order.notes}`) : "[BROADCAST]",
-    assignment_attempt: newAttempt
-  });
+  try {
+    const res = await base44.functions.invoke("broadcastRide", {
+      orderId: order.id
+    });
+    if (!res.data || !res.data.success) {
+      console.error("BroadcastRide backend returned false:", res.data?.reason);
+    }
+  } catch (e) {
+    console.error("Error invoking broadcastRide", e);
+  }
 }
 
 // Auto-dispatch: intenta asignar por zona; si no hay nadie → broadcast
