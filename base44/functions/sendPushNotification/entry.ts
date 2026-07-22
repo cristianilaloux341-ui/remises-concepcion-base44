@@ -178,204 +178,55 @@ async function sendWebPush(subscription, payload, vapidPublicKey, vapidPrivateKe
 // This function is called from the frontend when a driver registers their SW.
 
 Deno.serve(async (req) => {
-  console.log("=> sendPushNotification INVOCADO");
   const base44 = createClientFromRequest(req);
 
   const body = await req.json();
-  console.log("=> BODY:", JSON.stringify(body));
   
   // Interceptar payload de automación de entidad (RideOrder)
   if (body.event && body.event.entity_name === "RideOrder" && body.data) {
-    console.log("=> INTERCEPT RIDE ORDER AUTOMATION:", body.data.id, "STATUS:", body.data.status);
-    // Cuando pasa a ofrecido
     const isStatusChanged = !body.old_data || body.changed_fields?.includes("status");
-    console.log("=> isStatusChanged:", isStatusChanged, "old_status:", body.old_data?.status);
     if (body.data.status === "ofrecido" && body.data.driver_id && isStatusChanged) {
-      console.log("=> AUTOMATION SETTING ACTION TO SEND FOR DRIVER:", body.data.driver_id);
       body.action = "send";
       body.driverId = body.data.driver_id;
       body.orderId = body.data.id;
       body.orderData = {
         pickup_address: body.data.pickup_address,
         dropoff_address: body.data.dropoff_address,
-        fare: body.data.fare,
-        assignment_attempt: body.data.assignment_attempt
+        fare: body.data.fare
       };
-      body.isBroadcast = false;
-    }
-    // Cuando pasa a pendiente y no tiene chofer (broadcast)
-    else if (body.data.status === "pendiente" && !body.data.driver_id && body.data.notes?.includes("[BROADCAST]") && isStatusChanged) {
-      console.log("=> AUTOMATION SETTING ACTION TO BROADCAST");
-      body.action = "broadcast_trigger"; // Nuevo action para manejar el broadcast desde el backend
+    } else if (body.data.status === "pendiente" && body.old_data?.status === "ofrecido" && body.old_data?.driver_id && isStatusChanged) {
+      // EVENTO DE RETIRO (Viaje pasa de ofrecido a pendiente)
+      body.action = "withdraw";
+      body.driverId = body.old_data.driver_id;
       body.orderId = body.data.id;
-      body.orderData = {
-        pickup_address: body.data.pickup_address,
-        dropoff_address: body.data.dropoff_address,
-        fare: body.data.fare,
-        assignment_attempt: body.data.assignment_attempt
-      };
+    } else if (body.data.status === "cancelado" && body.old_data?.driver_id && isStatusChanged) {
+      // EVENTO DE CANCELACIÓN (Viaje cancelado por operador)
+      body.action = "cancel";
+      body.driverId = body.old_data.driver_id;
+      body.orderId = body.data.id;
     }
   }
 
-  const { action, driverId, subscription, orderId, orderData, token, userId, fromName, messageContent, isBroadcast, targetDriverId } = body;
-  
-  // BANDERA DE ROLLBACK (Data-only vs Default)
-  const USE_DATA_ONLY = false;
-
-  if (action === 'cancel_ride') {
-    console.log("=> ACCIÓN: CANCELAR VIAJE (LIMPIAR PANTALLA) RECIBIDA.");
-    const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
-    if (saStr && driverId && orderId) {
-      try {
-        const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
-        const driver = drivers[0];
-        if (driver?.fcm_token) {
-          const sa = JSON.parse(saStr);
-          const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
-          const now = Math.floor(Date.now() / 1000);
-          const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
-            iss: sa.client_email,
-            scope: 'https://www.googleapis.com/auth/firebase.messaging',
-            aud: 'https://oauth2.googleapis.com/token',
-            exp: now + 3600,
-            iat: now
-          })));
-          const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
-          const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-          const rsaKey = await crypto.subtle.importKey("pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
-          const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`));
-          const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
-          
-          const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
-          }).then(r => r.json());
-
-          if (tokenRes.access_token) {
-            await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${tokenRes.access_token}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                message: {
-                  token: driver.fcm_token,
-                  data: {
-                    type: "cancelar",
-                    orderId: String(orderId)
-                  }
-                }
-              })
-            });
-          }
-        }
-      } catch (e) {
-        console.error("Cancel push send error:", e);
-      }
-    }
-    return Response.json({ ok: true });
-  }
-
-  if (action === 'native_accept') {
-    console.log("=> ACCIÓN (NATIVA/UI): ACEPTAR RECIBIDA.");
-    try {
-      const { driverName, base } = body;
-      
-      const order = await base44.asServiceRole.entities.RideOrder.get(orderId);
-      if (!order || (order.status !== 'ofrecido' && order.status !== 'pendiente')) {
-         console.warn("=> El viaje ya fue tomado o cancelado:", orderId);
-         return Response.json({ error: 'Order already accepted or invalid' }, { status: 400 });
-      }
-
-      const dName = driverName && driverName !== "null" && driverName !== "" ? driverName : order.driver_name;
-      const bName = base && base !== "null" && base !== "" ? base : order.assigned_base;
-
-      await base44.asServiceRole.entities.RideOrder.update(orderId, { 
-         status: "aceptado", 
-         driver_id: driverId,
-         driver_name: dName,
-         assigned_base: bName
-      });
-      await base44.asServiceRole.entities.Driver.update(driverId, { status: "en_viaje" });
-      
-      console.log("=> ACCIÓN ACEPTAR: ÉXITO. Viaje y chofer actualizados.");
-      return Response.json({ ok: true });
-    } catch (error) {
-      console.error("=> ERROR EN ACCIÓN ACEPTAR:", error.message);
-      return Response.json({ error: error.message }, { status: 500 });
-    }
-  }
-
-  if (action === 'native_reject') {
-    console.log("=> ACCIÓN NATIVA: RECHAZAR RECIBIDA.");
-    console.log("=> Payload:", { orderId, driverId });
-    const order = await base44.asServiceRole.entities.RideOrder.get(orderId);
-    if (order) {
-      const offered = order.offered_driver_ids || [];
-      if (!offered.includes(driverId)) offered.push(driverId);
-      
-      await base44.asServiceRole.entities.RideOrder.update(orderId, { 
-         status: "pendiente",
-         driver_id: null,
-         offered_driver_ids: offered
-      });
-    }
-    
-    await base44.asServiceRole.entities.AuditLog.create({
-      action: "rechazar_viaje",
-      user_type: "chofer",
-      user_name: "App Nativa",
-      details: `Rechazó el viaje nativamente (ID: ${orderId})`
-    });
-
-    return Response.json({ ok: true });
-  }
+  const { action, driverId, subscription, orderId, orderData, userId, fromName, messageContent } = body;
 
   const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
   const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
 
-  // ── Register FCM Token (Native Android) ──────────────────────────────────
-  if (action === 'subscribe_fcm') {
-    if (!driverId || !token) {
-      return Response.json({ error: 'Missing driverId or token' }, { status: 400 });
-    }
-    await base44.asServiceRole.entities.Driver.update(driverId, {
-      fcm_token: token,
-    });
-    return Response.json({ ok: true });
-  }
-
   // ── Register subscription ─────────────────────────────────────────────────
   if (action === 'subscribe') {
-    if (!driverId || !subscription) {
-      return Response.json({ error: 'Missing driverId or subscription' }, { status: 400 });
-    }
-    // Store on driver record
-    await base44.asServiceRole.entities.Driver.update(driverId, {
-      push_subscription: JSON.stringify(subscription),
-    });
+    if (!driverId || !subscription) return Response.json({ error: 'Missing driverId or subscription' }, { status: 400 });
+    await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: JSON.stringify(subscription) });
     return Response.json({ ok: true });
   }
 
-  // ── Register operator push subscription ──────────────────────────────────
   if (action === 'subscribe_operator') {
-    if (!userId || !subscription) {
-      return Response.json({ error: 'Missing userId or subscription' }, { status: 400 });
-    }
-    // Store on User record
-    await base44.asServiceRole.entities.User.update(userId, {
-      push_subscription: JSON.stringify(subscription),
-    });
+    if (!userId || !subscription) return Response.json({ error: 'Missing userId or subscription' }, { status: 400 });
+    await base44.asServiceRole.entities.User.update(userId, { push_subscription: JSON.stringify(subscription) });
     return Response.json({ ok: true });
   }
 
-  // ── Send push to all operators (new driver message) ───────────────────────
   if (action === 'send_to_operators') {
-    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-      return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
-    }
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
     try {
       const users = await base44.asServiceRole.entities.User.filter({ role: 'admin' });
       const results = [];
@@ -391,9 +242,7 @@ Deno.serve(async (req) => {
           tag: 'msg-' + Date.now(),
         });
         const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-        if (status === 410 || status === 404) {
-          await base44.asServiceRole.entities.User.update(u.id, { push_subscription: null });
-        }
+        if (status === 410 || status === 404) await base44.asServiceRole.entities.User.update(u.id, { push_subscription: null });
         results.push({ userId: u.id, status });
       }
       return Response.json({ ok: true, results });
@@ -402,202 +251,55 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── Send push to a driver ─────────────────────────────────────────────────
-  
-  if (action === 'broadcast_trigger') {
+  if (action === 'withdraw') {
+    if (!driverId || !orderId) return Response.json({ error: 'Missing driverId or orderId' }, { status: 400 });
     try {
-      const availableDrivers = await base44.asServiceRole.entities.Driver.filter({ status: 'disponible' });
-      const title = '📢 Viaje a todos los móviles';
-      const bodyStr = orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}` : 'Viaje a todos los móviles';
+      const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
+      const driver = drivers[0];
+      if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
+      if (!driver?.push_subscription) return Response.json({ ok: false, reason: 'no_subscription' });
       
-      const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
-      let tokenRes = null;
-      let sa = null;
-
-      if (saStr) {
-        sa = JSON.parse(saStr);
-        if (sa.private_key) {
-          const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
-          const now = Math.floor(Date.now() / 1000);
-          const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
-            iss: sa.client_email,
-            scope: 'https://www.googleapis.com/auth/firebase.messaging',
-            aud: 'https://oauth2.googleapis.com/token',
-            exp: now + 3600,
-            iat: now
-          })));
-          
-          const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
-          const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-          const rsaKey = await crypto.subtle.importKey("pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
-          const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`));
-          const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
-          
-          tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
-          }).then(r => r.json());
-        }
-      }
-
-      for (const driver of availableDrivers) {
-        if (!driver.current_base) continue;
-
-        let sentViaFcm = false;
-        if (driver.fcm_token && tokenRes && tokenRes.access_token) {
-          const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${tokenRes.access_token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              message: {
-                token: driver.fcm_token,
-                android: { priority: "high" },
-                data: { 
-                  orderId: String(orderId), 
-                  driverId: String(driver.id),
-                  driverName: String(driver.name || ""),
-                  base: String(driver.current_base || ""),
-                  apiUrl: `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/sendPushNotification/invoke`,
-                  action: "open_ride",
-                  title: String(title),
-                  body: String(bodyStr),
-                  type: "broadcast",
-                  assignmentAttempt: String(orderData?.assignment_attempt || body.assignmentAttempt || 1),
-                  sentAt: String(Date.now())
-                }
-              }
-            })
-          });
-          if (fcmRes.ok) sentViaFcm = true;
-        }
-
-        if (!sentViaFcm && driver.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-          let sub;
-          try { sub = JSON.parse(driver.push_subscription); } catch (_) { continue; }
-          const payload = JSON.stringify({
-            type: 'NEW_RIDE',
-            orderId,
-            driverId: driver.id,
-            title,
-            body: bodyStr,
-            actions: [
-              { action: 'accept', title: '✅ Tomar' },
-              { action: 'reject', title: '❌ Ignorar' }
-            ]
-          });
-          const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-          if (status === 410 || status === 404) {
-            await base44.asServiceRole.entities.Driver.update(driver.id, { push_subscription: null });
-          }
-        }
-      }
-      return Response.json({ ok: true, broadcast: true });
+      let sub;
+      try { sub = JSON.parse(driver.push_subscription); } catch (_) { return Response.json({ ok: false, reason: 'invalid_subscription' }); }
+      
+      const payload = JSON.stringify({
+        type: 'RIDE_WITHDRAWN',
+        orderId,
+        title: 'Viaje reasignado',
+        body: 'El viaje fue asignado a otro móvil.'
+      });
+      
+      const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+      if (status === 410 || status === 404) await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: null });
+      return Response.json({ ok: status >= 200 && status < 300, status });
     } catch (err) {
-      console.error("Broadcast trigger error:", err);
-      return Response.json({ error: err.message }, { status: 500 });
+      return Response.json({ ok: false, error: err.message });
     }
   }
 
-  // ── Send push to a driver for a MESSAGE ──────────────────────────────────
-  if (action === 'send_message') {
-    if (!messageContent) {
-      return Response.json({ error: 'Missing messageContent' }, { status: 400 });
-    }
-
+  if (action === 'cancel') {
+    if (!driverId || !orderId) return Response.json({ error: 'Missing driverId or orderId' }, { status: 400 });
     try {
-      const filter = targetDriverId ? { id: targetDriverId } : {};
-      const drivers = await base44.asServiceRole.entities.Driver.filter(filter);
+      const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
+      const driver = drivers[0];
+      if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
+      if (!driver?.push_subscription) return Response.json({ ok: false, reason: 'no_subscription' });
       
-      const title = targetDriverId ? '💬 Mensaje Privado' : '📡 Mensaje de la Base';
-      const body = messageContent;
-
-      const results = [];
-      let sa = null;
-      let tokenRes = null;
+      let sub;
+      try { sub = JSON.parse(driver.push_subscription); } catch (_) { return Response.json({ ok: false, reason: 'invalid_subscription' }); }
       
-      const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
-      if (saStr) {
-        try {
-          sa = JSON.parse(saStr);
-          if (sa.private_key) {
-            const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
-            const now = Math.floor(Date.now() / 1000);
-            const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
-              iss: sa.client_email,
-              scope: 'https://www.googleapis.com/auth/firebase.messaging',
-              aud: 'https://oauth2.googleapis.com/token',
-              exp: now + 3600,
-              iat: now
-            })));
-            const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
-            const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-            const rsaKey = await crypto.subtle.importKey("pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
-            const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`));
-            const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
-            
-            tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
-            }).then(r => r.json());
-          }
-        } catch(e) {}
-      }
-
-      for (const driver of drivers) {
-        let sentViaFcm = false;
-        if (driver.fcm_token && tokenRes && tokenRes.access_token) {
-          const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${tokenRes.access_token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              message: {
-                token: driver.fcm_token,
-                notification: { title: String(title), body: String(body) },
-                android: { priority: "high", notification: { channel_id: "ride-alerts-urgent" } },
-                data: { 
-                  action: "open_messages",
-                  title: String(title),
-                  body: String(body),
-                  type: "message"
-                }
-              }
-            })
-          });
-          if (fcmRes.ok) {
-            results.push({ driverId: driver.id, ok: true, via: 'fcm' });
-            sentViaFcm = true;
-          }
-        }
-
-        if (!sentViaFcm && driver.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-          let sub;
-          try { sub = JSON.parse(driver.push_subscription); } catch (_) { continue; }
-          const payload = JSON.stringify({
-            type: 'NEW_MESSAGE',
-            title,
-            body,
-            url: '/driver-app',
-            tag: 'msg-' + Date.now(),
-          });
-          const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-          if (status === 410 || status === 404) {
-            await base44.asServiceRole.entities.Driver.update(driver.id, { push_subscription: null });
-          }
-          results.push({ driverId: driver.id, ok: status >= 200 && status < 300, via: 'webpush', status });
-        }
-      }
-
-      return Response.json({ ok: true, results });
+      const payload = JSON.stringify({
+        type: 'RIDE_CANCELLED',
+        orderId,
+        title: '❌ Viaje Cancelado',
+        body: 'El operador canceló el viaje.'
+      });
+      
+      const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+      if (status === 410 || status === 404) await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: null });
+      return Response.json({ ok: status >= 200 && status < 300, status });
     } catch (err) {
-      return Response.json({ ok: false, reason: 'send_error', error: err.message });
+      return Response.json({ ok: false, error: err.message });
     }
   }
 
@@ -611,103 +313,9 @@ Deno.serve(async (req) => {
       const driver = drivers[0];
       
       const title = '🚖 ¡NUEVO VIAJE!';
-      const body = orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}${orderData.fare ? ' · $' + orderData.fare : ''}` : 'Tenés un viaje asignado';
+      const bodyStr = orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}${orderData.fare ? ' · $' + orderData.fare : ''}` : 'Tenés un viaje asignado';
 
-      // 1. Intentar FCM nativo primero (Garantiza despertar a Samsung)
-      if (driver?.fcm_token) {
-        const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
-        if (saStr) {
-          const sa = JSON.parse(saStr);
-          if (!sa.private_key) {
-            console.error("Error: FIREBASE_SERVICE_ACCOUNT no contiene private_key. Parece google-services.json en lugar de un Service Account Key.");
-          } else {
-            const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
-            const now = Math.floor(Date.now() / 1000);
-            const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
-              iss: sa.client_email,
-              scope: 'https://www.googleapis.com/auth/firebase.messaging',
-              aud: 'https://oauth2.googleapis.com/token',
-              exp: now + 3600,
-              iat: now
-            })));
-            
-            const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
-            const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-            const rsaKey = await crypto.subtle.importKey(
-              "pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]
-            );
-            const signature = await crypto.subtle.sign(
-              "RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`)
-            );
-            const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
-            
-            const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
-            }).then(r => r.json());
-
-            if (tokenRes.access_token) {
-              // ── DEDUPLICACIÓN DE PUSH ──
-              const dedupeSignature = `push_${orderId}_${driverId}_${isBroadcast ? "broadcast" : "ofrecido"}`;
-              const dedupeLogs = await base44.asServiceRole.entities.AuditLog.filter({ action: "push_dedupe", user_name: dedupeSignature }, "-created_date", 1);
-              if (dedupeLogs && dedupeLogs.length > 0) {
-                 const lastTime = new Date(dedupeLogs[0].created_date).getTime();
-                 if (Date.now() - lastTime < 15000) { // 15 segundos
-                    console.log(`=> DEDUPLICATION: Ignorando push duplicado para firma ${dedupeSignature}`);
-                    return Response.json({ ok: true, deduplicated: true });
-                 }
-              }
-
-              await base44.asServiceRole.entities.AuditLog.create({
-                 action: "push_dedupe",
-                 user_name: dedupeSignature,
-                 details: `Push enviado a ${driverId} para ${orderId}`,
-                 user_type: "sistema"
-              }).catch(() => {});
-
-              const fcmPayload = {
-                message: {
-                  token: driver.fcm_token,
-                  android: { priority: "high" },
-                  data: { 
-                    orderId: String(orderId), 
-                    driverId: String(driverId),
-                    driverName: String(driver.name || ""),
-                    base: String(driver.current_base || ""),
-                    apiUrl: `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/sendPushNotification/invoke`,
-                    action: "open_ride",
-                    title: String(title),
-                    body: String(body),
-                    type: isBroadcast ? "broadcast" : "ofrecido",
-                    assignmentAttempt: String(orderData?.assignment_attempt || body.assignmentAttempt || 1),
-                    sentAt: String(Date.now())
-                  }
-                }
-              };
-              
-              if (!USE_DATA_ONLY) {
-                  fcmPayload.message.notification = { title: String(title), body: String(body) };
-              }
-
-              const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${tokenRes.access_token}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(fcmPayload)
-              });
-              if (fcmRes.ok) return Response.json({ ok: true, via: 'fcm' });
-            }
-          }
-        }
-      }
-
-      // 2. Fallback a Web Push
-      if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-        return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
-      }
+      if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
 
       if (!driver?.push_subscription) return Response.json({ ok: false, reason: 'no_subscription' });
 
@@ -721,7 +329,7 @@ Deno.serve(async (req) => {
         orderId,
         driverId,
         title,
-        body,
+        body: bodyStr,
         actions: [
           { action: 'accept', title: '✅ Aceptar' },
           { action: 'reject', title: '❌ Rechazar' }
@@ -730,24 +338,18 @@ Deno.serve(async (req) => {
 
       const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
-      // If subscription is expired/invalid, clean it
       if (status === 410 || status === 404) {
         await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: null });
         return Response.json({ ok: false, reason: 'subscription_expired', status });
       }
 
       const success = status >= 200 && status < 300;
-      if (!success) {
-        console.warn(`Push failed for driver ${driverId}: status ${status}`);
-      }
       return Response.json({ ok: success, status });
     } catch (err) {
-      console.error(`Push error for driver ${driverId}:`, err.message);
       return Response.json({ ok: false, reason: 'send_error', error: err.message });
     }
   }
 
-  // ── Get VAPID public key (for frontend subscription) ─────────────────────
   if (action === 'vapid_public_key') {
     return Response.json({ publicKey: VAPID_PUBLIC_KEY });
   }
