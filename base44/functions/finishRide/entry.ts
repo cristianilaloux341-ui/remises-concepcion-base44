@@ -1,80 +1,84 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 
 Deno.serve(async (req) => {
-  try {
-    const base44 = createClientFromRequest(req);
-    const payload = await req.json();
-    const { orderId, driverId, importeFinal, sessionToken } = payload;
+  const base44 = createClientFromRequest(req);
+  const b44 = base44.asServiceRole;
+  const payload = await req.json();
+  const { orderId, driverId, importeFinal, sessionToken } = payload;
 
-    if (!orderId || !driverId || !sessionToken) {
-      return Response.json({ success: false, reason: "missing_params" });
-    }
+  await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_REQUESTED', user_type: 'sistema', user_name: 'finishRide', details: `Requested finish for ${orderId}`, metadata: { orderId, driverId } });
 
-    const b44 = base44.asServiceRole;
-
-    // Verificar identidad y sesión
-    const drivers = await b44.entities.Driver.filter({ id: driverId });
-    const driver = drivers[0];
-    if (!driver || driver.current_session_token !== sessionToken) {
-       return Response.json({ success: false, reason: "unauthorized" });
-    }
-
-    // Leer orden para comprobación de idempotencia
-    const orders = await b44.entities.RideOrder.filter({ id: orderId });
-    const currentOrder = orders[0];
-    if (!currentOrder) {
-       return Response.json({ success: false, reason: "not_found" });
-    }
-
-    // Idempotencia: ¿Ya está completado por el mismo chofer?
-    if (currentOrder.status === "completado" && currentOrder.driver_id === driverId) {
-      return Response.json({ success: true, idempotent: true });
-    }
-
-    // Actualización Condicional: Solo lo actualiza si está "en_viaje" y pertenece al chofer
-    const rideResult = await b44.entities.RideOrder.updateMany(
-      {
-        id: orderId,
-        status: "en_viaje",
-        driver_id: driverId
-      },
-      {
-        $set: {
-          status: "completado",
-          importe_real_actual: importeFinal !== undefined ? importeFinal : currentOrder.importe_real_actual,
-          updated_date: new Date().toISOString()
-        }
-      }
-    );
-
-    const matched = rideResult.matchedCount ?? rideResult.modifiedCount ?? 0;
-    
-    if (matched === 1) {
-      // Éxito: Marcar al chofer como libre
-      try {
-         await b44.entities.Driver.updateMany(
-           { id: driverId, status: "en_viaje" }, 
-           { $set: { status: "disponible", queue_entered_at: new Date().toISOString() } }
-         );
-      } catch (e) {
-         console.error(`Error al liberar chofer ${driverId}:`, e);
-      }
-
-      // Log de Auditoría
-      await b44.entities.AuditLog.create({
-        action: "FINISH_RIDE_COMMITTED",
-        user_type: "chofer",
-        user_name: driver.name || "Chofer",
-        details: `Viaje ${orderId} finalizado condicionalmente por el chofer. Importe final: ${importeFinal}`,
-        metadata: { orderId, driverId, importeFinal, matched }
-      }).catch(() => {});
-
-      return Response.json({ success: true, idempotent: false });
-    } else {
-      // El viaje no estaba en estado "en_viaje" para este chofer
-      return Response.json({ success: false, reason: "race_condition_or_invalid_state" });
-    }
-  } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+  if (!orderId || !driverId || !sessionToken) {
+    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: 'Missing params', metadata: { orderId, driverId } });
+    return Response.json({ success: false, reason: 'missing_params' });
   }
+
+  const drivers = await b44.entities.Driver.filter({ id: driverId });
+  const driver = drivers[0];
+  if (!driver || driver.current_session_token !== sessionToken) {
+    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: 'Invalid driver', metadata: { orderId, driverId } });
+    return Response.json({ success: false, reason: 'unauthorized' });
+  }
+
+  const orders = await b44.entities.RideOrder.filter({ id: orderId });
+  const order = orders[0];
+  if (!order) {
+    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: 'Order not found', metadata: { orderId } });
+    return Response.json({ success: false, reason: 'not_found' });
+  }
+
+  if (order.driver_id !== driverId) {
+    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: 'Wrong driver', metadata: { orderId, expected: driverId, actual: order.driver_id } });
+    return Response.json({ success: false, reason: 'wrong_driver' });
+  }
+
+  if (order.status === 'completado') {
+    if (driver.status === 'disponible' || driver.status === 'no_disponible') {
+      await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Already completed perfectly', metadata: { orderId, driverId } });
+      return Response.json({ success: true, idempotent: true });
+    } else {
+      const fixRes = await b44.entities.Driver.updateMany(
+        { id: driverId },
+        { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, active_order_id: null } }
+      );
+      const fixMatched = fixRes.matchedCount ?? fixRes.modifiedCount ?? 0;
+      if (fixMatched === 1) {
+         await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Repaired driver state', metadata: { orderId, driverId } });
+         return Response.json({ success: true, idempotent: true, note: 'repaired_driver' });
+      } else {
+         await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: 'Failed to repair driver', metadata: { orderId, driverId } });
+         return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION' });
+      }
+    }
+  }
+
+  if (!['aceptado', 'en_viaje'].includes(order.status)) {
+    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: 'Invalid order status', metadata: { orderId, status: order.status } });
+    return Response.json({ success: false, reason: 'invalid_order_status' });
+  }
+
+  const uOrder = await b44.entities.RideOrder.updateMany(
+    { id: orderId, status: { $in: ['aceptado', 'en_viaje'] }, driver_id: driverId },
+    { $set: { status: 'completado', importe_real_actual: importeFinal, updated_date: new Date().toISOString() } }
+  );
+
+  const matchedOrder = uOrder.matchedCount ?? uOrder.modifiedCount ?? 0;
+  if (matchedOrder !== 1) {
+    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: 'Order condition mismatch', metadata: { orderId, driverId } });
+    return Response.json({ success: false, reason: 'race_condition_or_invalid_state' });
+  }
+
+  const uDriver = await b44.entities.Driver.updateMany(
+    { id: driverId },
+    { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, active_order_id: null } }
+  );
+
+  const matchedDriver = uDriver.matchedCount ?? uDriver.modifiedCount ?? 0;
+  if (matchedDriver !== 1) {
+    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: 'Driver update failed', metadata: { orderId, driverId } });
+    return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION' });
+  }
+
+  await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_COMMITTED', user_type: 'sistema', user_name: 'finishRide', details: 'Finished successfully', metadata: { orderId, driverId } });
+  return Response.json({ success: true });
 });
