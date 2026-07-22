@@ -972,15 +972,13 @@ function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
     if (address) openMapsNavigation(address, driver?.current_lat, driver?.current_lng);
   };
 
+  const [isFinishing, setIsFinishing] = useState(false);
   const handleCompletar = () => {
-    // Guardar importe final antes de completar
+    if (isFinishing) return; setIsFinishing(true);
     clearTimeout(saveTimeoutRef.current);
-    base44.entities.RideOrder.update(order.id, {
-      importe_real_actual: Math.round(importeRef.current),
-    }).catch(() => {});
+    base44.entities.RideOrder.update(order.id, { importe_real_actual: Math.round(importeRef.current) }).catch(() => {});
     onStatusChange("completado");
   };
-
   // Pantalla de cobro final
   if (showCobro) {
     const importeFinal = order.importe_real_actual || importeActual;
@@ -1115,8 +1113,8 @@ function ActiveRideScreen({ order, driver, onStatusChange, onCancelRide }) {
           </button>
         )}
         {order.status === "en_viaje" && (
-          <button className="w-full h-14 rounded-2xl gap-2 bg-green-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={handleCompletar}>
-            <CheckCircle2 className="w-5 h-5" /> Terminar Viaje · ${importeActual.toLocaleString()}
+          <button className="w-full h-14 rounded-2xl gap-2 bg-green-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg disabled:opacity-50" onClick={handleCompletar} disabled={isFinishing}>
+            <CheckCircle2 className="w-5 h-5" /> {isFinishing ? "Terminando..." : `Terminar Viaje · $${importeActual.toLocaleString()}`}
           </button>
         )}
       </div>
