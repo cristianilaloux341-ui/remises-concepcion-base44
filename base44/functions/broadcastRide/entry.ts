@@ -26,17 +26,7 @@ Deno.serve(async (req) => {
       assignment_attempt: newAttempt
     });
 
-    // Invoke push directly
-    await b44.functions.invoke('sendPushNotification', {
-      action: 'broadcast_trigger',
-      orderId: orderId,
-      orderData: {
-        pickup_address: orderReq.pickup_address,
-        dropoff_address: orderReq.dropoff_address,
-        fare: orderReq.fare,
-        assignment_attempt: newAttempt
-      }
-    });
+    // Trigger directo eliminado para volver a la automatización de RideOrder
 
     await b44.entities.AuditLog.create({
       action: 'BROADCAST_RIDE_REQUESTED',

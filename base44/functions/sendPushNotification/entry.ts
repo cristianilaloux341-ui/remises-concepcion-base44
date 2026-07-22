@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
   const { action, driverId, subscription, orderId, orderData, token, userId, fromName, messageContent, isBroadcast, targetDriverId } = body;
   
   // BANDERA DE ROLLBACK (Data-only vs Default)
-  const USE_DATA_ONLY = true;
+  const USE_DATA_ONLY = false;
 
   if (action === 'cancel_ride') {
     console.log("=> ACCIÓN: CANCELAR VIAJE (LIMPIAR PANTALLA) RECIBIDA.");
