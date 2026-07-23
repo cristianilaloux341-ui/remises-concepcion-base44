@@ -185,24 +185,28 @@ Deno.serve(async (req) => {
   // Interceptar payload de automación de entidad (RideOrder)
   if (body.event && body.event.entity_name === "RideOrder" && body.data) {
     const isStatusChanged = !body.old_data || body.changed_fields?.includes("status");
-    if (body.data.status === "ofrecido" && body.data.driver_id && isStatusChanged) {
+    
+    const targetDriverId = body.data.driver_id || body.data.reserved_driver_id;
+    const oldTargetDriverId = body.old_data ? (body.old_data.driver_id || body.old_data.reserved_driver_id) : null;
+
+    if (body.data.status === "ofrecido" && targetDriverId && isStatusChanged) {
       body.action = "send";
-      body.driverId = body.data.driver_id;
+      body.driverId = targetDriverId;
       body.orderId = body.data.id;
       body.orderData = {
         pickup_address: body.data.pickup_address,
         dropoff_address: body.data.dropoff_address,
         fare: body.data.fare
       };
-    } else if (body.data.status === "pendiente" && body.old_data?.status === "ofrecido" && body.old_data?.driver_id && isStatusChanged) {
+    } else if (body.data.status === "pendiente" && body.old_data?.status === "ofrecido" && oldTargetDriverId && isStatusChanged) {
       // EVENTO DE RETIRO (Viaje pasa de ofrecido a pendiente)
       body.action = "withdraw";
-      body.driverId = body.old_data.driver_id;
+      body.driverId = oldTargetDriverId;
       body.orderId = body.data.id;
-    } else if (body.data.status === "cancelado" && body.old_data?.driver_id && isStatusChanged) {
+    } else if (body.data.status === "cancelado" && oldTargetDriverId && isStatusChanged) {
       // EVENTO DE CANCELACIÓN (Viaje cancelado por operador)
       body.action = "cancel";
-      body.driverId = body.old_data.driver_id;
+      body.driverId = oldTargetDriverId;
       body.orderId = body.data.id;
     }
   }
