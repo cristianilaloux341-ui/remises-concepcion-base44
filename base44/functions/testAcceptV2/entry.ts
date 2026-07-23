@@ -62,6 +62,13 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
     }
   }
 
+  // 1.5. PRE-VALIDACIÓN (Fast fail)
+  const preValidationNow = Date.now();
+  if (order.status !== "ofrecido") return { status: "INVALID_STATE", correlationId };
+  if (order.assignment_attempt !== assignmentAttempt) return { status: "STALE_ASSIGNMENT_ATTEMPT", correlationId };
+  if (order.driver_id !== driverId) return { status: "INVALID_DRIVER", correlationId };
+  if (order.offerExpiresAt != null && order.offerExpiresAt <= preValidationNow) return { status: "OFFER_EXPIRED", correlationId };
+
   // 2. ADQUISICIÓN DEL LEASE
   const expectedLeaseVersion = order.processingLeaseVersion ?? 0;
   const acquiredLeaseVersion = expectedLeaseVersion + 1;
