@@ -30,14 +30,14 @@ async function captureState(b44: any, rideOrderId: string, driverId: string) {
   };
 }
 
-async function logStep(ctx: any, step: string, start: number, filterCAS: any, resultObj: any, errorMsg: string | null, snapshotBefore: any, rideOrderId: string, driverId: string) {
+async function logStep(ctx: any, step: string, start: number, filterCAS: any, resultObj: any, errorMsg: string | null, snapshotBefore: any, snapshotAfter: any, explicitResult?: string) {
   const executionDurationMs = Date.now() - start;
-  const snapshotAfter = await captureState(ctx.b44, rideOrderId, driverId);
   ctx.seq++;
   
   const casUpdatedCount = resultObj ? resultObj.updated : 0;
   const casUpdateSucceeded = casUpdatedCount === 1;
-  const executionResult = errorMsg ? "FAILED" : (casUpdateSucceeded ? "SUCCESS" : "SKIPPED");
+  
+  const executionResult = explicitResult || (errorMsg ? "FAILED" : (casUpdateSucceeded ? "SUCCESS" : "SKIPPED"));
   
   try {
     await ctx.b44.entities.ProtocolTrace.create({
@@ -82,19 +82,22 @@ export async function releaseLeaseCAS(b44: any, rideOrderId: string, ownerId: st
   let start = Date.now();
   if (ctx) {
     snapshotBefore = await captureState(b44, rideOrderId, ctx.driverId);
-    await logStep(ctx, "RELEASE_LEASE_BEFORE", start, filter, null, null, snapshotBefore, rideOrderId, ctx.driverId);
+    await logStep(ctx, "RELEASE_LEASE_BEFORE", start, filter, null, null, snapshotBefore, null, "SUCCESS");
   }
 
   start = Date.now();
-  let release = { updated: 0 };
-  let error = null;
+  let release;
   try {
     release = await b44.entities.TestRideOrder.updateMany(filter, update);
   } catch (e: any) {
-    error = e.message;
+    if (ctx) await logStep(ctx, "RELEASE_LEASE_AFTER", start, filter, null, e.message, snapshotBefore, null, "FAILED");
+    throw e;
   }
   
-  if (ctx) await logStep(ctx, "RELEASE_LEASE_AFTER", start, filter, release, error, snapshotBefore, rideOrderId, ctx.driverId);
+  if (ctx) {
+    let snapshotAfter = await captureState(b44, rideOrderId, ctx.driverId);
+    await logStep(ctx, "RELEASE_LEASE_AFTER", start, filter, release, null, snapshotBefore, snapshotAfter);
+  }
 
   return release.updated === 1 ? "RELEASED" : "STILL_OWNED_BUT_NOT_RELEASED";
 }
@@ -119,19 +122,22 @@ export async function compensateDriverCAS(b44: any, driverId: string, rideOrderI
   let start = Date.now();
   if (ctx) {
     snapshotBefore = await captureState(b44, rideOrderId, driverId);
-    await logStep(ctx, "COMPENSATE_DRIVER_BEFORE", start, filter, null, null, snapshotBefore, rideOrderId, driverId);
+    await logStep(ctx, "COMPENSATE_DRIVER_BEFORE", start, filter, null, null, snapshotBefore, null, "SUCCESS");
   }
 
   start = Date.now();
-  let comp = { updated: 0 };
-  let error = null;
+  let comp;
   try {
     comp = await b44.entities.TestDriver.updateMany(filter, update);
   } catch (e: any) {
-    error = e.message;
+    if (ctx) await logStep(ctx, "COMPENSATE_DRIVER_AFTER", start, filter, null, e.message, snapshotBefore, null, "FAILED");
+    throw e;
   }
 
-  if (ctx) await logStep(ctx, "COMPENSATE_DRIVER_AFTER", start, filter, comp, error, snapshotBefore, rideOrderId, driverId);
+  if (ctx) {
+    let snapshotAfter = await captureState(b44, rideOrderId, driverId);
+    await logStep(ctx, "COMPENSATE_DRIVER_AFTER", start, filter, comp, null, snapshotBefore, snapshotAfter);
+  }
   
   return comp;
 }
@@ -170,7 +176,8 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
   else if (order.offerExpiresAt != null && order.offerExpiresAt <= preValidationNow) preValStatus = "OFFER_EXPIRED";
 
   if (preValStatus) {
-     await logStep(ctx, "PREVALIDATION_RESULT", Date.now(), {}, {updated:0}, preValStatus, await captureState(b44, rideOrderId, driverId), rideOrderId, driverId);
+     let preSnap = await captureState(b44, rideOrderId, driverId);
+     await logStep(ctx, "PREVALIDATION_RESULT", Date.now(), {}, null, null, preSnap, preSnap, "SUCCESS");
      return { status: preValStatus, correlationId };
   }
 
@@ -199,18 +206,23 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
 
   let snapshotBefore = await captureState(b44, rideOrderId, driverId);
   let start = Date.now();
-  await logStep(ctx, "ACQUIRE_LEASE_BEFORE", start, acquireFilter, null, null, snapshotBefore, rideOrderId, driverId);
+  await logStep(ctx, "ACQUIRE_LEASE_BEFORE", start, acquireFilter, null, null, snapshotBefore, null, "SUCCESS");
 
   start = Date.now();
-  let acquired = { updated: 0 };
-  let error = null;
+  let acquired;
   try {
     acquired = await b44.entities.TestRideOrder.updateMany(acquireFilter, acquireUpdate);
-  } catch (e: any) { error = e.message; }
-  await logStep(ctx, "ACQUIRE_LEASE_AFTER", start, acquireFilter, acquired, error, snapshotBefore, rideOrderId, driverId);
+  } catch (e: any) { 
+    await logStep(ctx, "ACQUIRE_LEASE_AFTER", start, acquireFilter, null, e.message, snapshotBefore, null, "FAILED");
+    throw e;
+  }
+  
+  let snapshotAfter = await captureState(b44, rideOrderId, driverId);
+  await logStep(ctx, "ACQUIRE_LEASE_AFTER", start, acquireFilter, acquired, null, snapshotBefore, snapshotAfter);
 
   if (acquired.updated === 0) {
-    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, {updated:0}, "OPERATION_IN_PROGRESS", await captureState(b44, rideOrderId, driverId), rideOrderId, driverId);
+    let retSnap = await captureState(b44, rideOrderId, driverId);
+    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
     return { status: "OPERATION_IN_PROGRESS", correlationId };
   }
 
@@ -244,26 +256,32 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
     else if (order.processingOwnerId !== ownerId || order.processingLeaseVersion !== acquiredLeaseVersion || order.processingLeaseExpiresAt <= validationNow) status = "LEASE_LOST";
     else status = "INVALID_STATE";
     
-    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, {updated:0}, status, await captureState(b44, rideOrderId, driverId), rideOrderId, driverId);
+    let retSnap = await captureState(b44, rideOrderId, driverId);
+    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
     return { status, leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
 
   // 4. TRANSICIÓN A VALIDATED
-  const validated = await b44.entities.TestRideOrder.updateMany(
-    { 
-      id: rideOrderId, 
-      processingOwnerId: ownerId, 
-      processingPhase: "ACQUIRED", 
-      processingLeaseVersion: acquiredLeaseVersion, 
-      processingAction: "ACCEPT", 
-      processingOperationKey: operationKey, 
-      processingLeaseExpiresAt: { $gt: Date.now() } 
-    },
-    { $set: { processingPhase: "VALIDATED" } }
-  );
+  const valFilter = { 
+    id: rideOrderId, 
+    processingOwnerId: ownerId, 
+    processingPhase: "ACQUIRED", 
+    processingLeaseVersion: acquiredLeaseVersion, 
+    processingAction: "ACCEPT", 
+    processingOperationKey: operationKey, 
+    processingLeaseExpiresAt: { $gt: Date.now() } 
+  };
+  let validated;
+  try {
+    validated = await b44.entities.TestRideOrder.updateMany(valFilter, { $set: { processingPhase: "VALIDATED" } });
+  } catch(e) {
+    throw e;
+  }
+  
   if (validated.updated === 0) {
     const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
-    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, {updated:0}, "LEASE_LOST", await captureState(b44, rideOrderId, driverId), rideOrderId, driverId);
+    let retSnap = await captureState(b44, rideOrderId, driverId);
+    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
     return { status: "LEASE_LOST", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
 
@@ -271,7 +289,8 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
   const driver = await b44.entities.TestDriver.get(driverId);
   if (!driver) {
       const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
-      await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, {updated:0}, "DRIVER_NOT_FOUND", await captureState(b44, rideOrderId, driverId), rideOrderId, driverId);
+      let retSnap = await captureState(b44, rideOrderId, driverId);
+      await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
       return { status: "DRIVER_NOT_FOUND", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
   const expectedDriverVersion = driver.driver_reservation_version ?? 0;
@@ -298,19 +317,24 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
 
   snapshotBefore = await captureState(b44, rideOrderId, driverId);
   start = Date.now();
-  await logStep(ctx, "RESERVE_DRIVER_BEFORE", start, reserveDriverFilter, null, null, snapshotBefore, rideOrderId, driverId);
+  await logStep(ctx, "RESERVE_DRIVER_BEFORE", start, reserveDriverFilter, null, null, snapshotBefore, null, "SUCCESS");
 
   start = Date.now();
-  let resDriver = { updated: 0 };
-  error = null;
+  let resDriver;
   try {
     resDriver = await b44.entities.TestDriver.updateMany(reserveDriverFilter, reserveDriverUpdate);
-  } catch (e: any) { error = e.message; }
-  await logStep(ctx, "RESERVE_DRIVER_AFTER", start, reserveDriverFilter, resDriver, error, snapshotBefore, rideOrderId, driverId);
+  } catch (e: any) { 
+    await logStep(ctx, "RESERVE_DRIVER_AFTER", start, reserveDriverFilter, null, e.message, snapshotBefore, null, "FAILED");
+    throw e;
+  }
+  
+  snapshotAfter = await captureState(b44, rideOrderId, driverId);
+  await logStep(ctx, "RESERVE_DRIVER_AFTER", start, reserveDriverFilter, resDriver, null, snapshotBefore, snapshotAfter);
 
   if (resDriver.updated === 0) {
     const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
-    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, {updated:0}, "DRIVER_ALREADY_BUSY", await captureState(b44, rideOrderId, driverId), rideOrderId, driverId);
+    let retSnap = await captureState(b44, rideOrderId, driverId);
+    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
     return { status: "DRIVER_ALREADY_BUSY", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
 
@@ -328,20 +352,25 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
 
   snapshotBefore = await captureState(b44, rideOrderId, driverId);
   start = Date.now();
-  await logStep(ctx, "DRIVER_RESERVED_TRANSITION_BEFORE", start, driverResTransFilter, null, null, snapshotBefore, rideOrderId, driverId);
+  await logStep(ctx, "DRIVER_RESERVED_TRANSITION_BEFORE", start, driverResTransFilter, null, null, snapshotBefore, null, "SUCCESS");
 
   start = Date.now();
-  let reservedPhase = { updated: 0 };
-  error = null;
+  let reservedPhase;
   try {
     reservedPhase = await b44.entities.TestRideOrder.updateMany(driverResTransFilter, driverResTransUpdate);
-  } catch (e: any) { error = e.message; }
-  await logStep(ctx, "DRIVER_RESERVED_TRANSITION_AFTER", start, driverResTransFilter, reservedPhase, error, snapshotBefore, rideOrderId, driverId);
+  } catch (e: any) { 
+    await logStep(ctx, "DRIVER_RESERVED_TRANSITION_AFTER", start, driverResTransFilter, null, e.message, snapshotBefore, null, "FAILED");
+    throw e;
+  }
+  
+  snapshotAfter = await captureState(b44, rideOrderId, driverId);
+  await logStep(ctx, "DRIVER_RESERVED_TRANSITION_AFTER", start, driverResTransFilter, reservedPhase, null, snapshotBefore, snapshotAfter);
 
   if (reservedPhase.updated === 0) {
     const comp = await compensateDriverCAS(b44, driverId, rideOrderId, reservationKey, reservedDriverVersion, correlationId, ctx);
     const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
-    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, {updated:0}, "INTERNAL_INCONSISTENCY", await captureState(b44, rideOrderId, driverId), rideOrderId, driverId);
+    let retSnap = await captureState(b44, rideOrderId, driverId);
+    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
     return { status: "INTERNAL_INCONSISTENCY", compensationStatus: comp.updated === 1 ? "COMPENSATION_COMPLETED" : "COMPENSATION_REQUIRED", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
 
@@ -381,15 +410,19 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
 
   snapshotBefore = await captureState(b44, rideOrderId, driverId);
   start = Date.now();
-  await logStep(ctx, "COMMERCIAL_COMMIT_BEFORE", start, commitFilter, null, null, snapshotBefore, rideOrderId, driverId);
+  await logStep(ctx, "COMMERCIAL_COMMIT_BEFORE", start, commitFilter, null, null, snapshotBefore, null, "SUCCESS");
 
   start = Date.now();
-  let commit = { updated: 0 };
-  error = null;
+  let commit;
   try {
     commit = await b44.entities.TestRideOrder.updateMany(commitFilter, commitUpdate);
-  } catch (e: any) { error = e.message; }
-  await logStep(ctx, "COMMERCIAL_COMMIT_AFTER", start, commitFilter, commit, error, snapshotBefore, rideOrderId, driverId);
+  } catch (e: any) { 
+    await logStep(ctx, "COMMERCIAL_COMMIT_AFTER", start, commitFilter, null, e.message, snapshotBefore, null, "FAILED");
+    throw e;
+  }
+  
+  snapshotAfter = await captureState(b44, rideOrderId, driverId);
+  await logStep(ctx, "COMMERCIAL_COMMIT_AFTER", start, commitFilter, commit, null, snapshotBefore, snapshotAfter);
 
   // 8. FALLO Y CLASIFICACIÓN DEL COMMIT
   if (commit.updated === 0) {
@@ -398,7 +431,8 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
     if (!check) {
       const comp = await compensateDriverCAS(b44, driverId, rideOrderId, reservationKey, reservedDriverVersion, correlationId, ctx);
       const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
-      await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, {updated:0}, "ORDER_NOT_FOUND", await captureState(b44, rideOrderId, driverId), rideOrderId, driverId);
+      let retSnap = await captureState(b44, rideOrderId, driverId);
+      await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
       return { 
         status: "ORDER_NOT_FOUND", 
         compensationStatus: comp.updated === 1 ? "COMPENSATION_COMPLETED" : "COMPENSATION_REQUIRED", 
@@ -409,7 +443,8 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
     
     if (check.status === "aceptado" && check.lastCompletedOperationKey === operationKey) {
       const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
-      await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, {updated:0}, "SUCCESS_ALREADY_PROCESSED", await captureState(b44, rideOrderId, driverId), rideOrderId, driverId);
+      let retSnap = await captureState(b44, rideOrderId, driverId);
+      await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
       return { status: "SUCCESS_ALREADY_PROCESSED", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
     }
     
@@ -425,13 +460,15 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
 
     const comp = await compensateDriverCAS(b44, driverId, rideOrderId, reservationKey, reservedDriverVersion, correlationId, ctx);
     const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
-    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, {updated:0}, commercialStatus, await captureState(b44, rideOrderId, driverId), rideOrderId, driverId);
+    let retSnap = await captureState(b44, rideOrderId, driverId);
+    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
     return { status: commercialStatus, compensationStatus: comp.updated === 1 ? "COMPENSATION_COMPLETED" : "COMPENSATION_REQUIRED", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
 
   // 9. LIBERACIÓN
   const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
-  await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, {updated:0}, "SUCCESS", await captureState(b44, rideOrderId, driverId), rideOrderId, driverId);
+  let retSnap = await captureState(b44, rideOrderId, driverId);
+  await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
   return { status: "SUCCESS", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
 }
 
