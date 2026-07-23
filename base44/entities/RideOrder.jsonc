@@ -129,6 +129,141 @@
       "type": "number",
       "default": 1,
       "description": "Contador de reasignaciones para control transaccional"
+    },
+    "processingOwnerId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "processingLeaseVersion": {
+      "type": "number",
+      "default": 0
+    },
+    "processingLeaseExpiresAt": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "processingAction": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "processingPhase": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "ACQUIRED",
+        "TRANSITION_COMMITTED",
+        "AUDIT_PENDING",
+        "EFFECT_PENDING",
+        "COMPLETED",
+        null
+      ]
+    },
+    "processingOperationKey": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastCompletedOperationKey": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastCompletedAction": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastCompletedResult": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastCompletedAt": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "lastCompletedOfferVersion": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "pendingEffectKey": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pendingEffectType": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pendingEffectStatus": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "PENDING",
+        "IN_PROGRESS",
+        "COMPLETED",
+        "FAILED",
+        null
+      ]
+    },
+    "pendingEffectVersion": {
+      "type": "number",
+      "default": 0
+    },
+    "effectOwnerId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "effectLeaseExpiresAt": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "effectAttemptCount": {
+      "type": "number",
+      "default": 0
+    },
+    "lastCompletedEffectKey": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastEffectError": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastEffectAttemptAt": {
+      "type": [
+        "number",
+        "null"
+      ]
     }
   },
   "required": [
