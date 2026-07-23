@@ -64,6 +64,7 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
 
   // 1.5. PRE-VALIDACIÓN (Fast fail)
   const preValidationNow = Date.now();
+  if (order.status === "cancelado") return { status: "ORDER_CANCELLED", correlationId };
   if (order.status !== "ofrecido") return { status: "INVALID_STATE", correlationId };
   if (order.assignment_attempt !== assignmentAttempt) return { status: "STALE_ASSIGNMENT_ATTEMPT", correlationId };
   if (order.driver_id !== driverId) return { status: "INVALID_DRIVER", correlationId };
@@ -122,7 +123,7 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
     else if (order.offerExpiresAt != null && order.offerExpiresAt <= validationNow) status = "OFFER_EXPIRED";
     else if (order.assignment_attempt !== assignmentAttempt) status = "STALE_ASSIGNMENT_ATTEMPT";
     else if (order.driver_id !== driverId) status = "INVALID_DRIVER";
-    else if (order.processingOwnerId !== ownerId || order.processingLeaseVersion !== acquiredLeaseVersion) status = "LEASE_LOST";
+    else if (order.processingOwnerId !== ownerId || order.processingLeaseVersion !== acquiredLeaseVersion || order.processingLeaseExpiresAt <= validationNow) status = "LEASE_LOST";
     else status = "INVALID_STATE";
     return { status, leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
