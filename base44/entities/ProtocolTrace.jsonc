@@ -1,0 +1,57 @@
+{
+  "name": "ProtocolTrace",
+  "type": "object",
+  "properties": {
+    "correlationId": {
+      "type": "string"
+    },
+    "invocationId": {
+      "type": "string"
+    },
+    "traceSequence": {
+      "type": "number"
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "step": {
+      "type": "string"
+    },
+    "operationKey": {
+      "type": "string"
+    },
+    "filterCAS": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "casUpdatedCount": {
+      "type": "number"
+    },
+    "casUpdateSucceeded": {
+      "type": "boolean"
+    },
+    "executionResult": {
+      "type": "string",
+      "enum": [
+        "SUCCESS",
+        "SKIPPED",
+        "FAILED"
+      ]
+    },
+    "executionDurationMs": {
+      "type": "number"
+    },
+    "error": {
+      "type": "string"
+    },
+    "snapshotBefore": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "snapshotAfter": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": []
+}
