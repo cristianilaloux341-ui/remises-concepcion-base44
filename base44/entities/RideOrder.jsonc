@@ -105,30 +105,30 @@
         "operador",
         "cliente"
       ],
-      "default": "operador",
-      "description": "Origen del pedido"
+      "default": "operador"
     },
     "distancia_teorica_metros": {
-      "type": "number",
-      "description": "Distancia calculada por API al despachar"
+      "type": "number"
     },
     "importe_estimado": {
-      "type": "number",
-      "description": "Tarifa estimada al momento del despacho"
+      "type": "number"
     },
     "importe_real_actual": {
-      "type": "number",
-      "description": "Tarifa ajustada en tiempo real por el chofer"
+      "type": "number"
     },
     "segundos_espera_acumulados": {
       "type": "number",
-      "default": 0,
-      "description": "Segundos de espera cobrados"
+      "default": 0
     },
     "assignment_attempt": {
       "type": "number",
-      "default": 1,
-      "description": "Contador de reasignaciones para control transaccional"
+      "default": 1
+    },
+    "offerExpiresAt": {
+      "type": [
+        "number",
+        "null"
+      ]
     },
     "processingOwnerId": {
       "type": [
@@ -159,6 +159,9 @@
       ],
       "enum": [
         "ACQUIRED",
+        "VALIDATED",
+        "DRIVER_RESERVED",
+        "COMMITTED",
         "TRANSITION_COMMITTED",
         "AUDIT_PENDING",
         "EFFECT_PENDING",
@@ -230,6 +233,12 @@
     "pendingEffectVersion": {
       "type": "number",
       "default": 0
+    },
+    "pendingEffectCorrelationId": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "effectOwnerId": {
       "type": [

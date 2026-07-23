@@ -75,7 +75,7 @@
     },
     "notas": {
       "type": "string",
-      "description": "Notas internas de la comisi\u00f3n (recordatorios, faltantes, observaciones)"
+      "description": "Notas internas de la comisi\u00f3n"
     },
     "pin": {
       "type": "string",
@@ -110,11 +110,21 @@
     "reserved_order_id": {
       "type": "string"
     },
+    "active_ride_id": {
+      "type": "string"
+    },
     "reservation_token": {
       "type": "string"
     },
     "manual_reservation_token": {
       "type": "string"
+    },
+    "driver_reservation_key": {
+      "type": "string"
+    },
+    "driver_reservation_version": {
+      "type": "number",
+      "default": 0
     },
     "current_base": {
       "type": "string",
@@ -127,16 +137,13 @@
         "6-D\u00edaz V\u00e9lez",
         "7-Don Bosco",
         "8-Monumento"
-      ],
-      "description": "Base actual donde est\u00e1 esperando"
+      ]
     },
     "queue_position": {
-      "type": "number",
-      "description": "Posici\u00f3n en la cola de la base"
+      "type": "number"
     },
     "queue_entered_at": {
-      "type": "string",
-      "description": "Timestamp de cuando entr\u00f3 a la cola"
+      "type": "string"
     },
     "current_lat": {
       "type": "number"
@@ -145,29 +152,23 @@
       "type": "number"
     },
     "user_id": {
-      "type": "string",
-      "description": "ID del usuario vinculado al chofer"
+      "type": "string"
     },
     "push_subscription": {
-      "type": "string",
-      "description": "JSON serializado de la PushSubscription del navegador"
+      "type": "string"
     },
     "fcm_token": {
-      "type": "string",
-      "description": "Token FCM nativo de Android"
+      "type": "string"
     },
     "device_id": {
-      "type": "string",
-      "description": "ID \u00fanico del dispositivo asociado"
+      "type": "string"
     },
     "current_session_token": {
-      "type": "string",
-      "description": "Token de la sesi\u00f3n actual en el dispositivo"
+      "type": "string"
     },
     "last_active": {
       "type": "string",
-      "format": "date",
-      "description": "\u00daltima vez reportando actividad online"
+      "format": "date"
     }
   },
   "required": [
