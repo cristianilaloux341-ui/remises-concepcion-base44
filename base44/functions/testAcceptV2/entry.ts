@@ -41,7 +41,7 @@ export async function compensateDriverCAS(b44: any, driverId: string, rideOrderI
   return comp;
 }
 
-export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId: string, operationKey: string, assignmentAttempt: number) {
+export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId: string, operationKey: string, assignmentAttempt: number, injectFailureAtCommit?: boolean) {
   const correlationId = crypto.randomUUID();
   const ownerId = crypto.randomUUID();
   
@@ -200,6 +200,9 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
   }
 
   // 7. COMMIT COMERCIAL
+  if (injectFailureAtCommit) {
+    await b44.entities.TestRideOrder.updateMany({id: rideOrderId}, {$set: {status: "cancelado"}});
+  }
   const commitNow = Date.now();
   const commit = await b44.entities.TestRideOrder.updateMany(
     { 
@@ -278,13 +281,13 @@ Deno.serve(async (req) => {
     const b44 = base44.asServiceRole;
     
     const payload = await req.json();
-    const { rideOrderId, driverId, operationKey, assignmentAttempt } = payload;
+    const { rideOrderId, driverId, operationKey, assignmentAttempt, injectFailureAtCommit } = payload;
     
     if (!rideOrderId || !driverId || !operationKey || assignmentAttempt == null) {
       return Response.json({ error: "Missing required parameters" }, { status: 400 });
     }
 
-    const result = await testAcceptV2Logic(b44, rideOrderId, driverId, operationKey, assignmentAttempt);
+    const result = await testAcceptV2Logic(b44, rideOrderId, driverId, operationKey, assignmentAttempt, injectFailureAtCommit);
     return Response.json(result);
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
