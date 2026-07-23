@@ -94,6 +94,7 @@ public class RideAlertController {
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .setContentIntent(openAppPendingIntent)
+                .setFullScreenIntent(openAppPendingIntent, true)
                 .setDeleteIntent(dismissPendingIntent)
                 .addAction(0, "✅ ACEPTAR", acceptPendingIntent)
                 .addAction(0, "❌ RECHAZAR", rejectPendingIntent);
@@ -111,8 +112,14 @@ public class RideAlertController {
 
         // Sonido y Vibración
         try {
-            Uri soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-            if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
+            Uri soundUri;
+            if (soundResId != 0) {
+                soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
+            } else {
+                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            }
             
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setDataSource(context, soundUri);
@@ -201,5 +208,28 @@ public class RideAlertController {
 
     public synchronized boolean isAlertActive(String orderId) {
         return orderId != null && orderId.equals(currentOrderId) && mediaPlayer != null;
+    }
+
+    public synchronized void playOneShotSound(Context context, String type) {
+        try {
+            String fileName = "message";
+            if ("cancel".equals(type)) fileName = "cancel";
+            
+            int soundResId = context.getResources().getIdentifier(fileName, "raw", context.getPackageName());
+            if (soundResId == 0) return;
+            
+            Uri soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
+            MediaPlayer mp = new MediaPlayer();
+            mp.setDataSource(context, soundUri);
+            mp.setAudioAttributes(new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build());
+            mp.setOnCompletionListener(MediaPlayer::release);
+            mp.prepare();
+            mp.start();
+        } catch (Exception e) {
+            Log.e(TAG, "Error reproduciendo sonido one-shot", e);
+        }
     }
 }

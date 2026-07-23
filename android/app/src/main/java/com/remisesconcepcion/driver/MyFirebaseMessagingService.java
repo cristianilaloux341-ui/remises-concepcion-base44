@@ -55,6 +55,7 @@ public class MyFirebaseMessagingService extends MessagingService {
             if (orderId != null) {
                 RideAlertController.getInstance().stopAlert(getApplicationContext(), orderId, "Comando remoto: " + type);
             }
+            RideAlertController.getInstance().playOneShotSound(getApplicationContext(), "cancel");
             return;
         }
 
@@ -77,8 +78,8 @@ public class MyFirebaseMessagingService extends MessagingService {
             if (sentAtStr != null && !sentAtStr.isEmpty()) {
                 try {
                     long sentAtMillis = Long.parseLong(sentAtStr);
-                    if (System.currentTimeMillis() - sentAtMillis > 2 * 60 * 1000) {
-                        Log.e(TAG, "=> PUSH DE OFERTA DESCARTADO: Expiró (antigüedad > 2 min).");
+                    if (System.currentTimeMillis() - sentAtMillis > 5 * 60 * 1000) {
+                        Log.e(TAG, "=> PUSH DE OFERTA DESCARTADO: Expiró (antigüedad > 5 min).");
                         return;
                     }
                 } catch (NumberFormatException e) {
@@ -96,6 +97,10 @@ public class MyFirebaseMessagingService extends MessagingService {
             
             Log.e(TAG, "Construyendo notificación interactiva nativa para viaje...");
             showInteractiveNotification(data);
+        }
+
+        if ("mensaje".equals(type) || "chat".equals(type)) {
+            RideAlertController.getInstance().playOneShotSound(getApplicationContext(), "message");
         }
 
         Log.e(TAG, "Pasando mensaje al comportamiento original de Capacitor...");
