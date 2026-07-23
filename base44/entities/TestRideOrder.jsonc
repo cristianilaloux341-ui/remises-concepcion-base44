@@ -1,0 +1,68 @@
+{
+  "name": "TestRideOrder",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string"
+    },
+    "driver_id": {
+      "type": "string"
+    },
+    "assignment_attempt": {
+      "type": "number"
+    },
+    "offerExpiresAt": {
+      "type": "number"
+    },
+    "processingOwnerId": {
+      "type": "string"
+    },
+    "processingLeaseVersion": {
+      "type": "number",
+      "default": 0
+    },
+    "processingLeaseExpiresAt": {
+      "type": "number"
+    },
+    "processingAction": {
+      "type": "string"
+    },
+    "processingOperationKey": {
+      "type": "string"
+    },
+    "processingPhase": {
+      "type": "string"
+    },
+    "lastCompletedOperationKey": {
+      "type": "string"
+    },
+    "lastCompletedAction": {
+      "type": "string"
+    },
+    "lastCompletedResult": {
+      "type": "string"
+    },
+    "lastCompletedAt": {
+      "type": "number"
+    },
+    "lastCompletedOfferVersion": {
+      "type": "number"
+    },
+    "pendingEffectKey": {
+      "type": "string"
+    },
+    "pendingEffectType": {
+      "type": "string"
+    },
+    "pendingEffectStatus": {
+      "type": "string"
+    },
+    "pendingEffectCorrelationId": {
+      "type": "string"
+    },
+    "pendingEffectVersion": {
+      "type": "number",
+      "default": 0
+    }
+  }
+}

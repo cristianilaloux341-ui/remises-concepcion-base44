@@ -1,0 +1,25 @@
+{
+  "name": "TestDriver",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string"
+    },
+    "dispatch_status": {
+      "type": "string"
+    },
+    "active_ride_id": {
+      "type": "string"
+    },
+    "reserved_order_id": {
+      "type": "string"
+    },
+    "driver_reservation_key": {
+      "type": "string"
+    },
+    "driver_reservation_version": {
+      "type": "number",
+      "default": 0
+    }
+  }
+}
