@@ -1168,9 +1168,8 @@ export default function DriverApp() {
     const urlParams = new URLSearchParams(window.location.search);
     const autoAcceptOrderId = urlParams.get("accept");
     if (autoAcceptOrderId && myDriverId) {
-      ignoredOrdersRef.current.add(autoAcceptOrderId);
       if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
-      setLocalOverride({ status: "en_viaje", _ignoredOrderId: autoAcceptOrderId });
+      setLocalOverride({ status: "en_viaje", optimisticOrderId: autoAcceptOrderId });
       updateOrder.mutate({ id: autoAcceptOrderId, data: { status: "aceptado", driver_id: myDriverId } });
       updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
       window.history.replaceState({}, "", "/driver-app");
@@ -1238,11 +1237,10 @@ export default function DriverApp() {
       if (msg.type === "SW_ACCEPT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "accept")) {
         const orderId = msg.orderId || msg.payload?.orderId;
         if (orderId && myDriverId) {
-          ignoredOrdersRef.current.add(orderId);
           if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
           notifySW({ type: "ACK_ACCEPT_ORDER", orderId }); // Send ACK immediately so SW doesn't spawn a new tab
-          setLocalOverride({ status: "en_viaje" });
-          updateOrder.mutate({ id: orderId, data: { status: "aceptado" } });
+          setLocalOverride({ status: "en_viaje", optimisticOrderId: orderId });
+          updateOrder.mutate({ id: orderId, data: { status: "aceptado", driver_id: myDriverId } });
           updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
           window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
@@ -1463,13 +1461,21 @@ export default function DriverApp() {
     : null;
 
   const ignoredOrderId = localOverride?._ignoredOrderId || null;
+  const optimisticOrderId = localOverride?.optimisticOrderId || null;
 
-  const activeOrder = debugArray(safeOrders, 'safeOrders').find(o => 
+  let activeOrder = debugArray(safeOrders, 'safeOrders').find(o => 
     o.driver_id === myDriverId && 
     ["aceptado", "en_camino", "en_viaje"].includes(o.status) &&
     o.id !== ignoredOrderId &&
     !ignoredOrdersRef.current.has(o.id)
   );
+
+  if (!activeOrder && optimisticOrderId) {
+    const optOrder = debugArray(safeOrders, 'safeOrders').find(o => o.id === optimisticOrderId);
+    if (optOrder) {
+      activeOrder = { ...optOrder, status: "aceptado", driver_id: myDriverId };
+    }
+  }
 
   const isLocallyBusy = 
     (localOverride && ["en_viaje", "aceptado", "en_camino"].includes(localOverride.status)) || 
@@ -1750,7 +1756,13 @@ export default function DriverApp() {
 
       if (res.data.accepted) {
         if(Capacitor.isNativePlatform()&&offeredOrder?.id){Capacitor.Plugins.ForegroundService?.markRideResolved({orderId:offeredOrder.id,assignmentAttempt:offeredOrder.assignment_attempt||1,resolutionType:"ACCEPTED"}).catch(()=>{});stopNativeRideAlert(offeredOrder.id);}
-        if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id); setLocalOverride({ status: "en_viaje", _ignoredOrderId: offeredOrder.id }); updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+        if (offeredOrder?.id) {
+          setLocalOverride({ status: "en_viaje", optimisticOrderId: offeredOrder.id });
+          updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado", driver_id: myDriverId } });
+        } else {
+          setLocalOverride({ status: "en_viaje" });
+        }
+        updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
         
         base44.functions.invoke("sendPushNotification", {
           action: "cancel_ride",
@@ -1871,7 +1883,7 @@ export default function DriverApp() {
     });
   };
   const handleTakeOrder = (order) => {
-    setLocalOverride({ status: "en_viaje" });
+    setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
     updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
   };
@@ -1927,7 +1939,13 @@ export default function DriverApp() {
 
       if (res.data.accepted) {
         if(Capacitor.isNativePlatform()&&order?.id){Capacitor.Plugins.ForegroundService?.markRideResolved({orderId:order.id,assignmentAttempt:order.assignment_attempt||1,resolutionType:"ACCEPTED"}).catch(()=>{});stopNativeRideAlert(order.id);}
-        if (order?.id) ignoredOrdersRef.current.add(order.id); setLocalOverride({ status: "en_viaje", _ignoredOrderId: order.id }); updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+        if (order?.id) {
+          setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
+          updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId } });
+        } else {
+          setLocalOverride({ status: "en_viaje" });
+        }
+        updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
         
         base44.functions.invoke("sendPushNotification", {
           action: "cancel_ride",
