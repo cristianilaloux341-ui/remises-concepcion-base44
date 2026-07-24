@@ -105,6 +105,13 @@ const AuthenticatedApp = () => {
   
   const hasLocalOperator = sessionStorage.getItem('local_operator') !== null;
 
+  // Wrapper para proteger rutas del cliente
+  const ClientProtectedRoute = ({ children }) => {
+    const clientId = localStorage.getItem('client_id');
+    if (!clientId) return <Navigate to="/app-cliente/login" replace />;
+    return children;
+  };
+
   // Permitimos a isClientApp pasar directamente sin chequear login interno
   if (!isDriverApp && !isClientApp && !isLoginCentral && !hasLocalOperator) {
     window.location.href = "/login";
@@ -130,15 +137,15 @@ const AuthenticatedApp = () => {
         <Route path="/app-cliente/splash" element={<ClientSplash />} />
         <Route path="/app-cliente/login" element={<ClientLogin />} />
         <Route path="/app-cliente/register" element={<ClientRegister />} />
-        <Route path="/app-cliente/home" element={<ClientHome />} />
-        <Route path="/app-cliente/request" element={<ClientRequest />} />
-        <Route path="/app-cliente/fare" element={<ClientFare />} />
-        <Route path="/app-cliente/searching" element={<ClientSearching />} />
-        <Route path="/app-cliente/assigned" element={<ClientAssigned />} />
-        <Route path="/app-cliente/active-ride" element={<ClientActiveRide />} />
+        <Route path="/app-cliente/home" element={<ClientProtectedRoute><ClientHome /></ClientProtectedRoute>} />
+        <Route path="/app-cliente/request" element={<ClientProtectedRoute><ClientRequest /></ClientProtectedRoute>} />
+        <Route path="/app-cliente/fare" element={<ClientProtectedRoute><ClientFare /></ClientProtectedRoute>} />
+        <Route path="/app-cliente/searching" element={<ClientProtectedRoute><ClientSearching /></ClientProtectedRoute>} />
+        <Route path="/app-cliente/assigned" element={<ClientProtectedRoute><ClientAssigned /></ClientProtectedRoute>} />
+        <Route path="/app-cliente/active-ride" element={<ClientProtectedRoute><ClientActiveRide /></ClientProtectedRoute>} />
         <Route path="/app-cliente/finished" element={<Navigate to="/app-cliente/rating" replace />} />
-        <Route path="/app-cliente/rating" element={<ClientRating />} />
-        <Route path="/app-cliente/profile" element={<ClientProfile />} />
+        <Route path="/app-cliente/rating" element={<ClientProtectedRoute><ClientRating /></ClientProtectedRoute>} />
+        <Route path="/app-cliente/profile" element={<ClientProtectedRoute><ClientProfile /></ClientProtectedRoute>} />
         <Route path="*" element={<Navigate to="/app-cliente/splash" replace />} />
       </Routes>
     );
@@ -175,15 +182,15 @@ const AuthenticatedApp = () => {
       <Route path="/app-cliente/splash" element={<ClientSplash />} />
       <Route path="/app-cliente/login" element={<ClientLogin />} />
       <Route path="/app-cliente/register" element={<ClientRegister />} />
-      <Route path="/app-cliente/home" element={<ClientHome />} />
-      <Route path="/app-cliente/request" element={<ClientRequest />} />
-      <Route path="/app-cliente/fare" element={<ClientFare />} />
-      <Route path="/app-cliente/searching" element={<ClientSearching />} />
-      <Route path="/app-cliente/assigned" element={<ClientAssigned />} />
-      <Route path="/app-cliente/active-ride" element={<ClientActiveRide />} />
+      <Route path="/app-cliente/home" element={<ClientProtectedRoute><ClientHome /></ClientProtectedRoute>} />
+      <Route path="/app-cliente/request" element={<ClientProtectedRoute><ClientRequest /></ClientProtectedRoute>} />
+      <Route path="/app-cliente/fare" element={<ClientProtectedRoute><ClientFare /></ClientProtectedRoute>} />
+      <Route path="/app-cliente/searching" element={<ClientProtectedRoute><ClientSearching /></ClientProtectedRoute>} />
+      <Route path="/app-cliente/assigned" element={<ClientProtectedRoute><ClientAssigned /></ClientProtectedRoute>} />
+      <Route path="/app-cliente/active-ride" element={<ClientProtectedRoute><ClientActiveRide /></ClientProtectedRoute>} />
       <Route path="/app-cliente/finished" element={<Navigate to="/app-cliente/rating" replace />} />
-      <Route path="/app-cliente/rating" element={<ClientRating />} />
-      <Route path="/app-cliente/profile" element={<ClientProfile />} />
+      <Route path="/app-cliente/rating" element={<ClientProtectedRoute><ClientRating /></ClientProtectedRoute>} />
+      <Route path="/app-cliente/profile" element={<ClientProtectedRoute><ClientProfile /></ClientProtectedRoute>} />
 
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<AppLayout />}>
