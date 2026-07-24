@@ -51,7 +51,7 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts"; // Actualizado a ride_alerts según requerimiento
+        String channelId = "ride_alerts_urgent_v4"; // Nuevo ID para forzar Android a recrear el canal en silencio
 
         // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

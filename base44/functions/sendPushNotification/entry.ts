@@ -296,8 +296,23 @@ Deno.serve(async (req) => {
         const driver = drivers[0];
         if (!driver) continue;
 
-        // Web Push Cancel
-        if (driver.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+        // Native FCM Cancel (Prioritize over Web Push)
+        if (driver.fcm_token && tokenRes && tokenRes.access_token) {
+           try {
+             await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+               method: 'POST', headers: { 'Authorization': `Bearer ${tokenRes.access_token}`, 'Content-Type': 'application/json' },
+               body: JSON.stringify({
+                 message: {
+                   token: driver.fcm_token,
+                   data: { type: "cancelar", orderId: orderId },
+                   android: { priority: "high" }
+                 }
+               })
+             });
+           } catch(e) {}
+        }
+        // Fallback to Web Push
+        else if (driver.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
           try {
             const sub = JSON.parse(driver.push_subscription);
             const payload = JSON.stringify({
@@ -310,10 +325,9 @@ Deno.serve(async (req) => {
             if (status === 410 || status === 404) await base44.asServiceRole.entities.Driver.update(driver.id, { push_subscription: null });
           } catch(e) {}
         }
-
-        // Native FCM Cancel
-        if (driver.fcm_token && tokenRes && tokenRes.access_token) {
-           try {
+        
+        // This closes the loop for Native FCM Cancel, the below line is matched for replacement logic
+        if (false) { try {
              await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
                method: 'POST', headers: { 'Authorization': `Bearer ${tokenRes.access_token}`, 'Content-Type': 'application/json' },
                body: JSON.stringify({
@@ -348,30 +362,9 @@ Deno.serve(async (req) => {
 
       let webPushStatus = null;
       let webPushSuccess = false;
+      let fcmSuccess = false;
 
-      if (driver?.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-        try {
-          let sub = JSON.parse(driver.push_subscription);
-          const payload = JSON.stringify({
-            type: 'NEW_RIDE',
-            orderId,
-            driverId,
-            title,
-            body: bodyStr,
-            actions: [
-              { action: 'accept', title: '✅ Aceptar' },
-              { action: 'reject', title: '❌ Rechazar' }
-            ]
-          });
-          webPushStatus = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-          if (webPushStatus === 410 || webPushStatus === 404) {
-            await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: null });
-          }
-          webPushSuccess = webPushStatus >= 200 && webPushStatus < 300;
-        } catch (_) {}
-      }
-      
-      // Intentar enviar tambíen por FCM nativo si el chofer tiene el token
+      // Intentar enviar por FCM nativo si el chofer tiene el token (Prioridad)
       if (driver.fcm_token) {
          try {
            const apiUrl = new URL(req.url).origin + '/api/functions/invoke/handleNativePushAction';
@@ -429,14 +422,37 @@ Deno.serve(async (req) => {
                    }
                  })
                });
+               fcmSuccess = true;
              }
            }
          } catch(e) {
            console.error("Fallo FCM Nativo", e);
          }
+      } 
+      // Fallback a Web Push si no tiene FCM
+      else if (driver?.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+        try {
+          let sub = JSON.parse(driver.push_subscription);
+          const payload = JSON.stringify({
+            type: 'NEW_RIDE',
+            orderId,
+            driverId,
+            title,
+            body: bodyStr,
+            actions: [
+              { action: 'accept', title: '✅ Aceptar' },
+              { action: 'reject', title: '❌ Rechazar' }
+            ]
+          });
+          webPushStatus = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+          if (webPushStatus === 410 || webPushStatus === 404) {
+            await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: null });
+          }
+          webPushSuccess = webPushStatus >= 200 && webPushStatus < 300;
+        } catch (_) {}
       }
 
-      const success = webPushSuccess || !!driver.fcm_token;
+      const success = webPushSuccess || fcmSuccess;
       return Response.json({ ok: success, status: webPushStatus });
     } catch (err) {
       return Response.json({ ok: false, reason: 'send_error', error: err.message });
