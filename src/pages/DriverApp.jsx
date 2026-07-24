@@ -106,9 +106,6 @@ function unlockAudio() {
 }
 
 function playAlert() {
-  // Si estamos en la app Nativa, el sonido lo maneja Android de forma nativa
-  if (Capacitor.isNativePlatform()) return;
-
   try { navigator.vibrate?.([500, 200, 500, 200, 1000, 300, 500]); } catch (_) {}
   
   // Alarma HTML5 (suena más fuerte y sortea bloqueos de background mejor)
@@ -140,7 +137,6 @@ function playAlert() {
 }
 
 function stopAlert() {
-  if (Capacitor.isNativePlatform()) return;
   try { if (alarmAudioElement) { alarmAudioElement.pause(); alarmAudioElement.currentTime = 0; } } catch (_) {}
 }
 
@@ -1169,9 +1165,25 @@ export default function DriverApp() {
     const autoAcceptOrderId = urlParams.get("accept");
     if (autoAcceptOrderId && myDriverId) {
       if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
-      setLocalOverride({ status: "en_viaje", optimisticOrderId: autoAcceptOrderId });
-      updateOrder.mutate({ id: autoAcceptOrderId, data: { status: "aceptado", driver_id: myDriverId } });
-      updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+      base44.functions.invoke("acceptRide", {
+        orderId: autoAcceptOrderId,
+        driverId: myDriverId,
+        assignmentAttempt: 1,
+        sessionToken: getSessionToken()
+      }).then(res => {
+        if (res.data?.accepted) {
+          setLocalOverride({ status: "en_viaje", optimisticOrderId: autoAcceptOrderId });
+          updateOrder.mutate({ id: autoAcceptOrderId, data: { status: "aceptado", driver_id: myDriverId } });
+          updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+          base44.functions.invoke("sendPushNotification", { action: "cancel_ride", orderId: autoAcceptOrderId, driverId: myDriverId }).catch(()=>{});
+        } else {
+          alert("Este viaje ya fue tomado o reasignado.");
+          window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+        }
+      }).catch(() => {
+        alert("Error de red al aceptar.");
+        window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+      });
       window.history.replaceState({}, "", "/driver-app");
     }
     const autoRejectOrderId = urlParams.get("reject");
