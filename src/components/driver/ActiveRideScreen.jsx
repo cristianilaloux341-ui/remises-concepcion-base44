@@ -33,6 +33,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   const metrosRef = useRef(0);
   const importeRef = useRef(importeActual);
   const contadorParadoRef = useRef(0);
+  const enEsperaRef = useRef(false); // ref para evitar stale closure en setInterval
   const lastPosRef = useRef(null);
   const gpsWatchRef = useRef(null);
   const timerRef = useRef(null);
@@ -74,7 +75,8 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   useEffect(() => {
     if (order.status !== "en_viaje") return;
 
-    const importeInicial = order.importe_real_actual || order.importe_estimado || 0;
+    // Si no hay destino, la base inicial es la bajada de bandera
+    const importeInicial = order.importe_real_actual || order.importe_estimado || tarifaRef.current.bajada_bandera;
     setImporteActual(importeInicial);
     importeRef.current = importeInicial;
     metrosRef.current = 0;
@@ -96,12 +98,24 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
             metrosRef.current += metros;
             setMetrosRecorridos(Math.round(metrosRef.current));
 
-            const excedente = metrosRef.current - distanciaTeórica;
-            if (excedente > 0) {
-              const base = order.importe_estimado || importeInicial;
-              const nuevo = base + excedente * tarifaRef.current.precio_por_metro;
-              setImporteActual(Math.round(nuevo));
-              importeRef.current = Math.round(nuevo);
+            let costoIncremental = 0;
+            if (!order.dropoff_address) {
+                // Sin destino: cuenta desde el primer metro
+                costoIncremental = metros * tarifaRef.current.precio_por_metro;
+            } else if (metrosRef.current > distanciaTeórica) {
+                // Con destino: cobra el excedente
+                const excedenteAnterior = (metrosRef.current - metros) - distanciaTeórica;
+                if (excedenteAnterior < 0) {
+                   const metrosExcedentes = metrosRef.current - distanciaTeórica;
+                   costoIncremental = metrosExcedentes * tarifaRef.current.precio_por_metro;
+                } else {
+                   costoIncremental = metros * tarifaRef.current.precio_por_metro;
+                }
+            }
+
+            if (costoIncremental > 0) {
+                importeRef.current += costoIncremental;
+                setImporteActual(Math.round(importeRef.current));
             }
           }
         }
@@ -110,16 +124,17 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
 
         if (speedKmh < 5) {
           setEnEspera(true);
+          enEsperaRef.current = true;
         } else {
           contadorParadoRef.current = 0;
           setEnEspera(false);
+          enEsperaRef.current = false;
         }
       }, () => {}, { enableHighAccuracy: true, maximumAge: 0 });
     }
 
     timerRef.current = setInterval(() => {
-      const speedLow = lastPosRef.current !== null; 
-      if (enEspera || contadorParadoRef.current > 0) {
+      if (enEsperaRef.current || contadorParadoRef.current > 0) {
         contadorParadoRef.current += 1;
         if (contadorParadoRef.current > tarifaRef.current.tolerancia_espera_segundos) {
           segundosEspera += 1;
@@ -222,9 +237,15 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
 
         {order.status === "aceptado" && (
           <div className="space-y-2">
-            <button className="w-full h-14 rounded-2xl gap-2 bg-purple-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_camino")}>
-              <Navigation className="w-5 h-5" /> Saliendo a Buscar
-            </button>
+            {!order.dropoff_address ? (
+              <button className="w-full h-14 rounded-2xl gap-2 bg-cyan-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_viaje")}>
+                <Car className="w-5 h-5" /> Iniciar Viaje (Sin Destino)
+              </button>
+            ) : (
+              <button className="w-full h-14 rounded-2xl gap-2 bg-purple-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_camino")}>
+                <Navigation className="w-5 h-5" /> Saliendo a Buscar
+              </button>
+            )}
             <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all" onClick={onCancelRide}>
               <XCircle className="w-4 h-4" /> Anular — volver a mi base
             </button>

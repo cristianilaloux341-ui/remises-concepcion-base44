@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Phone, MapPin, User, DollarSign, Trash2, Loader2, XCircle, RefreshCw } from "lucide-react";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
+import RideTicket from "@/components/orders/RideTicket";
 import RideMap from "@/components/map/RideMap";
 import { assignDriverToOrder } from "@/lib/dispatchLogic";
 import { format } from "date-fns";
@@ -139,6 +140,9 @@ export default function OrderDetail() {
                 >
                   <RefreshCw className="w-4 h-4" /> Volver a Pendiente
                 </Button>
+              )}
+              {order.status === "completado" && (
+                <RideTicket order={order} />
               )}
               <Button
                 variant="outline"
