@@ -282,26 +282,30 @@ Deno.serve(async (req) => {
       let sa = null;
 
       if (saStr) {
-         sa = JSON.parse(saStr);
-         const now = Math.floor(Date.now() / 1000);
-         if (!cachedAccessToken || now >= cachedAccessTokenExp) {
-           const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
-           const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
-             iss: sa.client_email, scope: 'https://www.googleapis.com/auth/firebase.messaging', aud: 'https://oauth2.googleapis.com/token', exp: now + 3600, iat: now
-           })));
-           const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
-           const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-           const rsaKey = await crypto.subtle.importKey("pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
-           const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`));
-           const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
-           tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-             method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-             body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
-           }).then(r => r.json());
-           if (tokenRes.access_token) {
-             cachedAccessToken = tokenRes.access_token;
-             cachedAccessTokenExp = now + 3500;
+         try {
+           sa = JSON.parse(saStr);
+           const now = Math.floor(Date.now() / 1000);
+           if (!cachedAccessToken || now >= cachedAccessTokenExp) {
+             const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
+             const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
+               iss: sa.client_email, scope: 'https://www.googleapis.com/auth/firebase.messaging', aud: 'https://oauth2.googleapis.com/token', exp: now + 3600, iat: now
+             })));
+             const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
+             const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+             const rsaKey = await crypto.subtle.importKey("pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+             const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`));
+             const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
+             tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+               method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+               body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+             }).then(r => r.json());
+             if (tokenRes.access_token) {
+               cachedAccessToken = tokenRes.access_token;
+               cachedAccessTokenExp = now + 3500;
+             }
            }
+         } catch(e) {
+           console.error("Token fetch error cancel_multiple", e);
          }
       }
 
@@ -313,16 +317,19 @@ Deno.serve(async (req) => {
         // Native FCM Cancel (Prioritize over Web Push)
         if (driver.fcm_token && cachedAccessToken) {
            try {
-             await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+             const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
                method: 'POST', headers: { 'Authorization': `Bearer ${cachedAccessToken}`, 'Content-Type': 'application/json' },
                body: JSON.stringify({
                  message: {
                    token: driver.fcm_token,
-                   data: { type: "cancelar", orderId: orderId },
+                   data: { type: "cancelar", orderId: String(orderId) },
                    android: { priority: "high" }
                  }
                })
              });
+             if (!fcmRes.ok) {
+               console.error("FCM Cancel Error:", await fcmRes.text());
+             }
            } catch(e) {}
         }
         // Fallback to Web Push
@@ -368,9 +375,8 @@ Deno.serve(async (req) => {
       // Intentar enviar por FCM nativo si el chofer tiene el token (Prioridad)
       if (driver.fcm_token) {
          try {
-           const origin = new URL(req.url).origin;
-           // If we're on a local or specific dev domain, force it to correct backend path if needed, but origin is fine.
-           const apiUrl = origin + '/api/functions/invoke/handleNativePushAction';
+           const apiHost = req.headers.get("base44-api-url") || new URL(req.url).origin;
+           const apiUrl = apiHost + '/api/functions/invoke/handleNativePushAction';
            const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
            if (saStr) {
              const sa = JSON.parse(saStr);
@@ -407,7 +413,7 @@ Deno.serve(async (req) => {
              }
              
              if (cachedAccessToken) {
-               await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+               const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
                  method: 'POST',
                  headers: {
                    'Authorization': `Bearer ${cachedAccessToken}`,
@@ -418,13 +424,13 @@ Deno.serve(async (req) => {
                      token: driver.fcm_token,
                      data: {
                        type: "ofrecido",
-                       orderId: orderId,
-                       driverId: driverId,
-                       driverName: driver.name,
-                       base: driver.current_base || "",
-                       apiUrl: apiUrl,
-                       title: title,
-                       body: bodyStr,
+                       orderId: String(orderId),
+                       driverId: String(driverId),
+                       driverName: String(driver.name || ""),
+                       base: String(driver.current_base || ""),
+                       apiUrl: String(apiUrl),
+                       title: String(title),
+                       body: String(bodyStr),
                        sentAt: Date.now().toString(),
                        assignmentAttempt: orderData?.assignmentAttempt?.toString() || "1"
                      },
@@ -434,6 +440,11 @@ Deno.serve(async (req) => {
                    }
                  })
                });
+               if (!fcmRes.ok) {
+                 const errText = await fcmRes.text();
+                 console.error("FCM Send Error:", errText);
+                 return Response.json({ ok: false, reason: "fcm_error", details: errText });
+               }
                fcmSuccess = true;
              }
            }
