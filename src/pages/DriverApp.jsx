@@ -668,32 +668,32 @@ function IncomingAlert({ order, onAccept, onReject, isAccepting }) {
           )}
         </div>
 
-        <div className="p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
-              <Phone className="w-5 h-5 text-gray-500" />
+        <div className="p-6 space-y-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+              <Phone className="w-6 h-6 text-gray-500" />
             </div>
-            <div>
-              <p className="font-semibold dark:text-white">{order.client_name}</p>
+            <div className="min-w-0">
+              <p className="font-bold text-lg dark:text-white truncate">{order.client_name}</p>
             </div>
           </div>
 
-          <div className="bg-gray-50 dark:bg-slate-800 rounded-2xl p-4 space-y-3">
-            <div className="flex items-start gap-3">
-              <div className="w-5 h-5 rounded-full bg-green-500 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs text-gray-400 font-medium">RECOGIDA</p>
-                <p className="font-semibold text-sm dark:text-white">{order.pickup_address}</p>
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-3xl p-5 space-y-4 border border-gray-200 dark:border-slate-700">
+            <div className="flex items-start gap-4">
+              <div className="w-6 h-6 rounded-full bg-green-500 mt-0.5 shrink-0 shadow-sm" />
+              <div className="min-w-0">
+                <p className="text-sm text-gray-400 font-bold uppercase tracking-wider">RECOGIDA</p>
+                <p className="font-bold text-xl dark:text-white break-words leading-tight">{order.pickup_address}</p>
               </div>
             </div>
             {order.dropoff_address && (
               <>
-                <div className="ml-2.5 w-px h-4 bg-gray-300 dark:bg-gray-600" />
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-400 font-medium">DESTINO</p>
-                    <p className="font-semibold text-sm dark:text-white">{order.dropoff_address}</p>
+                <div className="ml-3 w-0.5 h-6 bg-gray-300 dark:bg-gray-600" />
+                <div className="flex items-start gap-4">
+                  <MapPin className="w-6 h-6 text-red-500 mt-0.5 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm text-gray-400 font-bold uppercase tracking-wider">DESTINO</p>
+                    <p className="font-bold text-xl dark:text-white break-words leading-tight">{order.dropoff_address}</p>
                   </div>
                 </div>
               </>
@@ -701,33 +701,35 @@ function IncomingAlert({ order, onAccept, onReject, isAccepting }) {
           </div>
 
           {order.fare && (
-            <div className="flex items-center justify-between px-1">
-              <span className="text-gray-500 text-sm">Tarifa</span>
-              <span className="text-2xl font-bold text-green-600">${Number(order.fare).toLocaleString()}</span>
+            <div className="flex items-center justify-between px-2 bg-green-50 dark:bg-green-900/20 p-4 rounded-2xl">
+              <span className="text-gray-600 dark:text-gray-300 font-bold text-lg">Tarifa aprox.</span>
+              <span className="text-3xl font-black text-green-600 dark:text-green-400">${Number(order.fare).toLocaleString()}</span>
             </div>
           )}
 
           {order.notes && (
-            <p className="text-sm text-gray-500 italic px-1">"{order.notes}"</p>
+            <p className="text-base text-gray-600 dark:text-gray-300 italic px-2 bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-2xl border border-yellow-200 dark:border-yellow-700/30">
+              "{order.notes}"
+            </p>
           )}
 
-          <div className="grid grid-cols-2 gap-3 pt-1">
+          <div className="grid grid-cols-1 gap-4 pt-2">
             <Button
               size="lg"
-              className="rounded-2xl h-14 bg-green-500 hover:bg-green-600 text-base font-bold gap-2 shadow-lg shadow-green-500/30"
+              className="w-full rounded-2xl h-16 md:h-20 bg-green-500 hover:bg-green-600 text-xl font-black gap-3 shadow-xl shadow-green-500/30"
               onClick={onAccept}
               disabled={isAccepting}
             >
-              <CheckCircle2 className="w-5 h-5" /> {isAccepting ? "Aceptando..." : "Aceptar"}
+              <CheckCircle2 className="w-7 h-7" /> {isAccepting ? "Aceptando..." : "Aceptar Viaje"}
             </Button>
             <Button
               size="lg"
               variant="outline"
-              className="rounded-2xl h-14 border-red-200 text-red-500 hover:bg-red-50 text-base font-bold gap-2"
+              className="w-full rounded-2xl h-14 md:h-16 border-2 border-red-200 dark:border-red-900/50 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-lg font-bold gap-3"
               onClick={onReject}
               disabled={isAccepting}
             >
-              <XCircle className="w-5 h-5" /> Rechazar
+              <XCircle className="w-6 h-6" /> Rechazar
             </Button>
           </div>
         </div>
@@ -766,48 +768,50 @@ function BroadcastAlert({ order, onAccept, onReject, isAccepting }) {
             <p className="text-orange-100 text-xs font-semibold">⚡ El primero en aceptar lo lleva</p>
           </div>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="p-6 space-y-6">
           {order.zone && (
-            <div className="bg-orange-50 rounded-xl px-3 py-2 text-xs text-orange-700 font-medium">
-              Zona solicitada: {order.zone}
+            <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl px-4 py-3 text-base text-orange-700 dark:text-orange-400 font-bold border border-orange-200 dark:border-orange-900/50">
+              📍 ZONA: {order.zone}
             </div>
           )}
-          <div className="bg-gray-50 dark:bg-slate-800 rounded-2xl p-4 space-y-3">
-            <div className="flex items-start gap-3">
-              <div className="w-5 h-5 rounded-full bg-green-500 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs text-gray-400 font-medium">RECOGIDA</p>
-                <p className="font-semibold text-sm dark:text-white">{order.pickup_address}</p>
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-3xl p-5 space-y-4 border border-gray-200 dark:border-slate-700">
+            <div className="flex items-start gap-4">
+              <div className="w-6 h-6 rounded-full bg-green-500 mt-0.5 shrink-0 shadow-sm" />
+              <div className="min-w-0">
+                <p className="text-sm text-gray-400 font-bold uppercase tracking-wider">RECOGIDA</p>
+                <p className="font-bold text-xl dark:text-white break-words leading-tight">{order.pickup_address}</p>
               </div>
             </div>
             {order.dropoff_address && (
               <>
-                <div className="ml-2.5 w-px h-4 bg-gray-300 dark:bg-gray-600" />
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-400 font-medium">DESTINO</p>
-                    <p className="font-semibold text-sm dark:text-white">{order.dropoff_address}</p>
+                <div className="ml-3 w-0.5 h-6 bg-gray-300 dark:bg-gray-600" />
+                <div className="flex items-start gap-4">
+                  <MapPin className="w-6 h-6 text-red-500 mt-0.5 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm text-gray-400 font-bold uppercase tracking-wider">DESTINO</p>
+                    <p className="font-bold text-xl dark:text-white break-words leading-tight">{order.dropoff_address}</p>
                   </div>
                 </div>
               </>
             )}
           </div>
           {order.fare && (
-            <div className="flex items-center justify-between px-1">
-              <span className="text-gray-500 text-sm">Tarifa</span>
-              <span className="text-2xl font-bold text-green-600">${Number(order.fare).toLocaleString()}</span>
+            <div className="flex items-center justify-between px-2 bg-green-50 dark:bg-green-900/20 p-4 rounded-2xl">
+              <span className="text-gray-600 dark:text-gray-300 font-bold text-lg">Tarifa aprox.</span>
+              <span className="text-3xl font-black text-green-600 dark:text-green-400">${Number(order.fare).toLocaleString()}</span>
             </div>
           )}
           {cleanNotes && (
-            <p className="text-sm text-gray-500 italic px-1">"{cleanNotes}"</p>
+            <p className="text-base text-gray-600 dark:text-gray-300 italic px-2 bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-2xl border border-yellow-200 dark:border-yellow-700/30">
+              "{cleanNotes}"
+            </p>
           )}
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <Button size="lg" className="rounded-2xl h-14 bg-green-500 hover:bg-green-600 text-base font-bold gap-2 shadow-lg shadow-green-500/30" onClick={onAccept} disabled={isAccepting}>
-              <CheckCircle2 className="w-5 h-5" /> {isAccepting ? "Aceptando..." : "Tomar"}
+          <div className="grid grid-cols-1 gap-4 pt-2">
+            <Button size="lg" className="w-full rounded-2xl h-16 md:h-20 bg-green-500 hover:bg-green-600 text-xl font-black gap-3 shadow-xl shadow-green-500/30" onClick={onAccept} disabled={isAccepting}>
+              <CheckCircle2 className="w-7 h-7" /> {isAccepting ? "Aceptando..." : "Tomar Viaje Rápido"}
             </Button>
-            <Button size="lg" variant="outline" className="rounded-2xl h-14 border-gray-200 text-gray-500 hover:bg-gray-50 text-base font-bold gap-2" onClick={onReject} disabled={isAccepting}>
-              <XCircle className="w-5 h-5" /> Ignorar
+            <Button size="lg" variant="outline" className="w-full rounded-2xl h-14 md:h-16 border-2 border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800 text-lg font-bold gap-3" onClick={onReject} disabled={isAccepting}>
+              <XCircle className="w-6 h-6" /> Ignorar
             </Button>
           </div>
         </div>
@@ -822,30 +826,30 @@ function BroadcastAlert({ order, onAccept, onReject, isAccepting }) {
 function AvailableOrders({ orders, onTake }) {
   if (orders.length === 0) return null;
   return (
-    <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3">
-      <p className="text-sm font-semibold text-gray-500 pt-2">
-        <List className="inline w-4 h-4 mr-1" />
-        {orders.length} viaje(s) disponible(s) — elegí uno
+    <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
+      <p className="text-base font-bold text-gray-500 pt-3">
+        <List className="inline w-5 h-5 mr-1" />
+        {orders.length} viaje(s) en espera — tocá para tomar
       </p>
       {orders.map(order => (
-        <div key={order.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-4 space-y-3 shadow-sm">
-          <div className="space-y-2">
-            <div className="flex items-start gap-2 text-sm">
-              <div className="w-4 h-4 rounded-full bg-green-500 mt-0.5 shrink-0" />
-              <span className="font-semibold dark:text-white">{order.pickup_address}</span>
+        <div key={order.id} className="bg-white dark:bg-slate-900 rounded-3xl border-2 border-gray-200 dark:border-slate-700 p-5 space-y-4 shadow-md">
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 text-base">
+              <div className="w-5 h-5 rounded-full bg-green-500 mt-0.5 shrink-0 shadow-sm" />
+              <span className="font-bold text-lg dark:text-white leading-tight">{order.pickup_address}</span>
             </div>
             {order.dropoff_address && (
-              <div className="flex items-start gap-2 text-sm text-gray-500 dark:text-gray-400">
-                <MapPin className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-                <span>{order.dropoff_address}</span>
+              <div className="flex items-start gap-3 text-base text-gray-500 dark:text-gray-400">
+                <MapPin className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
+                <span className="leading-tight">{order.dropoff_address}</span>
               </div>
             )}
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-400">{order.client_name}</span>
-            {order.fare && <span className="font-bold text-green-600 text-lg">${Number(order.fare).toLocaleString()}</span>}
+          <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-slate-800">
+            <span className="text-sm text-gray-500 font-bold">{order.client_name}</span>
+            {order.fare && <span className="font-black text-green-600 dark:text-green-400 text-2xl">${Number(order.fare).toLocaleString()}</span>}
           </div>
-          <Button className="w-full rounded-xl h-11 font-bold" onClick={() => onTake(order)}>
+          <Button className="w-full rounded-2xl h-14 font-bold text-lg" onClick={() => onTake(order)}>
             Tomar este Viaje
           </Button>
         </div>
@@ -950,71 +954,73 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
 
   if (isInBase) {
     return (
-      <div className="flex-1 flex flex-col min-h-0 bg-gray-950">
-        {/* Panel superior: info + acciones */}
-        <div className="shrink-0 px-4 pt-4 pb-3 space-y-3">
-          {/* Estado y posición */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-green-500/20 border border-green-500/30 flex items-center justify-center relative">
-                <div className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping absolute top-1.5 right-1.5" />
-                <Clock className="w-5 h-5 text-green-400" />
+      <div className="flex-1 flex flex-col min-h-0 bg-gray-950 overflow-y-auto">
+        <div className="shrink-0 px-4 pt-6 pb-6 space-y-5">
+          {/* Estado y posición ampliado */}
+          <div className="flex items-center justify-between bg-gray-900 rounded-3xl p-5 border border-gray-800 shadow-lg">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-14 h-14 rounded-2xl bg-green-500/20 border border-green-500/30 flex items-center justify-center relative shrink-0">
+                <div className="w-3 h-3 rounded-full bg-green-400 animate-ping absolute top-1.5 right-1.5" />
+                <Clock className="w-7 h-7 text-green-400" />
               </div>
-              <div>
-                <p className="font-bold text-white text-base">En Posición</p>
-                <p className="text-xs text-gray-400">📍 {driver.current_base}</p>
+              <div className="min-w-0">
+                <p className="font-bold text-white text-xl md:text-2xl truncate">En Posición</p>
+                <p className="text-base md:text-lg text-gray-400 truncate">📍 {driver.current_base}</p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-2xl font-black text-white">{myPosition}°</p>
-              <p className="text-xs text-gray-500">de {baseQueue.length} en cola</p>
+            <div className="text-right shrink-0 ml-3">
+              <p className="text-4xl md:text-5xl font-black text-white">{myPosition}°</p>
+              <p className="text-sm md:text-base text-gray-500">en cola</p>
             </div>
           </div>
 
-          {/* Cola compacta */}
-          <div className="flex gap-1.5 flex-wrap">
-            {baseQueue.map((d, i) => {
-              const showModel = d.vehicle_model && d.vehicle_model.length < 10;
-              return (
-                <span
-                  key={d.id}
-                  className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${d.id === driver.id ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"}`}
-                >
-                  {i + 1}.{showModel ? ` #${d.vehicle_model}` : ""} {(d.name || "Chofer").split(" ")[0]}
-                </span>
-              );
-            })}
-          </div>
-
-          {/* Botones */}
-          <div className="flex gap-2">
+          {/* Botones Grandes */}
+          <div className="flex flex-col gap-3">
             <button
-              className={`flex-1 flex items-center justify-center gap-2 h-12 rounded-2xl font-semibold text-sm transition-all ${libreBlockedSegs > 0 ? "bg-gray-800 text-gray-600 cursor-not-allowed" : "bg-gray-800 text-gray-300 active:scale-95"}`}
+              className={`w-full flex items-center justify-center gap-3 h-16 rounded-2xl font-bold text-lg md:text-xl transition-all shadow-md ${libreBlockedSegs > 0 ? "bg-gray-800 text-gray-600 cursor-not-allowed" : "bg-gray-800 hover:bg-gray-700 text-gray-200 active:scale-95"}`}
               onClick={() => !libreBlockedSegs && setChangingBase(true)}
               disabled={libreBlockedSegs > 0}
             >
-              <ArrowRightLeft className="w-4 h-4" /> Cambiar Base
+              <ArrowRightLeft className="w-6 h-6" /> Moverse a otra Base
             </button>
             {libreBlockedSegs > 0 ? (
-              <div className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-orange-500/20 border border-orange-500/30 text-orange-400 text-sm font-bold h-12">
-                <Timer className="w-4 h-4" />
-                {Math.floor(libreBlockedSegs / 60)}:{String(libreBlockedSegs % 60).padStart(2, "0")}
+              <div className="w-full flex items-center justify-center gap-3 rounded-2xl bg-orange-500/20 border border-orange-500/30 text-orange-400 text-lg font-bold h-16 shadow-md">
+                <Timer className="w-6 h-6" />
+                Bloqueado: {Math.floor(libreBlockedSegs / 60)}:{String(libreBlockedSegs % 60).padStart(2, "0")}
               </div>
             ) : (
               <button
-                className="flex-1 flex items-center justify-center gap-2 h-12 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-400 font-semibold text-sm active:scale-95 transition-all"
+                className="w-full flex items-center justify-center gap-3 h-16 rounded-2xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 font-bold text-lg md:text-xl active:scale-95 transition-all shadow-md"
                 onClick={onGoOffService}
               >
-                <PowerOff className="w-4 h-4" /> Salir
+                <PowerOff className="w-6 h-6" /> Salir de Servicio
               </button>
             )}
+          </div>
+
+          {/* Cola compacta pero más legible */}
+          <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
+            <p className="text-sm text-gray-400 font-semibold mb-3">Compañeros en la cola:</p>
+            <div className="flex gap-2 flex-wrap">
+              {baseQueue.map((d, i) => {
+                const showModel = d.vehicle_model && d.vehicle_model.length < 10;
+                return (
+                  <span
+                    key={d.id}
+                    className={`text-sm md:text-base px-3 py-1.5 rounded-xl font-semibold border ${d.id === driver.id ? "bg-green-500 text-white border-green-500" : "bg-gray-800 text-gray-300 border-gray-700"}`}
+                  >
+                    {i + 1}.{showModel ? ` #${d.vehicle_model}` : ""} {(d.name || "Chofer").split(" ")[0]}
+                  </span>
+                );
+              })}
+            </div>
           </div>
 
           <DailyStats driverId={driverId} />
         </div>
 
-        {/* Mapa interactivo — ver compañeros y mi ubicación */}
-        <div className="mx-4 mb-4 h-56 rounded-2xl overflow-hidden border border-gray-800 shadow-md">
+        {/* Mapa interactivo */}
+        <div className="mx-4 mb-6 h-64 md:h-72 rounded-3xl overflow-hidden border-2 border-gray-800 shadow-xl shrink-0">
           <RideMap 
             orders={[]} 
             drivers={drivers} 
@@ -2064,26 +2070,26 @@ export default function DriverApp() {
       <InstallBanner />
 
       {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-800 text-white px-4 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="bg-gray-900 border-b border-gray-800 text-white px-4 py-3 flex items-center justify-between shrink-0 overflow-x-hidden">
+        <div className="flex items-center gap-3 shrink-0">
           <img
             src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg"
             alt="RC"
-            className="w-9 h-9 rounded-xl object-cover"
+            className="w-10 h-10 rounded-xl object-cover"
           />
           {myDriver.current_base && myDriver.status === "disponible" && (
-            <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
+            <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-sm py-1 px-2">
               📍 {myDriver.current_base}
             </Badge>
           )}
           {myDriver.status === "en_viaje" && (
-            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">En Viaje</Badge>
+            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-sm py-1 px-2">En Viaje</Badge>
           )}
           {myDriver.status === "no_disponible" && (
-            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs">Fuera de Servicio</Badge>
+            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-sm py-1 px-2">Inactivo</Badge>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pl-4 ml-auto">
           <button
             className="p-2 rounded-xl bg-red-600 hover:bg-red-700 text-white animate-pulse"
             onClick={() => {
