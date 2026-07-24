@@ -1,12 +1,43 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ShieldAlert, Share2, MessageCircle, X, Send } from 'lucide-react';
 import RideMap from '@/components/map/RideMap';
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
 
 export default function ActiveRide() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showChat, setShowChat] = useState(false);
   const [showPanic, setShowPanic] = useState(false);
+  
+  const orderId = location.state?.orderId;
+  const [order, setOrder] = useState(null);
+  const [driver, setDriver] = useState(null);
+
+  useEffect(() => {
+    if (!orderId) return;
+    
+    base44.entities.RideOrder.get(orderId).then(o => {
+      setOrder(o);
+      if (o.driver_id) {
+        base44.entities.Driver.get(o.driver_id).then(setDriver).catch(console.error);
+      }
+    }).catch(console.error);
+
+    const unsubscribe = base44.entities.RideOrder.subscribe((event) => {
+      if (event.data?.id === orderId) {
+        setOrder(event.data);
+        if (event.data.status === 'completado') {
+          navigate('/app-cliente/rating', { state: { orderId }, replace: true });
+        } else if (event.data.status === 'cancelado') {
+          toast.error('El viaje fue cancelado');
+          navigate('/app-cliente/home', { replace: true });
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [orderId, navigate]);
 
   return (
     <div className="h-[100dvh] flex flex-col relative bg-slate-100" style={{ paddingBottom: 'env(safe-area-bottom)' }}>
@@ -47,19 +78,12 @@ export default function ActiveRide() {
         <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto -mt-2"></div>
         
         <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-          <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&h=100&q=80" alt="Chofer" className="w-12 h-12 rounded-full object-cover shadow-sm" />
+          <img src={driver?.photo_url || "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&h=100&q=80"} alt="Chofer" className="w-12 h-12 rounded-full object-cover shadow-sm" />
           <div className="flex-1">
-            <p className="font-bold text-slate-900">Viajando con Carlos</p>
-            <p className="text-sm text-slate-500">Toyota Corolla · AB 123 CD</p>
+            <p className="font-bold text-slate-900">Viajando con {order?.driver_name?.split(' ')[0] || 'tu chofer'}</p>
+            <p className="text-sm text-slate-500">{driver?.vehicle_model || 'Móvil'} · {driver?.vehicle_plate || ''}</p>
           </div>
         </div>
-
-        <button 
-          onClick={() => navigate('/app-cliente/finished')}
-          className="w-full h-16 bg-slate-900 text-white rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform mt-2"
-        >
-          [DEMO] Simular Fin de Viaje
-        </button>
       </div>
 
       {/* Chat Modal */}

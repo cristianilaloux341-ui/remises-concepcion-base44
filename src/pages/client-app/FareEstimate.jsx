@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Clock, CreditCard, ShieldCheck, Loader2 } from 'lucide-react';
 import RideMap from '@/components/map/RideMap';
@@ -9,6 +9,13 @@ export default function FareEstimate() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const [isCreating, setIsCreating] = useState(false);
+  const [tarifa, setTarifa] = useState(null);
+
+  useEffect(() => {
+    base44.entities.TarifaConfig.list().then(res => {
+      if (res.length > 0) setTarifa(res[0]);
+    }).catch(e => console.error(e));
+  }, []);
 
   const [passengers, setPassengers] = useState(1);
   const [needsTrunk, setNeedsTrunk] = useState(false);
@@ -71,10 +78,11 @@ export default function FareEstimate() {
           <div className="p-4 rounded-3xl border-2 border-blue-600 bg-blue-50/50 flex items-center gap-4 transition-all">
             <div className="w-16 h-12 bg-white rounded-lg flex items-center justify-center text-2xl shrink-0 shadow-sm">🚘</div>
             <div className="flex-1">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-2">
                 <p className="font-bold text-slate-900 text-lg">Remís Estándar</p>
+                {tarifa && <p className="font-bold text-blue-600 text-lg">~${tarifa.bajada_bandera}</p>}
               </div>
-              <p className="text-sm text-slate-500">Viaje seguro y rápido</p>
+              <p className="text-sm text-slate-500">{tarifa ? 'Precio base estimado' : 'Viaje seguro y rápido'}</p>
             </div>
           </div>
         </div>

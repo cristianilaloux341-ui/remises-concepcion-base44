@@ -1,15 +1,69 @@
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import RideMap from '@/components/map/RideMap';
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
 
 export default function Searching() {
   const navigate = useNavigate();
   
+  const location = useLocation();
+  const orderId = location.state?.orderId;
+
   useEffect(() => {
-    // Simular búsqueda y transición automática a conductor asignado
-    const t = setTimeout(() => navigate('/app-cliente/assigned'), 3500);
-    return () => clearTimeout(t);
-  }, [navigate]);
+    if (!orderId) {
+      navigate('/app-cliente/home');
+      return;
+    }
+
+    let isMounted = true;
+    const checkOrder = async () => {
+      try {
+        const order = await base44.entities.RideOrder.get(orderId);
+        if (order.status === 'aceptado' || order.status === 'en_camino') {
+          if (isMounted) navigate('/app-cliente/assigned', { state: { orderId }, replace: true });
+        } else if (order.status === 'rechazado' || order.status === 'cancelado') {
+          if (isMounted) {
+            toast.error('Viaje cancelado o no hay móviles disponibles');
+            navigate('/app-cliente/home', { replace: true });
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    
+    checkOrder();
+    
+    const unsubscribe = base44.entities.RideOrder.subscribe((event) => {
+      if (event.data?.id === orderId) {
+        const status = event.data.status;
+        if (status === 'aceptado' || status === 'en_camino') {
+          navigate('/app-cliente/assigned', { state: { orderId }, replace: true });
+        } else if (status === 'rechazado' || status === 'cancelado') {
+          toast.error('Viaje cancelado o no hay móviles disponibles');
+          navigate('/app-cliente/home', { replace: true });
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [navigate, orderId]);
+
+  const handleCancel = async () => {
+    if (orderId) {
+      try {
+        await base44.entities.RideOrder.update(orderId, { status: 'cancelado' });
+        toast.info('Búsqueda cancelada');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    navigate('/app-cliente/home', { replace: true });
+  };
 
   return (
     <div className="h-[100dvh] flex flex-col relative bg-slate-100 overflow-hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -37,7 +91,7 @@ export default function Searching() {
           <div className="h-full bg-blue-600 w-1/2 rounded-full animate-[pulse_1s_ease-in-out_infinite]"></div>
         </div>
         
-        <button onClick={() => navigate(-1)} className="pt-4 text-slate-400 font-bold hover:text-slate-600">
+        <button onClick={handleCancel} className="pt-4 text-slate-400 font-bold hover:text-slate-600">
           Cancelar búsqueda
         </button>
       </div>
