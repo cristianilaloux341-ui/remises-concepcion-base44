@@ -112,12 +112,14 @@ public class RideAlertController {
 
         // Sonido y Vibración
         try {
+            // Intentar primero con el sonido personalizado horn, si no existe usar el tono de llamada (ringtone)
             int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
             Uri soundUri;
             if (soundResId != 0) {
                 soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
             } else {
-                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+                if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
                 if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
             }
             
