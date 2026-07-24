@@ -222,6 +222,12 @@ Deno.serve(async (req) => {
   const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
 
   // ── Register subscription ─────────────────────────────────────────────────
+  if (action === 'subscribe_fcm') {
+    if (!driverId || !body.token) return Response.json({ error: 'Missing driverId or token' }, { status: 400 });
+    await base44.asServiceRole.entities.Driver.update(driverId, { fcm_token: body.token });
+    return Response.json({ ok: true });
+  }
+
   if (action === 'subscribe') {
     if (!driverId || !subscription) return Response.json({ error: 'Missing driverId or subscription' }, { status: 400 });
     await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: JSON.stringify(subscription) });
@@ -340,31 +346,29 @@ Deno.serve(async (req) => {
       const title = '🚖 ¡NUEVO VIAJE!';
       const bodyStr = orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}${orderData.fare ? ' · $' + orderData.fare : ''}` : 'Tenés un viaje asignado';
 
-      if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return Response.json({ error: 'VAPID keys not configured' }, { status: 500 });
+      let webPushStatus = null;
+      let webPushSuccess = false;
 
-      if (!driver?.push_subscription) return Response.json({ ok: false, reason: 'no_subscription' });
-
-      let sub;
-      try { sub = JSON.parse(driver.push_subscription); } catch (_) {
-        return Response.json({ ok: false, reason: 'invalid_subscription' });
-      }
-
-      const payload = JSON.stringify({
-        type: 'NEW_RIDE',
-        orderId,
-        driverId,
-        title,
-        body: bodyStr,
-        actions: [
-          { action: 'accept', title: '✅ Aceptar' },
-          { action: 'reject', title: '❌ Rechazar' }
-        ]
-      });
-
-      const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-
-      if (status === 410 || status === 404) {
-        await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: null });
+      if (driver?.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+        try {
+          let sub = JSON.parse(driver.push_subscription);
+          const payload = JSON.stringify({
+            type: 'NEW_RIDE',
+            orderId,
+            driverId,
+            title,
+            body: bodyStr,
+            actions: [
+              { action: 'accept', title: '✅ Aceptar' },
+              { action: 'reject', title: '❌ Rechazar' }
+            ]
+          });
+          webPushStatus = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+          if (webPushStatus === 410 || webPushStatus === 404) {
+            await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: null });
+          }
+          webPushSuccess = webPushStatus >= 200 && webPushStatus < 300;
+        } catch (_) {}
       }
       
       // Intentar enviar tambíen por FCM nativo si el chofer tiene el token
@@ -432,8 +436,8 @@ Deno.serve(async (req) => {
          }
       }
 
-      const success = status >= 200 && status < 300;
-      return Response.json({ ok: success, status });
+      const success = webPushSuccess || !!driver.fcm_token;
+      return Response.json({ ok: success, status: webPushStatus });
     } catch (err) {
       return Response.json({ ok: false, reason: 'send_error', error: err.message });
     }
