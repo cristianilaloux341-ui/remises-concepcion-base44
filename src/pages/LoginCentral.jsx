@@ -67,6 +67,24 @@ export default function LoginCentral() {
         </div>
 
         <form onSubmit={handleLogin} className="p-6 space-y-4">
+          <div className="flex justify-between items-center bg-blue-50 p-4 rounded-xl mb-6 border border-blue-100">
+            <div className="flex items-center gap-3">
+              <Car className="text-blue-600 w-8 h-8" />
+              <div>
+                <h3 className="font-bold text-sm text-blue-900">App para Clientes</h3>
+                <p className="text-xs text-blue-700">Versión de prueba</p>
+              </div>
+            </div>
+            <Button 
+              type="button" 
+              variant="outline"
+              className="border-blue-200 text-blue-700 hover:bg-blue-100 bg-white"
+              onClick={() => navigate('/app-cliente')}
+            >
+              Abrir App
+            </Button>
+          </div>
+
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700">Teléfono</label>
             <div className="relative">
