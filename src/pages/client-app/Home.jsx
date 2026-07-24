@@ -54,33 +54,36 @@ export default function Home() {
       </div>
 
       {showSetup && (
-        <div className="absolute inset-0 z-50 bg-slate-950 flex flex-col p-6 animate-in fade-in duration-300">
-          <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
-            <div className="text-center space-y-2 mb-10">
-              <h1 className="text-3xl font-black tracking-tight text-white">¿Cómo te llamás?</h1>
-              <p className="text-slate-400 text-sm">Completá tu nombre para que el chofer pueda identificarte.</p>
-            </div>
-            <form onSubmit={handleSaveProfile} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-slate-300">Nombre completo</Label>
-                <Input 
-                  id="name" 
-                  type="text" 
-                  placeholder="Ej: Juan Pérez" 
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="bg-slate-900 border-slate-800 text-white h-14 text-lg focus-visible:ring-blue-600"
-                  autoFocus
-                />
+        <div className="absolute inset-0 z-50 bg-slate-50 flex flex-col p-6 animate-in fade-in duration-300">
+          <div className="absolute top-0 inset-x-0 h-48 bg-blue-600 rounded-b-[3rem] shadow-lg"></div>
+          <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full relative z-10">
+            <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-slate-100">
+              <div className="text-center space-y-2 mb-8">
+                <h1 className="text-2xl font-black tracking-tight text-slate-800">¿Cómo te llamás?</h1>
+                <p className="text-slate-500 text-sm">Completá tu nombre para que el chofer pueda identificarte.</p>
               </div>
-              <Button 
-                type="submit" 
-                className="w-full h-14 text-lg font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
-                disabled={saving || !name.trim()}
-              >
-                {saving ? 'Guardando...' : 'Comenzar a viajar'}
-              </Button>
-            </form>
+              <form onSubmit={handleSaveProfile} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-slate-700 font-bold">Nombre completo</Label>
+                  <Input 
+                    id="name" 
+                    type="text" 
+                    placeholder="Ej: Juan Pérez" 
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="bg-slate-50 border-slate-200 text-slate-900 h-14 text-lg focus-visible:ring-blue-600 focus-visible:border-blue-600"
+                    autoFocus
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-md shadow-green-600/20"
+                  disabled={saving || !name.trim()}
+                >
+                  {saving ? 'Guardando...' : 'Comenzar a viajar'}
+                </Button>
+              </form>
+            </div>
           </div>
         </div>
       )}
@@ -88,10 +91,15 @@ export default function Home() {
       {/* Top Bar */}
       <div className="absolute top-0 inset-x-0 p-5 z-10 flex justify-between items-center bg-gradient-to-b from-white/90 to-transparent pt-14">
         <button onClick={() => navigate('/app-cliente/profile')} className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-slate-100">
-          <Menu className="w-6 h-6 text-slate-800" />
+          <Menu className="w-6 h-6 text-blue-600" />
         </button>
-        <div className="bg-white px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2 border border-slate-100">
-          <span className="font-black text-slate-900 tracking-tight text-lg">Evoloux</span>
+        <div className="bg-white pl-2 pr-4 py-2 rounded-full shadow-lg flex items-center gap-2 border border-slate-100">
+          <img 
+            src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg" 
+            alt="RC" 
+            className="w-8 h-8 rounded-full object-cover"
+          />
+          <span className="font-black text-slate-900 tracking-tight text-sm">Remises Concepción</span>
         </div>
       </div>
 

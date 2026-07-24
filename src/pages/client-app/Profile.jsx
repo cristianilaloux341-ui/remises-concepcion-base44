@@ -5,21 +5,23 @@ import { ArrowLeft, History, MapPin, User, Settings, HelpCircle, CreditCard } fr
 export default function Profile() {
   const navigate = useNavigate();
 
+  const clientName = localStorage.getItem('client_name') || 'Cliente';
+
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col pb-10">
-      <div className="bg-slate-900 text-white p-6 pt-16 pb-10 rounded-b-[3rem] shadow-xl relative">
-        <button onClick={() => navigate(-1)} className="absolute top-12 left-4 p-2 rounded-full bg-white/10 hover:bg-white/20">
+      <div className="bg-blue-600 text-white p-6 pt-16 pb-10 rounded-b-[3rem] shadow-xl relative">
+        <button onClick={() => navigate(-1)} className="absolute top-12 left-4 p-2 rounded-full bg-white/20 hover:bg-white/30">
           <ArrowLeft className="w-6 h-6" />
         </button>
         <div className="flex items-center gap-5 mt-6">
-          <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center border-4 border-white/10 text-3xl">
+          <div className="w-20 h-20 bg-blue-700 rounded-full flex items-center justify-center border-4 border-white/20 text-3xl shadow-inner">
             👤
           </div>
           <div>
-            <h1 className="text-2xl font-black">Cliente Demo</h1>
+            <h1 className="text-2xl font-black">{clientName}</h1>
             <div className="flex items-center gap-2 mt-1">
-              <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-bold tracking-wider">MIEMBRO GOLD</span>
-              <span className="text-slate-300 text-sm font-medium">★ 4.9</span>
+              <span className="bg-red-500 text-white px-2 py-0.5 rounded text-xs font-bold tracking-wider shadow-sm">NUEVO MIEMBRO</span>
+              <span className="text-blue-100 text-sm font-medium">★ 5.0</span>
             </div>
           </div>
         </div>

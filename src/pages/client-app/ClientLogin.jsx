@@ -52,36 +52,43 @@ export default function ClientLogin() {
   };
 
   return (
-    <div className="h-[100dvh] bg-slate-950 text-white flex flex-col p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
-      <div className="flex-1 flex flex-col justify-center max-w-sm w-full mx-auto w-full">
-        <div className="text-center space-y-2 mb-10">
-          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-2xl mb-4">
-            <span className="text-3xl font-black text-slate-950 tracking-tighter">EV</span>
+    <div className="h-[100dvh] bg-slate-50 text-slate-900 flex flex-col p-6 relative overflow-hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="absolute top-0 inset-x-0 h-48 bg-blue-600 rounded-b-[3rem] shadow-lg"></div>
+      <div className="flex-1 flex flex-col justify-center max-w-sm w-full mx-auto relative z-10">
+        <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-slate-100">
+          <div className="text-center space-y-2 mb-8">
+            <div className="w-20 h-20 bg-white rounded-2xl p-1 mx-auto shadow-md border border-slate-100 mb-4 -mt-14">
+              <img 
+                src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg" 
+                alt="Remises Concepción" 
+                className="w-full h-full rounded-xl object-cover"
+              />
+            </div>
+            <h1 className="text-2xl font-black text-slate-800 tracking-tight">Remises Concepción</h1>
+            <p className="text-slate-500 text-sm">Ingresá para pedir tu móvil</p>
           </div>
-          <h1 className="text-3xl font-black tracking-tight">Ingresá a Evoloux</h1>
-          <p className="text-slate-400 text-sm">Tu viaje premium está a un paso</p>
-        </div>
 
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="phone" className="text-slate-300">Número de celular</Label>
-            <Input 
-              id="phone" 
-              type="tel" 
-              placeholder="Ej: 3442 123456" 
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="bg-slate-900 border-slate-800 text-white h-14 text-lg focus-visible:ring-blue-600"
-            />
-          </div>
-          <Button 
-            type="submit" 
-            className="w-full h-14 text-lg font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
-            disabled={loading}
-          >
-            {loading ? 'Ingresando...' : 'Ingresar'}
-          </Button>
-        </form>
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="phone" className="text-slate-700 font-bold">Número de celular</Label>
+              <Input 
+                id="phone" 
+                type="tel" 
+                placeholder="Ej: 3442 123456" 
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="bg-slate-50 border-slate-200 text-slate-900 h-14 text-lg focus-visible:ring-blue-600 focus-visible:border-blue-600"
+              />
+            </div>
+            <Button 
+              type="submit" 
+              className="w-full h-14 text-lg font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-md shadow-red-600/20"
+              disabled={loading}
+            >
+              {loading ? 'Ingresando...' : 'Ingresar'}
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );

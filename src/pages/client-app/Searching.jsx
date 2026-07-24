@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import StaticMap from './components/StaticMap';
+import RideMap from '@/components/map/RideMap';
 
 export default function Searching() {
   const navigate = useNavigate();
@@ -13,7 +13,9 @@ export default function Searching() {
 
   return (
     <div className="h-[100dvh] flex flex-col relative bg-slate-100 overflow-hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <StaticMap />
+      <div className="absolute inset-0 z-0">
+        <RideMap className="border-none rounded-none w-full h-full" autoFit={false} zoom={15} />
+      </div>
       
       {/* Radar Overlay */}
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] z-10 flex items-center justify-center">

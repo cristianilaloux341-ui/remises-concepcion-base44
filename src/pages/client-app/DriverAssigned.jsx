@@ -40,7 +40,7 @@ export default function DriverAssigned() {
 
         <div className="flex items-center gap-2">
           <Shield className="w-5 h-5 text-green-500" />
-          <p className="text-sm font-semibold text-slate-700">Carlos cumple con los estándares de seguridad Evoloux.</p>
+          <p className="text-sm font-semibold text-slate-700">Carlos cumple con los estándares de seguridad de Remises Concepción.</p>
         </div>
 
         {/* Acciones */}
