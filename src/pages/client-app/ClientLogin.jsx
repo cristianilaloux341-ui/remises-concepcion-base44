@@ -13,7 +13,8 @@ export default function ClientLogin() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!phone.trim()) {
+    const cleanPhone = phone.trim();
+    if (!cleanPhone) {
       toast.error('Por favor, ingresá tu número de teléfono');
       return;
     }
@@ -21,18 +22,27 @@ export default function ClientLogin() {
     setLoading(true);
     try {
       // Buscar si el cliente ya existe
-      const clients = await base44.entities.Client.filter({ phone: phone.trim() });
+      const clients = await base44.entities.Client.filter({ phone: cleanPhone });
+      let client;
+
       if (clients && clients.length > 0) {
-        // Guardar en local storage
-        localStorage.setItem('client_id', clients[0].id);
-        localStorage.setItem('client_name', clients[0].name);
-        localStorage.setItem('client_phone', clients[0].phone);
+        client = clients[0];
         toast.success('¡Bienvenido de nuevo!');
-        navigate('/app-cliente/home');
       } else {
-        // Redirigir a registro pasándole el teléfono
-        navigate('/app-cliente/register', { state: { phone: phone.trim() } });
+        // Si no existe, crearlo automáticamente en la BD
+        client = await base44.entities.Client.create({
+          name: cleanPhone, // Guardamos el número como nombre inicial para la central
+          phone: cleanPhone
+        });
+        toast.success('¡Ingreso exitoso!');
       }
+
+      // Guardar sesión en local storage
+      localStorage.setItem('client_id', client.id);
+      localStorage.setItem('client_name', client.name);
+      localStorage.setItem('client_phone', client.phone);
+      
+      navigate('/app-cliente/home');
     } catch (error) {
       console.error(error);
       toast.error('Ocurrió un error al iniciar sesión');
@@ -69,7 +79,7 @@ export default function ClientLogin() {
             className="w-full h-14 text-lg font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
             disabled={loading}
           >
-            {loading ? 'Verificando...' : 'Continuar'}
+            {loading ? 'Ingresando...' : 'Ingresar'}
           </Button>
         </form>
       </div>
