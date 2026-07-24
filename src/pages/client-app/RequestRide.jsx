@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, MapPin, ArrowRight } from 'lucide-react';
+import PickupAutocomplete from '@/components/orders/PickupAutocomplete';
 
 export default function RequestRide() {
   const navigate = useNavigate();
@@ -26,25 +27,26 @@ export default function RequestRide() {
         <div className="absolute left-9 top-12 bottom-28 w-[3px] bg-slate-200 rounded-full"></div>
         <div className="space-y-4 relative z-10">
           <div className="flex items-center gap-4">
-            <div className="w-3.5 h-3.5 rounded-full bg-slate-900 ring-4 ring-white shadow-sm shrink-0"></div>
-            <input 
-              type="text" 
-              value={pickup} 
-              onChange={(e) => setPickup(e.target.value)}
-              placeholder="Punto de partida"
-              className="w-full bg-slate-50 p-4 rounded-2xl text-slate-900 font-semibold border border-slate-100 outline-none focus:border-slate-300 focus:bg-white transition-colors" 
-            />
+            <div className="w-3.5 h-3.5 rounded-full bg-slate-900 ring-4 ring-white shadow-sm shrink-0 relative z-20"></div>
+            <div className="flex-1">
+              <PickupAutocomplete 
+                value={pickup} 
+                onChange={(val) => setPickup(val)}
+                placeholder="Punto de partida"
+                className="w-full bg-slate-50 py-4 pr-4 pl-10 rounded-2xl text-slate-900 font-semibold border border-slate-100 focus:border-slate-300 focus:bg-white transition-colors h-auto shadow-none outline-none" 
+              />
+            </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="w-3.5 h-3.5 rounded-sm bg-blue-600 ring-4 ring-white shadow-sm shrink-0"></div>
-            <input 
-              type="text" 
-              placeholder="¿Hacia dónde vas?" 
-              autoFocus 
-              value={dropoff}
-              onChange={(e) => setDropoff(e.target.value)}
-              className="w-full bg-white p-4 rounded-2xl text-slate-900 font-semibold shadow-[0_0_0_2px_rgba(37,99,235,0.2)] border-blue-500 outline-none" 
-            />
+            <div className="w-3.5 h-3.5 rounded-sm bg-blue-600 ring-4 ring-white shadow-sm shrink-0 relative z-20"></div>
+            <div className="flex-1">
+              <PickupAutocomplete 
+                placeholder="¿Hacia dónde vas?" 
+                value={dropoff}
+                onChange={(val) => setDropoff(val)}
+                className="w-full bg-white py-4 pr-4 pl-10 rounded-2xl text-slate-900 font-semibold border-blue-500 shadow-[0_0_0_2px_rgba(37,99,235,0.2)] h-auto outline-none" 
+              />
+            </div>
           </div>
           
           <button 
