@@ -7,13 +7,22 @@ export default function RequestRide() {
   const navigate = useNavigate();
   const location = useLocation();
   const [pickup, setPickup] = useState('Mi ubicación');
+  const [pickupCoords, setPickupCoords] = useState(null);
   const [dropoff, setDropoff] = useState('');
+  const [dropoffCoords, setDropoffCoords] = useState(null);
   const clientId = localStorage.getItem('client_id') || 'unregistered';
 
   const handleContinue = (e) => {
     e.preventDefault();
     if (pickup.trim() && dropoff.trim()) {
-      navigate('/app-cliente/fare', { state: { pickup: pickup.trim(), dropoff: dropoff.trim() } });
+      navigate('/app-cliente/fare', { 
+        state: { 
+          pickup: pickup.trim(), 
+          pickupCoords,
+          dropoff: dropoff.trim(),
+          dropoffCoords
+        } 
+      });
     }
   };
 
@@ -32,7 +41,7 @@ export default function RequestRide() {
             <div className="flex-1">
               <PickupAutocomplete 
                 value={pickup} 
-                onChange={(val) => setPickup(val)}
+                onChange={(val, coords) => { setPickup(val); if (coords) setPickupCoords(coords); }}
                 restrictToClient={clientId}
                 placeholder="Punto de partida"
                 className="w-full bg-slate-50 py-4 pr-4 pl-10 rounded-2xl text-slate-900 font-semibold border border-slate-100 focus:border-slate-300 focus:bg-white transition-colors h-auto shadow-none outline-none" 
@@ -45,7 +54,7 @@ export default function RequestRide() {
               <PickupAutocomplete 
                 placeholder="¿Hacia dónde vas?" 
                 value={dropoff}
-                onChange={(val) => setDropoff(val)}
+                onChange={(val, coords) => { setDropoff(val); if (coords) setDropoffCoords(coords); }}
                 restrictToClient={clientId}
                 className="w-full bg-white py-4 pr-4 pl-10 rounded-2xl text-slate-900 font-semibold border-blue-500 shadow-[0_0_0_2px_rgba(37,99,235,0.2)] h-auto outline-none" 
               />

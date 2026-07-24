@@ -10,21 +10,54 @@ export default function FareEstimate() {
   const { state } = useLocation();
   const [isCreating, setIsCreating] = useState(false);
   const [tarifa, setTarifa] = useState(null);
+  const [estimatedPrice, setEstimatedPrice] = useState(null);
+  const [distance, setDistance] = useState(null);
+  const [calculatingPrice, setCalculatingPrice] = useState(true);
+
+  const pickup = state?.pickup || 'Mi ubicación';
+  const pickupCoords = state?.pickupCoords;
+  const dropoff = state?.dropoff || 'Destino seleccionado';
+  const dropoffCoords = state?.dropoffCoords;
 
   useEffect(() => {
-    base44.entities.TarifaConfig.list().then(res => {
-      if (res.length > 0) setTarifa(res[0]);
-    }).catch(e => console.error(e));
-  }, []);
+    const fetchEstimate = async () => {
+      try {
+        const res = await base44.entities.TarifaConfig.list();
+        const currentTarifa = res.length > 0 ? res[0] : null;
+        setTarifa(currentTarifa);
+
+        if (currentTarifa && pickupCoords && dropoffCoords) {
+          const routeRes = await base44.functions.invoke("geocodeRoute", {
+            action: "route",
+            originLat: pickupCoords.lat,
+            originLng: pickupCoords.lng,
+            destLat: dropoffCoords.lat,
+            destLng: dropoffCoords.lng
+          });
+          
+          if (routeRes.data?.distance) {
+            setDistance(routeRes.data.distance);
+            // Calculo aproximado: bajada de bandera + (metros * precio_por_metro)
+            const calculated = currentTarifa.bajada_bandera + (routeRes.data.distance * currentTarifa.precio_por_metro);
+            // Redondear a múltiplo de 100 por prolijidad
+            setEstimatedPrice(Math.ceil(calculated / 100) * 100);
+          }
+        }
+      } catch (e) {
+        console.error("Error al calcular tarifa:", e);
+      } finally {
+        setCalculatingPrice(false);
+      }
+    };
+    
+    fetchEstimate();
+  }, [pickupCoords, dropoffCoords]);
 
   const [passengers, setPassengers] = useState(1);
   const [needsTrunk, setNeedsTrunk] = useState(false);
   const [needsHelp, setNeedsHelp] = useState(false);
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
-
-  const pickup = state?.pickup || '9 de Julio 1250';
-  const dropoff = state?.dropoff || 'Destino seleccionado';
 
   const handleConfirm = async () => {
     setIsCreating(true);
@@ -80,9 +113,19 @@ export default function FareEstimate() {
             <div className="flex-1">
               <div className="flex items-center justify-between gap-2">
                 <p className="font-bold text-slate-900 text-lg">Remís Estándar</p>
-                {tarifa && <p className="font-bold text-blue-600 text-lg">~${tarifa.bajada_bandera}</p>}
+                {calculatingPrice ? (
+                   <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                ) : estimatedPrice ? (
+                   <p className="font-bold text-green-600 text-xl">~${estimatedPrice}</p>
+                ) : tarifa ? (
+                   <p className="font-bold text-blue-600 text-lg">Desde ${tarifa.bajada_bandera}</p>
+                ) : null}
               </div>
-              <p className="text-sm text-slate-500">{tarifa ? 'Precio base estimado' : 'Viaje seguro y rápido'}</p>
+              <p className="text-sm text-slate-500">
+                {estimatedPrice 
+                  ? `Costo aproximado del viaje (${distance ? Math.round(distance/1000 * 10) / 10 : 0} km)` 
+                  : tarifa ? 'Costo base (sin destino exacto)' : 'Viaje seguro y rápido'}
+              </p>
             </div>
           </div>
         </div>
