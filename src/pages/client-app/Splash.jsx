@@ -5,7 +5,14 @@ export default function Splash() {
   const navigate = useNavigate();
   
   useEffect(() => {
-    const t = setTimeout(() => navigate('/app-cliente/home'), 2500);
+    const t = setTimeout(() => {
+      const clientId = localStorage.getItem('client_id');
+      if (clientId) {
+        navigate('/app-cliente/home');
+      } else {
+        navigate('/app-cliente/login');
+      }
+    }, 2500);
     return () => clearTimeout(t);
   }, [navigate]);
 

@@ -11,6 +11,8 @@ import PrivacyPolicy from '@/pages/PrivacyPolicy';
 
 import AppLayout from '@/components/layout/AppLayout';
 import ClientSplash from '@/pages/client-app/Splash';
+import ClientLogin from '@/pages/client-app/ClientLogin';
+import ClientRegister from '@/pages/client-app/ClientRegister';
 import ClientHome from '@/pages/client-app/Home';
 import ClientRequest from '@/pages/client-app/RequestRide';
 import ClientFare from '@/pages/client-app/FareEstimate';
@@ -126,6 +128,8 @@ const AuthenticatedApp = () => {
         <Route path="/client" element={<Navigate to="/app-cliente/splash" replace />} />
         <Route path="/app-cliente" element={<Navigate to="/app-cliente/splash" replace />} />
         <Route path="/app-cliente/splash" element={<ClientSplash />} />
+        <Route path="/app-cliente/login" element={<ClientLogin />} />
+        <Route path="/app-cliente/register" element={<ClientRegister />} />
         <Route path="/app-cliente/home" element={<ClientHome />} />
         <Route path="/app-cliente/request" element={<ClientRequest />} />
         <Route path="/app-cliente/fare" element={<ClientFare />} />
@@ -169,6 +173,8 @@ const AuthenticatedApp = () => {
       <Route path="/client" element={<Navigate to="/app-cliente/splash" replace />} />
       <Route path="/app-cliente" element={<Navigate to="/app-cliente/splash" replace />} />
       <Route path="/app-cliente/splash" element={<ClientSplash />} />
+      <Route path="/app-cliente/login" element={<ClientLogin />} />
+      <Route path="/app-cliente/register" element={<ClientRegister />} />
       <Route path="/app-cliente/home" element={<ClientHome />} />
       <Route path="/app-cliente/request" element={<ClientRequest />} />
       <Route path="/app-cliente/fare" element={<ClientFare />} />
