@@ -117,7 +117,8 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
         orderData: {
           pickup_address: order.pickup_address,
           dropoff_address: order.dropoff_address,
-          fare: order.fare
+          fare: order.fare,
+          assignmentAttempt: order.assignment_attempt || 1
         }
       });
     } catch (pushErr) {

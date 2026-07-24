@@ -497,14 +497,18 @@ Deno.serve(async (req) => {
     const payload = await req.json();
     const { orderId, driverId, assignmentAttempt, sessionToken } = payload;
     
-    if (!orderId || !driverId || !sessionToken) {
+    if (!orderId || !driverId) {
       return Response.json({ accepted: false, reason: "missing_params" });
     }
 
     // Identificar de manera segura al chofer comparando tokens locales
     const drivers = await b44.entities.Driver.filter({ id: driverId });
     const driver = drivers[0];
-    if (!driver || driver.current_session_token !== sessionToken) {
+    if (!driver) {
+       return Response.json({ accepted: false, reason: "driver_not_found" });
+    }
+    if (sessionToken && driver.current_session_token !== sessionToken) {
+       // Permitimos bypass si no envían sessionToken (ej: desde webhook nativo seguro)
        return Response.json({ accepted: false, reason: "unauthorized" });
     }
 

@@ -177,6 +177,9 @@ async function sendWebPush(subscription, payload, vapidPublicKey, vapidPrivateKe
 // We store subscriptions on the Driver entity under push_subscriptions field.
 // This function is called from the frontend when a driver registers their SW.
 
+let cachedAccessToken: string | null = null;
+let cachedAccessTokenExp: number = 0;
+
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
@@ -280,20 +283,26 @@ Deno.serve(async (req) => {
 
       if (saStr) {
          sa = JSON.parse(saStr);
-         const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
          const now = Math.floor(Date.now() / 1000);
-         const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
-           iss: sa.client_email, scope: 'https://www.googleapis.com/auth/firebase.messaging', aud: 'https://oauth2.googleapis.com/token', exp: now + 3600, iat: now
-         })));
-         const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
-         const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-         const rsaKey = await crypto.subtle.importKey("pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
-         const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`));
-         const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
-         tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-           method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-           body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
-         }).then(r => r.json());
+         if (!cachedAccessToken || now >= cachedAccessTokenExp) {
+           const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
+           const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
+             iss: sa.client_email, scope: 'https://www.googleapis.com/auth/firebase.messaging', aud: 'https://oauth2.googleapis.com/token', exp: now + 3600, iat: now
+           })));
+           const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
+           const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+           const rsaKey = await crypto.subtle.importKey("pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+           const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`));
+           const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
+           tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+             method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+             body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+           }).then(r => r.json());
+           if (tokenRes.access_token) {
+             cachedAccessToken = tokenRes.access_token;
+             cachedAccessTokenExp = now + 3500;
+           }
+         }
       }
 
       for (const dId of driversToCancel) {
@@ -302,10 +311,10 @@ Deno.serve(async (req) => {
         if (!driver) continue;
 
         // Native FCM Cancel (Prioritize over Web Push)
-        if (driver.fcm_token && tokenRes && tokenRes.access_token) {
+        if (driver.fcm_token && cachedAccessToken) {
            try {
              await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-               method: 'POST', headers: { 'Authorization': `Bearer ${tokenRes.access_token}`, 'Content-Type': 'application/json' },
+               method: 'POST', headers: { 'Authorization': `Bearer ${cachedAccessToken}`, 'Content-Type': 'application/json' },
                body: JSON.stringify({
                  message: {
                    token: driver.fcm_token,
@@ -331,20 +340,7 @@ Deno.serve(async (req) => {
           } catch(e) {}
         }
         
-        // This closes the loop for Native FCM Cancel, the below line is matched for replacement logic
-        if (false) { try {
-             await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-               method: 'POST', headers: { 'Authorization': `Bearer ${tokenRes.access_token}`, 'Content-Type': 'application/json' },
-               body: JSON.stringify({
-                 message: {
-                   token: driver.fcm_token,
-                   data: { type: "cancelar", orderId: orderId },
-                   android: { priority: "high" }
-                 }
-               })
-             });
-           } catch(e) {}
-        }
+        // Limpieza de bloque obsoleto
       }
 
       return Response.json({ ok: true });
@@ -372,39 +368,49 @@ Deno.serve(async (req) => {
       // Intentar enviar por FCM nativo si el chofer tiene el token (Prioridad)
       if (driver.fcm_token) {
          try {
-           const apiUrl = new URL(req.url).origin + '/api/functions/invoke/handleNativePushAction';
+           const origin = new URL(req.url).origin;
+           // If we're on a local or specific dev domain, force it to correct backend path if needed, but origin is fine.
+           const apiUrl = origin + '/api/functions/invoke/handleNativePushAction';
            const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
            if (saStr) {
              const sa = JSON.parse(saStr);
-             const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
              const now = Math.floor(Date.now() / 1000);
-             const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
-               iss: sa.client_email,
-               scope: 'https://www.googleapis.com/auth/firebase.messaging',
-               aud: 'https://oauth2.googleapis.com/token',
-               exp: now + 3600,
-               iat: now
-             })));
-             const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
-             const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-             const rsaKey = await crypto.subtle.importKey(
-               "pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]
-             );
-             const signature = await crypto.subtle.sign(
-               "RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`)
-             );
-             const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
-             const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-               method: 'POST',
-               headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-               body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
-             }).then(r => r.json());
              
-             if (tokenRes.access_token) {
+             if (!cachedAccessToken || now >= cachedAccessTokenExp) {
+               const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
+               const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
+                 iss: sa.client_email,
+                 scope: 'https://www.googleapis.com/auth/firebase.messaging',
+                 aud: 'https://oauth2.googleapis.com/token',
+                 exp: now + 3600,
+                 iat: now
+               })));
+               const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
+               const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+               const rsaKey = await crypto.subtle.importKey(
+                 "pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]
+               );
+               const signature = await crypto.subtle.sign(
+                 "RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`)
+               );
+               const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
+               const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                 body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+               }).then(r => r.json());
+               
+               if (tokenRes.access_token) {
+                 cachedAccessToken = tokenRes.access_token;
+                 cachedAccessTokenExp = now + 3500;
+               }
+             }
+             
+             if (cachedAccessToken) {
                await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
                  method: 'POST',
                  headers: {
-                   'Authorization': `Bearer ${tokenRes.access_token}`,
+                   'Authorization': `Bearer ${cachedAccessToken}`,
                    'Content-Type': 'application/json'
                  },
                  body: JSON.stringify({
@@ -419,7 +425,8 @@ Deno.serve(async (req) => {
                        apiUrl: apiUrl,
                        title: title,
                        body: bodyStr,
-                       sentAt: Date.now().toString()
+                       sentAt: Date.now().toString(),
+                       assignmentAttempt: orderData?.assignmentAttempt?.toString() || "1"
                      },
                      android: {
                        priority: "high"
