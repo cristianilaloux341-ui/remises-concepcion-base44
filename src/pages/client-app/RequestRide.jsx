@@ -67,7 +67,7 @@ export default function RequestRide() {
           <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0"><MapPin className="w-6 h-6 text-slate-600" /></div>
           <div className="flex-1 border-b border-slate-100 pb-4 pt-2 min-w-0">
             <p className="font-bold text-slate-900 text-lg truncate">Hospital J. J. de Urquiza</p>
-            <p className="text-sm text-slate-500 truncate">Dr. Uncal y Victoriano E. Montes</p>
+            <p className="text-sm text-slate-500 truncate">Dr. Uncal (Entradas: L. Sartorio / V. Rodríguez)</p>
           </div>
         </div>
         <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: pickup || 'Mi ubicación', dropoff: 'Terminal de Ómnibus' } })}>
