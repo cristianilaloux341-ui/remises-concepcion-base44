@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Menu, Search, Star, Clock } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
-import StaticMap from './components/StaticMap';
+import RideMap from '@/components/map/RideMap';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,6 +49,10 @@ export default function Home() {
   
   return (
     <div className="h-[100dvh] flex flex-col relative bg-slate-100" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className="absolute inset-0 z-0">
+        <RideMap className="border-none rounded-none w-full h-full" autoFit={false} zoom={14} />
+      </div>
+
       {showSetup && (
         <div className="absolute inset-0 z-50 bg-slate-950 flex flex-col p-6 animate-in fade-in duration-300">
           <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
@@ -81,8 +85,6 @@ export default function Home() {
         </div>
       )}
 
-      <StaticMap />
-      
       {/* Top Bar */}
       <div className="absolute top-0 inset-x-0 p-5 z-10 flex justify-between items-center bg-gradient-to-b from-white/90 to-transparent pt-14">
         <button onClick={() => navigate('/app-cliente/profile')} className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform border border-slate-100">
