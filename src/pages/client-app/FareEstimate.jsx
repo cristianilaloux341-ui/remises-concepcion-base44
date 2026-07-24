@@ -14,6 +14,7 @@ export default function FareEstimate() {
   const [needsTrunk, setNeedsTrunk] = useState(false);
   const [needsHelp, setNeedsHelp] = useState(false);
   const [notes, setNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Efectivo');
 
   const pickup = state?.pickup || '9 de Julio 1250';
   const dropoff = state?.dropoff || 'Destino seleccionado';
@@ -25,7 +26,7 @@ export default function FareEstimate() {
       const clientName = localStorage.getItem('client_name') || "Cliente App";
       const clientPhone = localStorage.getItem('client_phone') || "";
 
-      let finalNotes = `Pasajeros: ${passengers}`;
+      let finalNotes = `Pasajeros: ${passengers} | Pago: ${paymentMethod}`;
       if (needsTrunk) finalNotes += ` | Con baúl`;
       if (needsHelp) finalNotes += ` | Ayuda para subir`;
       if (notes.trim()) finalNotes += ` | ${notes.trim()}`;
@@ -128,14 +129,17 @@ export default function FareEstimate() {
         </div>
 
         {/* Pago y Confirmación */}
-        <div className="flex items-center justify-between border-y border-slate-100 py-4">
+        <div 
+          className="flex items-center justify-between border-y border-slate-100 py-4 cursor-pointer hover:bg-slate-50 transition-colors rounded-xl px-2 -mx-2"
+          onClick={() => setPaymentMethod(prev => prev === 'Efectivo' ? 'Transferencia / MP' : 'Efectivo')}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-slate-700" />
+            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="font-bold text-slate-900 text-sm">Efectivo</p>
-              <p className="text-blue-600 text-xs font-bold">Cambiar pago</p>
+              <p className="font-bold text-slate-900 text-sm">{paymentMethod}</p>
+              <p className="text-blue-600 text-xs font-bold">Tocar para cambiar</p>
             </div>
           </div>
           <ShieldCheck className="w-6 h-6 text-green-500" />
