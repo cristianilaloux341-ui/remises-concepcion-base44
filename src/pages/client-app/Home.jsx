@@ -115,7 +115,7 @@ export default function Home() {
         </button>
 
         <div className="flex gap-4 overflow-x-auto pb-4 pt-2 hide-scrollbar -mx-6 px-6">
-          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform" onClick={() => navigate('/app-cliente/request')}>
+          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform" onClick={() => navigate('/app-cliente/fare', { state: { pickup: 'Mi ubicación', dropoff: '9 de Julio 1250' } })}>
             <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
               <Star className="w-6 h-6 text-blue-600" />
             </div>
@@ -124,7 +124,7 @@ export default function Home() {
               <p className="text-sm text-slate-500 truncate">9 de Julio 1250</p>
             </div>
           </div>
-          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform" onClick={() => navigate('/app-cliente/request')}>
+          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform" onClick={() => navigate('/app-cliente/fare', { state: { pickup: 'Mi ubicación', dropoff: 'Leguizamón 350' } })}>
             <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center">
               <Clock className="w-6 h-6 text-slate-600" />
             </div>

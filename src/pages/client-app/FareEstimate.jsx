@@ -1,11 +1,43 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, CreditCard, ShieldCheck } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ArrowLeft, Clock, CreditCard, ShieldCheck, Loader2 } from 'lucide-react';
 import RideMap from '@/components/map/RideMap';
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
 
 export default function FareEstimate() {
   const navigate = useNavigate();
+  const { state } = useLocation();
   const [selected, setSelected] = useState('x');
+  const [isCreating, setIsCreating] = useState(false);
+
+  const pickup = state?.pickup || '9 de Julio 1250';
+  const dropoff = state?.dropoff || 'Destino seleccionado';
+
+  const handleConfirm = async () => {
+    setIsCreating(true);
+    try {
+      const clientId = localStorage.getItem('client_id') || "";
+      const clientName = localStorage.getItem('client_name') || "Cliente App";
+      const clientPhone = localStorage.getItem('client_phone') || "";
+
+      const order = await base44.entities.RideOrder.create({
+        client_name: clientName,
+        client_id: clientId,
+        client_phone: clientPhone,
+        pickup_address: pickup,
+        dropoff_address: dropoff,
+        status: "pendiente",
+        source: "cliente"
+      });
+      
+      navigate('/app-cliente/searching', { state: { orderId: order.id } });
+    } catch (error) {
+      console.error(error);
+      toast.error('Ocurrió un error al pedir el móvil');
+      setIsCreating(false);
+    }
+  };
 
   return (
     <div className="h-[100dvh] flex flex-col relative bg-slate-100" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -75,10 +107,11 @@ export default function FareEstimate() {
         </div>
 
         <button 
-          onClick={() => navigate('/app-cliente/searching')}
-          className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-xl shadow-lg active:scale-95 transition-transform"
+          onClick={handleConfirm}
+          disabled={isCreating}
+          className="w-full h-16 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:active:scale-100 text-white rounded-2xl font-bold text-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"
         >
-          Confirmar Viaje
+          {isCreating ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Confirmar Viaje'}
         </button>
       </div>
     </div>
