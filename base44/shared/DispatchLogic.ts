@@ -108,7 +108,22 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
     await failureInjector.hit('AFTER_RIDE_OFFER');
     await failureInjector.hit('BEFORE_PUSH');
 
-    // Trigger directo a sendPushNotification eliminado para restaurar la automatización de RideOrder
+    // Trigger directo a sendPushNotification restaurado para eliminar la latencia de 15s de la automatización
+    try {
+      await b44.functions.invoke('sendPushNotification', {
+        action: 'send',
+        driverId: driver.id,
+        orderId: order.id,
+        orderData: {
+          pickup_address: order.pickup_address,
+          dropoff_address: order.dropoff_address,
+          fare: order.fare
+        }
+      });
+    } catch (pushErr) {
+      console.error("Error trigger push en DispatchLogic:", pushErr);
+      // Falla no destructiva, permitimos que el viaje quede asignado igual
+    }
     
     return true;
   } catch (e) {

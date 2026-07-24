@@ -100,7 +100,19 @@ Deno.serve(async (req) => {
         await b44.entities.RideOrder.update(orderId, { status: targetOrderStatus });
       }
 
-      // 5. Trigger Reassignment if needed
+      // 5. DISPARO DIRECTO FCM — sin esperar la automatización de Base44 (elimina latencia de 15s)
+      b44.functions.invoke("sendPushNotification", {
+        action: "send",
+        driverId: driverId,
+        orderId: orderId,
+        orderData: {
+          pickup_address: orderReq.pickup_address,
+          dropoff_address: orderReq.dropoff_address,
+          fare: orderReq.fare
+        }
+      }).catch(e => console.error("FCM Trigger Error:", e));
+
+      // 6. Trigger Reassignment if needed
       if (targetOrderStatus === "ofrecido" && autoReassignActive) {
         b44.functions.invoke("autoReassignOnTimeout", {
           orderId: orderId,
