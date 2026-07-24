@@ -8,6 +8,8 @@ Deno.serve(async (req) => {
   const { orderId, driverId } = payload;
 
   const { forceManual, manualDriverName } = payload;
+  
+  if (!orderId) return Response.json({ success: false, reason: 'Missing orderId' });
 
   const orderReq = await b44.entities.RideOrder.get(orderId);
   if (!orderReq) return Response.json({ success: false, reason: 'Order not found' });
@@ -33,6 +35,7 @@ Deno.serve(async (req) => {
     }
   }
 
+  if (!driverId) return Response.json({ success: false, reason: 'Missing driverId' });
   const driverReq = await b44.entities.Driver.get(driverId);
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
 
@@ -100,26 +103,14 @@ Deno.serve(async (req) => {
         await b44.entities.RideOrder.update(orderId, { status: targetOrderStatus });
       }
 
-      // 5. DISPARO DIRECTO FCM — sin esperar la automatización de Base44 (elimina latencia de 15s)
-      b44.functions.invoke("sendPushNotification", {
-        action: "send",
-        driverId: driverId,
-        orderId: orderId,
-        orderData: {
-          pickup_address: orderReq.pickup_address,
-          dropoff_address: orderReq.dropoff_address,
-          fare: orderReq.fare
-        }
-      }).catch(e => console.error("FCM Trigger Error:", e));
-
-      // 6. Trigger Reassignment if needed
+      // 5. Trigger Reassignment if needed
       if (targetOrderStatus === "ofrecido" && autoReassignActive) {
         b44.functions.invoke("autoReassignOnTimeout", {
           orderId: orderId,
           driverId: driverId,
           timeoutSeconds: timeoutSeconds,
           assignmentAttempt: newAttempt
-        }).catch(e => console.error("AutoReassign Trigger Error:", e));
+        }).catch((e: any) => console.error("AutoReassign Trigger Error:", e));
       }
     } else {
         return Response.json({ success: false, reason: 'assignDriverToOrderAtomic failed' });

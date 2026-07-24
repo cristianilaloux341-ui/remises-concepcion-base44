@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
   
   // Interceptar payload de automación de entidad (RideOrder)
   if (body.event && body.event.entity_name === "RideOrder" && body.data) {
-    const isStatusChanged = !body.old_data || body.changed_fields?.includes("status");
+    const isStatusChanged = !body.old_data || body.data.status !== body.old_data.status;
     
     const targetDriverId = body.data.driver_id || body.data.reserved_driver_id;
     const oldTargetDriverId = body.old_data ? (body.old_data.driver_id || body.old_data.reserved_driver_id) : null;
@@ -213,6 +213,11 @@ Deno.serve(async (req) => {
       }
       
       body.driversToCancel = [...new Set(toCancel)];
+    }
+    
+    // Si la automatización se disparó pero no cambió el estado a algo relevante, abortar limpiamente
+    if (!body.action) {
+      return Response.json({ ok: true, reason: 'ignored_by_automation' });
     }
   }
 
