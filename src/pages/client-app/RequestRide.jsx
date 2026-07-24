@@ -72,14 +72,14 @@ export default function RequestRide() {
       </form>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: pickup || 'Mi ubicación', dropoff: 'Hospital J. J. de Urquiza' } })}>
+        <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: pickup || 'Mi ubicación', pickupCoords, dropoff: 'Hospital J. J. de Urquiza', dropoffCoords: { lat: -32.483186, lng: -58.261230 } } })}>
           <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0"><MapPin className="w-6 h-6 text-slate-600" /></div>
           <div className="flex-1 border-b border-slate-100 pb-4 pt-2 min-w-0">
             <p className="font-bold text-slate-900 text-lg truncate">Hospital J. J. de Urquiza</p>
             <p className="text-sm text-slate-500 truncate">Dr. Uncal (Entradas: L. Sartorio / V. Rodríguez)</p>
           </div>
         </div>
-        <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: pickup || 'Mi ubicación', dropoff: 'Terminal de Ómnibus' } })}>
+        <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: pickup || 'Mi ubicación', pickupCoords, dropoff: 'Terminal de Ómnibus', dropoffCoords: { lat: -32.481155, lng: -58.237248 } } })}>
           <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0"><MapPin className="w-6 h-6 text-slate-600" /></div>
           <div className="flex-1 border-b border-slate-100 pb-4 pt-2 min-w-0">
             <p className="font-bold text-slate-900 text-lg truncate">Terminal de Ómnibus</p>

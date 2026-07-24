@@ -26,13 +26,50 @@ export default function FareEstimate() {
         const currentTarifa = res.length > 0 ? res[0] : null;
         setTarifa(currentTarifa);
 
-        if (currentTarifa && pickupCoords && dropoffCoords) {
+        let finalPickupCoords = pickupCoords;
+        let finalDropoffCoords = dropoffCoords;
+
+        // Intentar geolocalizar si dice "Mi ubicación" y no hay coordenadas
+        if (!finalPickupCoords && pickup === 'Mi ubicación') {
+          try {
+            const pos = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 6000, enableHighAccuracy: true });
+            });
+            finalPickupCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          } catch (err) {
+            console.log("No se pudo obtener GPS para Mi ubicación", err);
+          }
+        }
+
+        // Si faltan coordenadas (ej. favoritos o atajos), intentamos geocodificarlas usando el backend
+        const geocodeString = async (address) => {
+          try {
+            const autoRes = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address });
+            const preds = autoRes.data?.predictions;
+            if (preds && preds.length > 0) {
+               const detRes = await base44.functions.invoke("geocodeRoute", { action: "placedetails", place_id: preds[0].place_id, description: preds[0].description });
+               if (detRes.data?.lat && detRes.data?.lng) {
+                 return { lat: detRes.data.lat, lng: detRes.data.lng };
+               }
+            }
+          } catch(e) { console.error("Error geocoding", address, e); }
+          return null;
+        };
+
+        if (!finalPickupCoords && pickup && pickup !== 'Mi ubicación') {
+          finalPickupCoords = await geocodeString(pickup);
+        }
+        if (!finalDropoffCoords && dropoff) {
+          finalDropoffCoords = await geocodeString(dropoff);
+        }
+
+        if (currentTarifa && finalPickupCoords && finalDropoffCoords) {
           const routeRes = await base44.functions.invoke("geocodeRoute", {
             action: "route",
-            originLat: pickupCoords.lat,
-            originLng: pickupCoords.lng,
-            destLat: dropoffCoords.lat,
-            destLng: dropoffCoords.lng
+            originLat: finalPickupCoords.lat,
+            originLng: finalPickupCoords.lng,
+            destLat: finalDropoffCoords.lat,
+            destLng: finalDropoffCoords.lng
           });
           
           if (routeRes.data?.distance) {
