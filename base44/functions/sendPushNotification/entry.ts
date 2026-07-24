@@ -199,7 +199,8 @@ Deno.serve(async (req) => {
       body.orderData = {
         pickup_address: body.data.pickup_address,
         dropoff_address: body.data.dropoff_address,
-        fare: body.data.fare
+        fare: body.data.fare,
+        assignmentAttempt: body.data.assignment_attempt || 1
       };
     } else if (isStatusChanged && (body.data.status === "aceptado" || body.data.status === "cancelado" || body.data.status === "pendiente")) {
       body.action = "cancel_multiple";
@@ -375,7 +376,13 @@ Deno.serve(async (req) => {
       // Intentar enviar por FCM nativo si el chofer tiene el token (Prioridad)
       if (driver.fcm_token) {
          try {
-           const apiHost = req.headers.get("base44-api-url") || new URL(req.url).origin;
+           let apiHost = req.headers.get("base44-api-url");
+           if (apiHost && !apiHost.startsWith("http")) {
+               apiHost = "https://" + apiHost;
+           }
+           if (!apiHost) {
+               apiHost = new URL(req.url).origin;
+           }
            const apiUrl = apiHost + '/api/functions/invoke/handleNativePushAction';
            const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
            if (saStr) {
@@ -413,43 +420,53 @@ Deno.serve(async (req) => {
              }
              
              if (cachedAccessToken) {
+               const fcmPayload = {
+                 message: {
+                   token: driver.fcm_token,
+                   data: {
+                     type: "ofrecido",
+                     orderId: String(orderId),
+                     driverId: String(driverId),
+                     driverName: String(driver.name || ""),
+                     base: String(driver.current_base || ""),
+                     apiUrl: String(apiUrl),
+                     title: String(title),
+                     body: String(bodyStr),
+                     sentAt: Date.now().toString(),
+                     assignmentAttempt: orderData?.assignmentAttempt?.toString() || "1"
+                   },
+                   android: {
+                     priority: "HIGH"
+                   }
+                 }
+               };
+               console.log("Enviando FCM Payload:", JSON.stringify(fcmPayload));
+               
                const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
                  method: 'POST',
                  headers: {
                    'Authorization': `Bearer ${cachedAccessToken}`,
                    'Content-Type': 'application/json'
                  },
-                 body: JSON.stringify({
-                   message: {
-                     token: driver.fcm_token,
-                     data: {
-                       type: "ofrecido",
-                       orderId: String(orderId),
-                       driverId: String(driverId),
-                       driverName: String(driver.name || ""),
-                       base: String(driver.current_base || ""),
-                       apiUrl: String(apiUrl),
-                       title: String(title),
-                       body: String(bodyStr),
-                       sentAt: Date.now().toString(),
-                       assignmentAttempt: orderData?.assignmentAttempt?.toString() || "1"
-                     },
-                     android: {
-                       priority: "HIGH"
-                     }
-                   }
-                 })
+                 body: JSON.stringify(fcmPayload)
                });
                if (!fcmRes.ok) {
                  const errText = await fcmRes.text();
-                 console.error("FCM Send Error:", errText);
+                 console.error("FCM Send Error HTTP " + fcmRes.status + ":", errText);
                  return Response.json({ ok: false, reason: "fcm_error", details: errText });
+               } else {
+                 const successBody = await fcmRes.text();
+                 console.log("FCM Send Success:", successBody);
                }
                fcmSuccess = true;
+             } else {
+               console.error("FCM Send Error: No se pudo obtener cachedAccessToken");
              }
+           } else {
+             console.error("FCM Send Error: Falta FIREBASE_SERVICE_ACCOUNT");
            }
          } catch(e) {
-           console.error("Fallo FCM Nativo", e);
+           console.error("Excepción en FCM Nativo:", e);
          }
       } 
       // Fallback a Web Push si no tiene FCM
