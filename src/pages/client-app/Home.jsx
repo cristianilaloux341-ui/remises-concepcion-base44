@@ -1,13 +1,86 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Menu, Search, Star, Clock } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 import StaticMap from './components/StaticMap';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 export default function Home() {
   const navigate = useNavigate();
+  const [showSetup, setShowSetup] = useState(false);
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const clientId = localStorage.getItem('client_id');
+
+  useEffect(() => {
+    if (clientId) {
+      base44.entities.Client.get(clientId).then(client => {
+        if (client.name === client.phone || !client.name) {
+          setShowSetup(true);
+        } else {
+          localStorage.setItem('client_name', client.name);
+        }
+      }).catch(console.error);
+    }
+  }, [clientId]);
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      toast.error('Por favor, ingresá tu nombre');
+      return;
+    }
+    setSaving(true);
+    try {
+      await base44.entities.Client.update(clientId, { name: name.trim() });
+      localStorage.setItem('client_name', name.trim());
+      setShowSetup(false);
+      toast.success('¡Perfil completado!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Ocurrió un error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  };
   
   return (
     <div className="h-[100dvh] flex flex-col relative bg-slate-100" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {showSetup && (
+        <div className="absolute inset-0 z-50 bg-slate-950 flex flex-col p-6 animate-in fade-in duration-300">
+          <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
+            <div className="text-center space-y-2 mb-10">
+              <h1 className="text-3xl font-black tracking-tight text-white">¿Cómo te llamás?</h1>
+              <p className="text-slate-400 text-sm">Completá tu nombre para que el chofer pueda identificarte.</p>
+            </div>
+            <form onSubmit={handleSaveProfile} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-slate-300">Nombre completo</Label>
+                <Input 
+                  id="name" 
+                  type="text" 
+                  placeholder="Ej: Juan Pérez" 
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="bg-slate-900 border-slate-800 text-white h-14 text-lg focus-visible:ring-blue-600"
+                  autoFocus
+                />
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full h-14 text-lg font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+                disabled={saving || !name.trim()}
+              >
+                {saving ? 'Guardando...' : 'Comenzar a viajar'}
+              </Button>
+            </form>
+          </div>
+        </div>
+      )}
+
       <StaticMap />
       
       {/* Top Bar */}
