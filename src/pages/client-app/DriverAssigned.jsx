@@ -1,14 +1,16 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, MessageCircle, Phone, Star } from 'lucide-react';
-import StaticMap from './components/StaticMap';
+import RideMap from '@/components/map/RideMap';
 
 export default function DriverAssigned() {
   const navigate = useNavigate();
 
   return (
     <div className="h-[100dvh] flex flex-col relative bg-slate-100" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <StaticMap showRoute={true} showCar={true} />
+      <div className="absolute inset-0 z-0">
+        <RideMap className="border-none rounded-none w-full h-full" autoFit={false} zoom={15} />
+      </div>
       
       {/* Etiqueta Superior */}
       <div className="absolute top-14 inset-x-0 flex justify-center z-10">
