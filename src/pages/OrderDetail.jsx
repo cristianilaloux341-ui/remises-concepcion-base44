@@ -56,18 +56,23 @@ export default function OrderDetail() {
   // When cancelling an active order, put the assigned driver first in queue
   const cancelOrder = async () => {
     await base44.entities.RideOrder.update(order.id, { status: "cancelado" });
-    if (order.driver_id && ["aceptado", "en_camino", "en_viaje", "ofrecido"].includes(order.status)) {
-      // Set queue_entered_at far in the past so driver appears first
-      await base44.entities.Driver.update(order.driver_id, {
-        status: "disponible",
-        queue_entered_at: new Date(Date.now() - 31536000000).toISOString(),
-      });
+    if (["aceptado", "en_camino", "en_viaje", "ofrecido", "procesando_despacho"].includes(order.status)) {
+      if (order.driver_id) {
+        // Set queue_entered_at far in the past so driver appears first
+        await base44.entities.Driver.update(order.driver_id, {
+          status: "disponible",
+          queue_entered_at: new Date(Date.now() - 31536000000).toISOString(),
+        });
+      }
       
-      base44.functions.invoke("sendPushNotification", {
-        action: "cancel_ride",
-        driverId: order.driver_id,
-        orderId: order.id
-      }).catch(e => console.error("Cancel push error:", e));
+      const toCancel = [...new Set([order.driver_id, order.reserved_driver_id, ...(order.offered_driver_ids || [])])].filter(Boolean);
+      if (toCancel.length > 0) {
+        base44.functions.invoke("sendPushNotification", {
+          action: "cancel_multiple",
+          driversToCancel: toCancel,
+          orderId: order.id
+        }).catch(e => console.error("Cancel push error:", e));
+      }
     }
     queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
   };

@@ -323,7 +323,7 @@ Deno.serve(async (req) => {
                  message: {
                    token: driver.fcm_token,
                    data: { type: "cancelar", orderId: String(orderId) },
-                   android: { priority: "high" }
+                   android: { priority: "HIGH" }
                  }
                })
              });
@@ -435,7 +435,7 @@ Deno.serve(async (req) => {
                        assignmentAttempt: orderData?.assignmentAttempt?.toString() || "1"
                      },
                      android: {
-                       priority: "high"
+                       priority: "HIGH"
                      }
                    }
                  })
