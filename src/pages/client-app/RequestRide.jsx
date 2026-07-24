@@ -8,6 +8,7 @@ export default function RequestRide() {
   const location = useLocation();
   const [pickup, setPickup] = useState('Mi ubicación');
   const [dropoff, setDropoff] = useState('');
+  const clientId = localStorage.getItem('client_id') || 'unregistered';
 
   const handleContinue = (e) => {
     e.preventDefault();
@@ -32,6 +33,7 @@ export default function RequestRide() {
               <PickupAutocomplete 
                 value={pickup} 
                 onChange={(val) => setPickup(val)}
+                restrictToClient={clientId}
                 placeholder="Punto de partida"
                 className="w-full bg-slate-50 py-4 pr-4 pl-10 rounded-2xl text-slate-900 font-semibold border border-slate-100 focus:border-slate-300 focus:bg-white transition-colors h-auto shadow-none outline-none" 
               />
@@ -44,6 +46,7 @@ export default function RequestRide() {
                 placeholder="¿Hacia dónde vas?" 
                 value={dropoff}
                 onChange={(val) => setDropoff(val)}
+                restrictToClient={clientId}
                 className="w-full bg-white py-4 pr-4 pl-10 rounded-2xl text-slate-900 font-semibold border-blue-500 shadow-[0_0_0_2px_rgba(37,99,235,0.2)] h-auto outline-none" 
               />
             </div>

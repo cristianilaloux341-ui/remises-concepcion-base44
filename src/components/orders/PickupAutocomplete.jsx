@@ -10,7 +10,7 @@ import { useAddressSuggestions } from "@/hooks/useAddressSuggestions";
 const normalize = (s) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-export default function PickupAutocomplete({ value, onChange, onClientSelect, placeholder, className, required }) {
+export default function PickupAutocomplete({ value, onChange, onClientSelect, placeholder, className, required, restrictToClient }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value || "");
   const containerRef = useRef(null);
@@ -26,8 +26,10 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
   }, []);
 
   const { data: clientAddresses = [] } = useQuery({
-    queryKey: ["client_addresses"],
-    queryFn: () => base44.entities.ClientAddress.list("-usage_count", 500),
+    queryKey: ["client_addresses", restrictToClient],
+    queryFn: () => restrictToClient 
+      ? base44.entities.ClientAddress.filter({ client_id: restrictToClient }, "-usage_count", 500)
+      : base44.entities.ClientAddress.list("-usage_count", 500),
     staleTime: 30_000,
   });
 
@@ -144,12 +146,17 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
               }
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{s.full_address}</p>
-                {s.type === "client" && (
+                {s.type === "client" && !restrictToClient && (
                   <p className="text-xs text-muted-foreground truncate">
                     <User className="w-3 h-3 inline mr-1" />
                     {s.client_name || "(sin nombre)"}
                     {s.client_phone ? ` · ${s.client_phone}` : ""}
                     {s.floor_apt ? ` · Piso ${s.floor_apt}` : ""}
+                  </p>
+                )}
+                {s.type === "client" && restrictToClient && s.floor_apt && (
+                  <p className="text-xs text-muted-foreground truncate">
+                    Piso/Depto: {s.floor_apt}
                   </p>
                 )}
               </div>
