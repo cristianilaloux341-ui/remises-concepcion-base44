@@ -26,47 +26,44 @@ export default function NewOrder() {
       // 1. Crear la orden
       const newOrder = await base44.entities.RideOrder.create(data);
 
-      const [drivers, bases] = await Promise.all([
-        base44.entities.Driver.list(),
-        base44.entities.Base.list(),
-      ]);
+      // Lanzamos la lógica de asignación en segundo plano (fire-and-forget)
+      // para que no bloquee la interfaz y la creación/redirección sea instantánea.
+      (async () => {
+        try {
+          const [drivers, bases] = await Promise.all([
+            base44.entities.Driver.list(),
+            base44.entities.Base.list(),
+          ]);
 
-      // 2. Si ya viene con driver asignado desde el formulario, asignarlo pasando por dispatch logic (para empujar a los salteados y enviar push)
-      if (manualDriverId) {
-        const driver = drivers.find(d => d.id === manualDriverId);
-        if (driver) {
-          await assignDriverToOrder(newOrder, driver);
-        } else {
-          // Asignación manual sin entidad de chofer real (forzada)
-          await base44.entities.RideOrder.update(newOrder.id, {
-            driver_id: manualDriverId,
-            driver_name: manualDriverName,
-            status: manualStatus,
-          });
-        }
-        return newOrder;
-      }
-
-      // 3. Auto-despacho: prioridad 1 = misma zona, prioridad 2 = proximidad (sin zona)
-      if (newOrder.status === "pendiente") {
-        const [drivers, bases] = await Promise.all([
-          base44.entities.Driver.list(),
-          base44.entities.Base.list(),
-        ]);
-
-        if (newOrder.zone) {
-          // Zona definida → buscar chofer libre en ESA zona (FIFO)
-          const zoneDriver = findDriverInZone(newOrder.zone, drivers);
-          if (zoneDriver) {
-            await assignDriverToOrder(newOrder, zoneDriver);
+          if (manualDriverId) {
+            const driver = drivers.find(d => d.id === manualDriverId);
+            if (driver) {
+              await assignDriverToOrder(newOrder, driver);
+            } else {
+              await base44.entities.RideOrder.update(newOrder.id, {
+                driver_id: manualDriverId,
+                driver_name: manualDriverName,
+                status: manualStatus,
+              });
+            }
+            return;
           }
-          // Si no hay nadie en la zona → queda en "pendiente" → broadcast automático vía real-time
-        } else {
-          // Sin zona → fallback por proximidad
-          const bestDriver = await findBestDriver(newOrder, drivers, bases);
-          if (bestDriver) await assignDriverToOrder(newOrder, bestDriver);
+
+          if (newOrder.status === "pendiente") {
+            if (newOrder.zone) {
+              const zoneDriver = findDriverInZone(newOrder.zone, drivers);
+              if (zoneDriver) {
+                await assignDriverToOrder(newOrder, zoneDriver);
+              }
+            } else {
+              const bestDriver = await findBestDriver(newOrder, drivers, bases);
+              if (bestDriver) await assignDriverToOrder(newOrder, bestDriver);
+            }
+          }
+        } catch (err) {
+          console.error("Error en despacho asíncrono:", err);
         }
-      }
+      })();
 
       return newOrder;
     },
