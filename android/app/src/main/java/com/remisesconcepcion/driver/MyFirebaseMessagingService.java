@@ -53,6 +53,8 @@ public class MyFirebaseMessagingService extends MessagingService {
         if ("cancelar".equals(type) || "ride_cancelled".equals(type) || "ride_reassigned".equals(type)) {
             Log.e(TAG, "=> RECIBIDA ORDEN REMOTA DE CIERRE: " + type);
             if (orderId != null) {
+                // Registrar resolución para evitar que un push 'ofrecido' demorado suene
+                RideStateManager.markResolved(getApplicationContext(), orderId, 999, "CANCELLED");
                 RideAlertController.getInstance().stopAlert(getApplicationContext(), orderId, "Comando remoto: " + type);
             }
             RideAlertController.getInstance().playOneShotSound(getApplicationContext(), "cancel");

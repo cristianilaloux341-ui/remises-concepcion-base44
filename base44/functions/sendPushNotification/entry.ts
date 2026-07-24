@@ -330,8 +330,12 @@ Deno.serve(async (req) => {
              });
              if (!fcmRes.ok) {
                console.error("FCM Cancel Error:", await fcmRes.text());
+             } else {
+               console.log("FCM Cancel Success sent to", driver.id);
              }
-           } catch(e) {}
+           } catch(e) {
+               console.error("FCM Cancel Exception:", e);
+           }
         }
         // Fallback to Web Push
         else if (driver.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
