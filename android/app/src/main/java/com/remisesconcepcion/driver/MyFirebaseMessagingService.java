@@ -73,21 +73,7 @@ public class MyFirebaseMessagingService extends MessagingService {
         boolean isOfferPush = "ofrecido".equals(type) || "broadcast".equals(type);
         
         if (isOfferPush) {
-            // 1. Validar antigüedad (sentAt > 2 minutos)
-            String sentAtStr = data.get("sentAt");
-            if (sentAtStr != null && !sentAtStr.isEmpty()) {
-                try {
-                    long sentAtMillis = Long.parseLong(sentAtStr);
-                    if (System.currentTimeMillis() - sentAtMillis > 5 * 60 * 1000) {
-                        Log.e(TAG, "=> PUSH DE OFERTA DESCARTADO: Expiró (antigüedad > 5 min).");
-                        return;
-                    }
-                } catch (NumberFormatException e) {
-                    Log.e(TAG, "sentAt inválido, omitiendo validación de antigüedad.");
-                }
-            } else {
-                Log.e(TAG, "sentAt ausente en payload FCM. Omitiendo validación de antigüedad.");
-            }
+            // 1. La validación de antigüedad por sentAt se removió debido a desincronizaciones de reloj en Android.
 
             // 2. Validar contra el Gatekeeper de resoluciones locales
             if (orderId != null && RideStateManager.isResolved(getApplicationContext(), orderId, incomingAttempt)) {
