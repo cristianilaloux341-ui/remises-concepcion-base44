@@ -1,11 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, History, MapPin, User, Settings, HelpCircle, CreditCard } from 'lucide-react';
+import { ArrowLeft, History, MapPin, User, Settings, HelpCircle, CreditCard, Home, Briefcase } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export default function Profile() {
   const navigate = useNavigate();
 
   const clientName = localStorage.getItem('client_name') || 'Cliente';
+
+  const [homeAddress, setHomeAddress] = useState(localStorage.getItem('fav_home') || '');
+  const [workAddress, setWorkAddress] = useState(localStorage.getItem('fav_work') || '');
+  const [openFav, setOpenFav] = useState(false);
+
+  const saveFavorites = () => {
+    localStorage.setItem('fav_home', homeAddress);
+    localStorage.setItem('fav_work', workAddress);
+    setOpenFav(false);
+    toast.success("Direcciones guardadas");
+    // Trigger custom event so Home can listen to changes if it's in background, or it will just read on mount
+    window.dispatchEvent(new Event('fav_addresses_updated'));
+  };
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col pb-10">
@@ -41,10 +58,42 @@ export default function Profile() {
             <div className="flex-1 font-bold text-slate-800">Métodos de Pago</div>
           </div>
 
-          <div className="flex items-center gap-4 p-4 active:bg-slate-50 rounded-2xl cursor-pointer">
-            <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center"><MapPin className="w-5 h-5 text-emerald-600" /></div>
-            <div className="flex-1 font-bold text-slate-800">Direcciones Favoritas</div>
-          </div>
+          <Dialog open={openFav} onOpenChange={setOpenFav}>
+            <DialogTrigger asChild>
+              <div className="flex items-center gap-4 p-4 active:bg-slate-50 rounded-2xl cursor-pointer">
+                <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center"><MapPin className="w-5 h-5 text-emerald-600" /></div>
+                <div className="flex-1 font-bold text-slate-800">Direcciones Favoritas</div>
+              </div>
+            </DialogTrigger>
+            <DialogContent className="w-11/12 rounded-3xl mx-auto p-6 bg-white">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-bold text-slate-800">Tus lugares</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-5 mt-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700 flex items-center gap-2"><Home className="w-4 h-4"/> Casa</label>
+                  <Input 
+                    value={homeAddress} 
+                    onChange={e => setHomeAddress(e.target.value)} 
+                    placeholder="Ej: 9 de Julio 1250" 
+                    className="h-12 bg-slate-50 border-slate-200"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700 flex items-center gap-2"><Briefcase className="w-4 h-4"/> Trabajo</label>
+                  <Input 
+                    value={workAddress} 
+                    onChange={e => setWorkAddress(e.target.value)} 
+                    placeholder="Ej: Leguizamón 350" 
+                    className="h-12 bg-slate-50 border-slate-200"
+                  />
+                </div>
+                <Button className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg shadow-md" onClick={saveFavorites}>
+                  Guardar Direcciones
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
         </div>
 

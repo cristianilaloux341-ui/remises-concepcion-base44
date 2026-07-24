@@ -14,6 +14,18 @@ export default function Home() {
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const clientId = localStorage.getItem('client_id');
+  
+  const [favHome, setFavHome] = useState(localStorage.getItem('fav_home') || '');
+  const [favWork, setFavWork] = useState(localStorage.getItem('fav_work') || '');
+
+  useEffect(() => {
+    const handleFavUpdate = () => {
+      setFavHome(localStorage.getItem('fav_home') || '');
+      setFavWork(localStorage.getItem('fav_work') || '');
+    };
+    window.addEventListener('fav_addresses_updated', handleFavUpdate);
+    return () => window.removeEventListener('fav_addresses_updated', handleFavUpdate);
+  }, []);
 
   useEffect(() => {
     if (clientId) {
@@ -115,22 +127,34 @@ export default function Home() {
         </button>
 
         <div className="flex gap-4 overflow-x-auto pb-4 pt-2 hide-scrollbar -mx-6 px-6">
-          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform" onClick={() => navigate('/app-cliente/fare', { state: { pickup: 'Mi ubicación', dropoff: '9 de Julio 1250' } })}>
-            <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+          <div 
+            className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform cursor-pointer" 
+            onClick={() => {
+              if (favHome) navigate('/app-cliente/fare', { state: { pickup: 'Mi ubicación', dropoff: favHome } });
+              else { toast.info('Configurá tu dirección de Casa en Perfil'); navigate('/app-cliente/profile'); }
+            }}
+          >
+            <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
               <Star className="w-6 h-6 text-blue-600" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="font-bold text-slate-800">Casa</p>
-              <p className="text-sm text-slate-500 truncate">9 de Julio 1250</p>
+              <p className="text-sm text-slate-500 truncate">{favHome || "Tocar para agregar"}</p>
             </div>
           </div>
-          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform" onClick={() => navigate('/app-cliente/fare', { state: { pickup: 'Mi ubicación', dropoff: 'Leguizamón 350' } })}>
-            <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center">
+          <div 
+            className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform cursor-pointer" 
+            onClick={() => {
+              if (favWork) navigate('/app-cliente/fare', { state: { pickup: 'Mi ubicación', dropoff: favWork } });
+              else { toast.info('Configurá tu dirección de Trabajo en Perfil'); navigate('/app-cliente/profile'); }
+            }}
+          >
+            <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center shrink-0">
               <Clock className="w-6 h-6 text-slate-600" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="font-bold text-slate-800">Trabajo</p>
-              <p className="text-sm text-slate-500 truncate">Leguizamón 350</p>
+              <p className="text-sm text-slate-500 truncate">{favWork || "Tocar para agregar"}</p>
             </div>
           </div>
         </div>

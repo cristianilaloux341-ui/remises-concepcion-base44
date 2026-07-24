@@ -63,18 +63,18 @@ export default function RequestRide() {
       </form>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: '9 de Julio 1250', dropoff: 'Hospital Justo José de Urquiza' } })}>
+        <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: pickup || 'Mi ubicación', dropoff: 'Hospital J. J. de Urquiza' } })}>
           <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0"><MapPin className="w-6 h-6 text-slate-600" /></div>
-          <div className="flex-1 border-b border-slate-100 pb-4 pt-2">
-            <p className="font-bold text-slate-900 text-lg">Hospital Justo José de Urquiza</p>
-            <p className="text-sm text-slate-500">Uncal y 14 de Julio</p>
+          <div className="flex-1 border-b border-slate-100 pb-4 pt-2 min-w-0">
+            <p className="font-bold text-slate-900 text-lg truncate">Hospital J. J. de Urquiza</p>
+            <p className="text-sm text-slate-500 truncate">Dr. Uncal y Victoriano E. Montes</p>
           </div>
         </div>
-        <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: '9 de Julio 1250', dropoff: 'Termas Concepción' } })}>
+        <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: pickup || 'Mi ubicación', dropoff: 'Terminal de Ómnibus' } })}>
           <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0"><MapPin className="w-6 h-6 text-slate-600" /></div>
-          <div className="flex-1 border-b border-slate-100 pb-4 pt-2">
-            <p className="font-bold text-slate-900 text-lg">Termas Concepción</p>
-            <p className="text-sm text-slate-500">Ruta Nac. 14, Km 129</p>
+          <div className="flex-1 border-b border-slate-100 pb-4 pt-2 min-w-0">
+            <p className="font-bold text-slate-900 text-lg truncate">Terminal de Ómnibus</p>
+            <p className="text-sm text-slate-500 truncate">Bv. Los Constituyentes 240</p>
           </div>
         </div>
       </div>
