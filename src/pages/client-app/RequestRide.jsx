@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, MapPin, ArrowRight } from 'lucide-react';
+import { ArrowLeft, MapPin, ArrowRight, Calculator } from 'lucide-react';
 import PickupAutocomplete from '@/components/orders/PickupAutocomplete';
+import { toast } from 'sonner';
 
 export default function RequestRide() {
   const navigate = useNavigate();
@@ -14,16 +15,25 @@ export default function RequestRide() {
 
   const handleContinue = (e) => {
     e.preventDefault();
-    if (pickup.trim() && dropoff.trim()) {
+    if (pickup.trim()) {
       navigate('/app-cliente/fare', { 
         state: { 
           pickup: pickup.trim(), 
           pickupCoords,
-          dropoff: dropoff.trim(),
+          dropoff: dropoff.trim() || 'A convenir',
           dropoffCoords
         } 
       });
     }
+  };
+
+  const handleCalculate = (e) => {
+    e.preventDefault();
+    if (!dropoff.trim()) {
+      toast.error('Ingresá un destino para poder calcular la tarifa');
+      return;
+    }
+    handleContinue(e);
   };
 
   return (
@@ -62,11 +72,20 @@ export default function RequestRide() {
           </div>
           
           <button 
-            type="submit" 
-            disabled={!pickup.trim() || !dropoff.trim()}
+            type="button" 
+            onClick={handleContinue}
+            disabled={!pickup.trim()}
             className="w-full mt-4 h-14 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:active:scale-100 text-white rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"
           >
             Continuar <ArrowRight className="w-5 h-5" />
+          </button>
+          
+          <button 
+            type="button" 
+            onClick={handleCalculate}
+            className="w-full mt-3 h-14 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-2xl font-bold text-lg active:scale-95 transition-all flex items-center justify-center gap-2 border border-blue-100"
+          >
+            <Calculator className="w-5 h-5" /> Calcular Tarifa
           </button>
         </div>
       </form>

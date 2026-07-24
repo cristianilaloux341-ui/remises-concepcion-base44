@@ -233,13 +233,21 @@ export default function FareEstimate() {
           <ShieldCheck className="w-6 h-6 text-green-500" />
         </div>
 
-        <button 
-          onClick={handleConfirm}
-          disabled={isCreating}
-          className="w-full h-16 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:active:scale-100 text-white rounded-2xl font-bold text-xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"
-        >
-          {isCreating ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Confirmar Viaje'}
-        </button>
+        <div className="flex gap-3 mt-2">
+          <button 
+            onClick={() => navigate(-1)}
+            className="flex-1 h-14 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-lg active:scale-95 transition-transform flex items-center justify-center"
+          >
+            Cancelar
+          </button>
+          <button 
+            onClick={handleConfirm}
+            disabled={isCreating}
+            className="flex-[2] h-14 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:active:scale-100 text-white rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"
+          >
+            {isCreating ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Confirmar Viaje'}
+          </button>
+        </div>
       </div>
     </div>
   );
