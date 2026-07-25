@@ -104,7 +104,7 @@ export default function Profile() {
           </div>
           <div 
             className="flex items-center gap-4 p-4 active:bg-slate-50 rounded-2xl cursor-pointer"
-            onClick={() => window.open('https://wa.me/5493442123456?text=Hola,%20necesito%20ayuda%20con%20la%20app%20de%20remises', '_blank')}
+            onClick={() => window.open('https://wa.me/5493442667570?text=Hola,%20necesito%20ayuda%20con%20un%20viaje', '_blank')}
           >
             <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center"><HelpCircle className="w-5 h-5 text-slate-600" /></div>
             <div className="flex-1 font-bold text-slate-800">Ayuda y Soporte (WhatsApp)</div>
