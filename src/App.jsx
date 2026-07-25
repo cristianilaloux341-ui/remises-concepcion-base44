@@ -44,6 +44,7 @@ import PilotObservability from '@/pages/PilotObservability';
 import Profile from '@/pages/Profile';
 import DesktopOnlyError from '@/components/DesktopOnlyError';
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
 import LoginCentral from '@/pages/LoginCentral';
 import AdminUsuarios from '@/pages/AdminUsuarios';
 
@@ -78,13 +79,50 @@ function AdminRoute({ children, allowRoles = ["admin"] }) {
   return children;
 }
 
+import { useState, useEffect } from 'react';
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
   const location = useLocation();
+  const [nativeAppId, setNativeAppId] = useState(null);
 
-  // En Android/iOS nativo: Evitamos todo tipo de redirección, cargando la app directamente.
-  // Esto mata de raíz el problema del bucle y el destello blanco.
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      CapApp.getInfo().then(info => setNativeAppId(info.id)).catch(console.error);
+    }
+  }, []);
+
+  // En Android nativo: Esperamos saber qué AppId es para enrutar correctamente.
   if (Capacitor.isNativePlatform()) {
+    if (!nativeAppId) {
+      return (
+        <div className="fixed inset-0 flex items-center justify-center bg-gray-950">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-blue-500 rounded-full animate-spin"></div>
+        </div>
+      );
+    }
+
+    // Si el ID es el del cliente, mostramos la App del Cliente
+    if (nativeAppId === 'com.remisesconcepcion.cliente') {
+      return (
+        <Routes>
+          <Route path="*" element={<Navigate to="/app-cliente/splash" replace />} />
+          <Route path="/app-cliente/splash" element={<ClientSplash />} />
+          <Route path="/app-cliente/login" element={<ClientLogin />} />
+          <Route path="/app-cliente/register" element={<ClientRegister />} />
+          <Route path="/app-cliente/home" element={<ClientHome />} />
+          <Route path="/app-cliente/request" element={<ClientRequest />} />
+          <Route path="/app-cliente/fare" element={<ClientFare />} />
+          <Route path="/app-cliente/searching" element={<ClientSearching />} />
+          <Route path="/app-cliente/assigned" element={<ClientAssigned />} />
+          <Route path="/app-cliente/active-ride" element={<ClientActiveRide />} />
+          <Route path="/app-cliente/rating" element={<ClientRating />} />
+          <Route path="/app-cliente/profile" element={<ClientProfile />} />
+        </Routes>
+      );
+    }
+
+    // Por defecto, mostramos la App de Chofer
     return (
       <Routes>
         <Route path="*" element={<DriverAppErrorBoundary><DriverApp /></DriverAppErrorBoundary>} />
