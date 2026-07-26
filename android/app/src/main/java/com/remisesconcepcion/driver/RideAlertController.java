@@ -216,6 +216,8 @@ public class RideAlertController {
         try {
             String fileName = "message";
             if ("cancel".equals(type)) fileName = "cancel";
+            if ("bocina".equals(type)) fileName = "horn";
+            if ("viaje_iniciado".equals(type)) fileName = "trip_started";
             
             int soundResId = context.getResources().getIdentifier(fileName, "raw", context.getPackageName());
             if (soundResId == 0) return;

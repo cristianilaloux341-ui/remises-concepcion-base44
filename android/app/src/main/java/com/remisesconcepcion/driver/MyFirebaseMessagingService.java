@@ -89,6 +89,8 @@ public class MyFirebaseMessagingService extends MessagingService {
 
         if ("mensaje".equals(type) || "chat".equals(type)) {
             RideAlertController.getInstance().playOneShotSound(getApplicationContext(), "message");
+        } else if ("bocina".equals(type) || "viaje_iniciado".equals(type)) {
+            RideAlertController.getInstance().playOneShotSound(getApplicationContext(), type);
         }
 
         Log.e(TAG, "Pasando mensaje al comportamiento original de Capacitor...");

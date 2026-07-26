@@ -1,6 +1,6 @@
 {
-  "appId": "com.remisesconcepcion.driver",
-  "appName": "Remises Concepción",
+  "appId": "com.remisesconcepcion.cliente",
+  "appName": "Remises Concepción Cliente",
   "webDir": "dist",
   "bundledWebRuntime": false,
   "plugins": {

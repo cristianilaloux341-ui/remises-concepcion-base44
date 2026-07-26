@@ -225,7 +225,19 @@ Deno.serve(async (req) => {
     }
   }
 
-  const { action, driverId, subscription, orderId, orderData, userId, fromName, messageContent, driversToCancel } = body;
+  // Interceptar payload de automación de RideOrder para Cliente (Viaje Iniciado)
+  if (body.event && body.event.entity_name === "RideOrder" && body.data) {
+    const isStatusChanged = !body.old_data || body.data.status !== body.old_data.status;
+    if (isStatusChanged && body.data.status === "en_viaje" && body.data.client_id) {
+       // El chofer indica que el viaje ha iniciado
+       body.action = "send_client_push";
+       body.payloadType = "viaje_iniciado";
+       body.userId = body.data.client_id;
+       body.orderId = body.data.id;
+    }
+  }
+
+  const { action, driverId, subscription, orderId, orderData, userId, fromName, messageContent, driversToCancel, payloadType } = body;
 
   const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
   const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');
@@ -356,6 +368,54 @@ Deno.serve(async (req) => {
       }
 
       return Response.json({ ok: true });
+    } catch (err) {
+      return Response.json({ ok: false, error: err.message });
+    }
+  }
+
+  if (action === 'send_client_alert' || action === 'send_client_push') {
+    if (!userId) return Response.json({ error: 'Missing userId' }, { status: 400 });
+    try {
+      const users = await base44.asServiceRole.entities.User.filter({ id: userId });
+      const user = users[0];
+      if (!user) return Response.json({ error: 'User not found' }, { status: 404 });
+      
+      const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
+      let fcmSuccess = false;
+      
+      if (user.fcm_token && saStr) {
+         const sa = JSON.parse(saStr);
+         const now = Math.floor(Date.now() / 1000);
+         if (!cachedAccessToken || now >= cachedAccessTokenExp) {
+           const jwtHeader = toBase64Url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
+           const jwtPayload = toBase64Url(new TextEncoder().encode(JSON.stringify({
+             iss: sa.client_email, scope: 'https://www.googleapis.com/auth/firebase.messaging', aud: 'https://oauth2.googleapis.com/token', exp: now + 3600, iat: now
+           })));
+           const pemContents = sa.private_key.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\s/g, "");
+           const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+           const rsaKey = await crypto.subtle.importKey("pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+           const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`));
+           const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
+           const tokenRes = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}` }).then(r => r.json());
+           if (tokenRes.access_token) { cachedAccessToken = tokenRes.access_token; cachedAccessTokenExp = now + 3500; }
+         }
+         
+         if (cachedAccessToken) {
+           const fcmPayload = {
+             message: {
+               token: user.fcm_token,
+               data: { type: payloadType || "bocina", orderId: String(orderId || "") },
+               android: { priority: "HIGH" }
+             }
+           };
+           await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+             method: 'POST', headers: { 'Authorization': `Bearer ${cachedAccessToken}`, 'Content-Type': 'application/json' },
+             body: JSON.stringify(fcmPayload)
+           });
+           fcmSuccess = true;
+         }
+      }
+      return Response.json({ ok: fcmSuccess });
     } catch (err) {
       return Response.json({ ok: false, error: err.message });
     }
