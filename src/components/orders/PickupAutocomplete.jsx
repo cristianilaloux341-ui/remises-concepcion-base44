@@ -166,7 +166,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
               {s.type === "osm" && (
                 <span className="text-xs text-green-600 font-medium shrink-0">OSM</span>
               )}
-              {s.type !== "google" && s.type !== "osm" && (s.usage_count || 0) > 1 && (
+              {s.type !== "google" && s.type !== "osm" && (s.usage_count || 0) > 1 && (!restrictToClient || s.type === "client") && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                   <Clock className="w-3 h-3" />
                   {s.usage_count}x

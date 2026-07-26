@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, MapPin, ArrowRight, Calculator } from 'lucide-react';
 import PickupAutocomplete from '@/components/orders/PickupAutocomplete';
@@ -12,6 +12,45 @@ export default function RequestRide() {
   const [dropoff, setDropoff] = useState('');
   const [dropoffCoords, setDropoffCoords] = useState(null);
   const clientId = localStorage.getItem('client_id') || 'unregistered';
+
+  useEffect(() => {
+    if (pickup === 'Mi ubicación') {
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setPickupCoords({ lat, lng });
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+          const data = await res.json();
+          if (data?.address) {
+            const road = data.address.road || '';
+            const num = data.address.house_number || '';
+            const short = road ? `${road} ${num}`.trim() : data.display_name.split(',')[0];
+            setPickup(short || 'Mi ubicación');
+          }
+        } catch (e) {
+          console.error('Error reverse geocoding:', e);
+        }
+      }, (err) => console.log('Location error:', err), { enableHighAccuracy: true });
+    }
+  }, []);
+
+  useEffect(() => {
+    // Si ya tenemos ambas coordenadas y el destino está escrito, auto-navegamos a calcular tarifa
+    if (pickupCoords && dropoffCoords && dropoff.trim().length > 0) {
+      const timer = setTimeout(() => {
+        navigate('/app-cliente/fare', { 
+          state: { 
+            pickup: pickup.trim(), 
+            pickupCoords,
+            dropoff: dropoff.trim(),
+            dropoffCoords
+          } 
+        });
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [dropoffCoords, pickupCoords, navigate]);
 
   const handleContinue = (e) => {
     e.preventDefault();
@@ -91,13 +130,22 @@ export default function RequestRide() {
       </form>
 
       <div className="flex-1 overflow-y-auto p-2">
-        <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: pickup || 'Mi ubicación', pickupCoords, dropoff: 'Hospital J. J. de Urquiza', dropoffCoords: { lat: -32.483186, lng: -58.261230 } } })}>
+        <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: pickup || 'Mi ubicación', pickupCoords, dropoff: 'Hospital Urquiza (Víctor Rodríguez)', dropoffCoords: { lat: -32.482701, lng: -58.262529 } } })}>
           <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0"><MapPin className="w-6 h-6 text-slate-600" /></div>
           <div className="flex-1 border-b border-slate-100 pb-4 pt-2 min-w-0">
-            <p className="font-bold text-slate-900 text-lg truncate">Hospital J. J. de Urquiza</p>
-            <p className="text-sm text-slate-500 truncate">Dr. Uncal (Entradas: L. Sartorio / V. Rodríguez)</p>
+            <p className="font-bold text-slate-900 text-lg truncate">Hospital (V. Rodríguez)</p>
+            <p className="text-sm text-slate-500 truncate">Ingreso por Víctor Rodríguez</p>
           </div>
         </div>
+        
+        <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: pickup || 'Mi ubicación', pickupCoords, dropoff: 'Hospital Urquiza (Sartorio)', dropoffCoords: { lat: -32.484251, lng: -58.261622 } } })}>
+          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0"><MapPin className="w-6 h-6 text-slate-600" /></div>
+          <div className="flex-1 border-b border-slate-100 pb-4 pt-2 min-w-0">
+            <p className="font-bold text-slate-900 text-lg truncate">Hospital (L. Sartorio)</p>
+            <p className="text-sm text-slate-500 truncate">Ingreso por L. Sartorio</p>
+          </div>
+        </div>
+
         <div className="p-4 flex items-center gap-4 active:bg-slate-50 rounded-3xl cursor-pointer transition-colors" onClick={() => navigate('/app-cliente/fare', { state: { pickup: pickup || 'Mi ubicación', pickupCoords, dropoff: 'Terminal de Ómnibus', dropoffCoords: { lat: -32.481155, lng: -58.237248 } } })}>
           <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0"><MapPin className="w-6 h-6 text-slate-600" /></div>
           <div className="flex-1 border-b border-slate-100 pb-4 pt-2 min-w-0">
