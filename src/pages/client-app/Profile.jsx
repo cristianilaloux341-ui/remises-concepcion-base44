@@ -70,10 +70,15 @@ export default function Profile() {
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col pb-10">
       <div className="bg-blue-600 text-white p-6 pt-16 pb-10 rounded-b-[3rem] shadow-xl relative overflow-hidden">
-        {/* Logo de la empresa como marca de agua de fondo */}
-        <div className="absolute top-2 right-[-20px] opacity-[0.08] pointer-events-none transform -rotate-12 select-none flex flex-col items-end">
-          <span className="text-2xl font-black leading-none text-right whitespace-nowrap tracking-tighter">COOPERATIVA DE TRABAJO LTDA</span>
-          <span className="text-4xl font-black leading-none text-right whitespace-nowrap tracking-tighter">REMISES CONCEPCIÓN</span>
+        {/* Marca de agua repetida en todo el fondo */}
+        <div className="absolute inset-0 opacity-10 pointer-events-none select-none flex flex-wrap justify-center content-center overflow-hidden text-black">
+          <div className="w-[150%] h-[150%] flex flex-wrap items-center justify-center transform -rotate-12 -ml-10 -mt-10">
+            {Array.from({ length: 30 }).map((_, i) => (
+              <span key={i} className="text-2xl md:text-3xl font-black whitespace-nowrap tracking-tighter mx-4 my-2 leading-none">
+                COOPERATIVA DE TRABAJO LTDA REMISES CONCEPCIÓN
+              </span>
+            ))}
+          </div>
         </div>
 
         <button onClick={() => navigate(-1)} className="absolute top-12 left-4 p-2 rounded-full bg-white/20 hover:bg-white/30 z-10">
