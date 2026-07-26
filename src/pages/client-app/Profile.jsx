@@ -1,11 +1,71 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, History } from 'lucide-react';
+import { ArrowLeft, History, Camera, Loader2 } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const fileInputRef = useRef(null);
+  
+  const [isUploading, setIsUploading] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState(localStorage.getItem('client_photo') || null);
 
   const clientName = localStorage.getItem('client_name') || 'Cliente';
+  const clientId = localStorage.getItem('client_id');
+
+  useEffect(() => {
+    if (clientId && !photoUrl) {
+      base44.entities.Client.get(clientId).then(client => {
+        if (client && client.photo_url) {
+          setPhotoUrl(client.photo_url);
+          localStorage.setItem('client_photo', client.photo_url);
+        }
+      }).catch(console.error);
+    }
+  }, [clientId, photoUrl]);
+
+  const handlePhotoClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      
+      setPhotoUrl(file_url);
+      localStorage.setItem('client_photo', file_url);
+      
+      if (clientId) {
+        await base44.entities.Client.update(clientId, { photo_url: file_url });
+      }
+      
+      toast({
+        title: "Foto actualizada",
+        description: "Tu foto de perfil se ha guardado correctamente.",
+      });
+    } catch (err) {
+      console.error('Error uploading photo', err);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar la foto de perfil.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col pb-10">
@@ -23,9 +83,35 @@ export default function Profile() {
         <button onClick={() => navigate(-1)} className="absolute top-12 left-4 p-2 rounded-full bg-white/20 hover:bg-white/30 z-10">
           <ArrowLeft className="w-6 h-6" />
         </button>
+        
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleFileChange} 
+          accept="image/*" 
+          className="hidden" 
+        />
+        
         <div className="flex items-center gap-5 mt-6 relative z-10">
-          <div className="w-20 h-20 bg-blue-700 rounded-full flex items-center justify-center border-4 border-white/20 text-3xl shadow-inner">
-            👤
+          <div 
+            onClick={handlePhotoClick}
+            className="w-20 h-20 bg-blue-700 rounded-full flex items-center justify-center border-4 border-white/20 text-3xl shadow-inner relative overflow-hidden cursor-pointer group"
+          >
+            {photoUrl ? (
+              <img src={photoUrl} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <span>👤</span>
+            )}
+            
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              {isUploading ? <Loader2 className="w-6 h-6 text-white animate-spin" /> : <Camera className="w-6 h-6 text-white" />}
+            </div>
+            
+            {isUploading && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 text-white animate-spin" />
+              </div>
+            )}
           </div>
           <div>
             <h1 className="text-2xl font-black">{clientName}</h1>

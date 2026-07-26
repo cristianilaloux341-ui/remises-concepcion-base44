@@ -42,6 +42,9 @@
     },
     "notes": {
       "type": "string"
+    },
+    "photo_url": {
+      "type": "string"
     }
   },
   "required": [
