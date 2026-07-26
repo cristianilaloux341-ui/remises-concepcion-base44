@@ -64,18 +64,38 @@ export default function FareEstimate() {
         }
 
         if (currentTarifa && finalPickupCoords && finalDropoffCoords) {
-          const routeRes = await base44.functions.invoke("geocodeRoute", {
-            action: "route",
-            originLat: finalPickupCoords.lat,
-            originLng: finalPickupCoords.lng,
-            destLat: finalDropoffCoords.lat,
-            destLng: finalDropoffCoords.lng
-          });
-          
-          if (routeRes.data?.distance) {
-            setDistance(routeRes.data.distance);
+          let dist = null;
+          try {
+            const routeRes = await base44.functions.invoke("geocodeRoute", {
+              action: "route",
+              originLat: finalPickupCoords.lat,
+              originLng: finalPickupCoords.lng,
+              destLat: finalDropoffCoords.lat,
+              destLng: finalDropoffCoords.lng
+            });
+            if (routeRes.data?.distance) {
+              dist = routeRes.data.distance;
+            }
+          } catch(e) {
+            console.error("Error en geocodeRoute:", e);
+          }
+
+          // Fallback matemático si falla la API (distancia Haversine * 1.3 factor de calles)
+          if (!dist) {
+            const R = 6371e3; // Radio de la tierra en metros
+            const dLat = (finalDropoffCoords.lat - finalPickupCoords.lat) * Math.PI / 180;
+            const dLon = (finalDropoffCoords.lng - finalPickupCoords.lng) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(finalPickupCoords.lat * Math.PI / 180) * Math.cos(finalDropoffCoords.lat * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            dist = (R * c) * 1.35; // 35% extra por curvatura de calles
+          }
+
+          if (dist) {
+            setDistance(dist);
             // Calculo aproximado: bajada de bandera + (metros * precio_por_metro)
-            const calculated = currentTarifa.bajada_bandera + (routeRes.data.distance * currentTarifa.precio_por_metro);
+            const calculated = currentTarifa.bajada_bandera + (dist * currentTarifa.precio_por_metro);
             // Redondear a múltiplo de 100 por prolijidad
             setEstimatedPrice(Math.ceil(calculated / 100) * 100);
           }
