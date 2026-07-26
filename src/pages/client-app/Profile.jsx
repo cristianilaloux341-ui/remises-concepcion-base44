@@ -71,13 +71,9 @@ export default function Profile() {
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col pb-10">
       <div className="bg-blue-600 text-white p-6 pt-16 pb-10 rounded-b-[3rem] shadow-xl relative overflow-hidden">
         {/* Logo de la empresa como marca de agua de fondo */}
-        <div className="absolute top-4 right-[-20px] opacity-10 pointer-events-none transform -rotate-12">
-          <svg width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinelinejoin="round">
-            <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>
-            <circle cx="7" cy="17" r="2"/>
-            <path d="M9 17h6"/>
-            <circle cx="17" cy="17" r="2"/>
-          </svg>
+        <div className="absolute top-2 right-[-20px] opacity-[0.08] pointer-events-none transform -rotate-12 select-none flex flex-col items-end">
+          <span className="text-2xl font-black leading-none text-right whitespace-nowrap tracking-tighter">COOPERATIVA DE TRABAJO LTDA</span>
+          <span className="text-4xl font-black leading-none text-right whitespace-nowrap tracking-tighter">REMISES CONCEPCIÓN</span>
         </div>
 
         <button onClick={() => navigate(-1)} className="absolute top-12 left-4 p-2 rounded-full bg-white/20 hover:bg-white/30 z-10">
