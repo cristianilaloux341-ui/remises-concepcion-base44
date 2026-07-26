@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, MapPin, ArrowRight, Calculator } from 'lucide-react';
 import PickupAutocomplete from '@/components/orders/PickupAutocomplete';
+import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 
 export default function RequestRide() {
@@ -20,16 +21,17 @@ export default function RequestRide() {
         const lng = pos.coords.longitude;
         setPickupCoords({ lat, lng });
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-          const data = await res.json();
-          if (data?.address) {
-            const road = data.address.road || '';
-            const num = data.address.house_number || '';
-            const short = road ? `${road} ${num}`.trim() : data.display_name.split(',')[0];
-            setPickup(short || 'Mi ubicación');
+          // Usamos el backend de Google Reverse Geocoding más rápido y exacto en lugar de Nominatim
+          const res = await base44.functions.invoke("geocodeRoute", {
+            action: "geocode",
+            lat: lat,
+            lng: lng
+          });
+          if (res.data?.address) {
+            setPickup(res.data.address);
           }
         } catch (e) {
-          console.error('Error reverse geocoding:', e);
+          console.error('Error reverse geocoding con backend:', e);
         }
       }, (err) => console.log('Location error:', err), { enableHighAccuracy: true });
     }
