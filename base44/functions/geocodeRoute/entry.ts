@@ -66,6 +66,42 @@ Deno.serve(async (req) => {
       return Response.json({ lat: loc.lat, lng: loc.lng, formatted_address: data.result.formatted_address });
     }
 
+    // ── 2.5 Búsqueda de Coordenadas Directas (Geocode) ──────────────────────
+    if (action === "geocode") {
+      const { address, lat, lng } = body;
+      
+      // Reverse Geocoding (Lat/Lng -> Dirección)
+      if (lat && lng) {
+        try {
+          const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_API_KEY}&language=es`;
+          const r = await fetch(url);
+          const data = await r.json();
+          if (data.status === "OK" && data.results.length > 0) {
+            const result = data.results[0];
+            const route = result.address_components.find(c => c.types.includes("route"))?.short_name || "";
+            const num = result.address_components.find(c => c.types.includes("street_number"))?.short_name || "";
+            const shortAddress = route ? `${route} ${num}`.trim() : result.formatted_address.split(',')[0];
+            return Response.json({ lat, lng, address: shortAddress, full_address: result.formatted_address });
+          }
+        } catch(e) { console.error("Reverse geocoding error:", e); }
+      }
+      
+      // Forward Geocoding (Dirección Libre -> Lat/Lng)
+      if (address) {
+        try {
+          const query = address.toLowerCase().includes("concepci") ? address : `${address}, Concepción del Uruguay`;
+          const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}&language=es&components=country:ar`;
+          const r = await fetch(url);
+          const data = await r.json();
+          if (data.status === "OK" && data.results.length > 0) {
+            const loc = data.results[0].geometry.location;
+            return Response.json({ lat: loc.lat, lng: loc.lng, full_address: data.results[0].formatted_address });
+          }
+        } catch(e) { console.error("Forward geocoding error:", e); }
+      }
+      return Response.json({ error: "No se pudo geocodificar", lat: null, lng: null }, { status: 400 });
+    }
+
     // ── 3. Calcular ruta real por calles ───────────────────────────────────
     // Módulo 2: Google Directions API (principal)
     // Módulo 4: Haversine × 1.3 (fallback de emergencia)
