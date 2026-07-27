@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Clock } from "lucide-react";
 import { getBaseQueue } from "@/lib/dispatchLogic";
 import { formatDistanceToNow } from "date-fns";
+import { getDriverDisplay } from "@/lib/utils";
 import { es } from "date-fns/locale";
 
 const BASE_COLORS = {
@@ -45,9 +46,8 @@ export default function BaseQueue({ baseName, drivers, onDriverClick }) {
                 {idx + 1}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate">
-                  <span className="text-slate-900 font-black mr-1">{driver.vehicle_model || driver.vehicle_plate}</span>
-                  {driver.name}
+                <p className="text-xs font-medium truncate text-slate-900">
+                  {getDriverDisplay(driver.vehicle_model || driver.vehicle_plate, driver.name)}
                 </p>
               </div>
               {driver.queue_entered_at && (

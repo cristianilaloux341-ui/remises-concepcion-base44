@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Zap, User, MapPin, Loader2, ChevronRight, Car, CheckCircle2, Radio } from "lucide-react";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
 import { autoDispatch, assignDriverToOrder, getBaseQueue, BASES } from "@/lib/dispatchLogic";
+import { getDriverDisplay } from "@/lib/utils";
 
 function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   const [dispatching, setDispatching] = useState(false);
@@ -141,8 +142,8 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
           <div className="bg-white rounded-lg border border-amber-200 px-3 py-2 flex items-center gap-2">
             <Car className="w-4 h-4 text-amber-500 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-extrabold text-black truncate">{suggestedDriver.name}</p>
-              <p className="text-sm font-extrabold text-black font-mono">{suggestedDriver.vehicle_plate} · {suggestedDriver.current_base}</p>
+              <p className="text-sm font-extrabold text-black truncate">{getDriverDisplay(suggestedDriver.vehicle_model || suggestedDriver.vehicle_plate, suggestedDriver.name)}</p>
+              <p className="text-xs font-medium text-black font-mono">{suggestedDriver.current_base}</p>
             </div>
             <Badge className="text-xs bg-amber-100 text-amber-700 border-0 shrink-0">1° en zona</Badge>
           </div>
@@ -258,12 +259,15 @@ export default function DispatchPanel({ orders, drivers, bases, moviles, onOrder
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-sm">{order.client_name}</p>
-                  {order.driver_name && (
-                    <p className="text-xs font-bold text-black flex items-center gap-1">
-                      <User className="w-3 h-3" />{order.driver_name}
-                      {order.assigned_base && <span className="ml-1 font-normal text-gray-600">· {order.assigned_base}</span>}
-                    </p>
-                  )}
+                  {order.driver_name && (() => {
+                    const d = drivers.find(drv => drv.id === order.driver_id);
+                    return (
+                      <p className="text-xs font-bold text-black flex items-center gap-1">
+                        <User className="w-3 h-3" />{getDriverDisplay(d?.vehicle_model || d?.vehicle_plate, order.driver_name)}
+                        {order.assigned_base && <span className="ml-1 font-normal text-gray-600">· {order.assigned_base}</span>}
+                      </p>
+                    );
+                  })()}
                 </div>
                 <div className="flex items-center gap-2">
                   <OrderStatusBadge status={order.status} />

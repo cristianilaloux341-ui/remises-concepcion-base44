@@ -30,6 +30,7 @@ import { usePushSubscription } from "@/hooks/usePushSubscription";
 import BatteryOptimizationGuide from "@/components/driver/BatteryOptimizationGuide";
 import OcasionalMeter from "@/components/driver/OcasionalMeter";
 import ActiveRideScreen from "@/components/driver/ActiveRideScreen";
+import { getDriverDisplay } from "@/lib/utils";
 
 const debugArray = (arr, name) => {
   if (!Array.isArray(arr)) {
@@ -999,13 +1000,12 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
             <p className="text-sm text-gray-400 font-semibold mb-3">Compañeros en la cola:</p>
             <div className="flex gap-2 flex-wrap">
               {baseQueue.map((d, i) => {
-                const showModel = d.vehicle_model && d.vehicle_model.length < 10;
                 return (
                   <span
                     key={d.id}
                     className={`text-sm md:text-base px-3 py-1.5 rounded-xl font-semibold border ${d.id === driver.id ? "bg-green-500 text-white border-green-500" : "bg-gray-800 text-gray-300 border-gray-700"}`}
                   >
-                    {i + 1}.{showModel ? ` #${d.vehicle_model}` : ""} {(d.name || "Chofer").split(" ")[0]}
+                    {i + 1}. {getDriverDisplay(d.vehicle_model || d.vehicle_plate, d.name)}
                   </span>
                 );
               })}

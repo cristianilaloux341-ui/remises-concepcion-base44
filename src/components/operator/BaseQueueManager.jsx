@@ -12,6 +12,7 @@ import { getBaseQueue, BASES } from "@/lib/dispatchLogic";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { ArrowUp, ArrowDown, XCircle, Plus, Clock, Settings, Zap } from "lucide-react";
+import { getDriverDisplay } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -182,9 +183,8 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
                           {idx + 1}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {nroMovil && <span className="text-slate-900 font-black mr-1">#{nroMovil}</span>}
-                            {driver.name}
+                          <p className="text-sm font-medium truncate text-slate-900">
+                            {getDriverDisplay(nroMovil || driver.vehicle_model || driver.vehicle_plate, driver.name)}
                           </p>
                         </div>
                         {driver.queue_entered_at && (
@@ -427,9 +427,8 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                         {idx + 1}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">
-                          {nroMovil && <span className="text-primary font-bold mr-1">#{nroMovil}</span>}
-                          {driver.name}
+                        <p className="text-xs font-medium truncate text-primary font-bold">
+                          {getDriverDisplay(nroMovil || driver.vehicle_model || driver.vehicle_plate, driver.name)}
                         </p>
                       </div>
                     </div>
