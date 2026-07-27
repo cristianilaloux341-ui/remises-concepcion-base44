@@ -21,7 +21,6 @@ const NAV_BY_ROLE = {
     { label: "Chóferes",      path: "/drivers",       icon: Users },
     { label: "Móviles",       path: "/moviles",       icon: Car },
     { label: "Tiempo Espera", path: "/tiempo-espera", icon: Timer },
-    { label: "App Chófer",    path: "/driver-link",   icon: Smartphone },
     { label: "Zonas",         path: "/zone-settings", icon: Map },
     { label: "Tarifas",       path: "/tarifas",       icon: DollarSign },
     { label: "Backup",        path: "/backup",        icon: HardDriveDownload },
