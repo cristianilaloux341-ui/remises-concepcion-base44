@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatCard from "@/components/dashboard/StatCard";
 import RideMap from "@/components/map/RideMap";
 import BaseQueueManager, { QuickAssignInput } from "@/components/operator/BaseQueueManager";
-import DispatchPanel from "@/components/operator/DispatchPanel";
 import { reassignAfterReject } from "@/lib/dispatchLogic";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -206,9 +205,9 @@ export default function Dashboard() {
         <BaseQueueManager drivers={drivers} moviles={moviles} />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Map */}
-        <div className="xl:col-span-2">
+        <div className="col-span-1">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-lg">Mapa en Vivo</CardTitle>
@@ -219,30 +218,9 @@ export default function Dashboard() {
               </Link>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="h-[320px]">
+              <div className="h-[400px]">
                 <RideMap orders={activeOrders} drivers={drivers} />
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Dispatch panel */}
-        <div>
-          <Card className="h-full">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-500" />
-                Panel de Despacho
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="overflow-y-auto max-h-[400px]">
-              <DispatchPanel
-                orders={orders}
-                drivers={drivers}
-                bases={bases}
-                moviles={moviles}
-                onOrderClick={(o) => window.location.href = `/orders/${o.id}`}
-              />
             </CardContent>
           </Card>
         </div>
