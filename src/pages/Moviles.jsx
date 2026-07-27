@@ -13,6 +13,7 @@ import { format, differenceInDays, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { DocVencimientosAlert, ReinscripcionPanel } from "@/components/docs/DocAlerts";
 import MovilAlertBanner from "@/components/moviles/MovilAlertBanner";
+import { getDriverDisplay } from "@/lib/utils";
 
 const EMPTY_MOVIL = {
   numero_movil: "",
@@ -329,6 +330,7 @@ export default function Moviles() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const [soloConProblemas, setSoloConProblemas] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [reinscripcionMovil, setReinscripcionMovil] = useState(null);
@@ -416,17 +418,30 @@ export default function Moviles() {
     }
   }
 
-  const filtered = moviles.filter(m =>
-    !search ||
-    String(m.numero_movil).includes(search) ||
-    m.apellido_nombre?.toLowerCase().includes(search.toLowerCase()) ||
-    m.dni?.includes(search)
-  ).sort((a, b) => Number(a.numero_movil) - Number(b.numero_movil));
+  const filtered = moviles.filter(m => {
+    const matchSearch = !search ||
+      String(m.numero_movil).includes(search) ||
+      m.apellido_nombre?.toLowerCase().includes(search.toLowerCase()) ||
+      m.dni?.includes(search);
+    
+    if (!matchSearch) return false;
 
-  const vencidos = moviles.filter(m => {
-    const campos = [m.vtv_vencimiento, m.seguro_riesgos_personales_vencimiento, m.seguro_automotor_vencimiento, m.buena_conducta_vencimiento];
-    return campos.some(f => f && differenceInDays(parseISO(f), new Date()) < 0);
-  });
+    if (soloConProblemas) {
+      const tieneProblemas = 
+        (m.vtv_vencimiento && differenceInDays(parseISO(m.vtv_vencimiento), new Date()) < 0) ||
+        (m.seguro_automotor_vencimiento && differenceInDays(parseISO(m.seguro_automotor_vencimiento), new Date()) < 0) ||
+        (m.seguro_riesgos_personales_vencimiento && differenceInDays(parseISO(m.seguro_riesgos_personales_vencimiento), new Date()) < 0) ||
+        (m.buena_conducta && m.buena_conducta_vencimiento && differenceInDays(parseISO(m.buena_conducta_vencimiento), new Date()) < 0) ||
+        m.pago_semanal_al_dia === false ||
+        m.deuda_monto > 0 ||
+        m.fuera_de_servicio ||
+        (!m.activo && m.suspension_motivo);
+      
+      if (!tieneProblemas) return false;
+    }
+    
+    return true;
+  }).sort((a, b) => Number(a.numero_movil) - Number(b.numero_movil));
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -451,15 +466,6 @@ export default function Moviles() {
         </div>
       )}
 
-      {/* Alertas de vencimientos — una por cada móvil con problemas */}
-      {moviles.map(m => (
-        <DocVencimientosAlert
-          key={m.id}
-          nombre={`Móvil ${m.numero_movil} — ${m.apellido_nombre}`}
-          campos={getCamposMovil(m)}
-        />
-      ))}
-
       {/* Panel de reinscripción si está abierto */}
       {reinscripcionMovil && (
         <ReinscripcionPanel
@@ -469,112 +475,88 @@ export default function Moviles() {
         />
       )}
 
-      {/* Buscador */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por número, nombre o DNI..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por número, nombre o DNI..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9 bg-card"
+          />
+        </div>
+        <Button
+          variant={soloConProblemas ? "destructive" : "outline"}
+          onClick={() => setSoloConProblemas(!soloConProblemas)}
+          className="gap-2 shrink-0 bg-card"
+        >
+          <AlertTriangle className="w-4 h-4" />
+          {soloConProblemas ? "Mostrando problemas" : "Filtrar vencidos"}
+        </Button>
       </div>
 
-      {/* Tabla */}
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/50 border-b border-border">
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">N° Móvil</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Titular</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Chofer</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Vehículo</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">DNI</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">VTV/RTO</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Seg. Automotor</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Seg. Riesgos</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Buena Conducta</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Pago Semanal</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Deuda</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Estado</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={13} className="text-center py-12 text-muted-foreground">
-                    No hay móviles registrados.
-                  </td>
-                </tr>
-              )}
-              {filtered.map(m => (
-                <tr key={m.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3">
-                    <span className="font-bold text-primary text-lg">{m.numero_movil}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                   <p className="font-medium">{m.apellido_nombre}</p>
-                   {m.direccion && <p className="text-xs text-muted-foreground">{m.direccion}</p>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {(driversByMovilId[m.id] || []).length > 0
-                      ? <div className="flex flex-wrap gap-1">
-                          {(driversByMovilId[m.id]).map((d) => (
-                            <span key={d.id} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">{d.name}</span>
-                          ))}
-                        </div>
-                      : <span className="text-xs text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {m.dominio && <p className="font-mono font-semibold text-sm">{m.dominio}</p>}
-                    {(m.marca || m.modelo) && <p className="text-xs text-muted-foreground">{[m.marca, m.modelo, m.color].filter(Boolean).join(" · ")}</p>}
-                    {!m.dominio && !m.marca && <span className="text-gray-400">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono">{m.dni || "—"}</td>
-                  <td className="px-4 py-3"><VencimientoBadge fecha={m.vtv_vencimiento} /></td>
-                  <td className="px-4 py-3"><VencimientoBadge fecha={m.seguro_automotor_vencimiento} /></td>
-                  <td className="px-4 py-3"><VencimientoBadge fecha={m.seguro_riesgos_personales_vencimiento} /></td>
-                  <td className="px-4 py-3">
-                    {m.buena_conducta
-                      ? <VencimientoBadge fecha={m.buena_conducta_vencimiento} />
-                      : <span className="text-xs text-red-600 font-medium">Sin certificado</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {m.pago_semanal_al_dia
-                      ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full font-medium"><CheckCircle2 className="w-3 h-3" />Al día</span>
-                      : <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full font-medium"><XCircle className="w-3 h-3" />Adeuda</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {m.deuda_monto > 0
-                      ? <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full font-medium">${m.deuda_monto.toLocaleString("es-AR")}</span>
-                      : <span className="text-xs text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {m.fuera_de_servicio
-                      ? <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-100 border border-red-300 px-2 py-0.5 rounded-full font-bold"><Ban className="w-3 h-3" />Fuera de servicio</span>
-                      : m.activo
-                        ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full font-medium"><CheckCircle2 className="w-3 h-3" />Habilitado</span>
-                        : <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium"><PauseCircle className="w-3 h-3" />Suspendido{m.suspension_motivo ? ` — ${m.suspension_motivo}` : ""}</span>
-                    }
-                  </td>
-                  <td className="px-4 py-3 flex items-center gap-1">
-                    <Button variant="ghost" size="icon" title="Editar" onClick={() => { setAlertMovil(m); setEditing(m); }}>
+      {/* Fichas de Móviles */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {filtered.length === 0 && (
+          <div className="col-span-full text-center py-12 text-muted-foreground bg-muted/30 rounded-xl border border-dashed">
+            No hay móviles registrados o que coincidan con la búsqueda.
+          </div>
+        )}
+        {filtered.map(m => {
+          const problemas = [];
+          if (m.vtv_vencimiento && differenceInDays(parseISO(m.vtv_vencimiento), new Date()) < 0) problemas.push("VTV Vencida");
+          if (m.seguro_automotor_vencimiento && differenceInDays(parseISO(m.seguro_automotor_vencimiento), new Date()) < 0) problemas.push("Seguro Automotor Vencido");
+          if (m.seguro_riesgos_personales_vencimiento && differenceInDays(parseISO(m.seguro_riesgos_personales_vencimiento), new Date()) < 0) problemas.push("Seg. Riesgos Vencido");
+          if (m.buena_conducta && m.buena_conducta_vencimiento && differenceInDays(parseISO(m.buena_conducta_vencimiento), new Date()) < 0) problemas.push("Buena Conducta Vencida");
+          if (!m.buena_conducta) problemas.push("Sin Buena Conducta");
+          if (m.pago_semanal_al_dia === false) problemas.push("Deuda Semanal");
+          if (m.deuda_monto > 0) problemas.push(`Deuda: $${m.deuda_monto}`);
+          if (m.fuera_de_servicio) problemas.push(`Fuera de Servicio (${m.fuera_de_servicio_motivo || 'Comisión'})`);
+          if (!m.activo && !m.fuera_de_servicio) problemas.push(`Suspendido (${m.suspension_motivo || 'Operador'})`);
+
+          const choferes = driversByMovilId[m.id] || [];
+          const primerChofer = choferes[0] ? choferes[0].name : m.apellido_nombre;
+
+          return (
+            <div key={m.id} className={`bg-card rounded-2xl border flex flex-col transition-shadow hover:shadow-md ${problemas.length > 0 ? 'border-red-300' : 'border-border'}`}>
+              <div className={`p-4 flex flex-col border-b ${problemas.length > 0 ? 'bg-red-50/50' : 'bg-muted/20'}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xl font-extrabold text-foreground truncate">{getDriverDisplay(m.numero_movil, primerChofer)}</p>
+                    <p className="text-xs text-muted-foreground truncate">{m.dominio || 'Sin patente'} • {m.marca} {m.modelo}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-1">Titular: {m.apellido_nombre}</p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10" title="Editar" onClick={() => { setAlertMovil(m); setEditing(m); }}>
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" title="Lista de reinscripción" onClick={() => setReinscripcionMovil(prev => prev?.id === m.id ? null : m)}>
-                      <ClipboardList className="w-4 h-4 text-blue-500" />
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-blue-600 hover:bg-blue-50" title="Lista de reinscripción" onClick={() => setReinscripcionMovil(prev => prev?.id === m.id ? null : m)}>
+                      <ClipboardList className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" title="Eliminar" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirmMovil(m)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-4 flex-1 flex flex-col gap-2 bg-card">
+                {problemas.length > 0 ? (
+                  <div className="space-y-2">
+                    {problemas.map((p, i) => (
+                      <div key={i} className="flex items-center gap-2 text-red-700 text-sm font-semibold bg-red-50 px-3 py-2 rounded-xl border border-red-100">
+                        <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                        {p}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-green-700 text-sm font-semibold gap-2 bg-green-50 rounded-xl p-4 border border-green-100">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" /> Todo al día
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Popup de alertas previo — se muestra al abrir un móvil con problemas */}
