@@ -56,6 +56,10 @@ export default function RequestRide() {
 
   const handleContinue = (e) => {
     e.preventDefault();
+    if (pickup === 'Mi ubicación') {
+      toast.error('Obteniendo tu ubicación actual, por favor espera...');
+      return;
+    }
     if (pickup.trim()) {
       navigate('/app-cliente/fare', { 
         state: { 
@@ -115,7 +119,7 @@ export default function RequestRide() {
           <button 
             type="button" 
             onClick={handleContinue}
-            disabled={!pickup.trim()}
+            disabled={!pickup.trim() || pickup === 'Mi ubicación'}
             className="w-full mt-4 h-14 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:active:scale-100 text-white rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"
           >
             Continuar <ArrowRight className="w-5 h-5" />
