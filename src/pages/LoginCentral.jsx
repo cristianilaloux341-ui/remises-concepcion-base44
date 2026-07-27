@@ -72,7 +72,7 @@ export default function LoginCentral() {
               <Car className="text-blue-600 w-8 h-8" />
               <div>
                 <h3 className="font-bold text-sm text-blue-900">App para Clientes</h3>
-                <p className="text-xs text-blue-700">Versión de prueba</p>
+                <p className="text-xs text-blue-700">Remises Concepción</p>
               </div>
             </div>
             <Button 
