@@ -5,10 +5,32 @@ Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
   const payload = await req.json();
-  const { orderId, driverId } = payload;
+  const { orderId, driverId, sessionToken, internalKey } = payload;
 
   const { forceManual, manualDriverName } = payload;
   
+  const VALID_INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY") || "fallback_internal_key_2026";
+  let isAuthorized = false;
+  
+  if (internalKey && internalKey === VALID_INTERNAL_KEY) {
+    isAuthorized = true;
+  } else if (sessionToken) {
+    try {
+      const decodedStr = atob(sessionToken);
+      const tokenData = JSON.parse(decodedStr);
+      if (tokenData && tokenData.id && tokenData.exp && Date.now() <= tokenData.exp) {
+        const ops = await b44.entities.UsuariosSistema.filter({ id: tokenData.id });
+        if (ops && ops.length > 0 && ops[0].activo) {
+          isAuthorized = true;
+        }
+      }
+    } catch (err) {}
+  }
+  
+  if (!isAuthorized) {
+    return Response.json({ success: false, reason: 'unauthorized' }, { status: 401 });
+  }
+
   if (!orderId) return Response.json({ success: false, reason: 'Missing orderId' });
 
   const orderReq = await b44.entities.RideOrder.get(orderId);
@@ -109,7 +131,8 @@ Deno.serve(async (req) => {
           orderId: orderId,
           driverId: driverId,
           timeoutSeconds: timeoutSeconds,
-          assignmentAttempt: newAttempt
+          assignmentAttempt: newAttempt,
+          internalKey: VALID_INTERNAL_KEY
         }).catch((e: any) => console.error("AutoReassign Trigger Error:", e));
       }
     } else {

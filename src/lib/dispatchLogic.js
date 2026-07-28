@@ -57,9 +57,11 @@ export function findDriverInZone(zone, drivers) {
 // Assign driver to order (direct / zone-based)
 export async function assignDriverToOrder(order, driver) {
   try {
+    const sessionToken = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("local_operator_token") : null;
     const res = await base44.functions.invoke("assignRide", {
       orderId: order.id,
-      driverId: driver.id
+      driverId: driver.id,
+      sessionToken
     });
     if (!res.data || !res.data.success) {
       console.error("AssignRide backend returned false:", res.data?.reason);
@@ -124,11 +126,13 @@ export async function reassignAfterReject(order, drivers, bases) {
   const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
 
   if (!available.length || !autoReassignActive) {
+    const sessionToken = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("local_operator_token") : null;
     await base44.functions.invoke("assignRide", {
       orderId: order.id,
       forceManual: true,
       manualDriverName: null,
-      statusOverride: "pendiente"
+      statusOverride: "pendiente",
+      sessionToken
     });
     return !autoReassignActive ? "manual" : "sin_moviles";
   }
