@@ -513,10 +513,14 @@ Deno.serve(async (req) => {
     if (!driver) {
        return Response.json({ accepted: false, reason: "driver_not_found" });
     }
-    // if (sessionToken && driver.current_session_token !== sessionToken) {
-    //   // Permitimos bypass si no envían sessionToken (ej: desde webhook nativo seguro)
-    //   return Response.json({ accepted: false, reason: "unauthorized" });
-    // }
+    const INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY");
+    const isInternalCall = payload.internalKey && INTERNAL_KEY && payload.internalKey === INTERNAL_KEY;
+
+    if (!isInternalCall) {
+      if (!sessionToken || driver.current_session_token !== sessionToken) {
+        return Response.json({ accepted: false, reason: "unauthorized" }, { status: 401 });
+      }
+    }
 
     const invocationId = crypto.randomUUID();
     const operationKey = `ACCEPT_${orderId}_${driverId}_${assignmentAttempt || 1}_${invocationId.slice(0, 8)}`;
