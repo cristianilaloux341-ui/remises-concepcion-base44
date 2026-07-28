@@ -4,7 +4,8 @@ import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts"; // Usando De
 // Helper: Hashing PIN con Web Crypto API para no depender de librerías inestables en Deno
 async function hashPin(pin) {
   const encoder = new TextEncoder();
-  const data = encoder.encode(pin + "salt_central_2026"); // Salting básico
+  const salt = process.env.AUTH_SALT || "fallback_secure_salt_2026";
+  const data = encoder.encode(pin + salt); // Salting con variable de entorno
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
@@ -21,16 +22,16 @@ Deno.serve(async (req) => {
       const usuarios = await base44.asServiceRole.entities.UsuariosSistema.list();
       if (usuarios && usuarios.length === 0) {
         // La tabla está vacía, creamos el admin semilla
-        const pinHash = await hashPin("1313");
+        const initPin = process.env.INIT_ADMIN_PIN || "123456";
+        const pinHash = await hashPin(initPin);
         const nuevoAdmin = await base44.asServiceRole.entities.UsuariosSistema.create({
           nombre: "Administrador",
           telefono: "3442640443",
           pin_hash: pinHash,
-          pin_plano: "1313",
           rol: "Administrador General",
           activo: true
         });
-        return Response.json({ success: true, message: "Administrador semilla creado.", initialized: true });
+        return Response.json({ success: true, message: `Administrador semilla creado. PIN temporal: ${initPin}`, initialized: true });
       }
       return Response.json({ success: true, message: "Sistema ya inicializado.", initialized: false });
     }
@@ -123,7 +124,6 @@ Deno.serve(async (req) => {
           nombre: data.nombre,
           telefono: data.telefono,
           pin_hash: pinHash,
-          pin_plano: data.pin,
           rol: data.rol,
           activo: data.activo !== false
         });
@@ -149,7 +149,6 @@ Deno.serve(async (req) => {
         // Solo actualizamos PIN si se envió uno nuevo
         if (data.pin && data.pin.trim() !== "") {
           updateData.pin_hash = await hashPin(data.pin);
-          updateData.pin_plano = data.pin;
         }
         await base44.asServiceRole.entities.UsuariosSistema.update(data.id, updateData);
         return Response.json({ success: true });
