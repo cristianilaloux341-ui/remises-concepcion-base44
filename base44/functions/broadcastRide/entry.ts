@@ -4,7 +4,27 @@ Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
   const payload = await req.json();
-  const { orderId } = payload;
+  const { orderId, sessionToken } = payload;
+
+  if (!sessionToken) {
+    return Response.json({ success: false, reason: 'unauthorized - missing session token' }, { status: 401 });
+  }
+
+  try {
+    const decodedStr = atob(sessionToken);
+    const tokenData = JSON.parse(decodedStr);
+    
+    if (!tokenData || !tokenData.id || !tokenData.exp || Date.now() > tokenData.exp) {
+      return Response.json({ success: false, reason: 'token_expired_or_invalid' }, { status: 401 });
+    }
+
+    const ops = await b44.entities.UsuariosSistema.filter({ id: tokenData.id });
+    if (!ops || ops.length === 0 || !ops[0].activo) {
+      return Response.json({ success: false, reason: 'operator_not_found_or_inactive' }, { status: 403 });
+    }
+  } catch (err) {
+    return Response.json({ success: false, reason: 'invalid_token_format' }, { status: 400 });
+  }
 
   const orderReq = await b44.entities.RideOrder.get(orderId);
   

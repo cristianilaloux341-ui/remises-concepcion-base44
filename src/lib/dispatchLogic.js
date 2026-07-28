@@ -73,8 +73,10 @@ export async function assignDriverToOrder(order, driver) {
 // El primero en aceptar gana. Se usa cuando no hay nadie en la zona.
 export async function broadcastOrder(order, drivers = []) {
   try {
+    const sessionToken = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("local_operator_token") : null;
     const res = await base44.functions.invoke("broadcastRide", {
-      orderId: order.id
+      orderId: order.id,
+      sessionToken
     });
     if (!res.data || !res.data.success) {
       console.error("BroadcastRide backend returned false:", res.data?.reason);
