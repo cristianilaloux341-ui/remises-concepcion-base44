@@ -202,10 +202,14 @@ export async function cleanupExpiredTechnicalLock(b44: any, baseId: string, expe
 
   const orders = await b44.entities.RideOrder.filter({ reservation_token: expectedToken });
   if (orders.length > 0) {
-    await b44.entities.RideOrder.updateMany(
-      { id: orders[0].id, reservation_token: expectedToken },
-      { $set: { status: 'pendiente', reservation_token: null, reserved_driver_id: null } }
-    );
+    const ord = orders[0];
+    const safeStates = ['aceptado', 'en_camino', 'en_viaje', 'completado'];
+    if (!safeStates.includes(ord.status) && !ord.driver_id) {
+      await b44.entities.RideOrder.updateMany(
+        { id: ord.id, reservation_token: expectedToken },
+        { $set: { status: 'pendiente', reservation_token: null, reserved_driver_id: null } }
+      );
+    }
   }
 
   const bRes = await b44.entities.Base.updateMany(
@@ -232,10 +236,14 @@ export async function cleanupExpiredManualWait(b44: any, baseId: string, expecte
 
   const orders = await b44.entities.RideOrder.filter({ manual_reservation_token: expectedToken });
   if (orders.length > 0) {
-    await b44.entities.RideOrder.updateMany(
-      { id: orders[0].id, manual_reservation_token: expectedToken },
-      { $set: { status: 'pendiente', manual_reservation_token: null, reserved_driver_id: null } }
-    );
+    const ord = orders[0];
+    const safeStates = ['aceptado', 'en_camino', 'en_viaje', 'completado'];
+    if (!safeStates.includes(ord.status) && !ord.driver_id) {
+      await b44.entities.RideOrder.updateMany(
+        { id: ord.id, manual_reservation_token: expectedToken },
+        { $set: { status: 'pendiente', manual_reservation_token: null, reserved_driver_id: null } }
+      );
+    }
   }
 
   const bRes = await b44.entities.Base.updateMany(

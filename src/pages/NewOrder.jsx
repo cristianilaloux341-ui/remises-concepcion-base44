@@ -20,8 +20,10 @@ export default function NewOrder() {
       if (manualDriverId) {
         data.driver_id = null;
         data.driver_name = null;
-        data.status = "pendiente";
       }
+      // NUNCA lo creamos como "pendiente" para evitar que el dispatch automático (broadcast) 
+      // intercepte el viaje antes de que el servidor lo asigne de forma síncrona.
+      data.status = "procesando_despacho";
 
       // 1. Crear la orden
       const newOrder = await base44.entities.RideOrder.create(data);
@@ -49,15 +51,21 @@ export default function NewOrder() {
             return;
           }
 
-          if (newOrder.status === "pendiente") {
+          if (newOrder.status === "procesando_despacho" || newOrder.status === "pendiente") {
             if (newOrder.zone) {
               const zoneDriver = findDriverInZone(newOrder.zone, drivers);
               if (zoneDriver) {
                 await assignDriverToOrder(newOrder, zoneDriver);
+              } else {
+                await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
               }
             } else {
               const bestDriver = await findBestDriver(newOrder, drivers, bases);
-              if (bestDriver) await assignDriverToOrder(newOrder, bestDriver);
+              if (bestDriver) {
+                await assignDriverToOrder(newOrder, bestDriver);
+              } else {
+                await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
+              }
             }
           }
         } catch (err) {
