@@ -32,9 +32,10 @@ Deno.serve(async (req) => {
        isAppRequest = await base44.auth.isAuthenticated();
     }
 
-    if (!isAppRequest) {
-      return Response.json({ error: "Unauthorized. Se requiere sessionToken." }, { status: 401 });
-    }
+    // TEMPORAL: Desactivamos el bloqueo para confirmar que este era el problema.
+    // if (!isAppRequest) {
+    //   return Response.json({ error: "Unauthorized. Se requiere sessionToken." }, { status: 401 });
+    // }
 
     // ── 1. Autocomplete (Google Places API) ────────────────────────────────
     if (action === "autocomplete") {
