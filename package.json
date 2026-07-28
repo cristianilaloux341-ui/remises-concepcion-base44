@@ -10,6 +10,8 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",
+    "sync:chofer": "node scripts/setup-firebase.js driver && npx cap sync android",
+    "sync:cliente": "node scripts/setup-firebase.js cliente && npx cap sync android-cliente --config capacitor.cliente.config.json",
     "sync:android": "npx cap sync android && node scripts/patch-android.js"
   },
   "dependencies": {
