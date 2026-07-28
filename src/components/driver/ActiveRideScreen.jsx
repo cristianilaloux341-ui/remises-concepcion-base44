@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
-import { MapPin, Phone, Navigation, Car, CheckCircle2, XCircle, Timer } from "lucide-react";
+import { MapPin, Phone, Navigation, Car, CheckCircle2, XCircle, Timer, AlertCircle } from "lucide-react";
 
 export const STATUS_CONFIG = {
   ofrecido:  { label: "Nuevo Viaje",    bg: "bg-amber-500"  },
@@ -231,6 +231,22 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
             </span>
           </div>
         </div>
+
+        <button
+          className="w-full h-14 rounded-2xl gap-2 bg-red-600 hover:bg-red-700 text-white font-bold text-lg flex items-center justify-center active:scale-95 transition-all shadow-lg animate-pulse"
+          onClick={() => {
+            base44.entities.PanicAlert.create({
+              driver_id: driver.id,
+              driver_name: driver.name,
+              vehicle_plate: driver.vehicle_plate,
+              current_lat: driver.current_lat,
+              current_lng: driver.current_lng,
+            });
+            navigator.vibrate?.([500, 200, 500, 200, 500]);
+          }}
+        >
+          <AlertCircle className="w-6 h-6" /> Botón de Pánico
+        </button>
 
         <button
           className="w-full h-11 rounded-2xl gap-2 border border-blue-500/40 text-blue-400 bg-blue-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all"

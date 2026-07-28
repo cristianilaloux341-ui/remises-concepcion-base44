@@ -890,7 +890,7 @@ function OffServiceScreen({ onGoOnService }) {
 }
 
 // ── Idle / waiting screen ─────────────────────────────────────────────────────
-function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onChangeBase, onGoOffService, driverId, libreBlockedSegs = 0 }) {
+function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onChangeBase, onGoOffService, driverId, libreBlockedSegs = 0, onPanic }) {
   const [changingBase, setChangingBase] = useState(false);
   const [newBase, setNewBase] = useState("");
 
@@ -979,6 +979,12 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
               disabled={libreBlockedSegs > 0}
             >
               <ArrowRightLeft className="w-6 h-6" /> Moverse a otra Base
+            </button>
+            <button
+              className="w-full flex items-center justify-center gap-3 h-16 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-lg md:text-xl active:scale-95 transition-all shadow-md animate-pulse"
+              onClick={onPanic}
+            >
+              <AlertCircle className="w-6 h-6" /> Botón de Pánico
             </button>
             {libreBlockedSegs > 0 ? (
               <div className="w-full flex items-center justify-center gap-3 rounded-2xl bg-orange-500/20 border border-orange-500/30 text-orange-400 text-lg font-bold h-16 shadow-md">
@@ -2032,10 +2038,9 @@ export default function DriverApp() {
               sessionStorage.setItem("my_driver_id", id);
               if (!isOperator) {
                 localStorage.setItem("my_driver_id", id);
-              }
-              if (isFirstTime) {
-                setShowSetupGuide(true);
-                if (!isOperator) localStorage.setItem(`setup_done_${id}`, "1");
+                if (isFirstTime) {
+                  localStorage.setItem(`setup_done_${id}`, "1");
+                }
               }
             }}
             onClearSaved={() => {
@@ -2120,22 +2125,6 @@ export default function DriverApp() {
           )}
         </div>
         <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pl-4 ml-auto">
-          <button
-            className="p-2 rounded-xl bg-red-600 hover:bg-red-700 text-white animate-pulse"
-            onClick={() => {
-              base44.entities.PanicAlert.create({
-                driver_id: myDriverId,
-                driver_name: myDriver.name,
-                vehicle_plate: myDriver.vehicle_plate,
-                current_lat: myDriver.current_lat,
-                current_lng: myDriver.current_lng,
-              });
-              navigator.vibrate?.([500, 200, 500, 200, 500]);
-            }}
-            title="Activar alerta de pánico"
-          >
-            <AlertCircle className="w-4 h-4" />
-          </button>
           <button
             className="p-2 rounded-xl bg-green-600/20 text-green-400"
             onClick={() => setShowStats(true)}
@@ -2227,6 +2216,16 @@ export default function DriverApp() {
             onGoOffService={handleGoOffService}
             driverId={myDriverId}
             libreBlockedSegs={libreBlockedSegs}
+            onPanic={() => {
+              base44.entities.PanicAlert.create({
+                driver_id: myDriverId,
+                driver_name: myDriver.name,
+                vehicle_plate: myDriver.vehicle_plate,
+                current_lat: myDriver.current_lat,
+                current_lng: myDriver.current_lng,
+              });
+              navigator.vibrate?.([500, 200, 500, 200, 500]);
+            }}
           />
         )}
       </PullToRefresh>

@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Send, X, MessageCircle } from "lucide-react";
+import { Send, X, MessageCircle, Mic, Square } from "lucide-react";
 import { format } from "date-fns";
 
 const formatTimeBA = (dateStr) => {
@@ -40,9 +40,61 @@ function playBeep(type = "send") {
 export default function DriverMessages({ driver, onClose }) {
   const [content, setContent] = useState("");
   const [messages, setMessages] = useState([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  
   const bottomRef = useRef(null);
   const initializedRef = useRef(false);
   const seenIdsRef = useRef(new Set());
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      mediaRecorderRef.current = mr;
+      audioChunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        const mimeType = mediaRecorderRef.current.mimeType || 'audio/webm';
+        const ext = mimeType.includes('mp4') ? 'm4a' : 'webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        const file = new File([audioBlob], `audio_${Date.now()}.${ext}`, { type: mimeType });
+        
+        setUploadingAudio(true);
+        try {
+          const res = await base44.integrations.Core.UploadFile({ file });
+          if (res?.file_url) {
+             await base44.entities.Message.create({
+                from_type: "movil",
+                from_name: driver.name,
+                driver_id: driver.id,
+                to_driver_id: "",
+                content: `[AUDIO]${res.file_url}`,
+                read: false,
+             });
+             playBeep("send");
+          }
+        } catch(e) {
+          console.error(e);
+        }
+        setUploadingAudio(false);
+      };
+      mr.start();
+      setIsRecording(true);
+    } catch(e) {
+      alert("Permiso de micrófono denegado");
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
+      setIsRecording(false);
+    }
+  };
 
   // Load initial messages then subscribe to real-time updates
   useEffect(() => {
@@ -151,6 +203,9 @@ export default function DriverMessages({ driver, onClose }) {
         )}
         {myMessages.map(msg => {
           const isFromMe = msg.from_type === "movil" && msg.driver_id === driver.id;
+          const isAudio = msg.content.startsWith("[AUDIO]");
+          const audioUrl = isAudio ? msg.content.replace("[AUDIO]", "") : null;
+          
           return (
             <div key={msg.id} className={`flex ${isFromMe ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 ${
@@ -159,7 +214,11 @@ export default function DriverMessages({ driver, onClose }) {
                 {!isFromMe && (
                   <p className="text-xs font-semibold text-gray-500 mb-0.5">{msg.from_name}</p>
                 )}
-                <p className="text-sm">{msg.content}</p>
+                {isAudio ? (
+                  <audio controls src={audioUrl} className="h-10 w-full max-w-[200px] mb-1" />
+                ) : (
+                  <p className="text-sm break-words">{msg.content}</p>
+                )}
                 <p className={`text-xs mt-1 ${isFromMe ? "text-slate-400" : "text-gray-400"} text-right`}>
                   {formatTimeBA(msg.created_date)}
                 </p>
@@ -174,18 +233,30 @@ export default function DriverMessages({ driver, onClose }) {
       <div className="px-4 pt-4 pb-8 border-t bg-white flex gap-2" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
         <Input
           className="flex-1 rounded-xl"
-          placeholder="Mensaje a la base..."
+          placeholder={uploadingAudio ? "Enviando audio..." : isRecording ? "Grabando..." : "Mensaje a la base..."}
           value={content}
           onChange={e => setContent(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && content.trim()) sendMutation.mutate(); }}
+          disabled={isRecording || uploadingAudio}
         />
-        <Button
-          className="rounded-xl px-4"
-          onClick={() => sendMutation.mutate()}
-          disabled={!content.trim() || sendMutation.isPending}
-        >
-          <Send className="w-4 h-4" />
-        </Button>
+        {content.trim() ? (
+          <Button
+            className="rounded-xl px-4"
+            onClick={() => sendMutation.mutate()}
+            disabled={sendMutation.isPending || uploadingAudio}
+          >
+            <Send className="w-4 h-4" />
+          </Button>
+        ) : (
+          <Button
+            variant={isRecording ? "destructive" : "default"}
+            className="rounded-xl px-4 transition-all"
+            onClick={isRecording ? handleStopRecording : handleStartRecording}
+            disabled={uploadingAudio}
+          >
+            {isRecording ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </Button>
+        )}
       </div>
     </div>
   );
