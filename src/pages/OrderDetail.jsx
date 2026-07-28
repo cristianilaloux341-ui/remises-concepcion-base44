@@ -68,10 +68,12 @@ export default function OrderDetail() {
       
       const toCancel = [...new Set([order.driver_id, order.reserved_driver_id, ...(order.offered_driver_ids || [])])].filter(Boolean);
       if (toCancel.length > 0) {
+        const sessionToken = sessionStorage.getItem("local_operator_token");
         base44.functions.invoke("sendPushNotification", {
           action: "cancel_multiple",
           driversToCancel: toCancel,
-          orderId: order.id
+          orderId: order.id,
+          sessionToken
         }).catch(e => console.error("Cancel push error:", e));
       }
     }

@@ -237,7 +237,27 @@ Deno.serve(async (req) => {
     }
   }
 
-  const { action, driverId, subscription, orderId, orderData, userId, fromName, messageContent, driversToCancel, payloadType } = body;
+  const { action, driverId, subscription, orderId, orderData, userId, fromName, messageContent, driversToCancel, payloadType, internalKey, sessionToken } = body;
+
+  // Validación de seguridad sin romper suscripciones del lado del cliente
+  const VALID_INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY") || "fallback_internal_key_2026";
+  const isPublicAction = ['subscribe_fcm', 'subscribe', 'subscribe_operator', 'vapid_public_key'].includes(action);
+  
+  let isAuthorized = false;
+  if (isPublicAction || (body.event && body.event.entity_name)) {
+    isAuthorized = true; // Tráfico de cliente o Automatizaciones de Base44
+  } else if (internalKey === VALID_INTERNAL_KEY) {
+    isAuthorized = true; // Tráfico seguro entre funciones backend
+  } else if (sessionToken) {
+    try {
+      const decoded = JSON.parse(atob(sessionToken));
+      if (decoded && decoded.exp && Date.now() <= decoded.exp) isAuthorized = true;
+    } catch (e) {}
+  }
+
+  if (!isAuthorized) {
+    return Response.json({ error: 'unauthorized', reason: 'Missing or invalid security key' }, { status: 401 });
+  }
 
   const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY');
   const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY');

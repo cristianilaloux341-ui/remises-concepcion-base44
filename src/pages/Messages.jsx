@@ -75,10 +75,12 @@ export default function Messages() {
             clearTimeout(toastTimerRef.current);
             toastTimerRef.current = setTimeout(() => setToast(null), 5000);
             // Enviar push real a todos los operadores (bloqueante para asegurar salida)
+            const sessionToken = sessionStorage.getItem("local_operator_token");
             await base44.functions.invoke("sendPushNotification", {
               action: "send_to_operators",
               fromName: event.data.from_name,
               messageContent: event.data.content,
+              sessionToken
             }).catch(e => console.error("Push Error (Operators):", e));
           }
         } else if (event.type === "update") {
