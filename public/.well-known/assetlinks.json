@@ -3,9 +3,19 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.remisesconcepcion.app",
+      "package_name": "com.remisesconcepcion.driver",
       "sha256_cert_fingerprints": [
-        "Reemplazar_con_el_SHA256_de_tu_Play_Console"
+        "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.remisesconcepcion.cliente",
+      "sha256_cert_fingerprints": [
+        "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
       ]
     }
   }

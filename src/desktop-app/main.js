@@ -21,7 +21,8 @@ function createWindow() {
   mainWindow.webContents.setUserAgent(customUserAgent);
 
   // 2. Cargar la URL de producción (Asegúrate de cambiar esto por la URL publicada real de tu app)
-  const targetUrl = 'https://TU-URL-DE-PRODUCCION.com'; 
+  // URL inferida del entorno Base44. Actualizar por el dominio final si se usa uno personalizado.
+  const targetUrl = 'https://6a2195daf5c708d8398b3ca1.base44.app'; 
   mainWindow.loadURL(targetUrl);
 
   // 3. Sistema de recarga automática en caso de pérdida de conexión
