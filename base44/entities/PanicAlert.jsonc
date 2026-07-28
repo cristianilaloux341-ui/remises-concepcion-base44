@@ -2,10 +2,18 @@
   "name": "PanicAlert",
   "type": "object",
   "rls": {
-    "read": true,
-    "create": true,
-    "update": true,
-    "delete": true
+    "create": null,
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
   },
   "properties": {
     "driver_id": {

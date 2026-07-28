@@ -2,10 +2,14 @@
   "name": "Message",
   "type": "object",
   "rls": {
-    "read": true,
-    "create": true,
-    "update": true,
-    "delete": true
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
   },
   "properties": {
     "from_type": {

@@ -66,5 +66,15 @@
     "client_name",
     "pickup_address",
     "scheduled_datetime"
-  ]
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
 }
