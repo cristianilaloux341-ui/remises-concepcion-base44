@@ -5,7 +5,7 @@
       "namespace": "android_app",
       "package_name": "com.remisesconcepcion.driver",
       "sha256_cert_fingerprints": [
-        "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+        "FA:2A:03:CB:38:9C:F3:EE:28:B3:7C:71:B8:31:8E:B4:4D:5E:2B:A7:F9:6B:4F:9E:C0:52:96:A7:28:65:21:40"
       ]
     }
   },
@@ -15,7 +15,7 @@
       "namespace": "android_app",
       "package_name": "com.remisesconcepcion.cliente",
       "sha256_cert_fingerprints": [
-        "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+        "FA:2A:03:CB:38:9C:F3:EE:28:B3:7C:71:B8:31:8E:B4:4D:5E:2B:A7:F9:6B:4F:9E:C0:52:96:A7:28:65:21:40"
       ]
     }
   }
