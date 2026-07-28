@@ -29,6 +29,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
     driver_name: "",
     fare: "",
     notes: "",
+    payment_method: "Efectivo",
     status: "pendiente",
     ...order,
   });
@@ -666,6 +667,18 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
               )}
             </div>
             <div className="space-y-1.5">
+              <Label>Método de Pago</Label>
+              <Select value={form.payment_method || "Efectivo"} onValueChange={(v) => handleChange("payment_method", v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Efectivo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Efectivo">Efectivo</SelectItem>
+                  <SelectItem value="Transferencia">Transferencia</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
               <Label htmlFor="notes">Notas</Label>
               <Input
                 id="notes"

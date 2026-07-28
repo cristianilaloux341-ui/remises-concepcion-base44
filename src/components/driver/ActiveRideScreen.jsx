@@ -225,6 +225,11 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
               <span className="ml-auto font-semibold text-gray-400">${Math.round(order.importe_estimado).toLocaleString()} est.</span>
             )}
           </div>
+          <div className="flex items-center gap-2 text-gray-400 text-xs pt-1 border-t border-gray-800">
+            <span className="font-semibold">
+              {order.payment_method === "Transferencia" ? "🏦 Transferencia" : "💵 Efectivo"}
+            </span>
+          </div>
         </div>
 
         <button

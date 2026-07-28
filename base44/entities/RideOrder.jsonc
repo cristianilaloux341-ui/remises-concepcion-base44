@@ -71,6 +71,14 @@
       ],
       "default": "pendiente"
     },
+    "payment_method": {
+      "type": "string",
+      "enum": [
+        "Efectivo",
+        "Transferencia"
+      ],
+      "default": "Efectivo"
+    },
     "reservation_token": {
       "type": "string"
     },
