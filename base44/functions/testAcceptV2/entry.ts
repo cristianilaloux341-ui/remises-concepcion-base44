@@ -474,10 +474,15 @@ export async function testAcceptV2Logic(b44: any, rideOrderId: string, driverId:
 
 Deno.serve(async (req) => {
   try {
+    const payload = await req.json().catch(() => ({}));
+    const INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY");
+    if (!payload.internalKey || !INTERNAL_KEY || payload.internalKey !== INTERNAL_KEY) {
+      return Response.json({ error: "Unauthorized. Internal Service Key missing." }, { status: 401 });
+    }
+
     const base44 = createClientFromRequest(req);
     const b44 = base44.asServiceRole;
     
-    const payload = await req.json();
     const { rideOrderId, driverId, operationKey, assignmentAttempt, injectFailureAtCommit } = payload;
     
     if (!rideOrderId || !driverId || !operationKey || assignmentAttempt == null) {

@@ -9,8 +9,13 @@ const toBase64Url = (buf) => {
 
 Deno.serve(async (req) => {
   try {
+    const body = await req.json().catch(() => ({}));
+    const INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY");
+    if (!body.internalKey || !INTERNAL_KEY || body.internalKey !== INTERNAL_KEY) {
+      return Response.json({ error: "Unauthorized. Internal Service Key missing." }, { status: 401 });
+    }
+
     const base44 = createClientFromRequest(req);
-    const body = await req.json();
     const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
     const sa = JSON.parse(saStr);
 

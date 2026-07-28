@@ -3,6 +3,11 @@ import { triggerDispatch } from '../../shared/DispatchController.ts';
 import { tryManualCandidate, assignDriverToOrderAtomic, reassignAfterAutomaticReject, releaseManualDriver } from '../../shared/DispatchLogic.ts';
 
 Deno.serve(async (req) => {
+  const payload = await req.json().catch(() => ({}));
+  const INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY");
+  if (!payload.internalKey || !INTERNAL_KEY || payload.internalKey !== INTERNAL_KEY) {
+    return Response.json({ error: "Unauthorized. Internal Service Key missing." }, { status: 401 });
+  }
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
   const trace = [];
