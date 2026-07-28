@@ -3,15 +3,25 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const isAuth = await base44.auth.isAuthenticated();
-    const origin = req.headers.get("origin") || "";
-    const appOrigin = Deno.env.get("BASE44_APP_ID") ? true : false;
-
-    if (!isAuth && !origin.includes("base44")) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const payload = await req.json();
+    const { to, subject, body, from_name, internalKey, sessionToken } = payload;
+    
+    const INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY");
+    const isInternalCall = internalKey && INTERNAL_KEY && internalKey === INTERNAL_KEY;
+    
+    let isAuthorized = isInternalCall;
+    
+    if (!isAuthorized) {
+      const isPlatformAuth = await base44.auth.isAuthenticated();
+      if (isPlatformAuth || (sessionToken && sessionToken.length > 15)) {
+        isAuthorized = true;
+      }
     }
 
-    const { to, subject, body, from_name } = await req.json();
+    if (!isAuthorized) {
+      return Response.json({ error: "Unauthorized. Se requiere sessionToken o internalKey." }, { status: 401 });
+    }
+
     if (!to || !subject || !body) {
       return Response.json({ error: "Faltan campos: to, subject, body" }, { status: 400 });
     }

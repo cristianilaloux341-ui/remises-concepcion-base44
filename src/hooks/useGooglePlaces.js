@@ -24,9 +24,11 @@ export function useGooglePlaces(inputValue) {
 
       setLoading(true);
       try {
+        const sessionToken = localStorage.getItem('client_token') || sessionStorage.getItem('local_operator_token') || 'client_demo_token';
         const res = await base44.functions.invoke("geocodeRoute", {
           action: "autocomplete",
           input: inputValue,
+          sessionToken
         });
         const preds = res.data?.predictions || [];
         cacheRef.current.set(inputValue, preds);

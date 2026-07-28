@@ -5,6 +5,14 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const b44 = base44.asServiceRole;
+    const payload = await req.json().catch(() => ({}));
+    
+    const { internalKey } = payload;
+    const INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY");
+    
+    if (!internalKey || !INTERNAL_KEY || internalKey !== INTERNAL_KEY) {
+      return Response.json({ error: "Unauthorized. Internal Service Key missing." }, { status: 401 });
+    }
     
     // 1. Exclusión Mutua para Reconciliador
     const RECONCILER_LOCK_ZONE = 'GLOBAL_RECONCILER';
@@ -29,7 +37,6 @@ Deno.serve(async (req) => {
     );
 
     // 2. Ejecutar reconciliación con período de gracia (default 60s)
-    const payload = await req.json().catch(() => ({}));
     const graceMs = payload.graceMs ?? 60000;
     
     // runReconciliation ya procesa internamente un lote acotado por las entidades anómalas
