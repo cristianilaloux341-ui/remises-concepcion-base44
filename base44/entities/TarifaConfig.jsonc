@@ -2,10 +2,22 @@
   "name": "TarifaConfig",
   "type": "object",
   "rls": {
-    "create": null,
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
     "read": null,
-    "update": null,
-    "delete": null
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
   },
   "properties": {
     "clave_modificacion": {
