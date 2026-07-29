@@ -36,7 +36,8 @@ export default function AdminUsuarios() {
         toast({ title: "Error", description: res.data?.error || "Error al cargar", variant: "destructive" });
       }
     } catch (e) {
-      toast({ title: "Error", description: "No se pudieron cargar los usuarios", variant: "destructive" });
+      const msg = e.response?.data?.error || e.message || "No se pudieron cargar los usuarios";
+      toast({ title: "Error", description: String(msg), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -70,7 +71,8 @@ export default function AdminUsuarios() {
         toast({ title: "Error", description: res.data?.error || "Error al eliminar", variant: "destructive" });
       }
     } catch (e) {
-      toast({ title: "Error", description: "No se pudo eliminar el usuario", variant: "destructive" });
+      const msg = e.response?.data?.error || e.message || "No se pudo eliminar el usuario";
+      toast({ title: "Error", description: String(msg), variant: "destructive" });
     }
   };
 
@@ -82,7 +84,8 @@ export default function AdminUsuarios() {
       });
       cargarUsuarios();
     } catch (e) {
-      toast({ title: "Error", description: "No se pudo cambiar el estado", variant: "destructive" });
+      const msg = e.response?.data?.error || e.message || "No se pudo cambiar el estado";
+      toast({ title: "Error", description: String(msg), variant: "destructive" });
     }
   };
 
@@ -107,8 +110,9 @@ export default function AdminUsuarios() {
         toast({ title: "Error", description: res.data?.error || "Error al guardar", variant: "destructive" });
       }
     } catch (e) {
-      const msg = e.response?.data?.error || "Error al comunicarse con el servidor";
-      toast({ title: "Error", description: msg, variant: "destructive" });
+      console.error(e);
+      const msg = e.response?.data?.error || e.message || "Error al comunicarse con el servidor";
+      toast({ title: "Error", description: String(msg), variant: "destructive" });
     }
   };
 

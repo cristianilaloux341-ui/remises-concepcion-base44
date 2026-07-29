@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
-import { hashPin, createJWT } from '../../shared/security.ts';
+import { hashPin, createJWT, verifyJWT } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -82,7 +82,6 @@ Deno.serve(async (req) => {
       let authenticatedAdminId = admin_id;
 
       if (sessionToken) {
-        const { verifyJWT } = await import('../../shared/security.ts');
         const tokenData = await verifyJWT(sessionToken);
         if (tokenData && tokenData.id && tokenData.exp && Date.now() < tokenData.exp) {
           const adminData = await base44.asServiceRole.entities.UsuariosSistema.get(tokenData.id).catch(() => null);
