@@ -14,6 +14,8 @@ export default function ActiveRide() {
   const orderId = location.state?.orderId;
   const [order, setOrder] = useState(null);
   const [driver, setDriver] = useState(null);
+  const [chatMessage, setChatMessage] = useState("");
+  const [messages, setMessages] = useState([]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -36,8 +38,71 @@ export default function ActiveRide() {
         }
       }
     });
-    return () => unsubscribe();
+
+    const clientId = localStorage.getItem('client_id');
+    let unsubMsgs = () => {};
+    if (clientId) {
+      base44.entities.Message.filter({ driver_id: clientId }).then(setMessages).catch(console.error);
+      unsubMsgs = base44.entities.Message.subscribe(ev => {
+        if (ev.type === 'create' && ev.data.driver_id === clientId) {
+          setMessages(prev => [...prev, ev.data]);
+        }
+      });
+    }
+
+    return () => {
+      unsubscribe();
+      unsubMsgs();
+    };
   }, [orderId, navigate]);
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Sigue mi viaje',
+          text: `Viajo en un remis. Chofer: ${driver?.name || order?.driver_name || 'No definido'}, Patente: ${driver?.vehicle_plate || ''}. Destino: ${order?.dropoff_address || 'No definido'}`,
+          url: window.location.href
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    } else {
+      toast.error('Compartir no está soportado en este dispositivo');
+    }
+  };
+
+  const handleSendPanic = async () => {
+    try {
+      await base44.entities.PanicAlert.create({
+        driver_id: localStorage.getItem('client_id') || 'cliente-desconocido',
+        driver_name: `CLIENTE: ${order?.client_name || 'Desconocido'}`,
+        vehicle_plate: driver?.vehicle_plate || 'N/A',
+        current_lat: order?.pickup_lat || 0,
+        current_lng: order?.pickup_lng || 0,
+        notes: `ALERTA DE CLIENTE EN VIAJE (Orden: ${orderId})`
+      });
+      setShowPanic(false);
+      toast.success('Alerta enviada a la central');
+    } catch (e) {
+      toast.error('Error al enviar la alerta');
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!chatMessage.trim()) return;
+    try {
+      await base44.entities.Message.create({
+        from_type: 'movil',
+        from_name: order?.client_name || 'Cliente',
+        driver_id: localStorage.getItem('client_id') || 'cliente-desconocido',
+        content: chatMessage
+      });
+      setChatMessage('');
+    } catch (e) {
+      toast.error('Error al enviar mensaje');
+    }
+  };
 
   return (
     <div className="h-[100dvh] flex flex-col relative bg-slate-100" style={{ paddingBottom: 'env(safe-area-bottom)' }}>
@@ -62,7 +127,7 @@ export default function ActiveRide() {
 
       {/* Botones Flotantes Laterales */}
       <div className="absolute bottom-40 right-4 z-10 flex flex-col gap-3">
-        <button className="w-14 h-14 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-700 active:scale-95 border border-slate-100">
+        <button onClick={handleShare} className="w-14 h-14 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-700 active:scale-95 border border-slate-100">
           <Share2 className="w-6 h-6" />
         </button>
         <button onClick={() => setShowChat(true)} className="w-14 h-14 bg-blue-50 rounded-full shadow-lg flex items-center justify-center text-blue-600 active:scale-95 border border-blue-100">
@@ -97,14 +162,30 @@ export default function ActiveRide() {
               </div>
               <button onClick={() => setShowChat(false)} className="p-2 bg-slate-100 rounded-full active:scale-95"><X className="w-5 h-5 text-slate-600"/></button>
             </div>
-            <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-50/50">
-              <div className="bg-slate-200 p-3 rounded-2xl rounded-tl-sm w-[80%] text-slate-800 text-sm shadow-sm">
+            <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-50/50 flex flex-col">
+              <div className="bg-slate-200 p-3 rounded-2xl rounded-tl-sm w-[80%] text-slate-800 text-sm shadow-sm self-start">
                 Hola, soy el operador de turno. ¿En qué te puedo ayudar?
               </div>
+              {messages.map((msg, i) => (
+                <div key={i} className={`p-3 rounded-2xl text-sm shadow-sm max-w-[80%] ${
+                  msg.from_type === 'operador' 
+                    ? 'bg-slate-200 text-slate-800 rounded-tl-sm self-start' 
+                    : 'bg-blue-600 text-white rounded-tr-sm self-end'
+                }`}>
+                  {msg.content}
+                </div>
+              ))}
             </div>
             <div className="p-5 border-t border-slate-100 flex gap-3 bg-white">
-              <input type="text" placeholder="Escribe un mensaje..." className="flex-1 bg-slate-100 border-none rounded-full px-5 py-3 outline-none text-sm placeholder:text-slate-400" />
-              <button className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center shrink-0 active:scale-95 shadow-md shadow-blue-600/20">
+              <input 
+                type="text" 
+                placeholder="Escribe un mensaje..." 
+                className="flex-1 bg-slate-100 border-none rounded-full px-5 py-3 outline-none text-sm placeholder:text-slate-400" 
+                value={chatMessage}
+                onChange={e => setChatMessage(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+              />
+              <button onClick={handleSendMessage} className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center shrink-0 active:scale-95 shadow-md shadow-blue-600/20">
                 <Send className="w-5 h-5 -ml-1 mt-1" />
               </button>
             </div>
@@ -122,7 +203,7 @@ export default function ActiveRide() {
             <h3 className="font-black text-2xl mb-2 text-slate-900">¿Estás en peligro?</h3>
             <p className="text-slate-500 mb-6 text-sm">Esto enviará una alerta inmediata a la central y compartirá tu ubicación en tiempo real con las autoridades.</p>
             <div className="space-y-3">
-              <button onClick={() => setShowPanic(false)} className="w-full py-4 rounded-2xl bg-red-600 text-white font-bold text-lg active:scale-95 shadow-lg shadow-red-600/30 transition-transform">
+              <button onClick={handleSendPanic} className="w-full py-4 rounded-2xl bg-red-600 text-white font-bold text-lg active:scale-95 shadow-lg shadow-red-600/30 transition-transform">
                 SÍ, ENVIAR ALERTA
               </button>
               <button onClick={() => setShowPanic(false)} className="w-full py-4 rounded-2xl bg-slate-100 text-slate-600 font-bold active:scale-95 transition-transform">

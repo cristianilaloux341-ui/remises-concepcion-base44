@@ -137,7 +137,7 @@ export default function DriverAssigned() {
 
         {/* Acciones */}
         <div className="flex gap-4">
-          <a href={driver?.phone ? `tel:${driver.phone}` : '#'} className="flex-1 bg-slate-100 hover:bg-slate-200 h-14 rounded-2xl flex items-center justify-center gap-2 font-bold text-slate-700 transition-colors">
+          <a href="tel:3442667570" className="flex-1 bg-slate-100 hover:bg-slate-200 h-14 rounded-2xl flex items-center justify-center gap-2 font-bold text-slate-700 transition-colors">
             <Phone className="w-5 h-5" /> Llamar
           </a>
           <button onClick={handleCancel} className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 h-14 rounded-2xl flex items-center justify-center gap-2 font-bold transition-colors">
