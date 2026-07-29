@@ -1,6 +1,28 @@
 {
   "name": "Operator",
   "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
   "properties": {
     "name": {
       "type": "string",
@@ -47,11 +69,5 @@
   "required": [
     "name",
     "phone"
-  ],
-  "rls": {
-    "create": null,
-    "read": null,
-    "update": null,
-    "delete": null
-  }
+  ]
 }
