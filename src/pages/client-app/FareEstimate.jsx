@@ -87,7 +87,7 @@ export default function FareEstimate() {
             console.error("Error en geocodeRoute:", e);
           }
 
-          // Fallback matemático si falla la API (distancia Haversine * 1.3 factor de calles)
+          // Fallback matemático si falla la API (distancia Haversine * 1.6 factor de calles urbano)
           if (!dist) {
             const R = 6371e3; // Radio de la tierra en metros
             const dLat = (finalDropoffCoords.lat - finalPickupCoords.lat) * Math.PI / 180;
@@ -96,13 +96,13 @@ export default function FareEstimate() {
                       Math.cos(finalPickupCoords.lat * Math.PI / 180) * Math.cos(finalDropoffCoords.lat * Math.PI / 180) *
                       Math.sin(dLon/2) * Math.sin(dLon/2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            dist = (R * c) * 1.35; // 35% extra por curvatura de calles
+            dist = (R * c) * 1.65; // 65% extra por curvatura de cuadras
           }
 
           if (dist) {
             setDistance(dist);
-            // Calculo aproximado: bajada de bandera + (metros * precio_por_metro)
-            const calculated = currentTarifa.bajada_bandera + (dist * currentTarifa.precio_por_metro);
+            // Calculo aproximado: bajada de bandera + (metros * precio_por_metro) + un 25% extra por tiempo y semáforos
+            const calculated = (currentTarifa.bajada_bandera + (dist * currentTarifa.precio_por_metro)) * 1.25;
             // Redondear a múltiplo de 100 por prolijidad
             setEstimatedPrice(Math.ceil(calculated / 100) * 100);
           }
@@ -145,7 +145,7 @@ export default function FareEstimate() {
         }
       } catch(e) {}
 
-      const order = await base44.entities.RideOrder.create({
+      const orderData = {
         client_name: clientName,
         client_id: clientId,
         client_phone: clientPhone,
@@ -159,28 +159,19 @@ export default function FareEstimate() {
         zone: orderZone,
         status: "procesando_despacho",
         source: "cliente"
+      };
+      
+      // Llamada unificada al backend para crear y asignar instantáneamente
+      const res = await base44.functions.invoke('clientCreateAndDispatchRide', { 
+        orderData, 
+        sessionToken: localStorage.getItem('client_token') || 'client_demo_token' 
       });
       
-      navigate('/app-cliente/searching', { state: { orderId: order.id } });
-
-      // Lógica de despacho en background
-      (async () => {
-        try {
-          const drivers = await base44.entities.Driver.list();
-          if (order.zone) {
-            const zoneDriver = findDriverInZone(order.zone, drivers);
-            if (zoneDriver) {
-              await assignDriverToOrder(order, zoneDriver);
-            } else {
-              await broadcastOrder(order, drivers);
-            }
-          } else {
-            await broadcastOrder(order, drivers);
-          }
-        } catch(e) {
-          console.error("Client background dispatch error:", e);
-        }
-      })();
+      if (res.data?.success) {
+        navigate('/app-cliente/searching', { state: { orderId: res.data.orderId } });
+      } else {
+        throw new Error("Failed to dispatch ride");
+      }
 
     } catch (error) {
       console.error(error);

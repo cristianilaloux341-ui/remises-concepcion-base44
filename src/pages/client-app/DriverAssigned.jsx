@@ -74,7 +74,14 @@ export default function DriverAssigned() {
   return (
     <div className="h-[100dvh] flex flex-col relative bg-slate-100" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="absolute inset-0 z-0">
-        <RideMap className="border-none rounded-none w-full h-full" autoFit={false} zoom={15} />
+        <RideMap 
+          className="border-none rounded-none w-full h-full" 
+          autoFit={true} 
+          zoom={15} 
+          orders={order ? [order] : []}
+          drivers={driver ? [driver] : []}
+          centerOn={driver?.current_lat ? [driver.current_lat, driver.current_lng] : null}
+        />
       </div>
       
       {/* Etiqueta Superior */}
