@@ -98,6 +98,7 @@ Deno.serve(async (req) => {
       }
 
       if (!isAuthorized) {
+        console.log("NOT AUTHORIZED. Token Data:", sessionToken);
         return Response.json({ error: "Acceso denegado. Se requiere rol de Administrador General o Admin." }, { status: 403 });
       }
 

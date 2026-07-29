@@ -36,7 +36,7 @@ export default function ActiveUsers() {
         const admin_id = localOperator ? localOperator.id : null;
         const res = await base44.functions.invoke('authSystem', {
           action: 'manage_users',
-          payload: { sub_action: 'list', admin_id }
+          payload: { sub_action: 'list', admin_id, sessionToken: sessionStorage.getItem('local_operator_token') }
         });
         return res.data?.success ? res.data.usuarios.map(u => ({
           ...u,
