@@ -110,7 +110,7 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
 
     // Trigger directo a sendPushNotification restaurado para eliminar la latencia de 15s de la automatización
     try {
-      await b44.functions.invoke('sendPushNotification', {
+      const pushResult = await b44.functions.invoke('sendPushNotification', {
         action: 'send',
         driverId: driver.id,
         orderId: order.id,
@@ -123,9 +123,17 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
         },
         internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
       });
+
+      if (pushResult && pushResult.data && pushResult.data.ok === false) {
+         throw new Error("PUSH_FAILED: " + (pushResult.data.error || pushResult.data.reason));
+      }
     } catch (pushErr) {
       console.error("Error trigger push en DispatchLogic:", pushErr);
-      // Falla no destructiva, permitimos que el viaje quede asignado igual
+      // Failsafe: purga inmediata si falla la notificación para no dejar al chofer ni al viaje colgados
+      await b44.entities.RideOrder.updateMany({ id: order.id, status: 'ofrecido', reservation_token: token }, { $set: { status: 'procesando_despacho', reserved_driver_id: null } });
+      await b44.entities.Driver.updateMany({ id: driver.id, reservation_token: token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } });
+      await safeAuditLog(b44, { action: 'DELIVERY_ERROR', user_type: 'sistema', user_name: 'System', details: 'Fallo push, reversión rápida: ' + pushErr.message }, failureInjector);
+      return false;
     }
     
     return true;
@@ -151,7 +159,7 @@ export async function reassignAfterAutomaticReject(b44: any, baseId: string, ord
 
   const baseRes = await b44.entities.Base.updateMany(
     { id: baseId, dispatch_status: 'libre' },
-    { $set: { dispatch_status: 'procesando', lock_token: newToken, lock_expires_at: Date.now() + 30000, active_order_id: orderId } }
+    { $set: { dispatch_status: 'procesando', lock_token: newToken, lock_expires_at: Date.now() + 8000, active_order_id: orderId } }
   );
   if ((baseRes.matchedCount ?? baseRes.modifiedCount ?? baseRes.updated ?? 0) !== 1) return { status: 'zone_busy' };
 
