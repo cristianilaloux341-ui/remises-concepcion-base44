@@ -1,6 +1,16 @@
 {
   "name": "Client",
   "type": "object",
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
   "properties": {
     "name": {
       "type": "string"
@@ -53,11 +63,5 @@
   },
   "required": [
     "name"
-  ],
-  "rls": {
-    "create": null,
-    "read": null,
-    "update": null,
-    "delete": null
-  }
+  ]
 }
