@@ -109,6 +109,12 @@ function unlockAudio() {
 function playAlert() {
   try { navigator.vibrate?.([500, 200, 500, 200, 1000, 300, 500]); } catch (_) {}
   
+  // En Android nativo dejamos que ForegroundService y RideAlertController manejen
+  // la bocina para que no choquen los sonidos.
+  if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+    return;
+  }
+
   // Alarma HTML5 (suena más fuerte y sortea bloqueos de background mejor)
   try {
     if (alarmAudioElement) alarmAudioElement.play().catch(() => {});
@@ -593,7 +599,7 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
 
 // ── Incoming ride alert ───────────────────────────────────────────────────────
 function IncomingAlert({ order, onAccept, onReject, isAccepting }) {
-  const [isValid, setIsValid] = useState(null); // null = checking
+  const [isValid, setIsValid] = useState(true); // Optimistic UI: Mostrar de inmediato
   const [timeLeft, setTimeLeft] = useState(null);
   const [totalTime, setTotalTime] = useState(null);
 
@@ -630,21 +636,16 @@ function IncomingAlert({ order, onAccept, onReject, isAccepting }) {
     let mounted = true;
     base44.entities.RideOrder.get(order.id).then(fresh => {
       if (mounted) {
-        if (fresh && fresh.status === 'ofrecido') {
-          setIsValid(true);
-        } else {
+        if (fresh && fresh.status !== 'ofrecido') {
           setIsValid(false);
           window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
       }
-    }).catch(() => {
-      if (mounted) setIsValid(true);
-    });
+    }).catch(() => {});
     return () => { mounted = false; };
   }, [order.id]);
 
   if (isValid === false) return null;
-  if (isValid === null) return <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center"><div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>;
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
@@ -739,20 +740,21 @@ function IncomingAlert({ order, onAccept, onReject, isAccepting }) {
 
 // ── Broadcast alert (sin zona / primero en aceptar gana) ─────────────────────
 function BroadcastAlert({ order, onAccept, onReject, isAccepting }) {
-  const [isValid, setIsValid] = useState(null);
+  const [isValid, setIsValid] = useState(true);
   useEffect(() => {
     let mounted = true;
     base44.entities.RideOrder.get(order.id).then(fresh => {
       if (mounted) {
-        if (fresh && fresh.status === 'pendiente' && !fresh.driver_id) setIsValid(true);
-        else { setIsValid(false); window.dispatchEvent(new CustomEvent("radiocab_reconnect")); }
+        if (fresh && (fresh.status !== 'pendiente' || fresh.driver_id)) { 
+          setIsValid(false); 
+          window.dispatchEvent(new CustomEvent("radiocab_reconnect")); 
+        }
       }
-    }).catch(() => { if (mounted) setIsValid(true); });
+    }).catch(() => {});
     return () => { mounted = false; };
   }, [order.id]);
   const cleanNotes = (order.notes || "").replace(/^\[BROADCAST\]\s*/, "").trim();
   if (isValid === false) return null;
-  if (isValid === null) return <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm"></div>;
   return (
     <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-end justify-center p-4 pb-8 animate-in fade-in slide-in-from-bottom-8 duration-300" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))', paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden shadow-2xl">
