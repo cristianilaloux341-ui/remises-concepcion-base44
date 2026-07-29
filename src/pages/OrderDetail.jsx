@@ -113,6 +113,36 @@ export default function OrderDetail() {
     }
   };
 
+  const returnToPending = async () => {
+    // Si había un conductor asignado, liberarlo
+    if (order.driver_id || order.reserved_driver_id) {
+      const driverToRelease = order.driver_id || order.reserved_driver_id;
+      try {
+        await base44.entities.Driver.update(driverToRelease, {
+          status: "disponible",
+          dispatch_status: "normal",
+          reserved_order_id: null,
+          reservation_token: null
+        });
+      } catch (e) {
+        console.error("Error liberando conductor", e);
+      }
+    }
+    
+    // Mover la orden a pendiente
+    updateMutation.mutate({ 
+      id: order.id, 
+      data: { 
+        status: "pendiente", 
+        driver_id: null, 
+        driver_name: null, 
+        assigned_base: null,
+        reserved_driver_id: null, 
+        reservation_token: null 
+      } 
+    });
+  };
+
   const availableDrivers = drivers.filter(d => d.status === "disponible" || d.id === order?.driver_id);
 
   return (
@@ -138,7 +168,7 @@ export default function OrderDetail() {
                   variant="outline"
                   size="sm"
                   className="gap-2"
-                  onClick={() => updateMutation.mutate({ id: order.id, data: { status: "pendiente", driver_id: null, driver_name: null } })}
+                  onClick={returnToPending}
                 >
                   <RefreshCw className="w-4 h-4" /> Volver a Pendiente
                 </Button>

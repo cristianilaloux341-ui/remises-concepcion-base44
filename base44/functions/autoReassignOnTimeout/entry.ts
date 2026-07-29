@@ -65,6 +65,8 @@ Deno.serve(async (req) => {
             status: targetStatus,
             driver_id: nextDriver ? nextDriver.id : null,
             driver_name: nextDriver ? nextDriver.name : null,
+            reserved_driver_id: nextDriver ? nextDriver.id : null,
+            reservation_token: null,
             assigned_base: nextDriver ? nextDriver.current_base : null,
             assignment_attempt: newAttempt
           },
@@ -79,8 +81,15 @@ Deno.serve(async (req) => {
       }
 
       // 2. Transacción Exitosa -> Solo aquí actualizamos Driver Status / Notificamos
-      if (currentDriver && currentDriver.status === 'ofrecido') {
-         try { await base44.asServiceRole.entities.Driver.update(currentDriver.id, { status: 'disponible' }); } catch(e){}
+      if (currentDriver) {
+         try { 
+           await base44.asServiceRole.entities.Driver.update(currentDriver.id, { 
+             status: 'disponible',
+             dispatch_status: 'normal',
+             reserved_order_id: null,
+             reservation_token: null
+           }); 
+         } catch(e){}
       }
       
       if (nextDriver) {
