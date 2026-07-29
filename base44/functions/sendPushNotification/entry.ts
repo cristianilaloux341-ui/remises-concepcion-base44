@@ -200,6 +200,7 @@ Deno.serve(async (req) => {
         pickup_address: body.data.pickup_address,
         dropoff_address: body.data.dropoff_address,
         fare: body.data.fare,
+        notes: body.data.notes,
         assignmentAttempt: body.data.assignment_attempt || 1
       };
     } else if (isStatusChanged && (body.data.status === "aceptado" || body.data.status === "cancelado" || body.data.status === "pendiente")) {
@@ -456,7 +457,10 @@ Deno.serve(async (req) => {
       const driver = drivers[0];
       
       const title = '🚖 ¡NUEVO VIAJE!';
-      const bodyStr = orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}${orderData.fare ? ' · $' + orderData.fare : ''}` : 'Tenés un viaje asignado';
+      let bodyStr = orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}${orderData.fare ? ' · $' + orderData.fare : ''}` : 'Tenés un viaje asignado';
+      if (orderData && orderData.notes) {
+        bodyStr += `\n📌 Notas: ${orderData.notes}`;
+      }
 
       let webPushStatus = null;
       let webPushSuccess = false;

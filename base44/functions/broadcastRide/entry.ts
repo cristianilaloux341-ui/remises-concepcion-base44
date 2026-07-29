@@ -54,6 +54,7 @@ Deno.serve(async (req) => {
               pickup_address: orderReq.pickup_address,
               dropoff_address: orderReq.dropoff_address,
               fare: orderReq.fare,
+              notes: newNotes,
               assignmentAttempt: newAttempt
             },
             internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
