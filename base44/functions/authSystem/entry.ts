@@ -120,6 +120,7 @@ Deno.serve(async (req) => {
           nombre: data.nombre,
           telefono: data.telefono,
           pin_hash: pinHash,
+          pin_plano: data.pin,
           rol: data.rol,
           activo: data.activo !== false
         });
@@ -145,6 +146,7 @@ Deno.serve(async (req) => {
         // Solo actualizamos PIN si se envió uno nuevo
         if (data.pin && data.pin.trim() !== "") {
           updateData.pin_hash = await hashPin(data.pin);
+          updateData.pin_plano = data.pin;
         }
         await base44.asServiceRole.entities.UsuariosSistema.update(data.id, updateData);
         return Response.json({ success: true });
