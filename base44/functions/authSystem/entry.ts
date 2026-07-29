@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
           rol: "Administrador General",
           activo: true
         });
-        return Response.json({ success: true, message: `Administrador semilla creado. PIN temporal: ${initPin}`, initialized: true });
+        return Response.json({ success: true, message: "Administrador semilla creado con éxito.", initialized: true });
       }
       return Response.json({ success: true, message: "Sistema ya inicializado.", initialized: false });
     }

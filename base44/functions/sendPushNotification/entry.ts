@@ -239,20 +239,23 @@ Deno.serve(async (req) => {
 
   const { action, driverId, subscription, orderId, orderData, userId, fromName, messageContent, driversToCancel, payloadType, internalKey, sessionToken } = body;
 
-  // Validación de seguridad estricta para modificaciones de suscripciones
+  // Validación de seguridad estricta para notificaciones y suscripciones
   const isPublicAction = ['vapid_public_key'].includes(action);
+  const { verifyRequestAuth } = await import('../../shared/security.ts');
   
   let isAuthorized = false;
-  if (isPublicAction || (body.event && body.event.entity_name)) {
+  if (isPublicAction) {
     isAuthorized = true; 
+  } else if (body.event && body.event.entity_name) {
+    // Si viene simulado como evento de entidad, obligatoriamente pedimos clave interna para validar
+    isAuthorized = await verifyRequestAuth(base44.asServiceRole, body);
   } else {
-    const { verifyRequestAuth } = await import('../../shared/security.ts');
-    
     if (['subscribe_fcm', 'subscribe'].includes(action)) {
       isAuthorized = await verifyRequestAuth(base44.asServiceRole, body, { allowDriverId: driverId });
     } else if (action === 'subscribe_operator') {
       isAuthorized = await verifyRequestAuth(base44.asServiceRole, body, { allowOperator: true });
     } else {
+      // Las demás acciones (como send, send_client_alert, etc.) requieren ser disparadas por un Operador o Sistema Interno
       isAuthorized = await verifyRequestAuth(base44.asServiceRole, body, { allowOperator: true });
     }
   }
