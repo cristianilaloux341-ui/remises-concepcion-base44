@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { validateInternalKey, verifyOperatorSession } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -6,16 +7,13 @@ Deno.serve(async (req) => {
     const payload = await req.json();
     const { to, subject, body, from_name, internalKey, sessionToken } = payload;
     
-    const INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY");
-    const isInternalCall = internalKey && INTERNAL_KEY && internalKey === INTERNAL_KEY;
-    
-    let isAuthorized = isInternalCall;
-    
-    if (!isAuthorized) {
-      const isPlatformAuth = await base44.auth.isAuthenticated();
-      if (isPlatformAuth || (sessionToken && sessionToken.length > 15)) {
-        isAuthorized = true;
-      }
+    let isAuthorized = false;
+    if (validateInternalKey(internalKey)) {
+      isAuthorized = true;
+    } else if (await verifyOperatorSession(base44.asServiceRole, sessionToken)) {
+      isAuthorized = true;
+    } else if (await base44.auth.isAuthenticated()) {
+      isAuthorized = true;
     }
 
     if (!isAuthorized) {
@@ -24,6 +22,15 @@ Deno.serve(async (req) => {
 
     if (!to || !subject || !body) {
       return Response.json({ error: "Faltan campos: to, subject, body" }, { status: 400 });
+    }
+
+    // Validar destino contra whitelist (Relé de correo abierto)
+    const operadores = await base44.asServiceRole.entities.Operator.filter({ email: to });
+    if (operadores.length === 0) {
+      const systemUsers = await base44.asServiceRole.entities.User.filter({ email: to });
+      if (systemUsers.length === 0) {
+        return Response.json({ error: "DESTINO_NO_AUTORIZADO" }, { status: 403 });
+      }
     }
 
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");

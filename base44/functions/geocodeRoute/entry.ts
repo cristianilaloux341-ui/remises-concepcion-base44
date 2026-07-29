@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { validateInternalKey, verifyOperatorSession } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -9,33 +10,35 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, sessionToken, internalKey } = body;
 
-    const INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY");
-    const isInternalCall = internalKey && INTERNAL_KEY && internalKey === INTERNAL_KEY;
-
     let isAppRequest = false;
+    let validDriver = null;
     
-    if (isInternalCall) {
+    if (validateInternalKey(internalKey)) {
       isAppRequest = true;
     } else if (sessionToken) {
-      // Validar si el sessionToken le pertenece a un chofer o a un cliente
-      const [choferes, clientes] = await Promise.all([
-        base44.asServiceRole.entities.Driver.filter({ current_session_token: sessionToken }),
-        // Clientes no usan sessionToken por ahora en db, pero permitimos a operadores con token:
-        base44.asServiceRole.entities.Operator.filter({ phone: { $exists: true } }) // Hack bypass para demo - idealmente los clientes deberian tener token
-      ]);
-      if (choferes.length > 0 || sessionToken.length > 10) {
-        // Asumimos token válido si es largo (operador jwt simulado o cliente)
+      if (await verifyOperatorSession(base44.asServiceRole, sessionToken)) {
         isAppRequest = true;
+      } else {
+        const choferes = await base44.asServiceRole.entities.Driver.filter({ current_session_token: sessionToken });
+        if (choferes.length > 0) {
+          isAppRequest = true;
+          validDriver = choferes[0];
+        }
       }
     } else {
-       // Fallback base44 nativo admin
        isAppRequest = await base44.auth.isAuthenticated();
     }
 
-    // TEMPORAL: Desactivamos el bloqueo para confirmar que este era el problema.
-    // if (!isAppRequest) {
-    //   return Response.json({ error: "Unauthorized. Se requiere sessionToken." }, { status: 401 });
-    // }
+    if (!isAppRequest) {
+      return Response.json({ error: "Unauthorized. Se requiere sessionToken válido." }, { status: 401 });
+    }
+    
+    // Bypass prevention: Drivers can only consume routing APIs if they are in an active ride
+    if (validDriver && action === "route") {
+       if (!validDriver.active_ride_id) {
+          return Response.json({ error: "Consumo de API denegado: No tienes un viaje activo." }, { status: 403 });
+       }
+    }
 
     // ── 1. Autocomplete (Google Places API) ────────────────────────────────
     if (action === "autocomplete") {

@@ -1,15 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts"; // Usando Deno genérico para bcrypt, aunque es mejor crypto nativo
-
-// Helper: Hashing PIN con Web Crypto API para no depender de librerías inestables en Deno
-async function hashPin(pin) {
-  const encoder = new TextEncoder();
-  const salt = process.env.AUTH_SALT || "fallback_secure_salt_2026";
-  const data = encoder.encode(pin + salt); // Salting con variable de entorno
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-}
+import { hashPin } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -22,7 +12,7 @@ Deno.serve(async (req) => {
       const usuarios = await base44.asServiceRole.entities.UsuariosSistema.list();
       if (usuarios && usuarios.length === 0) {
         // La tabla está vacía, creamos el admin semilla
-        const initPin = process.env.INIT_ADMIN_PIN || "123456";
+        const initPin = Deno.env.get("INIT_ADMIN_PIN") || "123456";
         const pinHash = await hashPin(initPin);
         const nuevoAdmin = await base44.asServiceRole.entities.UsuariosSistema.create({
           nombre: "Administrador",

@@ -33,7 +33,8 @@ export async function verifyOperatorSession(b44: any, sessionToken?: string): Pr
 }
 
 export async function hashPin(pinText: string): Promise<string> {
-  const msgUint8 = new TextEncoder().encode(pinText);
+  const salt = Deno.env.get("AUTH_SALT") || "fallback_secure_salt_2026";
+  const msgUint8 = new TextEncoder().encode(pinText + salt);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
