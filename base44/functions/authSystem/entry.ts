@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
-import { hashPin } from '../../shared/security.ts';
+import { hashPin, createJWT } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -55,9 +55,8 @@ Deno.serve(async (req) => {
         ultimo_acceso: new Date().toISOString()
       });
 
-      // Retornar token (en este caso enviamos los datos del usuario + un token básico firmado/simulado)
-      // En un sistema real se firma un JWT. Aquí firmamos un JSON simple como token_auth.
-      const tokenPayload = btoa(JSON.stringify({ id: usuario.id, telefono: usuario.telefono, exp: Date.now() + 86400000 }));
+      // Emitimos un token JWT firmado de forma criptográfica usando el secreto cargado
+      const tokenPayload = await createJWT({ id: usuario.id, telefono: usuario.telefono, exp: Date.now() + 86400000 });
       
       return Response.json({ 
         success: true, 
