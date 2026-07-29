@@ -465,13 +465,8 @@ Deno.serve(async (req) => {
       // Intentar enviar por FCM nativo si el chofer tiene el token (Prioridad)
       if (driver.fcm_token) {
          try {
-           let apiHost = req.headers.get("base44-api-url");
-           if (apiHost && !apiHost.startsWith("http")) {
-               apiHost = "https://" + apiHost;
-           }
-           if (!apiHost) {
-               apiHost = new URL(req.url).origin;
-           }
+           // Usamos estrictamente el origen real de la petición para evitar inyecciones de Host Header
+           const apiHost = new URL(req.url).origin;
            const apiUrl = apiHost + '/api/functions/invoke/handleNativePushAction';
            const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
            if (saStr) {
