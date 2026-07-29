@@ -118,6 +118,7 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
           pickup_address: order.pickup_address,
           dropoff_address: order.dropoff_address,
           fare: order.fare,
+          notes: order.notes,
           assignmentAttempt: order.assignment_attempt || 1
         },
         internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")

@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
         {
           id: orderId,
           status: "ofrecido",
-          driver_id: driverId,
+          reserved_driver_id: driverId, // Debe buscar por el chofer reservado, no el definitivo
           $or: [{ assignment_attempt: assignmentAttempt }, { assignment_attempt: null }]
         },
         {

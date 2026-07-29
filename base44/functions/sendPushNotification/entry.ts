@@ -523,7 +523,8 @@ Deno.serve(async (req) => {
                      title: String(title),
                      body: String(bodyStr),
                      sentAt: Date.now().toString(),
-                     assignmentAttempt: orderData?.assignmentAttempt?.toString() || "1"
+                     assignmentAttempt: orderData?.assignmentAttempt?.toString() || "1",
+                     orderNotes: String(orderData?.notes || "")
                    },
                    android: {
                      priority: "HIGH"
