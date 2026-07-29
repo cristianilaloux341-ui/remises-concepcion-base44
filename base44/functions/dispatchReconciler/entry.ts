@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 import { runReconciliation } from '../../shared/DispatchReconciler.ts';
+import { verifyRequestAuth } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -7,11 +8,9 @@ Deno.serve(async (req) => {
     const b44 = base44.asServiceRole;
     const payload = await req.json().catch(() => ({}));
     
-    const { internalKey } = payload;
-    const INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY");
-    
-    if (!internalKey || !INTERNAL_KEY || internalKey !== INTERNAL_KEY) {
-      return Response.json({ error: "Unauthorized. Internal Service Key missing." }, { status: 401 });
+    // Requiere Internal Service Key verificada
+    if (!(await verifyRequestAuth(b44, payload))) {
+      return Response.json({ error: "Unauthorized. Internal Service Key missing or invalid." }, { status: 401 });
     }
     
     // 1. Exclusión Mutua para Reconciliador

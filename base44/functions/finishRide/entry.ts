@@ -1,23 +1,29 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { verifyRequestAuth } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
   const payload = await req.json();
-  const { orderId, driverId, importeFinal, sessionToken } = payload;
+  const { orderId, driverId, importeFinal } = payload;
 
   await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_REQUESTED', user_type: 'sistema', user_name: 'finishRide', details: `Requested finish for ${orderId}`, metadata: { orderId, driverId } });
 
-  if (!orderId || !driverId || !sessionToken) {
+  if (!orderId || !driverId) {
     await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: 'Missing params', metadata: { orderId, driverId } });
     return Response.json({ success: false, reason: 'missing_params' });
   }
 
+  // Verificar la sesión del chofer o clave de servicio mediante el middleware
+  if (!(await verifyRequestAuth(b44, payload, { allowDriverId: driverId }))) {
+    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: 'Invalid driver session', metadata: { orderId, driverId } });
+    return Response.json({ success: false, reason: 'unauthorized' }, { status: 401 });
+  }
+
   const drivers = await b44.entities.Driver.filter({ id: driverId });
   const driver = drivers[0];
-  if (!driver || driver.current_session_token !== sessionToken) {
-    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: 'Invalid driver', metadata: { orderId, driverId } });
-    return Response.json({ success: false, reason: 'unauthorized' });
+  if (!driver) {
+    return Response.json({ success: false, reason: 'driver_not_found' });
   }
 
   const orders = await b44.entities.RideOrder.filter({ id: orderId });
