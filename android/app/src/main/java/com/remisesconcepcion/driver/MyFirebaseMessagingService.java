@@ -56,6 +56,19 @@ public class MyFirebaseMessagingService extends MessagingService {
                 // Registrar resolución para evitar que un push 'ofrecido' demorado suene
                 RideStateManager.markResolved(getApplicationContext(), orderId, 999, "CANCELLED");
                 RideAlertController.getInstance().stopAlert(getApplicationContext(), orderId, "Comando remoto: " + type);
+                
+                // Mostrar notificación breve para satisfacer el requisito de FCM (evita penalización de prioridad)
+                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    NotificationChannel ch = new NotificationChannel("ride_alerts_cancel", "Cancelaciones", NotificationManager.IMPORTANCE_DEFAULT);
+                    nm.createNotificationChannel(ch);
+                }
+                androidx.core.app.NotificationCompat.Builder b = new androidx.core.app.NotificationCompat.Builder(this, "ride_alerts_cancel")
+                        .setSmallIcon(R.mipmap.ic_launcher)
+                        .setContentTitle("❌ Viaje ya no disponible")
+                        .setContentText("El viaje fue cancelado o asignado a otro móvil.")
+                        .setAutoCancel(true);
+                nm.notify(orderId.hashCode(), b.build());
             }
             RideAlertController.getInstance().playOneShotSound(getApplicationContext(), "cancel");
             return;
@@ -89,6 +102,13 @@ public class MyFirebaseMessagingService extends MessagingService {
 
         if ("mensaje".equals(type) || "chat".equals(type)) {
             RideAlertController.getInstance().playOneShotSound(getApplicationContext(), "message");
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            androidx.core.app.NotificationCompat.Builder b = new androidx.core.app.NotificationCompat.Builder(this, "ride_alerts_cancel")
+                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .setContentTitle("📩 Nuevo Mensaje")
+                    .setContentText("Tienes un nuevo mensaje de la central.")
+                    .setAutoCancel(true);
+            nm.notify((int)System.currentTimeMillis(), b.build());
         } else if ("bocina".equals(type) || "viaje_iniciado".equals(type)) {
             RideAlertController.getInstance().playOneShotSound(getApplicationContext(), type);
         }

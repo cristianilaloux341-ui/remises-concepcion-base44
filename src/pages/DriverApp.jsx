@@ -1222,7 +1222,7 @@ export default function DriverApp() {
     const interval = setInterval(() => {
       notifySW({ type: "SW_PING" });
       updatePresence();
-    }, 25000);
+    }, 60000);
     return () => clearInterval(interval);
   }, [myDriverId]);
 

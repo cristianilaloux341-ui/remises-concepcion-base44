@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrderForm from "@/components/orders/OrderForm";
-import { findBestDriver, findDriverInZone, assignDriverToOrder } from "@/lib/dispatchLogic";
+import { findBestDriver, findDriverInZone, assignDriverToOrder, broadcastOrder } from "@/lib/dispatchLogic";
 
 export default function NewOrder() {
   const navigate = useNavigate();
@@ -57,14 +57,14 @@ export default function NewOrder() {
               if (zoneDriver) {
                 await assignDriverToOrder(newOrder, zoneDriver);
               } else {
-                await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
+                await broadcastOrder(newOrder, drivers);
               }
             } else {
               const bestDriver = await findBestDriver(newOrder, drivers, bases);
               if (bestDriver) {
                 await assignDriverToOrder(newOrder, bestDriver);
               } else {
-                await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
+                await broadcastOrder(newOrder, drivers);
               }
             }
           }

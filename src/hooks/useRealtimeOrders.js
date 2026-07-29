@@ -67,10 +67,10 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
     mountedRef.current = true;
     connect();
 
-    // Polling en segundo plano sin destruir el WebSocket
+    // Polling en segundo plano muy relajado para no gastar datos
     const pollInterval = setInterval(() => {
-      fetchAll();
-    }, 15000);
+      if (document.visibilityState === "visible") fetchAll();
+    }, 300000); // 5 minutos
 
     return () => {
       mountedRef.current = false;

@@ -119,7 +119,8 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
           dropoff_address: order.dropoff_address,
           fare: order.fare,
           assignmentAttempt: order.assignment_attempt || 1
-        }
+        },
+        internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
       });
     } catch (pushErr) {
       console.error("Error trigger push en DispatchLogic:", pushErr);

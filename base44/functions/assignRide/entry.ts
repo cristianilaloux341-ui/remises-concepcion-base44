@@ -121,6 +121,8 @@ Deno.serve(async (req) => {
         }).catch((e: any) => console.error("AutoReassign Trigger Error:", e));
       }
     } else {
+        // Fallback to pendiente if atomic assignment failed
+        await b44.entities.RideOrder.update(orderId, { status: "pendiente" });
         return Response.json({ success: false, reason: 'assignDriverToOrderAtomic failed' });
     }
 

@@ -95,10 +95,10 @@ export function useRealtimeDrivers() {
     mountedRef.current = true;
     connect();
 
-    // Polling en segundo plano por seguridad (sincronización forzada)
+    // Polling en segundo plano muy relajado para no gastar datos
     const pollInterval = setInterval(() => {
-      if (mountedRef.current) fetchAll();
-    }, 15000);
+      if (mountedRef.current && document.visibilityState === "visible") fetchAll();
+    }, 300000); // 5 minutos
 
     return () => {
       mountedRef.current = false;
