@@ -1,18 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
-import { validateInternalKey, verifyOperatorSession } from '../../shared/security.ts';
+import { verifyRequestAuth } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const payload = await req.json();
-    const { to, subject, body, from_name, internalKey, sessionToken } = payload;
+    const { to, subject, body, from_name } = payload;
     
-    let isAuthorized = false;
-    if (validateInternalKey(internalKey)) {
-      isAuthorized = true;
-    } else if (await verifyOperatorSession(base44.asServiceRole, sessionToken)) {
-      isAuthorized = true;
-    } else if (await base44.auth.isAuthenticated()) {
+    let isAuthorized = await verifyRequestAuth(base44.asServiceRole, payload, { allowOperator: true });
+    if (!isAuthorized && await base44.auth.isAuthenticated()) {
       isAuthorized = true;
     }
 

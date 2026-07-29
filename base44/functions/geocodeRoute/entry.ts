@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
-import { validateInternalKey, verifyOperatorSession } from '../../shared/security.ts';
+import { verifyRequestAuth } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -8,22 +8,18 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
 
     const body = await req.json();
-    const { action, sessionToken, internalKey } = body;
+    const { action, sessionToken } = body;
 
     let isAppRequest = false;
     let validDriver = null;
     
-    if (validateInternalKey(internalKey)) {
+    if (await verifyRequestAuth(base44.asServiceRole, body, { allowOperator: true })) {
       isAppRequest = true;
     } else if (sessionToken) {
-      if (await verifyOperatorSession(base44.asServiceRole, sessionToken)) {
+      const choferes = await base44.asServiceRole.entities.Driver.filter({ current_session_token: sessionToken });
+      if (choferes.length > 0) {
         isAppRequest = true;
-      } else {
-        const choferes = await base44.asServiceRole.entities.Driver.filter({ current_session_token: sessionToken });
-        if (choferes.length > 0) {
-          isAppRequest = true;
-          validDriver = choferes[0];
-        }
+        validDriver = choferes[0];
       }
     } else {
        isAppRequest = await base44.auth.isAuthenticated();
