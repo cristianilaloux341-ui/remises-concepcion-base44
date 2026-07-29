@@ -83,7 +83,7 @@ export default function AppLayout() {
           // Entonces debemos actualizarlo desde authSystem u otro backend function.
           base44.functions.invoke('authSystem', {
             action: 'manage_users',
-            payload: { sub_action: 'update_presence', admin_id: op.id }
+            payload: { sub_action: 'update_presence', admin_id: op.id, sessionToken: sessionStorage.getItem('local_operator_token') }
           }).catch(()=>{});
         }
       } catch (e) {}

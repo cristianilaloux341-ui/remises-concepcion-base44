@@ -28,7 +28,7 @@ export default function AdminUsuarios() {
       setLoading(true);
       const res = await base44.functions.invoke('authSystem', {
         action: 'manage_users',
-        payload: { sub_action: 'list', admin_id: getAdminId() }
+        payload: { sub_action: 'list', admin_id: getAdminId(), sessionToken: sessionStorage.getItem('local_operator_token') }
       });
       if (res.data?.success) {
         setUsuarios(res.data.usuarios);
@@ -61,7 +61,7 @@ export default function AdminUsuarios() {
     try {
       const res = await base44.functions.invoke('authSystem', {
         action: 'manage_users',
-        payload: { sub_action: 'delete', admin_id: getAdminId(), data: { id: user.id } }
+        payload: { sub_action: 'delete', admin_id: getAdminId(), data: { id: user.id }, sessionToken: sessionStorage.getItem('local_operator_token') }
       });
       if (res.data?.success) {
         toast({ title: "Éxito", description: "Usuario eliminado" });
@@ -78,7 +78,7 @@ export default function AdminUsuarios() {
     try {
       await base44.functions.invoke('authSystem', {
         action: 'manage_users',
-        payload: { sub_action: 'update', admin_id: getAdminId(), data: { ...user, activo: nuevoEstado } }
+        payload: { sub_action: 'update', admin_id: getAdminId(), data: { ...user, activo: nuevoEstado }, sessionToken: sessionStorage.getItem('local_operator_token') }
       });
       cargarUsuarios();
     } catch (e) {
@@ -96,7 +96,7 @@ export default function AdminUsuarios() {
       const subAction = formData.id ? 'update' : 'create';
       const res = await base44.functions.invoke('authSystem', {
         action: 'manage_users',
-        payload: { sub_action: subAction, admin_id: getAdminId(), data: formData }
+        payload: { sub_action: subAction, admin_id: getAdminId(), data: formData, sessionToken: sessionStorage.getItem('local_operator_token') }
       });
 
       if (res.data?.success) {
