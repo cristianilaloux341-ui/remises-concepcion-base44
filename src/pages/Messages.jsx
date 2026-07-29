@@ -42,10 +42,12 @@ function playMsgSound() {
 export default function Messages() {
   const [content, setContent] = useState("");
   const [targetDriverId, setTargetDriverId] = useState("todos");
+  const [searchNum, setSearchNum] = useState("");
   const [messages, setMessages] = useState([]);
   const [toast, setToast] = useState(null); // { from_name, content, id }
   const toastTimerRef = useRef(null);
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
   const seenIdsRef = useRef(new Set());
 
   // Carga inicial + suscripción en tiempo real
@@ -107,6 +109,11 @@ export default function Messages() {
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
     refetchInterval: 15000,
+  });
+
+  const { data: moviles = [] } = useQuery({
+    queryKey: ["moviles"],
+    queryFn: () => base44.entities.Movil.list(),
   });
 
   const sendMutation = useMutation({
@@ -211,6 +218,33 @@ export default function Messages() {
       {/* Input area */}
       <div className="border-t pt-4 space-y-2 bg-background">
         <div className="flex gap-2">
+          <Input 
+            className="w-20 h-9 rounded-xl text-xs" 
+            placeholder="Nº..." 
+            value={searchNum}
+            onChange={e => setSearchNum(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                const val = searchNum.trim();
+                if (!val) {
+                  setTargetDriverId("todos");
+                  setTimeout(() => inputRef.current?.focus(), 50);
+                  return;
+                }
+                const movil = moviles.find(m => m.numero_movil?.toString() === val);
+                if (movil) {
+                   const dId = movil.driver_ids?.[0] || movil.driver_id;
+                   if (dId) setTargetDriverId(dId);
+                } else {
+                   const found = drivers.find(d => d.name.toLowerCase().includes(val.toLowerCase()) || d.vehicle_plate?.toLowerCase().includes(val.toLowerCase()));
+                   if (found) setTargetDriverId(found.id);
+                }
+                setSearchNum("");
+                setTimeout(() => inputRef.current?.focus(), 50);
+              }
+            }}
+          />
           <Select value={targetDriverId} onValueChange={setTargetDriverId}>
             <SelectTrigger className="w-44 h-9 rounded-xl text-xs">
               <SelectValue />
@@ -228,6 +262,7 @@ export default function Messages() {
         </div>
         <div className="flex gap-2">
           <Input
+            ref={inputRef}
             className="flex-1 rounded-xl"
             placeholder="Escribir mensaje..."
             value={content}
