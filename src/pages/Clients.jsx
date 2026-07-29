@@ -202,7 +202,14 @@ export default function Clients() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.Client.delete(id),
+    mutationFn: async (id) => {
+      const res = await base44.functions.invoke('adminProxy', { 
+        entity: 'Client', op: 'delete', id, 
+        sessionToken: sessionStorage.getItem('local_operator_token') 
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      return res.data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       setShowForm(false);

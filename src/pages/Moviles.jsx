@@ -348,7 +348,14 @@ export default function Moviles() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.Movil.delete(id),
+    mutationFn: async (id) => {
+      const res = await base44.functions.invoke('adminProxy', { 
+        entity: 'Movil', op: 'delete', id, 
+        sessionToken: sessionStorage.getItem('local_operator_token') 
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      return res.data;
+    },
     onSuccess: () => {
       const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
       base44.entities.AuditLog.create({
@@ -364,7 +371,7 @@ export default function Moviles() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (form) => {
+    mutationFn: async (form) => {
       const { id, created_date, updated_date, created_by_id, ...cleanData } = form;
       const data = { ...cleanData, numero_movil: Number(cleanData.numero_movil) };
       
@@ -375,9 +382,15 @@ export default function Moviles() {
         }
       });
 
-      return editing?.id
-        ? base44.entities.Movil.update(editing.id, data)
-        : base44.entities.Movil.create(data);
+      const res = await base44.functions.invoke('adminProxy', { 
+        entity: 'Movil', 
+        op: editing?.id ? 'update' : 'create', 
+        id: editing?.id, 
+        data, 
+        sessionToken: sessionStorage.getItem('local_operator_token') 
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      return res.data;
     },
     onSuccess: () => { 
       const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();

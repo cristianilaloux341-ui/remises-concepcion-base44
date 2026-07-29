@@ -98,11 +98,15 @@ export default function TarifaConfigPanel() {
       if (config?.clave_modificacion) {
         numData.clave_modificacion = config.clave_modificacion;
       }
-      if (config?.id) {
-        return base44.entities.TarifaConfig.update(config.id, numData);
-      } else {
-        return base44.entities.TarifaConfig.create(numData);
-      }
+      const res = await base44.functions.invoke('adminProxy', { 
+        entity: 'TarifaConfig', 
+        op: config?.id ? 'update' : 'create', 
+        id: config?.id, 
+        data: numData, 
+        sessionToken: sessionStorage.getItem('local_operator_token') 
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      return res.data;
     },
     onSuccess: () => {
       const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
@@ -121,11 +125,16 @@ export default function TarifaConfigPanel() {
 
   const saveClaveMutation = useMutation({
     mutationFn: async (clave) => {
-      if (config?.id) {
-        return base44.entities.TarifaConfig.update(config.id, { clave_modificacion: clave });
-      } else {
-        return base44.entities.TarifaConfig.create({ ...DEFAULTS, clave_modificacion: clave });
-      }
+      const data = config?.id ? { clave_modificacion: clave } : { ...DEFAULTS, clave_modificacion: clave };
+      const res = await base44.functions.invoke('adminProxy', { 
+        entity: 'TarifaConfig', 
+        op: config?.id ? 'update' : 'create', 
+        id: config?.id, 
+        data, 
+        sessionToken: sessionStorage.getItem('local_operator_token') 
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      return res.data;
     },
     onSuccess: () => {
       qc.invalidateQueries(["tarifa_config"]);

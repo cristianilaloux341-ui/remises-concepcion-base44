@@ -356,7 +356,14 @@ export default function Drivers() {
   const [resetDeviceDriver, setResetDeviceDriver] = useState(null);
 
   const resetDeviceMutation = useMutation({
-    mutationFn: (id) => base44.entities.Driver.update(id, { device_id: null, current_session_token: null }),
+    mutationFn: async (id) => {
+      const res = await base44.functions.invoke('adminProxy', { 
+        entity: 'Driver', op: 'update', id, data: { device_id: null, current_session_token: null }, 
+        sessionToken: sessionStorage.getItem('local_operator_token') 
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      return res.data;
+    },
     onSuccess: () => {
       const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
       base44.entities.AuditLog.create({
@@ -392,14 +399,19 @@ export default function Drivers() {
   };
 
   const createMutation = useMutation({
-    mutationFn: (data) => {
+    mutationFn: async (data) => {
       const { id, created_date, updated_date, created_by_id, ...cleanData } = data;
       Object.keys(cleanData).forEach(k => { 
         if (cleanData[k] === "" || cleanData[k] === null || cleanData[k] === undefined) {
           delete cleanData[k];
         }
       });
-      return base44.entities.Driver.create(cleanData);
+      const res = await base44.functions.invoke('adminProxy', { 
+        entity: 'Driver', op: 'create', data: cleanData, 
+        sessionToken: sessionStorage.getItem('local_operator_token') 
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
@@ -409,14 +421,19 @@ export default function Drivers() {
   });
 
   const editMutation = useMutation({
-    mutationFn: ({ id, data }) => {
+    mutationFn: async ({ id, data }) => {
       const { id: _id, created_date, updated_date, created_by_id, ...cleanData } = data;
       Object.keys(cleanData).forEach(k => { 
         if (cleanData[k] === "" || cleanData[k] === null || cleanData[k] === undefined) {
           delete cleanData[k];
         }
       });
-      return base44.entities.Driver.update(id, cleanData);
+      const res = await base44.functions.invoke('adminProxy', { 
+        entity: 'Driver', op: 'update', id, data: cleanData, 
+        sessionToken: sessionStorage.getItem('local_operator_token') 
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
@@ -426,12 +443,26 @@ export default function Drivers() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Driver.update(id, data),
+    mutationFn: async ({ id, data }) => {
+      const res = await base44.functions.invoke('adminProxy', { 
+        entity: 'Driver', op: 'update', id, data, 
+        sessionToken: sessionStorage.getItem('local_operator_token') 
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      return res.data;
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["drivers"] }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.Driver.delete(id),
+    mutationFn: async (id) => {
+      const res = await base44.functions.invoke('adminProxy', { 
+        entity: 'Driver', op: 'delete', id, 
+        sessionToken: sessionStorage.getItem('local_operator_token') 
+      });
+      if (res.data?.error) throw new Error(res.data.error);
+      return res.data;
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["drivers"] }),
   });
 
@@ -765,7 +796,10 @@ export default function Drivers() {
                     const tempPin = String(Math.floor(1000 + Math.random() * 9000));
                     setResetPinLoading(true);
                     try {
-                      await base44.entities.Driver.update(resetPinDriver.id, { pin: tempPin });
+                      await base44.functions.invoke('adminProxy', { 
+                        entity: 'Driver', op: 'update', id: resetPinDriver.id, data: { pin: tempPin }, 
+                        sessionToken: sessionStorage.getItem('local_operator_token') 
+                      });
                       await base44.entities.Message.create({
                         from_type: "operador",
                         from_name: "Sistema",
