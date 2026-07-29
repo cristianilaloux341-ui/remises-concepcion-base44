@@ -54,7 +54,7 @@ export async function tryManualCandidate(b44: any, baseId: string, order: any, d
     // 3. Bloquear Base
     const baseRes = await b44.entities.Base.updateMany(
       { id: baseId, lock_token: token },
-      { $set: { dispatch_status: 'esperando_manual', active_order_id: order.id, manual_reservation_token: token, lock_token: null, lock_expires_at: null } }
+      { $set: { dispatch_status: 'esperando_manual', active_order_id: order.id, manual_reservation_token: token, lock_token: null, lock_expires_at: null, manual_requested_at: Date.now(), manual_expires_at: Date.now() + 60000 } }
     );
 
     if ((baseRes.matchedCount ?? baseRes.modifiedCount ?? baseRes.updated ?? 0) !== 1) {
