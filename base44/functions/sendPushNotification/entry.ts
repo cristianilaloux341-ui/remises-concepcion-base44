@@ -239,17 +239,21 @@ Deno.serve(async (req) => {
 
   const { action, driverId, subscription, orderId, orderData, userId, fromName, messageContent, driversToCancel, payloadType, internalKey, sessionToken } = body;
 
-  // Validación de seguridad sin romper suscripciones del lado del cliente
-  const isPublicAction = ['subscribe_fcm', 'subscribe', 'subscribe_operator', 'vapid_public_key'].includes(action);
+  // Validación de seguridad estricta para modificaciones de suscripciones
+  const isPublicAction = ['vapid_public_key'].includes(action);
   
   let isAuthorized = false;
   if (isPublicAction || (body.event && body.event.entity_name)) {
-    isAuthorized = true; // Suscripciones o Automatizaciones de Base44 (que firman via payload.event)
+    isAuthorized = true; 
   } else {
     const { verifyRequestAuth } = await import('../../shared/security.ts');
-    // Permite si es Internal Key o si proviene de un Operador con JWT válido
-    if (await verifyRequestAuth(base44.asServiceRole, body, { allowOperator: true })) {
-      isAuthorized = true;
+    
+    if (['subscribe_fcm', 'subscribe'].includes(action)) {
+      isAuthorized = await verifyRequestAuth(base44.asServiceRole, body, { allowDriverId: driverId });
+    } else if (action === 'subscribe_operator') {
+      isAuthorized = await verifyRequestAuth(base44.asServiceRole, body, { allowOperator: true });
+    } else {
+      isAuthorized = await verifyRequestAuth(base44.asServiceRole, body, { allowOperator: true });
     }
   }
 

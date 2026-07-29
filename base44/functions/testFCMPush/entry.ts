@@ -1,14 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { verifyRequestAuth } from '../../shared/security.ts';
 
 // Note: Ensure FIREBASE_SERVICE_ACCOUNT is set in secrets
 Deno.serve(async (req) => {
+  const base44 = createClientFromRequest(req);
   const payload = await req.json().catch(() => ({}));
-  const INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY");
-  if (!payload.internalKey || !INTERNAL_KEY || payload.internalKey !== INTERNAL_KEY) {
+  
+  if (!(await verifyRequestAuth(base44.asServiceRole, payload))) {
     return Response.json({ error: "Unauthorized. Internal Service Key missing." }, { status: 401 });
   }
-
-  const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
   const { driverId, fcmToken } = payload;
 

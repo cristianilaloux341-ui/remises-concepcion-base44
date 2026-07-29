@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { reassignAfterAutomaticReject } from '../../shared/DispatchLogic.ts';
+import { verifyRequestAuth } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -7,6 +8,12 @@ Deno.serve(async (req) => {
   
   try {
     const payload = await req.json();
+    
+    // Verificación de seguridad estricta para acciones nativas Push (Autenticadas desde el dispositivo)
+    if (!(await verifyRequestAuth(b44, payload, { allowDriverId: payload.driverId }))) {
+       return Response.json({ success: false, reason: "unauthorized" }, { status: 401 });
+    }
+
     const { action, orderId, driverId } = payload;
     
     if (!orderId || !driverId) {

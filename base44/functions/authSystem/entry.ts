@@ -12,7 +12,10 @@ Deno.serve(async (req) => {
       const usuarios = await base44.asServiceRole.entities.UsuariosSistema.list();
       if (usuarios && usuarios.length === 0) {
         // La tabla está vacía, creamos el admin semilla
-        const initPin = Deno.env.get("INIT_ADMIN_PIN") || "123456";
+        const initPin = Deno.env.get("INIT_ADMIN_PIN");
+        if (!initPin) {
+          return Response.json({ success: false, message: "INIT_ADMIN_PIN no configurado en entorno de seguridad.", initialized: false }, { status: 500 });
+        }
         const pinHash = await hashPin(initPin);
         const nuevoAdmin = await base44.asServiceRole.entities.UsuariosSistema.create({
           nombre: "Administrador",

@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
+import { verifyRequestAuth } from '../../shared/security.ts';
+
 const toBase64Url = (buf) => {
   const bytes = new Uint8Array(buf);
   let bin = '';
@@ -9,13 +11,12 @@ const toBase64Url = (buf) => {
 
 Deno.serve(async (req) => {
   try {
+    const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
-    const INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY");
-    if (!body.internalKey || !INTERNAL_KEY || body.internalKey !== INTERNAL_KEY) {
+    
+    if (!(await verifyRequestAuth(base44.asServiceRole, body))) {
       return Response.json({ error: "Unauthorized. Internal Service Key missing." }, { status: 401 });
     }
-
-    const base44 = createClientFromRequest(req);
     const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
     const sa = JSON.parse(saStr);
 
