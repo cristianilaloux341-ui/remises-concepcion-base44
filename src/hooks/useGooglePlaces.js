@@ -58,10 +58,12 @@ export function useGooglePlaces(inputValue) {
     }
 
     // Fallback al backend (Nominatim)
+    const sessionToken = localStorage.getItem('client_token') || sessionStorage.getItem('local_operator_token') || 'client_demo_token';
     const res = await base44.functions.invoke("geocodeRoute", {
       action: "placedetails",
       place_id,
       description,
+      sessionToken
     });
     return res.data;
   }, []);

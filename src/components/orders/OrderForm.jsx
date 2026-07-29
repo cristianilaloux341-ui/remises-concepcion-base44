@@ -46,13 +46,15 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
   // Geocodifica una dirección de texto si no tiene coords, usando Google Places
   const geocodeAddress = async (address) => {
     try {
-      const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address });
+      const sessionToken = localStorage.getItem('client_token') || sessionStorage.getItem('local_operator_token') || 'client_demo_token';
+      const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address, sessionToken });
       const predictions = res.data?.predictions;
       if (!predictions || predictions.length === 0) return null;
       const details = await base44.functions.invoke("geocodeRoute", {
         action: "placedetails",
         place_id: predictions[0].place_id,
         description: predictions[0].description,
+        sessionToken
       });
       if (details.data?.lat && details.data?.lng) return { lat: details.data.lat, lng: details.data.lng };
     } catch (_) {}

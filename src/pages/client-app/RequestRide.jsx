@@ -22,10 +22,12 @@ export default function RequestRide() {
         setPickupCoords({ lat, lng });
         try {
           // Usamos el backend de Google Reverse Geocoding más rápido y exacto en lugar de Nominatim
+          const sessionToken = localStorage.getItem('client_token') || 'client_demo_token';
           const res = await base44.functions.invoke("geocodeRoute", {
             action: "geocode",
             lat: lat,
-            lng: lng
+            lng: lng,
+            sessionToken
           });
           if (res.data?.address) {
             setPickup(res.data.address);

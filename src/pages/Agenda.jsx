@@ -60,13 +60,15 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
 
   const geocodeAddress = async (address) => {
     try {
-      const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address });
+      const sessionToken = sessionStorage.getItem('local_operator_token');
+      const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address, sessionToken });
       const predictions = res.data?.predictions;
       if (!predictions || predictions.length === 0) return null;
       const details = await base44.functions.invoke("geocodeRoute", {
         action: "placedetails",
         place_id: predictions[0].place_id,
         description: predictions[0].description,
+        sessionToken
       });
       if (details.data?.lat && details.data?.lng) return { lat: details.data.lat, lng: details.data.lng };
     } catch (_) {}
@@ -480,13 +482,15 @@ export default function Agenda() {
       let lat = undefined;
       let lng = undefined;
       try {
-        const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: ride.pickup_address });
+        const sessionToken = sessionStorage.getItem('local_operator_token');
+        const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: ride.pickup_address, sessionToken });
         const predictions = res.data?.predictions;
         if (predictions?.length > 0) {
           const details = await base44.functions.invoke("geocodeRoute", {
             action: "placedetails",
             place_id: predictions[0].place_id,
             description: predictions[0].description,
+            sessionToken
           });
           lat = details.data?.lat;
           lng = details.data?.lng;

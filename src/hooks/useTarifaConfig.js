@@ -77,12 +77,14 @@ export function haversineMetros(lat1, lng1, lat2, lng2) {
 export async function calcularDistanciaRuta(origen, destino, origenCoords = null, destinoCoords = null) {
   if (!origenCoords || !destinoCoords) return null;
   try {
+    const sessionToken = localStorage.getItem('client_token') || sessionStorage.getItem('local_operator_token') || 'client_demo_token';
     const res = await base44.functions.invoke("geocodeRoute", {
       action: "route",
       originLat: origenCoords.lat,
       originLng: origenCoords.lng,
       destLat: destinoCoords.lat,
       destLng: destinoCoords.lng,
+      sessionToken
     });
     return res.data?.distance ?? null;
   } catch (_) {

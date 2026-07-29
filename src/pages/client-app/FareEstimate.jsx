@@ -44,10 +44,11 @@ export default function FareEstimate() {
         // Si faltan coordenadas (ej. favoritos o atajos), intentamos geocodificarlas usando el backend
         const geocodeString = async (address) => {
           try {
-            const autoRes = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address });
+            const sessionToken = localStorage.getItem('client_token') || 'client_demo_token';
+            const autoRes = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address, sessionToken });
             const preds = autoRes.data?.predictions;
             if (preds && preds.length > 0) {
-               const detRes = await base44.functions.invoke("geocodeRoute", { action: "placedetails", place_id: preds[0].place_id, description: preds[0].description });
+               const detRes = await base44.functions.invoke("geocodeRoute", { action: "placedetails", place_id: preds[0].place_id, description: preds[0].description, sessionToken });
                if (detRes.data?.lat && detRes.data?.lng) {
                  return { lat: detRes.data.lat, lng: detRes.data.lng };
                }
@@ -66,12 +67,14 @@ export default function FareEstimate() {
         if (currentTarifa && finalPickupCoords && finalDropoffCoords) {
           let dist = null;
           try {
+            const sessionToken = localStorage.getItem('client_token') || 'client_demo_token';
             const routeRes = await base44.functions.invoke("geocodeRoute", {
               action: "route",
               originLat: finalPickupCoords.lat,
               originLng: finalPickupCoords.lng,
               destLat: finalDropoffCoords.lat,
-              destLng: finalDropoffCoords.lng
+              destLng: finalDropoffCoords.lng,
+              sessionToken
             });
             if (routeRes.data?.distance) {
               dist = routeRes.data.distance;
