@@ -72,18 +72,23 @@ Deno.serve(async (req) => {
 
     // Acción 3: Gestión de usuarios (Solo Admin)
     if (action === "manage_users") {
-      const { sub_action, admin_id, data } = payload;
+      const { sub_action, admin_id, data, sessionToken } = payload;
       
-      // Verificar si quien ejecuta es admin. Soportamos tanto el viejo sistema (auth.me) como el nuevo (admin_id).
+      // Verificar si quien ejecuta es admin comprobando criptográficamente su sesión JWT
       let isAuthorized = false;
-      if (admin_id) {
-        const adminData = await base44.asServiceRole.entities.UsuariosSistema.get(admin_id).catch(() => null);
-        if (adminData && adminData.rol === "Administrador General" && adminData.activo) {
-          isAuthorized = true;
+      let authenticatedAdminId = admin_id;
+
+      if (sessionToken) {
+        const { verifyJWT } = await import('../../shared/security.ts');
+        const tokenData = await verifyJWT(sessionToken);
+        if (tokenData && tokenData.id && tokenData.exp && Date.now() < tokenData.exp) {
+          const adminData = await base44.asServiceRole.entities.UsuariosSistema.get(tokenData.id).catch(() => null);
+          if (adminData && (adminData.rol === "Administrador General" || adminData.rol === "Supervisor") && adminData.activo) {
+            isAuthorized = true;
+            authenticatedAdminId = tokenData.id;
+          }
         }
-      }
-      
-      if (!isAuthorized) {
+      } else {
         const user = await base44.auth.me().catch(() => null);
         if (user && user.role === "admin") {
           isAuthorized = true;
@@ -120,8 +125,8 @@ Deno.serve(async (req) => {
       }
 
       if (sub_action === "update_presence") {
-        if (admin_id) {
-          await base44.asServiceRole.entities.UsuariosSistema.update(admin_id, {
+        if (authenticatedAdminId) {
+          await base44.asServiceRole.entities.UsuariosSistema.update(authenticatedAdminId, {
             ultimo_acceso: new Date().toISOString()
           }).catch(()=>{});
         }
@@ -145,7 +150,7 @@ Deno.serve(async (req) => {
 
       if (sub_action === "delete") {
         const userId = data.id;
-        if (userId === admin_id) {
+        if (userId === authenticatedAdminId) {
           return Response.json({ error: "No puedes eliminar tu propio usuario" }, { status: 400 });
         }
         await base44.asServiceRole.entities.UsuariosSistema.delete(userId);

@@ -1,12 +1,13 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
+import { verifyRequestAuth } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { orderId, driverId, timeoutSeconds = 60, assignmentAttempt, internalKey } = await req.json();
+    const payload = await req.json();
+    const { orderId, driverId, timeoutSeconds = 60, assignmentAttempt } = payload;
 
-    const VALID_INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY") || "fallback_internal_key_2026";
-    if (internalKey !== VALID_INTERNAL_KEY) {
+    if (!(await verifyRequestAuth(base44.asServiceRole, payload))) {
       return Response.json({ success: false, reason: 'unauthorized' }, { status: 401 });
     }
 

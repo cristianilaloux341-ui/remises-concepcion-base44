@@ -62,15 +62,7 @@ export function validateInternalKey(providedKey?: string): boolean {
 export async function verifyOperatorSession(b44: any, sessionToken?: string): Promise<boolean> {
   if (!sessionToken) return false;
   try {
-    let tokenData: any = null;
-    
-    // Lazy Migration: intentamos validar como JWT (3 partes) o como Base64 (legacy)
-    if (sessionToken.split('.').length === 3) {
-      tokenData = await verifyJWT(sessionToken);
-    } else {
-      const decodedStr = atob(sessionToken);
-      tokenData = JSON.parse(decodedStr);
-    }
+    const tokenData = await verifyJWT(sessionToken);
 
     if (!tokenData || !tokenData.id || !tokenData.exp || Date.now() > tokenData.exp) {
       return false;
@@ -87,8 +79,8 @@ export async function verifyOperatorSession(b44: any, sessionToken?: string): Pr
 }
 
 export async function hashPin(pinText: string): Promise<string> {
-  // Transición segura: usamos la nueva sal, o la vieja si la nueva falla en un entorno viejo.
-  const salt = Deno.env.get("SECURE_SALT") || Deno.env.get("AUTH_SALT") || "fallback_secure_salt_2026";
+  const salt = Deno.env.get("SECURE_SALT");
+  if (!salt) throw new Error("SECURITY_BLOCK: SECURE_SALT no configurada.");
   const msgUint8 = new TextEncoder().encode(pinText + salt);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
