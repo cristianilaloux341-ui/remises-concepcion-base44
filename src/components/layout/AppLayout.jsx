@@ -7,6 +7,7 @@ import BottomTabBar from "./BottomTabBar";
 import AgendaAlert from "@/components/agenda/AgendaAlert";
 import CancellationAlert from "@/components/alerts/CancellationAlert";
 import DriverMessageAlert from "@/components/alerts/DriverMessageAlert";
+import ClientMessageAlert from "@/components/alerts/ClientMessageAlert";
 import PanicAlertBanner from "@/components/alerts/PanicAlertBanner";
 import { useAuth } from "@/lib/AuthContext";
 import { useOperatorPushSubscription } from "@/hooks/useOperatorPushSubscription";
@@ -100,6 +101,7 @@ export default function AppLayout() {
         <CancellationAlert />
         <AgendaAlert />
         <DriverMessageAlert />
+        <ClientMessageAlert />
       </div>
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

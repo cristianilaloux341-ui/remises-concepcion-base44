@@ -16,7 +16,8 @@
       "type": "string",
       "enum": [
         "operador",
-        "movil"
+        "movil",
+        "cliente"
       ],
       "description": "Qui\u00e9n env\u00eda"
     },
@@ -25,7 +26,7 @@
     },
     "driver_id": {
       "type": "string",
-      "description": "ID del m\u00f3vil (si es movil)"
+      "description": "ID del m\u00f3vil (si es movil) o del cliente"
     },
     "to_driver_id": {
       "type": "string",

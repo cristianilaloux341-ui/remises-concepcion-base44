@@ -42,9 +42,9 @@ export default function ActiveRide() {
     const clientId = localStorage.getItem('client_id');
     let unsubMsgs = () => {};
     if (clientId) {
-      base44.entities.Message.filter({ driver_id: clientId }).then(setMessages).catch(console.error);
+      base44.entities.Message.filter({ $or: [{ driver_id: clientId }, { to_driver_id: clientId }] }).then(setMessages).catch(console.error);
       unsubMsgs = base44.entities.Message.subscribe(ev => {
-        if (ev.type === 'create' && ev.data.driver_id === clientId) {
+        if (ev.type === 'create' && (ev.data.driver_id === clientId || ev.data.to_driver_id === clientId)) {
           setMessages(prev => [...prev, ev.data]);
         }
       });
@@ -56,34 +56,37 @@ export default function ActiveRide() {
     };
   }, [orderId, navigate]);
 
-  const handleShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Sigue mi viaje',
-          text: `Viajo en un remis. Chofer: ${driver?.name || order?.driver_name || 'No definido'}, Patente: ${driver?.vehicle_plate || ''}. Destino: ${order?.dropoff_address || 'No definido'}`,
-          url: window.location.href
-        });
-      } catch (err) {
-        console.error(err);
-      }
-    } else {
-      toast.error('Compartir no está soportado en este dispositivo');
-    }
+  const handleShare = () => {
+    const text = `Viajo en un remis. Chofer: ${driver?.name || order?.driver_name || 'No definido'}, Patente: ${driver?.vehicle_plate || ''}. Destino: ${order?.dropoff_address || 'No definido'} - Sigue mi viaje: ${window.location.href}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const handleSendPanic = async () => {
     try {
-      await base44.entities.PanicAlert.create({
-        driver_id: localStorage.getItem('client_id') || 'cliente-desconocido',
-        driver_name: `CLIENTE: ${order?.client_name || 'Desconocido'}`,
-        vehicle_plate: driver?.vehicle_plate || 'N/A',
-        current_lat: order?.pickup_lat || 0,
-        current_lng: order?.pickup_lng || 0,
-        notes: `ALERTA DE CLIENTE EN VIAJE (Orden: ${orderId})`
-      });
-      setShowPanic(false);
-      toast.success('Alerta enviada a la central');
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        await base44.entities.PanicAlert.create({
+          driver_id: localStorage.getItem('client_id') || 'cliente-desconocido',
+          driver_name: `CLIENTE: ${order?.client_name || 'Desconocido'}`,
+          vehicle_plate: driver?.vehicle_plate || 'N/A',
+          current_lat: pos.coords.latitude,
+          current_lng: pos.coords.longitude,
+          notes: `ALERTA DE CLIENTE EN VIAJE (Orden: ${orderId})`
+        });
+        setShowPanic(false);
+        toast.success('Alerta enviada a la central con tu ubicación actual');
+      }, async (err) => {
+        // Fallback si no hay ubicación
+        await base44.entities.PanicAlert.create({
+          driver_id: localStorage.getItem('client_id') || 'cliente-desconocido',
+          driver_name: `CLIENTE: ${order?.client_name || 'Desconocido'}`,
+          vehicle_plate: driver?.vehicle_plate || 'N/A',
+          current_lat: order?.pickup_lat || 0,
+          current_lng: order?.pickup_lng || 0,
+          notes: `ALERTA DE CLIENTE EN VIAJE (Orden: ${orderId}) - SIN GPS: ${err.message}`
+        });
+        setShowPanic(false);
+        toast.success('Alerta enviada a la central');
+      }, { enableHighAccuracy: true, timeout: 5000 });
     } catch (e) {
       toast.error('Error al enviar la alerta');
     }
@@ -93,8 +96,8 @@ export default function ActiveRide() {
     if (!chatMessage.trim()) return;
     try {
       await base44.entities.Message.create({
-        from_type: 'movil',
-        from_name: order?.client_name || 'Cliente',
+        from_type: 'cliente',
+        from_name: `Cliente: ${order?.client_name || 'Desconocido'}`,
         driver_id: localStorage.getItem('client_id') || 'cliente-desconocido',
         content: chatMessage
       });
