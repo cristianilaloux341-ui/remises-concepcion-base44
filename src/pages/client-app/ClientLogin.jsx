@@ -8,14 +8,28 @@ import { toast } from 'sonner';
 
 export default function ClientLogin() {
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Función simple para un hash no criptográfico local (como demostración para la PWA de clientes).
+  // Idealmente se debería hacer en un backend de Base44.
+  const hashPassword = async (pass) => {
+    const msgUint8 = new TextEncoder().encode(pass + "CLIENT_SALT_44");
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     const cleanPhone = phone.trim();
     if (!cleanPhone) {
       toast.error('Por favor, ingresá tu número de teléfono');
+      return;
+    }
+    if (!password) {
+      toast.error('Por favor, ingresá una contraseña segura');
       return;
     }
     
@@ -25,19 +39,31 @@ export default function ClientLogin() {
       const clients = await base44.entities.Client.filter({ phone: cleanPhone });
       let client;
 
+      const inputHash = await hashPassword(password);
+
       if (clients && clients.length > 0) {
         client = clients[0];
+        // Validar contraseña
+        if (client.password_hash && client.password_hash !== inputHash) {
+           toast.error('Contraseña incorrecta.');
+           setLoading(false);
+           return;
+        } else if (!client.password_hash) {
+           // Cliente viejo sin password, lo "migramos" fijando el password actual
+           await base44.entities.Client.update(client.id, { password_hash: inputHash });
+        }
         toast.success('¡Bienvenido de nuevo!');
       } else {
-        // Si no existe, crearlo automáticamente en la BD
+        // Si no existe, crearlo y asignar contraseña
         client = await base44.entities.Client.create({
-          name: cleanPhone, // Guardamos el número como nombre inicial para la central
-          phone: cleanPhone
+          name: cleanPhone,
+          phone: cleanPhone,
+          password_hash: inputHash
         });
         toast.success('¡Ingreso exitoso!');
       }
 
-      // Guardar sesión en local storage
+      // Guardar sesión en local storage de forma segura
       localStorage.setItem('client_id', client.id);
       localStorage.setItem('client_name', client.name);
       localStorage.setItem('client_phone', client.phone);
@@ -77,6 +103,17 @@ export default function ClientLogin() {
                 placeholder="Ej: 3442 123456" 
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
+                className="bg-slate-50 border-slate-200 text-slate-900 h-14 text-lg focus-visible:ring-blue-600 focus-visible:border-blue-600"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-slate-700 font-bold">Contraseña Segura</Label>
+              <Input 
+                id="password" 
+                type="password" 
+                placeholder="****" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="bg-slate-50 border-slate-200 text-slate-900 h-14 text-lg focus-visible:ring-blue-600 focus-visible:border-blue-600"
               />
             </div>

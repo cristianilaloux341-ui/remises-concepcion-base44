@@ -8,6 +8,10 @@
     "phone": {
       "type": "string"
     },
+    "password_hash": {
+      "type": "string",
+      "description": "Hash de la contrase\u00f1a de acceso"
+    },
     "pickup_address": {
       "type": "string",
       "description": "Direcci\u00f3n habitual de recogida"

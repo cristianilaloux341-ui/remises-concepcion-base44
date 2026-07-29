@@ -161,7 +161,7 @@ function sendSystemNotification(order) {
 const getDeviceId = () => {
   let id = localStorage.getItem("device_id");
   if (!id) {
-    id = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    id = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + crypto.getRandomValues(new Uint32Array(1))[0].toString(36));
     localStorage.setItem("device_id", id);
   }
   return id;
@@ -170,7 +170,7 @@ const getDeviceId = () => {
 const getSessionToken = () => {
   let token = localStorage.getItem("session_token");
   if (!token) {
-    token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    token = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + crypto.getRandomValues(new Uint32Array(1))[0].toString(36));
     localStorage.setItem("session_token", token);
   }
   localStorage.setItem("session_login_time", Date.now().toString());
@@ -282,7 +282,9 @@ function LoginScreen({ drivers, driversError, onSelect, savedDriverId, onClearSa
 
   const handleForgotPin = async () => {
     // Genera un PIN temporal de 4 dígitos y lo envía como mensaje interno
-    const tempPin = String(Math.floor(1000 + Math.random() * 9000));
+    const randomValues = new Uint16Array(1);
+    crypto.getRandomValues(randomValues);
+    const tempPin = String((randomValues[0] % 9000) + 1000);
     setLoading(true);
     try {
       await base44.entities.Driver.update(foundDriver.id, { pin: tempPin });
