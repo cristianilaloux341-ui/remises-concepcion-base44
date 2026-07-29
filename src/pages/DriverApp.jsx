@@ -1486,7 +1486,7 @@ export default function DriverApp() {
   const optimisticOrderId = localOverride?.optimisticOrderId || null;
 
   let activeOrder = debugArray(safeOrders, 'safeOrders').find(o => 
-    o.driver_id === myDriverId && 
+    (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId) && 
     ["aceptado", "en_camino", "en_viaje"].includes(o.status) &&
     o.id !== ignoredOrderId &&
     !ignoredOrdersRef.current.has(o.id)
@@ -1505,7 +1505,11 @@ export default function DriverApp() {
     !!activeOrder;
   
   // Ocultar burbujas de oferta si ya aceptamos/rechazamos localmente o estamos en viaje
-  const offeredOrder = isLocallyBusy ? null : debugArray(safeOrders, 'safeOrders').find(o => o.driver_id === myDriverId && o.status === "ofrecido" && o.id !== ignoredOrderId);
+  const offeredOrder = isLocallyBusy ? null : debugArray(safeOrders, 'safeOrders').find(o => 
+    (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId) && 
+    o.status === "ofrecido" && 
+    o.id !== ignoredOrderId
+  );
   
   // Broadcast: pedido pendiente (sin chofer asignado) que este chofer no rechazó — solo si está libre y en base
   const broadcastOrder = (myDriver?.status === "disponible" && myDriver?.current_base && !activeOrder && !offeredOrder && !isLocallyBusy)
@@ -1637,7 +1641,7 @@ export default function DriverApp() {
     if (!dId) return;
 
     const safeOrds = Array.isArray(incomingOrders) ? incomingOrders : [];
-    const activeOrder = safeOrds.find(o => o.driver_id === dId && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
+    const activeOrder = safeOrds.find(o => (o.driver_id === dId || o.reserved_driver_id === dId) && ["aceptado", "en_camino", "en_viaje"].includes(o.status));
     
     const isLocallyBusy = 
       (driver && ["en_viaje", "aceptado", "en_camino"].includes(driver.status)) || 
@@ -1645,7 +1649,7 @@ export default function DriverApp() {
 
     const ignoredOrderId = driver?._ignoredOrderId || null;
 
-    const offered = isLocallyBusy ? null : safeOrds.find(o => o.driver_id === dId && o.status === "ofrecido" && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId);
+    const offered = isLocallyBusy ? null : safeOrds.find(o => (o.driver_id === dId || o.reserved_driver_id === dId) && o.status === "ofrecido" && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId);
     const broadcast = (!isLocallyBusy && driver?.status === "disponible" && driver?.current_base && !offered)
       ? safeOrds.find(o => o.status === "pendiente" && !o.driver_id && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId && (!dismissed || !dismissed.includes(o.id)))
       : null;
