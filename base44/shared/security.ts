@@ -94,3 +94,24 @@ export async function hashPin(pinText: string): Promise<string> {
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
+
+export async function verifyRequestAuth(b44: any, payload: any, options: { allowOperator?: boolean, allowDriverId?: string } = {}): Promise<boolean> {
+  const { internalKey, sessionToken } = payload || {};
+  
+  // 1. Siempre permitimos el acceso si la clave de servicio interna coincide
+  if (validateInternalKey(internalKey)) return true;
+  
+  // 2. Si se permite a un operador, validamos su sesión (JWT o legacy base64)
+  if (options.allowOperator && sessionToken) {
+    if (await verifyOperatorSession(b44, sessionToken)) return true;
+  }
+  
+  // 3. Si se restringe a un driver específico, verificamos que su token coincida
+  if (options.allowDriverId && sessionToken) {
+    const drivers = await b44.entities.Driver.filter({ id: options.allowDriverId });
+    if (drivers.length > 0 && drivers[0].current_session_token === sessionToken) return true;
+  }
+  
+  // Denegado por defecto
+  return false;
+}

@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { validateInternalKey } from '../../shared/security.ts';
+import { verifyRequestAuth } from '../../shared/security.ts';
 
 async function captureState(b44: any, rideOrderId: string, driverId: string) {
   const [order, driver] = await Promise.all([
@@ -508,19 +508,17 @@ Deno.serve(async (req) => {
       return Response.json({ accepted: false, reason: "missing_params" });
     }
 
+    // Middleware de seguridad: Exigimos Internal Key o que el sessionToken coincida exactamente con este driverId
+    const isAuthorized = await verifyRequestAuth(b44, payload, { allowDriverId: driverId });
+    if (!isAuthorized) {
+      return Response.json({ accepted: false, reason: "unauthorized" }, { status: 401 });
+    }
+
     // Identificar de manera segura al chofer comparando tokens locales
     const drivers = await b44.entities.Driver.filter({ id: driverId });
     const driver = drivers[0];
     if (!driver) {
        return Response.json({ accepted: false, reason: "driver_not_found" });
-    }
-
-    const isInternalCall = validateInternalKey(payload.internalKey);
-
-    if (!isInternalCall) {
-      if (!sessionToken || driver.current_session_token !== sessionToken) {
-        return Response.json({ accepted: false, reason: "unauthorized" }, { status: 401 });
-      }
     }
 
     const invocationId = crypto.randomUUID();

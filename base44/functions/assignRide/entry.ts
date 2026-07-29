@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { assignDriverToOrderAtomic } from '../../shared/DispatchLogic.ts';
-import { validateInternalKey, verifyOperatorSession } from '../../shared/security.ts';
+import { verifyRequestAuth } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -10,13 +10,8 @@ Deno.serve(async (req) => {
 
   const { forceManual, manualDriverName } = payload;
   
-  let isAuthorized = false;
-  if (validateInternalKey(internalKey)) {
-    isAuthorized = true;
-  } else if (await verifyOperatorSession(b44, sessionToken)) {
-    isAuthorized = true;
-  }
-  
+  // Validamos a través del middleware: Permitimos Internal Service Key o Sesión de Operador
+  const isAuthorized = await verifyRequestAuth(b44, payload, { allowOperator: true });
   if (!isAuthorized) {
     return Response.json({ success: false, reason: 'unauthorized' }, { status: 401 });
   }
