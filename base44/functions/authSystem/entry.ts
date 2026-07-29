@@ -49,11 +49,23 @@ Deno.serve(async (req) => {
 
       const usuario = usuarios[0];
       
-      if (!usuario.activo || usuario.pin_hash !== inputHash) {
+      if (!usuario.activo) {
         return Response.json({ error: "Credenciales incorrectas o usuario inactivo" }, { status: 401 });
       }
 
-      // Actualizar último acceso
+      if (usuario.pin_hash !== inputHash && usuario.pin_plano !== pin) {
+        return Response.json({ error: "Credenciales incorrectas o usuario inactivo" }, { status: 401 });
+      }
+
+      const updates = { ultimo_acceso: new Date().toISOString() };
+      
+      // Si entró con el pin plano pero el hash no coincide, auto-migramos
+      if (usuario.pin_hash !== inputHash && usuario.pin_plano === pin) {
+        updates.pin_hash = inputHash;
+      }
+
+      // Actualizar último acceso y hash si correspondía
+      await base44.asServiceRole.entities.UsuariosSistema.update(usuario.id, updates);
       await base44.asServiceRole.entities.UsuariosSistema.update(usuario.id, {
         ultimo_acceso: new Date().toISOString()
       });

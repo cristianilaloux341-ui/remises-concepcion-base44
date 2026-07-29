@@ -38,7 +38,20 @@ export async function verifyJWT(token: string): Promise<any> {
   if (!secret) return null;
   
   const parts = token.split('.');
-  if (parts.length !== 3) return null;
+  if (parts.length !== 3) {
+    // Fallback temporal para sesiones legacy (payload base64) para no desconectar a todos
+    try {
+      const decoded = JSON.parse(new TextDecoder().decode(decodeBase64Url(token)));
+      if (decoded && decoded.id) {
+        // Extendemos la expiración de los tokens legacy para no forzar deslogueo inmediato
+        if (decoded.exp && decoded.exp < Date.now()) {
+          decoded.exp = Date.now() + 86400000; // +24hs
+        }
+        return decoded;
+      }
+    } catch(e) {}
+    return null;
+  }
   
   const [header, payload, signature] = parts;
   const dataToSign = `${header}.${payload}`;
