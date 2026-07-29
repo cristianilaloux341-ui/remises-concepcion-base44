@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { validateInternalKey } from '../../shared/security.ts';
 
 async function captureState(b44: any, rideOrderId: string, driverId: string) {
   const [order, driver] = await Promise.all([
@@ -513,8 +514,8 @@ Deno.serve(async (req) => {
     if (!driver) {
        return Response.json({ accepted: false, reason: "driver_not_found" });
     }
-    const INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY");
-    const isInternalCall = payload.internalKey && INTERNAL_KEY && payload.internalKey === INTERNAL_KEY;
+
+    const isInternalCall = validateInternalKey(payload.internalKey);
 
     if (!isInternalCall) {
       if (!sessionToken || driver.current_session_token !== sessionToken) {

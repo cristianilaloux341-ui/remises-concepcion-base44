@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { assignDriverToOrderAtomic } from '../../shared/DispatchLogic.ts';
+import { validateInternalKey, verifyOperatorSession } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -9,22 +10,11 @@ Deno.serve(async (req) => {
 
   const { forceManual, manualDriverName } = payload;
   
-  const VALID_INTERNAL_KEY = Deno.env.get("INTERNAL_SERVICE_KEY") || "fallback_internal_key_2026";
   let isAuthorized = false;
-  
-  if (internalKey && internalKey === VALID_INTERNAL_KEY) {
+  if (validateInternalKey(internalKey)) {
     isAuthorized = true;
-  } else if (sessionToken) {
-    try {
-      const decodedStr = atob(sessionToken);
-      const tokenData = JSON.parse(decodedStr);
-      if (tokenData && tokenData.id && tokenData.exp && Date.now() <= tokenData.exp) {
-        const ops = await b44.entities.UsuariosSistema.filter({ id: tokenData.id });
-        if (ops && ops.length > 0 && ops[0].activo) {
-          isAuthorized = true;
-        }
-      }
-    } catch (err) {}
+  } else if (await verifyOperatorSession(b44, sessionToken)) {
+    isAuthorized = true;
   }
   
   if (!isAuthorized) {
@@ -132,7 +122,7 @@ Deno.serve(async (req) => {
           driverId: driverId,
           timeoutSeconds: timeoutSeconds,
           assignmentAttempt: newAttempt,
-          internalKey: VALID_INTERNAL_KEY
+          internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
         }).catch((e: any) => console.error("AutoReassign Trigger Error:", e));
       }
     } else {
