@@ -15,16 +15,16 @@ Deno.serve(async (req) => {
     const drivers = await b44.entities.Driver.filter({ status: "disponible" });
     let assigned = false;
     
+    // Función auxiliar para ordenar choferes por tiempo de espera
+    const sortByQueue = (arr) => arr.sort((a, b) => {
+       const tA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : 0;
+       const tB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : 0;
+       return tA - tB;
+    });
+
     if (order.zone) {
-      // Ordenar la cola de la base por orden de llegada
-      const zoneDrivers = drivers.filter(d => d.current_base === order.zone).sort((a, b) => {
-         const tA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : 0;
-         const tB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : 0;
-         return tA - tB;
-      });
-      
+      const zoneDrivers = sortByQueue(drivers.filter(d => d.current_base === order.zone));
       if (zoneDrivers.length > 0) {
-        // Disparar la asignación y notificación directa
         await b44.functions.invoke("assignRide", {
            orderId: order.id, 
            driverId: zoneDrivers[0].id, 
@@ -34,7 +34,18 @@ Deno.serve(async (req) => {
       }
     }
     
-    // Si no había nadie en la zona, lanzar el broadcast a todos instantáneamente
+    // Si no se asignó en zona (o no tenía zona), buscar al móvil más antiguo de CUALQUIER zona (global)
+    if (!assigned && drivers.length > 0) {
+      const globalDrivers = sortByQueue(drivers);
+      await b44.functions.invoke("assignRide", {
+         orderId: order.id, 
+         driverId: globalDrivers[0].id, 
+         sessionToken: sessionToken || 'client_demo_token'
+      });
+      assigned = true;
+    }
+
+    // Como último recurso de emergencia, emitir broadcast si algo falló
     if (!assigned) {
       await b44.functions.invoke("broadcastRide", {
          orderId: order.id, 

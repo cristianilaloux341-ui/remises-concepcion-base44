@@ -64,8 +64,17 @@ public class RideAlertController {
                         "Alertas de Viaje",
                         NotificationManager.IMPORTANCE_HIGH
                 );
-                channel.setSound(null, null); // Control manual del sonido en nuestra alerta
-                channel.enableVibration(false); // Control manual de vibración
+                int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
+                if (soundResId != 0) {
+                    Uri soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
+                    AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .build();
+                    channel.setSound(soundUri, audioAttributes);
+                }
+                channel.enableVibration(true); 
+                channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
                 notificationManager.createNotificationChannel(channel);
             } else {
                 Log.e(TAG, "Canal " + channelId + " encontrado. Importance: " + existingChannel.getImportance());

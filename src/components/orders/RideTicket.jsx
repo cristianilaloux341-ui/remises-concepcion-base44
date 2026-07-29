@@ -43,7 +43,7 @@ export default function RideTicket({ order }) {
           <div className="border-b" />
           
           <div className="space-y-2 text-sm text-slate-700 py-2">
-            <div className="flex"><span className="font-bold">Fecha:</span> <span>{order.created_date ? format(new Date(order.created_date), "dd/MM/yyyy HH:mm") : "-"}</span></div>
+            <div className="flex"><span className="font-bold">Fecha:</span> <span>{order.created_date ? new Date(order.created_date).toLocaleString("es-AR", { timeZone: "America/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}</span></div>
             <div className="flex"><span className="font-bold">Viaje N°:</span> <span>{order.id?.slice(-6).toUpperCase() || "-"}</span></div>
             <div className="flex"><span className="font-bold">Chofer:</span> <span>{order.driver_name || "-"}</span></div>
             <div className="flex"><span className="font-bold">Pasajero:</span> <span>{order.client_name || "-"}</span></div>

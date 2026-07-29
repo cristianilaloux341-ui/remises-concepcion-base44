@@ -38,20 +38,31 @@ export async function findBestDriver(order, drivers, bases) {
   const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
   if (!availableDrivers.length) return null;
 
-  // Sólo asignar a los de la zona correspondiente
+  // 1) Asignar a los de la zona correspondiente (FIFO)
   if (order.zone) {
     const zoneQueue = getBaseQueue(availableDrivers, order.zone);
     if (zoneQueue.length > 0) return zoneQueue[0];
   }
 
-  // Se eliminó la lógica de proximidad GPS porque causa asignaciones a zonas incorrectas.
+  // 2) Si no hay nadie en la zona (o no tiene zona), forzar asignación al chofer libre con mayor espera global
+  const globalQueue = sortQueue(availableDrivers);
+  if (globalQueue.length > 0) return globalQueue[0];
+
   return null;
 }
 
 // Find first available driver in the exact zone (FIFO queue by queue_entered_at)
 export function findDriverInZone(zone, drivers) {
   if (!zone) return null;
-  return getBaseQueue(drivers, zone)[0] || null;
+  const inZone = getBaseQueue(drivers, zone)[0];
+  if (inZone) return inZone;
+  
+  // Prioridad 2: Si no hay nadie en la zona, retorna el libre de mayor tiempo de espera globalmente
+  const allAvailable = drivers.filter(d => d.status === "disponible");
+  if (allAvailable.length > 0) {
+      return sortQueue(allAvailable)[0];
+  }
+  return null;
 }
 
 // Assign driver to order (direct / zone-based)
@@ -92,7 +103,7 @@ export async function broadcastOrder(order, drivers = []) {
   }
 }
 
-// Auto-dispatch: intenta asignar por zona; si no hay nadie → broadcast
+// Auto-dispatch: intenta asignar por zona; si no hay nadie → asigna global
 // Retorna: "assigned" | "broadcast" | "no_drivers"
 export async function autoDispatch(order, drivers, bases) {
   const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
@@ -106,14 +117,16 @@ export async function autoDispatch(order, drivers, bases) {
       await assignDriverToOrder(order, zoneQueue[0]);
       return "assigned";
     }
-    // Si la zona fue solicitada explícitamente pero no hay nadie, 
-    // pasamos a BROADCAST directo, NO le asignamos a la fuerza a otra base.
-    await broadcastOrder(order, drivers);
-    return "broadcast";
   }
 
-  // 2) Sin zona -> pasamos a BROADCAST directo. 
-  // No usamos coordenadas GPS para adivinar la base porque causa asignaciones cruzadas.
+  // 2) Si la zona está vacía o el pedido no tiene zona, asignamos al móvil libre de cualquier zona (el de mayor espera)
+  const globalQueue = sortQueue(availableDrivers);
+  if (globalQueue.length > 0) {
+    await assignDriverToOrder(order, globalQueue[0]);
+    return "assigned";
+  }
+
+  // Fallback de emergencia
   await broadcastOrder(order, drivers);
   return "broadcast";
 }

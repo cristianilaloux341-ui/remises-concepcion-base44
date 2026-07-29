@@ -237,7 +237,7 @@ export default function OrderDetail() {
             )}
 
             <div className="text-xs text-muted-foreground">
-              Creado: {order.created_date ? format(new Date(order.created_date), "dd MMM yyyy · HH:mm", { locale: es }) : "Fecha desconocida"}
+              Creado: {order.created_date ? new Date(order.created_date).toLocaleString("es-AR", { timeZone: "America/Buenos_Aires", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Fecha desconocida"}
             </div>
           </CardContent>
         </Card>
