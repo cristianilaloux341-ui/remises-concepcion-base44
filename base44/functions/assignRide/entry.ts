@@ -10,8 +10,8 @@ Deno.serve(async (req) => {
 
   const { forceManual, manualDriverName } = payload;
   
-  // Validamos a través del middleware: Permitimos Internal Service Key o Sesión de Operador
-  const isAuthorized = await verifyRequestAuth(b44, payload, { allowOperator: true });
+  // Validamos a través del middleware: Permitimos Internal Service Key, Sesión de Operador o Cliente
+  const isAuthorized = await verifyRequestAuth(b44, payload, { allowOperator: true, allowClient: true });
   if (!isAuthorized) {
     return Response.json({ success: false, reason: 'unauthorized' }, { status: 401 });
   }

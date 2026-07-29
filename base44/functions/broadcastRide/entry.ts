@@ -7,8 +7,8 @@ Deno.serve(async (req) => {
   const payload = await req.json();
   const { orderId } = payload;
 
-  // Requerimos que el invocador sea un Operador (JWT verificado) o cuente con Internal Key (para fallbacks del sistema)
-  if (!(await verifyRequestAuth(b44, payload, { allowOperator: true }))) {
+  // Requerimos que el invocador sea un Operador (JWT verificado), Cliente o cuente con Internal Key
+  if (!(await verifyRequestAuth(b44, payload, { allowOperator: true, allowClient: true }))) {
     return Response.json({ success: false, reason: 'unauthorized' }, { status: 401 });
   }
 

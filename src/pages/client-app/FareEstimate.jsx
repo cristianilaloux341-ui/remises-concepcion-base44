@@ -4,6 +4,7 @@ import { ArrowLeft, Clock, CreditCard, ShieldCheck, Loader2 } from 'lucide-react
 import RideMap from '@/components/map/RideMap';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import { detectZoneFromCoords, detectZoneFromAddress, findDriverInZone, assignDriverToOrder, broadcastOrder } from '@/lib/dispatchLogic';
 
 export default function FareEstimate() {
   const navigate = useNavigate();
@@ -15,9 +16,9 @@ export default function FareEstimate() {
   const [calculatingPrice, setCalculatingPrice] = useState(true);
 
   const pickup = state?.pickup || 'Mi ubicación';
-  const pickupCoords = state?.pickupCoords;
+  const [resolvedPickupCoords, setResolvedPickupCoords] = useState(state?.pickupCoords || null);
   const dropoff = state?.dropoff || 'Destino seleccionado';
-  const dropoffCoords = state?.dropoffCoords;
+  const [resolvedDropoffCoords, setResolvedDropoffCoords] = useState(state?.dropoffCoords || null);
 
   useEffect(() => {
     const fetchEstimate = async () => {
@@ -26,8 +27,8 @@ export default function FareEstimate() {
         const currentTarifa = res.length > 0 ? res[0] : null;
         setTarifa(currentTarifa);
 
-        let finalPickupCoords = pickupCoords;
-        let finalDropoffCoords = dropoffCoords;
+        let finalPickupCoords = resolvedPickupCoords;
+        let finalDropoffCoords = resolvedDropoffCoords;
 
         // Intentar geolocalizar si dice "Mi ubicación" y no hay coordenadas
         if (!finalPickupCoords && pickup === 'Mi ubicación') {
@@ -63,6 +64,9 @@ export default function FareEstimate() {
         if (!finalDropoffCoords && dropoff) {
           finalDropoffCoords = await geocodeString(dropoff);
         }
+        
+        if (finalPickupCoords && !resolvedPickupCoords) setResolvedPickupCoords(finalPickupCoords);
+        if (finalDropoffCoords && !resolvedDropoffCoords) setResolvedDropoffCoords(finalDropoffCoords);
 
         if (currentTarifa && finalPickupCoords && finalDropoffCoords) {
           let dist = null;
@@ -111,7 +115,7 @@ export default function FareEstimate() {
     };
     
     fetchEstimate();
-  }, [pickupCoords, dropoffCoords]);
+  }, [resolvedPickupCoords, resolvedDropoffCoords]);
 
   const [passengers, setPassengers] = useState(1);
   const [needsTrunk, setNeedsTrunk] = useState(false);
@@ -131,18 +135,53 @@ export default function FareEstimate() {
       if (needsHelp) finalNotes += ` | Ayuda para subir`;
       if (notes.trim()) finalNotes += ` | ${notes.trim()}`;
 
+      let orderZone = null;
+      try {
+        if (resolvedPickupCoords) {
+          orderZone = await detectZoneFromCoords(resolvedPickupCoords.lat, resolvedPickupCoords.lng);
+        }
+        if (!orderZone) {
+          orderZone = await detectZoneFromAddress(pickup);
+        }
+      } catch(e) {}
+
       const order = await base44.entities.RideOrder.create({
         client_name: clientName,
         client_id: clientId,
         client_phone: clientPhone,
         pickup_address: pickup,
         dropoff_address: dropoff,
+        pickup_lat: resolvedPickupCoords?.lat || null,
+        pickup_lng: resolvedPickupCoords?.lng || null,
+        dropoff_lat: resolvedDropoffCoords?.lat || null,
+        dropoff_lng: resolvedDropoffCoords?.lng || null,
         notes: finalNotes,
-        status: "pendiente",
+        zone: orderZone,
+        status: "procesando_despacho",
         source: "cliente"
       });
       
       navigate('/app-cliente/searching', { state: { orderId: order.id } });
+
+      // Lógica de despacho en background
+      (async () => {
+        try {
+          const drivers = await base44.entities.Driver.list();
+          if (order.zone) {
+            const zoneDriver = findDriverInZone(order.zone, drivers);
+            if (zoneDriver) {
+              await assignDriverToOrder(order, zoneDriver);
+            } else {
+              await broadcastOrder(order, drivers);
+            }
+          } else {
+            await broadcastOrder(order, drivers);
+          }
+        } catch(e) {
+          console.error("Client background dispatch error:", e);
+        }
+      })();
+
     } catch (error) {
       console.error(error);
       toast.error('Ocurrió un error al pedir el móvil');

@@ -57,7 +57,9 @@ export function findDriverInZone(zone, drivers) {
 // Assign driver to order (direct / zone-based)
 export async function assignDriverToOrder(order, driver) {
   try {
-    const sessionToken = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("local_operator_token") : null;
+    const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) 
+      ? sessionStorage.getItem("local_operator_token") 
+      : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
     const res = await base44.functions.invoke("assignRide", {
       orderId: order.id,
       driverId: driver.id,
@@ -75,7 +77,9 @@ export async function assignDriverToOrder(order, driver) {
 // El primero en aceptar gana. Se usa cuando no hay nadie en la zona.
 export async function broadcastOrder(order, drivers = []) {
   try {
-    const sessionToken = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("local_operator_token") : null;
+    const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) 
+      ? sessionStorage.getItem("local_operator_token") 
+      : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
     const res = await base44.functions.invoke("broadcastRide", {
       orderId: order.id,
       sessionToken
@@ -126,7 +130,9 @@ export async function reassignAfterReject(order, drivers, bases) {
   const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
 
   if (!available.length || !autoReassignActive) {
-    const sessionToken = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("local_operator_token") : null;
+    const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) 
+      ? sessionStorage.getItem("local_operator_token") 
+      : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
     await base44.functions.invoke("assignRide", {
       orderId: order.id,
       forceManual: true,

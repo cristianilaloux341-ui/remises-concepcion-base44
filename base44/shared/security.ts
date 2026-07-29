@@ -100,7 +100,7 @@ export async function hashPin(pinText: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export async function verifyRequestAuth(b44: any, payload: any, options: { allowOperator?: boolean, allowDriverId?: string } = {}): Promise<boolean> {
+export async function verifyRequestAuth(b44: any, payload: any, options: { allowOperator?: boolean, allowDriverId?: string, allowClient?: boolean } = {}): Promise<boolean> {
   const { internalKey, sessionToken } = payload || {};
   
   // 1. Siempre permitimos el acceso si la clave de servicio interna coincide
@@ -115,6 +115,13 @@ export async function verifyRequestAuth(b44: any, payload: any, options: { allow
   if (options.allowDriverId && sessionToken) {
     const drivers = await b44.entities.Driver.filter({ id: options.allowDriverId });
     if (drivers.length > 0 && drivers[0].current_session_token === sessionToken) return true;
+  }
+
+  // 4. Si se permite desde la app cliente, verificamos el token cliente
+  if (options.allowClient && sessionToken) {
+    // Por ahora la app cliente usa un token fijo de demo
+    if (sessionToken === 'client_demo_token') return true;
+    // Si tuvieran login de cliente, aquí verificaríamos el JWT del cliente
   }
   
   // Denegado por defecto
