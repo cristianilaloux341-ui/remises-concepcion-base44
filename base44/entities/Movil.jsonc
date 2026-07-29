@@ -1,6 +1,24 @@
 {
   "name": "Movil",
   "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
   "properties": {
     "numero_movil": {
       "type": "number",
@@ -154,11 +172,5 @@
   },
   "required": [
     "numero_movil"
-  ],
-  "rls": {
-    "create": null,
-    "read": null,
-    "update": null,
-    "delete": null
-  }
+  ]
 }
