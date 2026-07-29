@@ -13,6 +13,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.VibrationEffect;
+import android.os.PowerManager;
 import android.os.Vibrator;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
@@ -96,6 +97,7 @@ public class RideAlertController {
                 .setContentIntent(openAppPendingIntent)
                 .setFullScreenIntent(openAppPendingIntent, true)
                 .setDeleteIntent(dismissPendingIntent)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .addAction(0, "✅ ACEPTAR", acceptPendingIntent)
                 .addAction(0, "❌ RECHAZAR", rejectPendingIntent);
 
@@ -104,6 +106,17 @@ public class RideAlertController {
             if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 Log.e(TAG, "FCM_PERMISSION_DENIED - Permiso POST_NOTIFICATIONS no concedido");
             }
+        }
+
+        // Despertar la pantalla explícitamente
+        try {
+            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (pm != null && !pm.isInteractive()) {
+                PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, TAG + ":WakeLock");
+                wl.acquire(5000);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error adquiriendo WakeLock", e);
         }
 
         notificationManager.notify(reqCode, builder.build());
