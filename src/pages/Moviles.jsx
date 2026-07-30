@@ -509,67 +509,108 @@ export default function Moviles() {
         </Button>
       </div>
 
-      {/* Fichas de Móviles */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {filtered.length === 0 && (
-          <div className="col-span-full text-center py-12 text-muted-foreground bg-muted/30 rounded-xl border border-dashed">
-            No hay móviles registrados o que coincidan con la búsqueda.
-          </div>
-        )}
-        {filtered.map(m => {
-          const problemas = [];
-          if (m.vtv_vencimiento && differenceInDays(parseISO(m.vtv_vencimiento), new Date()) < 0) problemas.push("VTV Vencida");
-          if (m.seguro_automotor_vencimiento && differenceInDays(parseISO(m.seguro_automotor_vencimiento), new Date()) < 0) problemas.push("Seguro Automotor Vencido");
-          if (m.seguro_riesgos_personales_vencimiento && differenceInDays(parseISO(m.seguro_riesgos_personales_vencimiento), new Date()) < 0) problemas.push("Seg. Riesgos Vencido");
-          if (m.buena_conducta && m.buena_conducta_vencimiento && differenceInDays(parseISO(m.buena_conducta_vencimiento), new Date()) < 0) problemas.push("Buena Conducta Vencida");
-          if (!m.buena_conducta) problemas.push("Sin Buena Conducta");
-          if (m.pago_semanal_al_dia === false) problemas.push("Deuda Semanal");
-          if (m.deuda_monto > 0) problemas.push(`Deuda: $${m.deuda_monto}`);
-          if (m.fuera_de_servicio) problemas.push(`Fuera de Servicio (${m.fuera_de_servicio_motivo || 'Comisión'})`);
-          if (!m.activo && !m.fuera_de_servicio) problemas.push(`Suspendido (${m.suspension_motivo || 'Operador'})`);
+      {/* Fichas de Móviles en Lista Fija de 1 a 100 */}
+      <div className="flex flex-col gap-3">
+        {(() => {
+          const allNumbers = new Set(Array.from({ length: 100 }, (_, i) => i + 1));
+          moviles.forEach(m => allNumbers.add(Number(m.numero_movil)));
+          const slots = Array.from(allNumbers).sort((a, b) => a - b);
 
-          const choferes = driversByMovilId[m.id] || [];
-          const primerChofer = choferes[0] ? choferes[0].name : m.apellido_nombre;
+          let hasResults = false;
 
-          return (
-            <div key={m.id} className={`bg-card rounded-2xl border flex flex-col transition-shadow hover:shadow-md ${problemas.length > 0 ? 'border-red-300' : 'border-border'}`}>
-              <div className={`p-4 flex flex-col border-b ${problemas.length > 0 ? 'bg-red-50/50' : 'bg-muted/20'}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-xl font-extrabold text-foreground truncate">{getDriverDisplay(m.numero_movil, primerChofer)}</p>
-                    <p className="text-xs text-muted-foreground truncate">{m.dominio || 'Sin patente'} • {m.marca} {m.modelo}</p>
-                    <p className="text-xs text-muted-foreground truncate mt-1">Titular: {m.apellido_nombre}</p>
+          const elements = slots.map(numero => {
+            const movilesEnSlot = filtered.filter(m => Number(m.numero_movil) === numero);
+            
+            if (movilesEnSlot.length === 0) {
+              if (search || soloConProblemas) return null; // No mostrar vacíos si hay filtros
+              hasResults = true;
+              return (
+                <div key={`empty-${numero}`} className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-muted/10 border border-dashed border-border rounded-xl hover:bg-muted/20 transition-colors gap-3">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-muted/30 rounded-xl flex items-center justify-center text-muted-foreground font-bold text-lg border border-border shrink-0">
+                      {numero}
+                    </div>
+                    <span className="text-muted-foreground text-sm font-semibold uppercase tracking-wider">Vacante</span>
                   </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10" title="Editar" onClick={() => { setAlertMovil(m); setEditing(m); }}>
+                  <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={() => { setEditing({ ...EMPTY_MOVIL, numero_movil: numero }); setDialogOpen(true); }}>
+                    <Plus className="w-4 h-4" /> Añadir a este número
+                  </Button>
+                </div>
+              );
+            }
+
+            hasResults = true;
+            return movilesEnSlot.map((m, idx) => {
+              const problemas = [];
+              if (m.vtv_vencimiento && differenceInDays(parseISO(m.vtv_vencimiento), new Date()) < 0) problemas.push("VTV Vencida");
+              if (m.seguro_automotor_vencimiento && differenceInDays(parseISO(m.seguro_automotor_vencimiento), new Date()) < 0) problemas.push("Seguro Automotor Vencido");
+              if (m.seguro_riesgos_personales_vencimiento && differenceInDays(parseISO(m.seguro_riesgos_personales_vencimiento), new Date()) < 0) problemas.push("Seg. Riesgos Vencido");
+              if (m.buena_conducta && m.buena_conducta_vencimiento && differenceInDays(parseISO(m.buena_conducta_vencimiento), new Date()) < 0) problemas.push("Buena Conducta Vencida");
+              if (!m.buena_conducta) problemas.push("Sin Buena Conducta");
+              if (m.pago_semanal_al_dia === false) problemas.push("Deuda Semanal");
+              if (m.deuda_monto > 0) problemas.push(`Deuda: $${m.deuda_monto}`);
+              if (m.fuera_de_servicio) problemas.push(`Fuera de Servicio (${m.fuera_de_servicio_motivo || 'Comisión'})`);
+              if (!m.activo && !m.fuera_de_servicio) problemas.push(`Suspendido (${m.suspension_motivo || 'Operador'})`);
+
+              const choferes = driversByMovilId[m.id] || [];
+              const primerChofer = choferes[0] ? choferes[0].name : m.apellido_nombre;
+
+              return (
+                <div key={m.id} className={`bg-card rounded-xl border flex flex-col md:flex-row transition-shadow hover:shadow-md ${problemas.length > 0 ? 'border-red-300' : 'border-border'}`}>
+                  
+                  <div className={`p-4 md:w-72 flex shrink-0 items-center gap-4 border-b md:border-b-0 md:border-r ${problemas.length > 0 ? 'bg-red-50/50' : 'bg-muted/10'}`}>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 ${problemas.length > 0 ? 'bg-red-100 text-red-700' : 'bg-primary/10 text-primary'}`}>
+                      {m.numero_movil}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-extrabold text-foreground truncate" title={primerChofer}>{primerChofer}</p>
+                      <p className="text-xs text-muted-foreground truncate">{m.dominio || 'Sin patente'} • {m.marca}</p>
+                      {idx > 0 && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-widest mt-1 inline-block">Mismo N°</span>}
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 flex-1 flex flex-col justify-center min-w-0">
+                    {problemas.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {problemas.map((p, i) => (
+                          <div key={i} className="flex items-center gap-1.5 text-red-700 text-xs font-semibold bg-red-50 px-2.5 py-1.5 rounded-lg border border-red-100">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-red-600" />
+                            {p}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-green-700 text-sm font-semibold gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-green-600" /> Todo al día
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-4 flex items-center justify-end gap-2 shrink-0 border-t md:border-t-0 bg-muted/5 md:bg-transparent">
+                    <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10" title="Editar" onClick={() => { setAlertMovil(m); setEditing(m); }}>
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-blue-600 hover:bg-blue-50" title="Lista de reinscripción" onClick={() => setReinscripcionMovil(prev => prev?.id === m.id ? null : m)}>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-blue-600 hover:bg-blue-50" title="Lista de reinscripción" onClick={() => setReinscripcionMovil(prev => prev?.id === m.id ? null : m)}>
                       <ClipboardList className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-red-600 hover:bg-red-50" title="Eliminar" onClick={() => setDeleteConfirmMovil(m)}>
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
+              );
+            });
+          });
+
+          if (!hasResults) {
+            return (
+              <div className="text-center py-12 text-muted-foreground bg-muted/30 rounded-xl border border-dashed">
+                No hay móviles que coincidan con la búsqueda.
               </div>
-              
-              <div className="p-4 flex-1 flex flex-col gap-2 bg-card">
-                {problemas.length > 0 ? (
-                  <div className="space-y-2">
-                    {problemas.map((p, i) => (
-                      <div key={i} className="flex items-center gap-2 text-red-700 text-sm font-semibold bg-red-50 px-3 py-2 rounded-xl border border-red-100">
-                        <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                        {p}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-green-700 text-sm font-semibold gap-2 bg-green-50 rounded-xl p-4 border border-green-100">
-                    <CheckCircle2 className="w-5 h-5 text-green-600" /> Todo al día
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+            );
+          }
+          return elements;
+        })()}
       </div>
 
       {/* Popup de alertas previo — se muestra al abrir un móvil con problemas */}
