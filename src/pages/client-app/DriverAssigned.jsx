@@ -35,6 +35,25 @@ export default function DriverAssigned() {
     
     loadData();
 
+    const checkStatus = async () => {
+      try {
+        const o = await base44.entities.RideOrder.get(orderId);
+        if (!isMounted) return;
+        setOrder(o);
+        
+        if (o.status === 'en_viaje') {
+          navigate('/app-cliente/active-ride', { state: { orderId }, replace: true });
+        } else if (o.status === 'completado') {
+          navigate('/app-cliente/rating', { state: { orderId }, replace: true });
+        } else if (o.status === 'cancelado' || o.status === 'rechazado') {
+          toast.error('El viaje fue cancelado');
+          navigate('/app-cliente/home', { replace: true });
+        }
+      } catch (e) {}
+    };
+
+    const interval = setInterval(checkStatus, 5000);
+
     const unsubscribe = base44.entities.RideOrder.subscribe(async (event) => {
       if (event.data?.id === orderId) {
         const o = event.data;
@@ -42,6 +61,8 @@ export default function DriverAssigned() {
         
         if (o.status === 'en_viaje') {
           navigate('/app-cliente/active-ride', { state: { orderId }, replace: true });
+        } else if (o.status === 'completado') {
+          navigate('/app-cliente/rating', { state: { orderId }, replace: true });
         } else if (o.status === 'cancelado' || o.status === 'rechazado') {
           toast.error('El viaje fue cancelado');
           navigate('/app-cliente/home', { replace: true });
@@ -56,9 +77,25 @@ export default function DriverAssigned() {
 
     return () => {
       isMounted = false;
+      clearInterval(interval);
       unsubscribe();
     };
   }, [orderId, navigate, driver]);
+
+  useEffect(() => {
+    if (order?.status === 'en_camino') {
+      try {
+        // Sonido de bocina para avisar que el auto está afuera
+        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+        audio.play().catch(() => {});
+        toast.success("¡Tu chofer ya está en la puerta!", {
+          duration: 6000,
+          position: 'top-center'
+        });
+        if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 500]);
+      } catch(e) {}
+    }
+  }, [order?.status]);
 
   const handleCancel = async () => {
     if (!orderId) return;

@@ -35,6 +35,22 @@ export default function ActiveRide() {
       }
     }).catch(console.error);
 
+    let isMounted = true;
+    const checkStatus = async () => {
+      try {
+        const o = await base44.entities.RideOrder.get(orderId);
+        if (!isMounted) return;
+        setOrder(o);
+        if (o.status === 'completado') {
+          navigate('/app-cliente/rating', { state: { orderId }, replace: true });
+        } else if (o.status === 'cancelado') {
+          toast.error('El viaje fue cancelado');
+          navigate('/app-cliente/home', { replace: true });
+        }
+      } catch (e) {}
+    };
+    const interval = setInterval(checkStatus, 5000);
+
     const unsubscribe = base44.entities.RideOrder.subscribe((event) => {
       if (event.data?.id === orderId) {
         setOrder(event.data);
@@ -59,24 +75,14 @@ export default function ActiveRide() {
     }
 
     return () => {
+      isMounted = false;
+      clearInterval(interval);
       unsubscribe();
       unsubMsgs();
     };
   }, [orderId, navigate]);
 
-  useEffect(() => {
-    if (order?.status === 'en_camino') {
-      try {
-        // Sonido de bocina corto para avisar que el auto está afuera
-        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
-        audio.play().catch(() => {});
-        toast.success("¡Tu chofer ya está en la puerta!", {
-          duration: 5000,
-          position: 'top-center'
-        });
-      } catch(e) {}
-    }
-  }, [order?.status]);
+
 
   const handleShare = () => {
     const text = `Viajo en un remis. Chofer: ${driver?.name || order?.driver_name || 'No definido'}, Patente: ${driver?.vehicle_plate || ''}. Destino: ${order?.dropoff_address || 'No definido'} - Sigue mi viaje: ${window.location.href}`;
