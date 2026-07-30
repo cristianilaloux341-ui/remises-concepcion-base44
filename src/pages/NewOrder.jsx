@@ -70,6 +70,16 @@ export default function NewOrder() {
           }
         } catch (err) {
           console.error("Error en despacho asíncrono:", err);
+        } finally {
+          // Si por alguna razón el viaje se quedó trabado en procesando_despacho después de intentar despachar,
+          // lo pasamos a pendiente para que no se vuelva invisible en el dashboard.
+          try {
+            const check = await base44.entities.RideOrder.get(newOrder.id);
+            if (check && check.status === "procesando_despacho") {
+              await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
+              window.dispatchEvent(new Event("force-driver-refresh"));
+            }
+          } catch(e) {}
         }
       })();
 
