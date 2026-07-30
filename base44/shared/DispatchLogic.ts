@@ -61,7 +61,7 @@ export async function tryManualCandidate(b44: any, baseId: string, order: any, d
       // Revertir viaje y chofer
       await b44.entities.RideOrder.updateMany(
         { id: order.id, status: 'esperando_confirmacion_manual', reserved_driver_id: driver.id, manual_reservation_token: token },
-        { $set: { status: 'procesando_despacho', reserved_driver_id: null, manual_reservation_token: null } }
+        { $set: { status: 'procesando_despacho', reserved_driver_id: null, manual_reservation_token: null, driver_name: null } }
       );
       await releaseManualDriver(b44, driver.id, order.id, token);
       return false;
@@ -75,7 +75,7 @@ export async function tryManualCandidate(b44: any, baseId: string, order: any, d
     } else if (e.message.includes('INJECTED_FAILURE_AT_AFTER_RIDE_MANUAL_TRANSITION')) {
       await b44.entities.RideOrder.updateMany(
         { id: order.id, status: 'esperando_confirmacion_manual', manual_reservation_token: token },
-        { $set: { status: 'procesando_despacho', reserved_driver_id: null, manual_reservation_token: null } }
+        { $set: { status: 'procesando_despacho', reserved_driver_id: null, manual_reservation_token: null, driver_name: null } }
       );
       await releaseManualDriver(b44, driver.id, order.id, token);
     }
@@ -130,7 +130,7 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
     } catch (pushErr) {
       console.error("Error trigger push en DispatchLogic:", pushErr);
       // Failsafe: purga inmediata si falla la notificación para no dejar al chofer ni al viaje colgados
-      await b44.entities.RideOrder.updateMany({ id: order.id, status: 'ofrecido', reservation_token: token }, { $set: { status: 'procesando_despacho', reserved_driver_id: null } });
+      await b44.entities.RideOrder.updateMany({ id: order.id, status: 'ofrecido', reservation_token: token }, { $set: { status: 'procesando_despacho', reserved_driver_id: null, driver_name: null } });
       await b44.entities.Driver.updateMany({ id: driver.id, reservation_token: token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } });
       await safeAuditLog(b44, { action: 'DELIVERY_ERROR', user_type: 'sistema', user_name: 'System', details: 'Fallo push, reversión rápida: ' + pushErr.message }, failureInjector);
       return false;
@@ -142,7 +142,7 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
       await b44.entities.Driver.updateMany({ id: driver.id, reservation_token: token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } });
     } else {
       // Revert ride back to procesando_despacho and release driver (for any other error to prevent stuck state)
-      await b44.entities.RideOrder.updateMany({ id: order.id, status: 'ofrecido', reservation_token: token }, { $set: { status: 'procesando_despacho', reserved_driver_id: null } });
+      await b44.entities.RideOrder.updateMany({ id: order.id, status: 'ofrecido', reservation_token: token }, { $set: { status: 'procesando_despacho', reserved_driver_id: null, driver_name: null } });
       await b44.entities.Driver.updateMany({ id: driver.id, reservation_token: token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } });
       if (e.message.includes('INJECTED_FAILURE_AT_BEFORE_PUSH')) {
         await safeAuditLog(b44, { action: 'DELIVERY_ERROR', user_type: 'sistema', user_name: 'System', details: e.message }, failureInjector);
@@ -168,7 +168,7 @@ export async function reassignAfterAutomaticReject(b44: any, baseId: string, ord
     await failureInjector.hit('DURING_TOKEN_TRANSFER');
     const orderRes = await b44.entities.RideOrder.updateMany(
       { id: orderId, status: 'ofrecido', reserved_driver_id: driverId, reservation_token: oldToken },
-      { $set: { status: 'procesando_despacho', reservation_token: newToken, reserved_driver_id: null }, $push: { offered_driver_ids: driverId }, $inc: { assignment_attempt: 1 } }
+      { $set: { status: 'procesando_despacho', reservation_token: newToken, reserved_driver_id: null, driver_name: null }, $push: { offered_driver_ids: driverId }, $inc: { assignment_attempt: 1 } }
     );
     if ((orderRes.matchedCount ?? orderRes.modifiedCount ?? orderRes.updated ?? 0) !== 1) return { status: 'already_processed' };
 
@@ -218,7 +218,7 @@ export async function cleanupExpiredTechnicalLock(b44: any, baseId: string, expe
     if (!safeStates.includes(ord.status) && !ord.driver_id) {
       await b44.entities.RideOrder.updateMany(
         { id: ord.id, reservation_token: expectedToken },
-        { $set: { status: 'pendiente', reservation_token: null, reserved_driver_id: null } }
+        { $set: { status: 'pendiente', reservation_token: null, reserved_driver_id: null, driver_name: null } }
       );
     }
   }
@@ -252,7 +252,7 @@ export async function cleanupExpiredManualWait(b44: any, baseId: string, expecte
     if (!safeStates.includes(ord.status) && !ord.driver_id) {
       await b44.entities.RideOrder.updateMany(
         { id: ord.id, manual_reservation_token: expectedToken },
-        { $set: { status: 'pendiente', manual_reservation_token: null, reserved_driver_id: null } }
+        { $set: { status: 'pendiente', manual_reservation_token: null, reserved_driver_id: null, driver_name: null } }
       );
     }
   }

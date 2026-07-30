@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
         // Si falla la reasignación atómica, forzamos la liberación del viaje
         await b44.entities.RideOrder.updateMany(
            { id: orderId, status: "ofrecido", reserved_driver_id: driverId },
-           { $set: { status: "procesando_despacho", reserved_driver_id: null, reservation_token: null }, $push: { offered_driver_ids: driverId } }
+           { $set: { status: "procesando_despacho", reserved_driver_id: null, reservation_token: null, driver_name: null }, $push: { offered_driver_ids: driverId } }
         );
         rejectResult = { status: 'forced_reverted' };
       }
