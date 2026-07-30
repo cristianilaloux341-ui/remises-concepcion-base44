@@ -49,7 +49,7 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v4"; // Nuevo ID para forzar Android a recrear el canal en silencio
+        String channelId = "ride_alerts_urgent_v5"; // Nuevo ID para forzar Android a recrear el canal con máxima prioridad
 
         // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -180,13 +180,6 @@ public class RideAlertController {
                 mediaPlayer.setLooping(true);
                 mediaPlayer.setVolume(1.0f, 1.0f);
                 
-                mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-                    @Override
-                    public void onPrepared(MediaPlayer mp) {
-                        mp.start();
-                        logDebug("startAlert: MediaPlayer iniciado");
-                    }
-                });
                 mediaPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
                     @Override
                     public boolean onError(MediaPlayer mp, int what, int extra) {
@@ -198,7 +191,10 @@ public class RideAlertController {
                         return true;
                     }
                 });
-                mediaPlayer.prepareAsync();
+                // Preparar síncronamente porque estamos en el background thread de FCM (sin Looper)
+                mediaPlayer.prepare();
+                mediaPlayer.start();
+                logDebug("startAlert: MediaPlayer iniciado");
             } catch (Exception ex) {
                 Log.e(TAG, "Excepcion critica en MediaPlayer, usando Ringtone fallback", ex);
                 try {
@@ -310,19 +306,14 @@ public class RideAlertController {
                     .build());
             mp.setDataSource(context, soundUri);
             mp.setVolume(1.0f, 1.0f);
-            mp.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-                @Override
-                public void onPrepared(MediaPlayer mediaPlayerObj) {
-                    mediaPlayerObj.start();
-                }
-            });
             mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                 @Override
                 public void onCompletion(MediaPlayer mediaPlayerObj) {
                     mediaPlayerObj.release();
                 }
             });
-            mp.prepareAsync();
+            mp.prepare();
+            mp.start();
         } catch (Exception e) {
             Log.e(TAG, "Error reproduciendo sonido one-shot", e);
         }
