@@ -230,6 +230,13 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
               {order.payment_method === "Transferencia" ? "🏦 Transferencia" : "💵 Efectivo"}
             </span>
           </div>
+          {order.notes && order.notes.replace(/^\[BROADCAST\]\s*/, "").trim() && (
+            <div className="pt-2 border-t border-gray-800 mt-1">
+              <p className="text-sm text-yellow-100 italic px-3 py-2 bg-yellow-900/40 rounded-xl border border-yellow-700/50">
+                "{order.notes.replace(/^\[BROADCAST\]\s*/, "").trim()}"
+              </p>
+            </div>
+          )}
         </div>
 
         <button
