@@ -1167,6 +1167,7 @@ export default function DriverApp() {
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
   const [isAccepting, setIsAccepting] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState(null);
+  const [cancelledOrder, setCancelledOrder] = useState(null);
 
   const overlays = useRef({ showMessages, showSetupGuide, showStats, showOcasional, showBatteryGuide, showSettings });
   useEffect(() => {
@@ -1280,6 +1281,26 @@ export default function DriverApp() {
     if (!myDriverId) { setDismissedBroadcasts([]); return; }
     const dismissed = JSON.parse(localStorage.getItem(`dismissed_bc_${myDriverId}`) || "[]");
     setDismissedBroadcasts(dismissed);
+  }, [myDriverId]);
+
+  // Listen for real-time cancellations
+  useEffect(() => {
+    if (!myDriverId) return;
+    const unsub = base44.entities.RideOrder.subscribe((e) => {
+      if (e.type === "update" && e.data?.status === "cancelado") {
+        const o = e.data;
+        if (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId || (o.offered_driver_ids || []).includes(myDriverId)) {
+          if (!ignoredOrdersRef.current.has(o.id)) {
+            ignoredOrdersRef.current.add(o.id);
+            setLocalOverride({ status: "disponible", _ignoredOrderId: o.id });
+            setCancelledOrder(o);
+            try { navigator.vibrate?.([300, 100, 300, 100, 300]); } catch (_) {}
+            window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+          }
+        }
+      }
+    });
+    return unsub;
   }, [myDriverId]);
 
   // Escuchar mensajes del SW
@@ -1689,7 +1710,7 @@ export default function DriverApp() {
 
     const offered = isLocallyBusy ? null : safeOrds.find(o => (o.driver_id === dId || o.reserved_driver_id === dId) && o.status === "ofrecido" && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId);
     const broadcast = (!isLocallyBusy && driver?.status === "disponible" && driver?.current_base && !offered)
-      ? safeOrds.find(o => o.status === "pendiente" && !o.driver_id && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId && (!dismissed || !dismissed.includes(o.id)))
+      ? safeOrds.find(o => o.status === "pendiente" && !o.driver_id && o.notes?.includes("[BROADCAST]") && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId && (!dismissed || !dismissed.includes(o.id)))
       : null;
 
     offeredOrderRef.current = offered || null;

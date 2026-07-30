@@ -6,6 +6,7 @@ import Sidebar from "./Sidebar";
 import BottomTabBar from "./BottomTabBar";
 import AgendaAlert from "@/components/agenda/AgendaAlert";
 import CancellationAlert from "@/components/alerts/CancellationAlert";
+import DriverRejectionAlert from "@/hooks/useRejectionAlert.jsx";
 import DriverMessageAlert from "@/components/alerts/DriverMessageAlert";
 import ClientMessageAlert from "@/components/alerts/ClientMessageAlert";
 import PanicAlertBanner from "@/components/alerts/PanicAlertBanner";
@@ -99,6 +100,7 @@ export default function AppLayout() {
       <div className="fixed top-4 right-4 left-4 md:left-auto z-[9999] flex flex-col gap-3 pointer-events-none md:w-[380px] items-end" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <PanicAlertBanner />
         <CancellationAlert />
+        <DriverRejectionAlert />
         <AgendaAlert />
         <DriverMessageAlert />
         <ClientMessageAlert />

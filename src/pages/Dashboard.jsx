@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 // base44 y useQuery se usan solo para bases (dato estático, no necesita tiempo real)
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
-import { useRejectionAlert } from "@/hooks/useRejectionAlert";
+import useRejectionAlert from "@/hooks/useRejectionAlert.jsx";
+
 import { Car, Clock, CheckCircle2, Users, ArrowRight, Zap, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
