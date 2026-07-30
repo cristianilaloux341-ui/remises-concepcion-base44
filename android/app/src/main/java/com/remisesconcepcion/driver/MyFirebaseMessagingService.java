@@ -22,29 +22,10 @@ public class MyFirebaseMessagingService extends MessagingService {
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         Log.e(TAG, "==== LLEGO EL PUSH A ANDROID NATIVO ====");
-        Log.e(TAG, "FCM_MESSAGE_RECEIVED");
-        Log.e(TAG, "Timestamp recepción local: " + System.currentTimeMillis());
-        Log.e(TAG, "Message ID: " + remoteMessage.getMessageId());
-        Log.e(TAG, "From: " + remoteMessage.getFrom());
-        Log.e(TAG, "Collapse Key: " + remoteMessage.getCollapseKey());
-        Log.e(TAG, "Priority: " + remoteMessage.getPriority());
-        Log.e(TAG, "Original Priority: " + remoteMessage.getOriginalPriority());
-        Log.e(TAG, "Sent Time: " + remoteMessage.getSentTime());
-        Log.e(TAG, "TTL: " + remoteMessage.getTtl());
-
-        if (remoteMessage.getNotification() != null) {
-            Log.e(TAG, "Notification Title: " + remoteMessage.getNotification().getTitle());
-            Log.e(TAG, "Notification Body: " + remoteMessage.getNotification().getBody());
-        } else {
-            Log.e(TAG, "Notification object is NULL (Data-only push)");
-        }
-
+        
         Map<String, String> data = remoteMessage.getData();
-        if (data.size() > 0) {
-            Log.e(TAG, "Data Completa:");
-            for (Map.Entry<String, String> entry : data.entrySet()) {
-                Log.e(TAG, "   " + entry.getKey() + " = " + entry.getValue());
-            }
+        if (!data.isEmpty()) {
+            Log.e(TAG, "Data Completa recibida");
         }
         
         String type = data.get("type");
