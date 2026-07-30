@@ -42,9 +42,12 @@ Deno.serve(async (req) => {
         const sameBaseQueue = available
           .filter(d => d.current_base === lastBase)
           .sort((a, b) => {
-            const tA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : 0;
-            const tB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : 0;
-            return tA - tB;
+            const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
+            const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : Infinity;
+            const tA = isNaN(timeA) ? Infinity : timeA;
+            const tB = isNaN(timeB) ? Infinity : timeB;
+            if (tA !== tB) return tA - tB;
+            return (a.id || "").localeCompare(b.id || "");
           });
         
         if (sameBaseQueue.length > 0) {
@@ -71,9 +74,12 @@ Deno.serve(async (req) => {
           }
           if (!nextDriver) {
             nextDriver = available.sort((a, b) => {
-              const tA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : 0;
-              const tB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : 0;
-              return tA - tB;
+              const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
+              const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : Infinity;
+              const tA = isNaN(timeA) ? Infinity : timeA;
+              const tB = isNaN(timeB) ? Infinity : timeB;
+              if (tA !== tB) return tA - tB;
+              return (a.id || "").localeCompare(b.id || "");
             })[0];
           }
         }
@@ -117,7 +123,8 @@ Deno.serve(async (req) => {
              status: 'disponible',
              dispatch_status: 'normal',
              reserved_order_id: null,
-             reservation_token: null
+             reservation_token: null,
+             queue_entered_at: new Date().toISOString()
            }); 
          } catch(e){}
       }

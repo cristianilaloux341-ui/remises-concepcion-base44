@@ -18,10 +18,10 @@ export function getDistance(lat1, lng1, lat2, lng2) {
 // Helper to safely and stably sort a queue
 export function sortQueue(driversArray) {
   return driversArray.sort((a, b) => {
-    const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : 0;
-    const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : 0;
-    const tA = isNaN(timeA) ? 0 : timeA;
-    const tB = isNaN(timeB) ? 0 : timeB;
+    const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
+    const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : Infinity;
+    const tA = isNaN(timeA) ? Infinity : timeA;
+    const tB = isNaN(timeB) ? Infinity : timeB;
     if (tA !== tB) return tA - tB;
     return (a.id || "").localeCompare(b.id || "");
   });

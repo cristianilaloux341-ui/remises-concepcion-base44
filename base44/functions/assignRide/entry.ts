@@ -53,8 +53,10 @@ Deno.serve(async (req) => {
     if (driverReq.current_base && driverReq.status === "disponible") {
       const allDrivers = await b44.entities.Driver.filter({ status: "disponible", current_base: driverReq.current_base });
       const queue = allDrivers.sort((a, b) => {
-        const tA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : 0;
-        const tB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : 0;
+        const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
+        const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : Infinity;
+        const tA = isNaN(timeA) ? Infinity : timeA;
+        const tB = isNaN(timeB) ? Infinity : timeB;
         if (tA !== tB) return tA - tB;
         return (a.id || "").localeCompare(b.id || "");
       });

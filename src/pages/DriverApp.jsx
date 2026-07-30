@@ -927,7 +927,14 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
   // Queue for current base
   const baseQueue = debugArray(drivers, 'drivers_in_IdleScreen')
     .filter(d => d.current_base === driver.current_base && d.status === "disponible")
-    .sort((a, b) => new Date(a.queue_entered_at) - new Date(b.queue_entered_at));
+    .sort((a, b) => {
+      const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
+      const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : Infinity;
+      const tA = isNaN(timeA) ? Infinity : timeA;
+      const tB = isNaN(timeB) ? Infinity : timeB;
+      if (tA !== tB) return tA - tB;
+      return (a.id || "").localeCompare(b.id || "");
+    });
   const myPosition = debugArray(baseQueue, 'baseQueue').findIndex(d => d.id === driver.id) + 1;
 
   if (changingBase) {
@@ -1225,7 +1232,7 @@ export default function DriverApp() {
       ignoredOrdersRef.current.add(autoRejectOrderId);
       if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
       setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
-      updateDriver.mutate({ id: myDriverId, data: { status: "disponible" } });
+      updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
       Promise.all([
         base44.entities.RideOrder.get(autoRejectOrderId),
         base44.entities.Driver.list()
@@ -1299,7 +1306,7 @@ export default function DriverApp() {
           if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
           notifySW({ type: "ACK_REJECT_ORDER", orderId }); // Send ACK
           setLocalOverride({ status: "disponible" });
-          updateDriver.mutate({ id: myDriverId, data: { status: "disponible" } });
+          updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
           Promise.all([
             base44.entities.RideOrder.get(orderId),
             base44.entities.Driver.list()
@@ -1844,7 +1851,7 @@ export default function DriverApp() {
     
     // Regresamos al chofer a "disponible" ya que rechazó el viaje
     setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
-    updateDriver.mutate({ id: myDriverId, data: { status: "disponible" } });
+    updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
 
     // Apagar sonido nativo en Android
     base44.functions.invoke("sendPushNotification", {
