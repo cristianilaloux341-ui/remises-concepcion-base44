@@ -9,26 +9,34 @@ export function cn(...inputs) {
 export const isIframe = window.self !== window.top;
 
 export function getDriverDisplay(numeroMovil, nombre) {
-  let cleanName = nombre || "Chofer";
-  cleanName = cleanName.split('_att_')[0];
+  let num = "";
   
-  if (cleanName.toLowerCase().startsWith("móvil") || cleanName.toLowerCase().startsWith("movil")) {
-    cleanName = cleanName;
-  } else {
-    cleanName = cleanName.split(' ')[0];
-  }
-
-  let numDisplay = "";
+  // 1. Extraer solo los números (para el N° de Móvil)
   if (numeroMovil) {
-    const matched = String(numeroMovil).match(/\d+/);
-    if (matched) {
-      numDisplay = matched[0];
-    }
+    const match = String(numeroMovil).match(/\d+/);
+    if (match) num = match[0];
   }
 
-  if (numDisplay && cleanName.includes(numDisplay)) {
-    return cleanName;
+  let cleanName = nombre ? String(nombre).split('_')[0].trim() : "";
+
+  // 2. Si no encontró número en numeroMovil, intentar sacarlo del nombre (ej: "Móvil 14")
+  if (!num && cleanName) {
+    const match = cleanName.match(/\d+/);
+    if (match) num = match[0];
   }
 
-  return numDisplay ? `${numDisplay} - ${cleanName}` : cleanName;
+  // 3. Limpiar el nombre para dejar SOLO LETRAS (borra códigos, guiones, patentes, etc)
+  cleanName = cleanName.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '').trim().split(' ')[0];
+
+  // Si el nombre quedó vacío o dice "Movil", lo omitimos para no redundar
+  if (!cleanName || cleanName.toLowerCase() === "mvil" || cleanName.toLowerCase() === "movil" || cleanName.toLowerCase() === "móvil") {
+    cleanName = "";
+  }
+
+  // 4. Retornar el formato ultra limpio
+  if (num && cleanName) return `${num} - ${cleanName}`;
+  if (num) return `${num}`;
+  if (cleanName) return cleanName;
+  
+  return "Chofer";
 }
