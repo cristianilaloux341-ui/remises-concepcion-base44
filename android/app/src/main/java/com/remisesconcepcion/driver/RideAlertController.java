@@ -170,34 +170,44 @@ public class RideAlertController {
                 }
             }
 
-            mediaPlayer = new MediaPlayer();
-            mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build());
-            mediaPlayer.setDataSource(context, soundUri);
-            mediaPlayer.setLooping(true);
-            mediaPlayer.setVolume(1.0f, 1.0f); // Volumen al máximo en el reproductor
-            
-            mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-                @Override
-                public void onPrepared(MediaPlayer mp) {
-                    mp.start();
-                    logDebug("startAlert: MediaPlayer iniciado con AudioFocus");
+            try {
+                mediaPlayer = new MediaPlayer();
+                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build());
+                mediaPlayer.setDataSource(context, soundUri);
+                mediaPlayer.setLooping(true);
+                mediaPlayer.setVolume(1.0f, 1.0f);
+                
+                mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+                    @Override
+                    public void onPrepared(MediaPlayer mp) {
+                        mp.start();
+                        logDebug("startAlert: MediaPlayer iniciado");
+                    }
+                });
+                mediaPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+                    @Override
+                    public boolean onError(MediaPlayer mp, int what, int extra) {
+                        Log.e(TAG, "MediaPlayer error: " + what + " extra: " + extra);
+                        try {
+                            android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
+                            if (r != null) r.play();
+                        } catch(Exception e2) {}
+                        return true;
+                    }
+                });
+                mediaPlayer.prepareAsync();
+            } catch (Exception ex) {
+                Log.e(TAG, "Excepcion critica en MediaPlayer, usando Ringtone fallback", ex);
+                try {
+                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
+                    if (r != null) r.play();
+                } catch(Exception e3) {
+                    Log.e(TAG, "Fallback Ringtone tambien fallo", e3);
                 }
-            });
-            mediaPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
-                @Override
-                public boolean onError(MediaPlayer mp, int what, int extra) {
-                    Log.e(TAG, "MediaPlayer error: " + what + ", " + extra);
-                    try {
-                        android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                        if (r != null) r.play();
-                    } catch(Exception e2) {}
-                    return true;
-                }
-            });
-            mediaPlayer.prepareAsync(); // Asíncrono para no bloquear el hilo
+            }
             
             vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
             if (vibrator != null) {
