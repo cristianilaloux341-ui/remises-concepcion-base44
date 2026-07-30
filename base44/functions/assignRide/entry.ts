@@ -112,9 +112,8 @@ Deno.serve(async (req) => {
       if (targetDriverStatus === "en_viaje") {
         await b44.entities.Driver.update(driverId, { status: "en_viaje" });
       }
-      if (targetOrderStatus !== 'ofrecido') {
-        await b44.entities.RideOrder.update(orderId, { status: targetOrderStatus });
-      }
+      // Siempre forzamos el estado visual de la orden para que el operador lo vea correcto en la plantilla
+      await b44.entities.RideOrder.update(orderId, { status: targetOrderStatus, reserved_driver_id: driverId });
 
       // 5. Trigger Reassignment if needed
       if (targetOrderStatus === "ofrecido" && autoReassignActive) {

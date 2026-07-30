@@ -1207,13 +1207,14 @@ export default function DriverApp() {
     // Si la app fue abierta desde un tap de "Aceptar" en pantalla bloqueada
     const urlParams = new URLSearchParams(window.location.search);
     const autoAcceptOrderId = getRealOrderId(urlParams.get("accept"));
+    const autoAcceptAttempt = parseInt(urlParams.get("attempt") || "1", 10);
     if (autoAcceptOrderId && myDriverId) {
       stopAlert();
       if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
       base44.functions.invoke("acceptRide", {
         orderId: autoAcceptOrderId,
         driverId: myDriverId,
-        assignmentAttempt: 1,
+        assignmentAttempt: autoAcceptAttempt,
         sessionToken: getSessionToken()
       }).then(res => {
         if (res.data?.accepted) {
@@ -1641,10 +1642,11 @@ export default function DriverApp() {
       // Escuchar taps en notificaciones nativas
       LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
         const orderId = getRealOrderId(notificationAction.notification.extra?.orderId);
+        const attempt = notificationAction.notification.extra?.assignmentAttempt || 1;
         const actionId = notificationAction.actionId;
         if (orderId) {
           if (actionId === 'accept') {
-            window.location.href = `/driver-app?accept=${orderId}`;
+            window.location.href = `/driver-app?accept=${orderId}&attempt=${attempt}`;
           } else if (actionId === 'reject') {
             window.location.href = `/driver-app?reject=${orderId}`;
           } else {
@@ -1734,7 +1736,7 @@ export default function DriverApp() {
                 body: `${offered.pickup_address}${offered.dropoff_address ? ' → ' + offered.dropoff_address : ''}`,
                 channelId: 'ride-alerts-urgent',
                 actionTypeId: 'RIDE_OFFER_ACTIONS',
-                extra: { orderId: offered.id }
+                extra: { orderId: offered.id, assignmentAttempt: offered.assignment_attempt || 1 }
               }]
             });
           } catch(e) {}
@@ -1791,7 +1793,7 @@ export default function DriverApp() {
                 body: `${broadcast.pickup_address}${broadcast.dropoff_address ? ' → ' + broadcast.dropoff_address : ''}`,
                 channelId: 'ride-alerts-urgent',
                 actionTypeId: 'RIDE_OFFER_ACTIONS',
-                extra: { orderId: broadcast.id }
+                extra: { orderId: broadcast.id, assignmentAttempt: broadcast.assignment_attempt || 1 }
               }]
             });
           } catch(e) {}

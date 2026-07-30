@@ -390,7 +390,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   const commitFilter = { 
       id: rideOrderId, 
       status: isNowBroadcast ? "pendiente" : "ofrecido", 
-      driver_id: isNowBroadcast ? null : driverId, 
+      reserved_driver_id: isNowBroadcast ? null : driverId, 
       assignment_attempt: isNowBroadcast ? order.assignment_attempt : assignmentAttempt, 
       processingOwnerId: ownerId, 
       processingPhase: "DRIVER_RESERVED", 
