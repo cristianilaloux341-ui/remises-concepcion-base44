@@ -3,6 +3,10 @@ package com.remisesconcepcion.driver;
 import android.content.Intent;
 import android.os.Build;
 import android.util.Log;
+import android.net.Uri;
+import android.provider.Settings;
+import android.os.PowerManager;
+import android.content.Context;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -65,6 +69,42 @@ public class ForegroundServicePlugin extends Plugin {
             Log.e("PushDiagnostic", "ForegroundServicePlugin: ERROR al iniciar servicio - " + e.getMessage());
             call.reject("Error starting service", e);
         }
+    }
+
+    @PluginMethod
+    public void requestBatteryExemption(PluginCall call) {
+        Context context = getContext();
+        PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!pm.isIgnoringBatteryOptimizations(context.getPackageName())) {
+                try {
+                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(Uri.parse("package:" + context.getPackageName()));
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    context.startActivity(intent);
+                } catch (Exception e) {
+                    Log.e("PushDiagnostic", "Error solicitando exención de batería", e);
+                }
+            }
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void requestOverlayPermission(PluginCall call) {
+        Context context = getContext();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(context)) {
+                try {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + context.getPackageName()));
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    context.startActivity(intent);
+                } catch (Exception e) {
+                    Log.e("PushDiagnostic", "Error solicitando superposición", e);
+                }
+            }
+        }
+        call.resolve();
     }
 
     @PluginMethod

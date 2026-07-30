@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { Battery, BatteryFull, X, ChevronRight, CheckCircle2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Capacitor } from '@capacitor/core';
 
 // Detectar fabricante a partir del User-Agent para dar instrucciones específicas
 function detectBrand() {
@@ -142,40 +143,43 @@ export default function BatteryOptimizationGuide({ onClose, onDone }) {
         </div>
 
         {/* Actions */}
-        <div className="px-5 pb-6 flex gap-3">
-          {currentStep < steps.length - 1 ? (
-            <>
+        <div className="px-5 pb-6 flex flex-col gap-3">
+          {Capacitor.isNativePlatform() && (
+            <div className="flex gap-2">
               <Button
-                variant="outline"
-                className="flex-1 rounded-2xl h-12"
-                onClick={onClose}
+                className="flex-1 rounded-2xl h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                onClick={async () => {
+                  try {
+                    await Capacitor.Plugins.ForegroundService?.requestBatteryExemption();
+                    await Capacitor.Plugins.ForegroundService?.requestOverlayPermission();
+                  } catch(e) {}
+                }}
               >
-                Después
+                Quitar restricción automático
               </Button>
-              <Button
-                className="flex-1 rounded-2xl h-12 bg-amber-500 hover:bg-amber-600 gap-2"
-                onClick={() => setCurrentStep(s => s + 1)}
-              >
-                Entendido <ChevronRight className="w-4 h-4" />
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                className="flex-1 rounded-2xl h-12"
-                onClick={onClose}
-              >
-                Saltear
-              </Button>
-              <Button
-                className="flex-1 rounded-2xl h-12 bg-green-500 hover:bg-green-600 gap-2"
-                onClick={handleDone}
-              >
-                <CheckCircle2 className="w-4 h-4" /> ¡Listo!
-              </Button>
-            </>
+            </div>
           )}
+          <div className="flex gap-3">
+            {currentStep < steps.length - 1 ? (
+              <>
+                <Button variant="outline" className="flex-1 rounded-2xl h-12" onClick={onClose}>
+                  Después
+                </Button>
+                <Button className="flex-1 rounded-2xl h-12 bg-amber-500 hover:bg-amber-600 gap-2" onClick={() => setCurrentStep(s => s + 1)}>
+                  Entendido <ChevronRight className="w-4 h-4" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" className="flex-1 rounded-2xl h-12" onClick={onClose}>
+                  Saltear
+                </Button>
+                <Button className="flex-1 rounded-2xl h-12 bg-green-500 hover:bg-green-600 gap-2" onClick={handleDone}>
+                  <CheckCircle2 className="w-4 h-4" /> ¡Listo!
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
