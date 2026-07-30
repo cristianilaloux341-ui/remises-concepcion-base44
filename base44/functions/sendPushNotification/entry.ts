@@ -471,9 +471,9 @@ Deno.serve(async (req) => {
       // Intentar enviar por FCM nativo si el chofer tiene el token (Prioridad)
       if (driver.fcm_token) {
          try {
-           // Usamos estrictamente el origen real de la petición para evitar inyecciones de Host Header
-           const apiHost = new URL(req.url).origin;
-           const apiUrl = apiHost + '/api/functions/invoke/handleNativePushAction';
+           // Generar URL pública asegurada para que el teléfono pueda hacer el POST de respuesta
+           const appId = "6a2195daf5c708d8398b3ca1"; // ID de la app
+           const apiUrl = `https://base44.app/api/apps/${appId}/functions/invoke/handleNativePushAction`;
            const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
            if (saStr) {
              const sa = JSON.parse(saStr);
@@ -545,12 +545,13 @@ Deno.serve(async (req) => {
                if (!fcmRes.ok) {
                  const errText = await fcmRes.text();
                  console.error("FCM Send Error HTTP " + fcmRes.status + ":", errText);
-                 return Response.json({ ok: false, reason: "fcm_error", details: errText });
+                 // No retornamos error aquí, permitimos que intente el fallback de WebPush
+                 fcmSuccess = false;
                } else {
                  const successBody = await fcmRes.text();
                  console.log("FCM Send Success:", successBody);
+                 fcmSuccess = true;
                }
-               fcmSuccess = true;
              } else {
                console.error("FCM Send Error: No se pudo obtener cachedAccessToken");
              }
@@ -561,8 +562,8 @@ Deno.serve(async (req) => {
            console.error("Excepción en FCM Nativo:", e);
          }
       } 
-      // Fallback a Web Push si no tiene FCM
-      else if (driver?.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+      // Fallback a Web Push si no tiene FCM o si falló el envío por FCM
+      if (!fcmSuccess && driver?.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
         try {
           let sub = JSON.parse(driver.push_subscription);
           const payload = JSON.stringify({

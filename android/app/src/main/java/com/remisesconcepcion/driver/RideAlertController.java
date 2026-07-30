@@ -65,14 +65,22 @@ public class RideAlertController {
                         NotificationManager.IMPORTANCE_HIGH
                 );
                 int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
+                Uri channelSoundUri;
                 if (soundResId != 0) {
-                    Uri soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
+                    channelSoundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
+                } else {
+                    channelSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+                    if (channelSoundUri == null) channelSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                }
+                
+                if (channelSoundUri != null) {
                     AudioAttributes audioAttributes = new AudioAttributes.Builder()
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .setUsage(AudioAttributes.USAGE_ALARM)
                             .build();
-                    channel.setSound(soundUri, audioAttributes);
+                    channel.setSound(channelSoundUri, audioAttributes);
                 }
+                
                 channel.enableVibration(true); 
                 channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
                 notificationManager.createNotificationChannel(channel);

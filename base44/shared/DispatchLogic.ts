@@ -140,12 +140,13 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
   } catch (e) {
     if (e.message.includes('INJECTED_FAILURE_AT_AFTER_AUTO_DRIVER_RESERVE')) {
       await b44.entities.Driver.updateMany({ id: driver.id, reservation_token: token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } });
-    } else if (e.message.includes('INJECTED_FAILURE_AT_AFTER_RIDE_OFFER') || e.message.includes('INJECTED_FAILURE_AT_BEFORE_PUSH')) {
-      // Revert ride back to procesando_despacho and release driver
+    } else {
+      // Revert ride back to procesando_despacho and release driver (for any other error to prevent stuck state)
       await b44.entities.RideOrder.updateMany({ id: order.id, status: 'ofrecido', reservation_token: token }, { $set: { status: 'procesando_despacho', reserved_driver_id: null } });
       await b44.entities.Driver.updateMany({ id: driver.id, reservation_token: token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } });
-      // Si fue BEFORE_PUSH lo marcamos como DELIVERY_ERROR de forma lógica
-      await safeAuditLog(b44, { action: 'DELIVERY_ERROR', user_type: 'sistema', user_name: 'System', details: e.message }, failureInjector);
+      if (e.message.includes('INJECTED_FAILURE_AT_BEFORE_PUSH')) {
+        await safeAuditLog(b44, { action: 'DELIVERY_ERROR', user_type: 'sistema', user_name: 'System', details: e.message }, failureInjector);
+      }
     }
     throw e;
   }
