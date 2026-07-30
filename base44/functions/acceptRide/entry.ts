@@ -179,7 +179,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   
   // Idempotency check: if already accepted by this driver, just return success
   if (order.status === "aceptado" && order.driver_id === driverId) {
-     return Response.json({ accepted: true, idempotent: true });
+     return { status: "SUCCESS_ALREADY_PROCESSED", correlationId };
   }
 
   if (order.status === "cancelado") preValStatus = "ORDER_CANCELLED";
