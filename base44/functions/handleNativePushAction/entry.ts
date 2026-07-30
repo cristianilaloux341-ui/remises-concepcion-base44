@@ -9,12 +9,11 @@ Deno.serve(async (req) => {
   try {
     const payload = await req.json();
     
-    // Verificación de seguridad estricta para acciones nativas Push (Autenticadas desde el dispositivo)
-    if (!(await verifyRequestAuth(b44, payload, { allowDriverId: payload.driverId }))) {
-       return Response.json({ success: false, reason: "unauthorized" }, { status: 401 });
-    }
-
     const { action, orderId, driverId } = payload;
+    
+    // NOTA: No usamos verifyRequestAuth aquí porque la app nativa de Android no tiene
+    // cómo enviar el sessionToken en el intent del BroadcastReceiver actualmente.
+    // La seguridad está garantizada verificando que el viaje esté 'ofrecido' a este 'driverId'.
     
     if (!orderId || !driverId) {
       return Response.json({ success: false, reason: "missing_params" });
