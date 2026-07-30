@@ -144,33 +144,49 @@ public class RideAlertController {
 
         // Sonido y Vibración
         try {
-            // Intentar primero con el sonido personalizado horn, si no existe usar el tono de llamada (ringtone)
             int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
             Uri soundUri;
             if (soundResId != 0) {
                 soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
             } else {
-                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-                if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
                 if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
             }
             
+            android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                // Forzar volumen de alarma si está en silencio
+                int currentVol = audioManager.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
+                if (currentVol <= 1) {
+                    int maxVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
+                    audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxVol / 2, 0);
+                }
+                audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
+            }
+
             mediaPlayer = new MediaPlayer();
-            mediaPlayer.setDataSource(context, soundUri);
             mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build());
+            mediaPlayer.setDataSource(context, soundUri);
             mediaPlayer.setLooping(true);
-            mediaPlayer.prepare();
-
-            android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            if (audioManager != null) {
-                audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
-            }
-
-            mediaPlayer.start();
-            logDebug("startAlert: MediaPlayer iniciado con AudioFocus");
+            mediaPlayer.setVolume(1.0f, 1.0f); // Volumen al máximo en el reproductor
+            
+            mediaPlayer.setOnPreparedListener(mp -> {
+                mp.start();
+                logDebug("startAlert: MediaPlayer iniciado con AudioFocus");
+            });
+            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                Log.e(TAG, "MediaPlayer error: " + what + ", " + extra);
+                try {
+                    android.media.Ringtone r = RingtoneManager.getRingtone(context, soundUri);
+                    if (r != null) r.play();
+                } catch(Exception e2) {}
+                return true;
+            });
+            mediaPlayer.prepareAsync(); // Asíncrono para no bloquear el hilo
             
             vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
             if (vibrator != null) {
@@ -258,18 +274,24 @@ public class RideAlertController {
             if ("viaje_iniciado".equals(type)) fileName = "trip_started";
             
             int soundResId = context.getResources().getIdentifier(fileName, "raw", context.getPackageName());
-            if (soundResId == 0) return;
+            Uri soundUri;
+            if (soundResId != 0) {
+                soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
+            } else {
+                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            }
+            if (soundUri == null) return;
             
-            Uri soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
             MediaPlayer mp = new MediaPlayer();
-            mp.setDataSource(context, soundUri);
             mp.setAudioAttributes(new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build());
+            mp.setDataSource(context, soundUri);
+            mp.setVolume(1.0f, 1.0f);
+            mp.setOnPreparedListener(MediaPlayer::start);
             mp.setOnCompletionListener(MediaPlayer::release);
-            mp.prepare();
-            mp.start();
+            mp.prepareAsync();
         } catch (Exception e) {
             Log.e(TAG, "Error reproduciendo sonido one-shot", e);
         }
