@@ -74,7 +74,8 @@ export async function assignDriverToOrder(order, driver) {
     const res = await base44.functions.invoke("assignRide", {
       orderId: order.id,
       driverId: driver.id,
-      sessionToken
+      sessionToken,
+      isOperatorManualAssignment: true
     });
     if (!res.data || !res.data.success) {
       console.error("AssignRide backend returned false:", res.data?.reason);

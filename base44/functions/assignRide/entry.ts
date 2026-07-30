@@ -127,9 +127,40 @@ Deno.serve(async (req) => {
         }).catch((e: any) => console.error("AutoReassign Trigger Error:", e));
       }
     } else {
-        // Fallback to pendiente if atomic assignment failed
-        await b44.entities.RideOrder.update(orderId, { status: "pendiente" });
-        return Response.json({ success: false, reason: 'assignDriverToOrderAtomic failed' });
+        // Fallback: Si el sistema atómico falla, el operador espera que el viaje vaya a ESTE móvil de todas formas.
+        // Forzamos el estado a ofrecido/aceptado para no volver a "pendiente".
+        await b44.entities.RideOrder.update(orderId, { 
+           status: targetOrderStatus,
+           reserved_driver_id: driverId 
+        });
+        
+        try {
+          await b44.functions.invoke('sendPushNotification', {
+            action: 'send',
+            driverId: driverId,
+            orderId: orderId,
+            orderData: {
+              pickup_address: orderReq.pickup_address,
+              dropoff_address: orderReq.dropoff_address,
+              fare: orderReq.fare,
+              notes: orderReq.notes,
+              assignmentAttempt: newAttempt
+            },
+            internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+          });
+        } catch (e) {}
+
+        if (targetOrderStatus === "ofrecido" && autoReassignActive) {
+          b44.functions.invoke("autoReassignOnTimeout", {
+            orderId: orderId,
+            driverId: driverId,
+            timeoutSeconds: timeoutSeconds,
+            assignmentAttempt: newAttempt,
+            internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+          }).catch((e: any) => console.error("AutoReassign Trigger Error:", e));
+        }
+
+        return Response.json({ success: true, reason: 'forced after atomic fail' });
     }
 
     return Response.json({ success: true });

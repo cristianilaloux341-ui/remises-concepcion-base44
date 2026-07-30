@@ -17,19 +17,18 @@ export default function NewOrder() {
       const manualDriverName = data.driver_name;
       const manualStatus = data.status;
 
+      // Si es manual, lo creamos YA con el driver asignado y estado ofrecido/aceptado
+      // para que en la interfaz aparezca instantáneamente asignado sin parpadear en "pendiente"
       if (manualDriverId) {
-        data.driver_id = null;
-        data.driver_name = null;
+        data.status = manualStatus === "aceptado" ? "aceptado" : "ofrecido";
+      } else {
+        data.status = "procesando_despacho";
       }
-      // NUNCA lo creamos como "pendiente" para evitar que el dispatch automático (broadcast) 
-      // intercepte el viaje antes de que el servidor lo asigne de forma síncrona.
-      data.status = "procesando_despacho";
 
       // 1. Crear la orden
       const newOrder = await base44.entities.RideOrder.create(data);
 
       // Lanzamos la lógica de asignación en segundo plano (fire-and-forget)
-      // para que no bloquee la interfaz y la creación/redirección sea instantánea.
       (async () => {
         try {
           const [drivers, bases] = await Promise.all([
@@ -40,13 +39,9 @@ export default function NewOrder() {
           if (manualDriverId) {
             const driver = drivers.find(d => d.id === manualDriverId);
             if (driver) {
+              // Llamamos a assignDriverToOrder para que dispare la notificación al chofer y la reserva,
+              // pero la orden YA se creó visualmente asignada.
               await assignDriverToOrder(newOrder, driver);
-            } else {
-              await base44.entities.RideOrder.update(newOrder.id, {
-                driver_id: manualDriverId,
-                driver_name: manualDriverName,
-                status: manualStatus,
-              });
             }
             return;
           }
