@@ -1944,23 +1944,38 @@ export default function DriverApp() {
     updateDriver.mutate({ id: myDriverId, data: { status: "no_disponible", current_base: null } });
   };
 
-  // Anular viaje aceptado: vuelve al principio de la base asignada
+  // Anular viaje aceptado: vuelve al principio de la base asignada y el viaje pasa al siguiente
   const handleCancelRide = async () => {
     if (!activeOrder) return;
     const base = activeOrder.assigned_base || myDriver?.current_base || null;
-    await updateOrder.mutateAsync({ id: activeOrder.id, data: { status: "cancelado", driver_id: null, driver_name: null } });
+    
+    // Lo marcamos como pendiente y agregamos al chofer a los ofrecidos para que no se le asigne de nuevo
+    const updatedOfferedIds = [...(activeOrder.offered_driver_ids || []), myDriverId];
+    await updateOrder.mutateAsync({ 
+      id: activeOrder.id, 
+      data: { 
+        status: "pendiente", 
+        driver_id: null, 
+        driver_name: null,
+        offered_driver_ids: updatedOfferedIds
+      } 
+    });
     
     base44.entities.AuditLog.create({
       action: "cancelar_viaje",
       user_type: "chofer",
       user_name: myDriver?.name || "Chofer",
-      details: `Anuló el viaje de ${activeOrder.client_name}`
+      details: `Anuló el viaje de ${activeOrder.client_name} - Reasignando al siguiente`
     }).catch(() => {});
 
     const ts = new Date(0).toISOString(); // timestamp en el pasado → queda primero en la cola
     setLocalOverride({ status: "disponible", current_base: base, queue_entered_at: ts });
     updateDriver.mutate({ id: myDriverId, data: { status: "disponible", current_base: base, queue_entered_at: ts } });
     setLibreBlockedSegs(0); // al anular no aplica bloqueo
+
+    // Disparamos la reasignación automática para que no quede trabado
+    const currentOrder = { ...activeOrder, status: "pendiente", driver_id: null, offered_driver_ids: updatedOfferedIds };
+    await reassignAfterReject(currentOrder, drivers, []);
   };
 
   const handleGoOnService = () => {
