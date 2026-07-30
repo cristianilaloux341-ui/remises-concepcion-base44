@@ -109,12 +109,6 @@ function unlockAudio() {
 function playAlert() {
   try { navigator.vibrate?.([500, 200, 500, 200, 1000, 300, 500]); } catch (_) {}
   
-  // En Android nativo dejamos que ForegroundService y RideAlertController manejen
-  // la bocina para que no choquen los sonidos.
-  if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-    return;
-  }
-
   // Alarma HTML5 (suena más fuerte y sortea bloqueos de background mejor)
   try {
     if (alarmAudioElement) alarmAudioElement.play().catch(() => {});
@@ -1640,8 +1634,8 @@ export default function DriverApp() {
         const data = notification.data || notification.notification?.data || {};
         
         if (data.orderId) {
-            // En vez de disparar la alarma a ciegas, forzamos la sincronización.
-            // evaluateAlerts se encargará de sonar la alarma de manera segura respetando localOverride.
+            // Forzar disparo del sonido inmediatamente
+            playAlert();
             window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         } else {
             // Si es un mensaje de chat u otra cosa sin orderId, NO disparamos la alarma de viaje.
