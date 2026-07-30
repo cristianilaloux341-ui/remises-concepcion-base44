@@ -154,6 +154,7 @@ public class RideAlertController {
                 if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
             }
             
+            final Uri finalSoundUri = soundUri;
             android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
             if (audioManager != null) {
                 try {
@@ -185,7 +186,7 @@ public class RideAlertController {
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
                 Log.e(TAG, "MediaPlayer error: " + what + ", " + extra);
                 try {
-                    android.media.Ringtone r = RingtoneManager.getRingtone(context, soundUri);
+                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
                     if (r != null) r.play();
                 } catch(Exception e2) {}
                 return true;
