@@ -19,7 +19,6 @@ import android.util.Log;
 import androidx.core.app.NotificationCompat;
 
 public class RideAlertController {
-    public static final boolean DEBUG = BuildConfig.DEBUG;
     private static final String TAG = "RideAlertController";
     
     private static RideAlertController instance;
@@ -39,9 +38,7 @@ public class RideAlertController {
     }
 
     private void logDebug(String message) {
-        if (DEBUG) {
-            Log.d(TAG, message);
-        }
+        // Log.d(TAG, message);
     }
 
     public synchronized void startAlert(Context context, String orderId, String title, String body, Intent acceptIntent, Intent rejectIntent, Intent openAppIntent) {
