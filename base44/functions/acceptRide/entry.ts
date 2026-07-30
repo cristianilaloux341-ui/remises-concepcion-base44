@@ -243,7 +243,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   const validationNow = Date.now();
   
   const isNowBroadcast = order.status === "pendiente" && !order.driver_id;
-  const isNowDirectOffer = order.status === "ofrecido" && order.driver_id === driverId;
+  const isNowDirectOffer = order.status === "ofrecido" && (order.driver_id === driverId || order.reserved_driver_id === driverId);
 
   if (
     !order ||
@@ -265,7 +265,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     else if (order.status === "aceptado") status = "ALREADY_ACCEPTED_BY_OTHER_DRIVER";
     else if (order.offerExpiresAt != null && order.offerExpiresAt <= validationNow) status = "OFFER_EXPIRED";
     else if (!isNowBroadcast && order.assignment_attempt !== assignmentAttempt) status = "STALE_ASSIGNMENT_ATTEMPT";
-    else if (!isNowBroadcast && order.driver_id !== driverId) status = "INVALID_DRIVER";
+    else if (!isNowBroadcast && order.driver_id !== driverId && order.reserved_driver_id !== driverId) status = "INVALID_DRIVER";
     else if (order.processingOwnerId !== ownerId || order.processingLeaseVersion !== acquiredLeaseVersion || order.processingLeaseExpiresAt <= validationNow) status = "LEASE_LOST";
     else status = "INVALID_STATE";
     
@@ -465,7 +465,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     else if (check.status === "aceptado" && check.driver_id !== driverId) commercialStatus = "ALREADY_ACCEPTED_BY_OTHER_DRIVER";
     else if (check.status === "cancelado") commercialStatus = "ORDER_CANCELLED";
     else if (!isNowBroadcast && check.assignment_attempt !== assignmentAttempt) commercialStatus = "STALE_ASSIGNMENT_ATTEMPT";
-    else if (!isNowBroadcast && check.driver_id !== driverId) commercialStatus = "INVALID_DRIVER";
+    else if (!isNowBroadcast && check.driver_id !== driverId && check.reserved_driver_id !== driverId) commercialStatus = "INVALID_DRIVER";
     else if (check.processingOwnerId !== ownerId || check.processingLeaseVersion !== acquiredLeaseVersion || check.processingAction !== "ACCEPT" || check.processingOperationKey !== operationKey || check.processingLeaseExpiresAt <= commitNow) commercialStatus = "LEASE_LOST";
     else if (!isNowBroadcast && check.status !== "ofrecido") commercialStatus = "INVALID_STATE";
     else commercialStatus = "INTERNAL_INCONSISTENCY";

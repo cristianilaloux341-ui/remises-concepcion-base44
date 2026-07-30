@@ -109,7 +109,9 @@ Deno.serve(async (req) => {
 
     if (success) {
       // 4. Update statuses cleanly to mirror legacy UI behavior
-      await b44.entities.Driver.update(driverId, { status: targetDriverStatus });
+      if (targetDriverStatus === "en_viaje") {
+        await b44.entities.Driver.update(driverId, { status: "en_viaje" });
+      }
       if (targetOrderStatus !== 'ofrecido') {
         await b44.entities.RideOrder.update(orderId, { status: targetOrderStatus });
       }
