@@ -49,26 +49,7 @@ Deno.serve(async (req) => {
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
 
   try {
-    // 1. Penalize skipped drivers in queue
-    if (driverReq.current_base && driverReq.status === "disponible") {
-      const allDrivers = await b44.entities.Driver.filter({ status: "disponible", current_base: driverReq.current_base });
-      const queue = allDrivers.sort((a, b) => {
-        const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
-        const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : Infinity;
-        const tA = isNaN(timeA) ? Infinity : timeA;
-        const tB = isNaN(timeB) ? Infinity : timeB;
-        if (tA !== tB) return tA - tB;
-        return (a.id || "").localeCompare(b.id || "");
-      });
-      const driverIndex = queue.findIndex(d => d.id === driverId);
-      if (driverIndex > 0) {
-        const skippedDrivers = queue.slice(0, driverIndex);
-        const baseTime = new Date();
-        await Promise.all(skippedDrivers.map((d, i) =>
-          b44.entities.Driver.update(d.id, { queue_entered_at: new Date(baseTime.getTime() + (i * 1000)).toISOString() })
-        ));
-      }
-    }
+    // Nota: Lógica de penalización de cola removida por pedido del cliente (mantenía a todos saltando de lugar incorrectamente)
 
     // 2. Fetch config
     const tarifaConfigs = await b44.entities.TarifaConfig.list();

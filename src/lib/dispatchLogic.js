@@ -147,9 +147,15 @@ export async function autoDispatch(order, drivers, bases) {
     return "assigned";
   }
 
-  // Fallback de emergencia
-  await broadcastOrder(order, drivers);
-  return "broadcast";
+  // Fallback: se deja pendiente (Broadcast fue deshabilitado por requerimiento del cliente)
+  await base44.functions.invoke("assignRide", {
+      orderId: order.id,
+      forceManual: true,
+      manualDriverName: null,
+      statusOverride: "pendiente",
+      sessionToken: (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) ? sessionStorage.getItem("local_operator_token") : "client_demo_token"
+  });
+  return "no_drivers";
 }
 
 // Reassign after rejection: next in same base queue (skipping already-offered),

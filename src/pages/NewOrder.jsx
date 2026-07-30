@@ -52,14 +52,14 @@ export default function NewOrder() {
               if (zoneDriver) {
                 await assignDriverToOrder(newOrder, zoneDriver);
               } else {
-                await broadcastOrder(newOrder, drivers);
+                await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
               }
             } else {
               const bestDriver = await findBestDriver(newOrder, drivers, bases);
               if (bestDriver) {
                 await assignDriverToOrder(newOrder, bestDriver);
               } else {
-                await broadcastOrder(newOrder, drivers);
+                await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
               }
             }
           }

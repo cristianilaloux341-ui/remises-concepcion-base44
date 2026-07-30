@@ -1587,16 +1587,8 @@ export default function DriverApp() {
     o.id !== ignoredOrderId
   );
   
-  // Broadcast: pedido pendiente (sin chofer asignado) que este chofer no rechazó — solo si está libre y en base
-  const broadcastOrder = (myDriver?.status === "disponible" && myDriver?.current_base && !activeOrder && !offeredOrder && !isLocallyBusy)
-    ? debugArray(safeOrders, 'safeOrders').find(o =>
-        o.status === "pendiente" &&
-        !o.driver_id &&
-        o.notes?.includes("[BROADCAST]") &&
-        o.id !== ignoredOrderId &&
-        (!Array.isArray(dismissedBroadcasts) ? false : !dismissedBroadcasts.includes(o.id))
-      )
-    : null;
+  // Broadcast desactivado
+  const broadcastOrder = null;
 
   // Inform SW which driver is active + mostrar notificación persistente "En Servicio"
   useEffect(() => {
@@ -1791,55 +1783,13 @@ export default function DriverApp() {
       }
     }
 
-    // 2. Evaluate Broadcast
-    if (broadcast && !offered) {
-      if (broadcast.id !== prevBroadcastId.current) {
-        console.log("[Alert-Background] Viaje broadcast detectado. Sonando inmediatamente.");
-        prevBroadcastId.current = broadcast.id;
-        
-        playAlert();
-        clearInterval(broadcastIntervalRef.current);
-        broadcastIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
-
-        if (Capacitor.isNativePlatform()) {
-          try {
-            LocalNotifications.schedule({
-              notifications: [{
-                id: 77777,
-                title: "📢 VIAJE A TODOS",
-                body: `${broadcast.pickup_address}${broadcast.dropoff_address ? ' → ' + broadcast.dropoff_address : ''}`,
-                channelId: 'ride-alerts-urgent',
-                actionTypeId: 'RIDE_OFFER_ACTIONS',
-                extra: { orderId: broadcast.id, assignmentAttempt: broadcast.assignment_attempt || 1 }
-              }]
-            });
-          } catch(e) {}
-        }
-
-        base44.entities.RideOrder.get(broadcast.id).then(fresh => {
-           if (prevBroadcastId.current !== broadcast.id) return;
-           if (fresh && fresh.status === 'pendiente' && !fresh.driver_id) {
-              if (!Capacitor.isNativePlatform()) {
-                sendSystemNotification(broadcast);
-              }
-           } else {
-              prevBroadcastId.current = null;
-              stopAlert();
-              clearInterval(broadcastIntervalRef.current);
-              window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
-           }
-        }).catch(() => {
-           console.log("[Alert-Background] Error de red broadcast, asumiendo real.");
-        });
-      }
-    } else {
-      if (prevBroadcastId.current) {
-        prevBroadcastId.current = null;
-        clearInterval(broadcastIntervalRef.current);
-        stopAlert();
-        if (Capacitor.isNativePlatform()) {
-          LocalNotifications.cancel({ notifications: [{ id: 77777 }] });
-        }
+    // 2. Evaluate Broadcast (Eliminado por requerimiento de cliente)
+    if (prevBroadcastId.current) {
+      prevBroadcastId.current = null;
+      clearInterval(broadcastIntervalRef.current);
+      stopAlert();
+      if (Capacitor.isNativePlatform()) {
+        LocalNotifications.cancel({ notifications: [{ id: 77777 }] }).catch(()=>{});
       }
     }
   }, []);
