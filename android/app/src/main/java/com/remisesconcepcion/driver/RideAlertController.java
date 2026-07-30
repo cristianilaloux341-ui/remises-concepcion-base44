@@ -41,7 +41,7 @@ public class RideAlertController {
         // Log.d(TAG, message);
     }
 
-    public synchronized void startAlert(Context context, String orderId, String title, String body, Intent acceptIntent, Intent rejectIntent, Intent openAppIntent) {
+    public synchronized void startAlert(final Context context, final String orderId, final String title, final String body, final Intent acceptIntent, final Intent rejectIntent, final Intent openAppIntent) {
         logDebug("startAlert: Intentando iniciar alerta para orderId=" + orderId);
         
         // Si ya hay algo sonando, detenerlo primero
