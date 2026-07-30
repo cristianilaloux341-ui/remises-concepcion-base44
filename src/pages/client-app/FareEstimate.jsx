@@ -96,15 +96,24 @@ export default function FareEstimate() {
                       Math.cos(finalPickupCoords.lat * Math.PI / 180) * Math.cos(finalDropoffCoords.lat * Math.PI / 180) *
                       Math.sin(dLon/2) * Math.sin(dLon/2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            dist = (R * c) * 1.65; // 65% extra por curvatura de cuadras
+            dist = (R * c) * 1.3; // 30% extra por curvatura de cuadras
           }
 
           if (dist) {
             setDistance(dist);
-            // Calculo aproximado: bajada de bandera + (metros * precio_por_metro) + un 25% extra por tiempo y semáforos
-            const calculated = (currentTarifa.bajada_bandera + (dist * currentTarifa.precio_por_metro)) * 1.25;
-            // Redondear a múltiplo de 100 por prolijidad
-            setEstimatedPrice(Math.ceil(calculated / 100) * 100);
+            const isNocturna = () => {
+              const hora = new Date().getHours();
+              const inicio = currentTarifa.nocturna_hora_inicio ?? 22;
+              const fin = currentTarifa.nocturna_hora_fin ?? 6;
+              return inicio > fin ? (hora >= inicio || hora < fin) : (hora >= inicio && hora < fin);
+            };
+            const nocturna = isNocturna();
+            const bajada = nocturna ? (currentTarifa.nocturna_bajada_bandera ?? 700) : (currentTarifa.bajada_bandera ?? 500);
+            const precioMetro = nocturna ? (currentTarifa.nocturna_precio_por_metro ?? 2.8) : (currentTarifa.precio_por_metro ?? 2);
+            
+            // Exact same calculation as Central
+            const calculated = bajada + (dist * precioMetro);
+            setEstimatedPrice(Math.round(calculated));
           }
         }
       } catch (e) {
@@ -159,7 +168,12 @@ export default function FareEstimate() {
         payment_method: paymentMethod.includes('Transferencia') ? 'Transferencia' : 'Efectivo',
         zone: orderZone,
         status: "procesando_despacho",
-        source: "cliente"
+        source: "cliente",
+        fare: estimatedPrice,
+        importe_estimado: estimatedPrice,
+        importe_real_actual: estimatedPrice,
+        distancia_teorica_metros: distance ? Math.round(distance) : 999999,
+        segundos_espera_acumulados: 0
       };
       
       // Llamada unificada al backend para crear y asignar instantáneamente

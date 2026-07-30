@@ -51,12 +51,29 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   useEffect(() => {
     base44.entities.TarifaConfig.list().then(configs => {
       if (configs[0]) {
-        tarifaRef.current = {
-          bajada_bandera: configs[0].bajada_bandera ?? 500,
-          precio_por_metro: configs[0].precio_por_metro ?? 2,
-          precio_por_minuto_espera: configs[0].precio_por_minuto_espera ?? 50,
-          tolerancia_espera_segundos: configs[0].tolerancia_espera_segundos ?? 120,
-        };
+        const raw = configs[0];
+        const hora = new Date().getHours();
+        const horaInicio = raw.nocturna_hora_inicio ?? 22;
+        const horaFin = raw.nocturna_hora_fin ?? 6;
+        const nocturna = horaInicio > horaFin
+          ? (hora >= horaInicio || hora < horaFin)
+          : (hora >= horaInicio && hora < horaFin);
+        
+        if (nocturna) {
+          tarifaRef.current = {
+            bajada_bandera: raw.nocturna_bajada_bandera ?? 700,
+            precio_por_metro: raw.nocturna_precio_por_metro ?? 2.8,
+            precio_por_minuto_espera: raw.nocturna_precio_por_minuto_espera ?? 70,
+            tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
+          };
+        } else {
+          tarifaRef.current = {
+            bajada_bandera: raw.bajada_bandera ?? 500,
+            precio_por_metro: raw.precio_por_metro ?? 2,
+            precio_por_minuto_espera: raw.precio_por_minuto_espera ?? 50,
+            tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
+          };
+        }
       }
     }).catch(() => {});
   }, []);

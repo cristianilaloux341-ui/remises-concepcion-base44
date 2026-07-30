@@ -86,16 +86,25 @@ export async function calcularDistanciaRuta(origen, destino, origenCoords = null
       destLng: destinoCoords.lng,
       sessionToken
     });
-    return res.data?.distance ?? null;
-  } catch (_) {
-    return null;
-  }
+    if (res.data?.distance) {
+      return res.data.distance;
+    }
+  } catch (_) {}
+  
+  // Fallback Haversine + 30% por calles urbanas (mismo que app cliente)
+  const distStraight = haversineMetros(origenCoords.lat, origenCoords.lng, destinoCoords.lat, destinoCoords.lng);
+  return distStraight * 1.3;
 }
 
 /**
- * Calcula importe estimado.
+ * Calcula importe estimado unificando costo por distancia y tiempo promedio.
  */
 export function calcularImporte(distanciaMetros, tarifa) {
   const precioPorMetro = tarifa.precio_por_metro ?? 2;
-  return Math.round(tarifa.bajada_bandera + distanciaMetros * precioPorMetro);
+  const precioPorMinuto = tarifa.precio_por_minuto_corrido ?? 30;
+  
+  // Tiempo promedio urbano: 25 km/h = ~7 m/s
+  const minutosEstimados = (distanciaMetros / 7) / 60;
+  
+  return Math.round(tarifa.bajada_bandera + (distanciaMetros * precioPorMetro) + (minutosEstimados * precioPorMinuto));
 }

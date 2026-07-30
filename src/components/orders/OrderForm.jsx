@@ -259,14 +259,27 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const data = { ...form };
-    if (distanciaCalculada) {
-      data.distancia_teorica_metros = distanciaCalculada;
-      data.importe_estimado = data.fare ? Number(data.fare) : undefined;
-      data.importe_real_actual = data.importe_estimado;
-      data.segundos_espera_acumulados = 0;
+    if (data.fare && String(data.fare).trim() !== "") {
+      data.fare = Number(data.fare);
+      data.importe_estimado = data.fare;
+      data.importe_real_actual = data.fare;
+    } else {
+      delete data.fare;
+      data.importe_estimado = undefined;
+      data.importe_real_actual = undefined;
     }
-    if (data.fare && String(data.fare).trim() !== "") data.fare = Number(data.fare);
-    else delete data.fare;
+    
+    if (distanciaCalculada && distanciaCalculada > 0) {
+      data.distancia_teorica_metros = distanciaCalculada;
+    } else if (data.dropoff_address && !data.distancia_teorica_metros && data.fare) {
+      // Si hay un destino y el operador puso un precio manual fijo, ponemos una distancia alta 
+      // para que el taxímetro no cobre doble (solo sumará espera).
+      data.distancia_teorica_metros = 999999; 
+    } else if (!data.distancia_teorica_metros) {
+      data.distancia_teorica_metros = 0; // Si no hay precio fijo ni distancia, que el taxímetro cuente desde cero.
+    }
+    
+    data.segundos_espera_acumulados = 0;
     if (!data.driver_id && manualDriverInput) {
       // Auto-create/force assign just like DispatchPanel
       const inputTrimmed = manualDriverInput.trim();
