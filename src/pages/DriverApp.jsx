@@ -1889,14 +1889,14 @@ export default function DriverApp() {
     // Optimistic UI - bloquear futuros updates via websocket
     ignoredOrdersRef.current.add(currentOrderId);
     
-    setReceiptOrder({ ...activeOrder, importe_final: finalFare || activeOrder.importe_real_actual || activeOrder.importe_estimado });
+    // Omitimos ReceiptScreen para volver directo al inicio (selección de base)
     lastRideBaseRef.current = activeOrder.assigned_base || myDriver?.current_base || null;
     
     const secs = (tarifaMinutosRef.current || 0) * 60;
     if (secs > 0) setLibreBlockedSegs(secs);
     
     setLocalOverride({ status: "disponible", current_base: null, _ignoredOrderId: currentOrderId });
-    updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
+    updateDriver.mutate({ id: myDriverId, data: { status: "disponible", current_base: null, queue_entered_at: null } });
     
     try {
       const res = await base44.functions.invoke("finishRide", {
