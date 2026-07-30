@@ -83,7 +83,11 @@ public class RideAlertController {
 
         int reqCode = orderId != null ? orderId.hashCode() : 0;
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        if (Build.VERSION.SDK_INT >= 31) { // Android 12 (S)
+            flags |= 33554432; // PendingIntent.FLAG_MUTABLE
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
 
         PendingIntent acceptPendingIntent = PendingIntent.getBroadcast(context, reqCode, acceptIntent, flags);
         PendingIntent rejectPendingIntent = PendingIntent.getBroadcast(context, reqCode + 1, rejectIntent, flags);
@@ -118,16 +122,8 @@ public class RideAlertController {
             }
         }
 
-        // Despertar la pantalla explícitamente
-        try {
-            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-            if (pm != null && !pm.isInteractive()) {
-                PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, TAG + ":WakeLock");
-                wl.acquire(5000);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error adquiriendo WakeLock", e);
-        }
+        // Se elimina el WakeLock manual porque Android 12+ lo bloquea y retrasa el hilo.
+        // Confiamos en el .setFullScreenIntent() de arriba que es la forma nativa correcta.
 
         notificationManager.notify(reqCode, builder.build());
         Log.e(TAG, "FCM_NOTIFICATION_CREATED - ID " + reqCode);

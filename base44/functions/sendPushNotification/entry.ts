@@ -160,7 +160,7 @@ async function sendWebPush(subscription, payload, vapidPublicKey, vapidPrivateKe
     'Encryption': `salt=${toBase64Url(salt)}`,
     'Crypto-Key': `dh=${toBase64Url(ephPubBuf)}`,
     'Content-Type': 'application/octet-stream',
-    'TTL': '300', // Aumentado a 5 minutos para celulares que entraron en Doze Mode
+    'TTL': '0', // Cambiado a 0 para forzar entrega inmediata y despertar el dispositivo
     'Urgency': 'high'
   };
 
@@ -527,7 +527,8 @@ Deno.serve(async (req) => {
                      orderNotes: String(orderData?.notes || "")
                    },
                    android: {
-                     priority: "HIGH"
+                     priority: "HIGH",
+                     ttl: "0s"
                    }
                  }
                };
