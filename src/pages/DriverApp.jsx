@@ -109,24 +109,28 @@ function unlockAudio() {
 function playAlert() {
   try { navigator.vibrate?.([500, 200, 500, 200, 1000, 300, 500]); } catch (_) {}
   
-  // Alarma HTML5 (suena más fuerte y sortea bloqueos de background mejor)
+  // Alarma HTML5 (crear si no existe)
   try {
-    if (alarmAudioElement) alarmAudioElement.play().catch(() => {});
+    if (!alarmAudioElement) {
+      alarmAudioElement = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+      alarmAudioElement.loop = true;
+    }
+    alarmAudioElement.play().catch(() => {});
   } catch (_) {}
 
-  // Alarma WebAudio (fallback)
+  // Alarma WebAudio (más fuerte y estridente)
   try {
     const ctx = getAudioCtx();
     const doPlay = () => {
-      [[0, 660], [350, 880], [700, 1100]].forEach(([delay, freq]) => {
+      [[0, 880], [350, 1100], [700, 1320], [1050, 880]].forEach(([delay, freq]) => {
         const o = ctx.createOscillator();
         const g = ctx.createGain();
         o.connect(g); g.connect(ctx.destination);
-        o.type = "triangle";
+        o.type = "square"; // onda más fuerte
         o.frequency.value = freq;
         const t = ctx.currentTime + delay / 1000;
         g.gain.setValueAtTime(0, t);
-        g.gain.linearRampToValueAtTime(0.6, t + 0.04);
+        g.gain.linearRampToValueAtTime(1, t + 0.05); // volumen máximo
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
         o.start(t);
         o.stop(t + 0.5);
@@ -1685,29 +1689,31 @@ export default function DriverApp() {
     // 1. Evaluate Offered
     if (offered) {
       if (offered.id !== prevOfferedId.current) {
-        console.log("[Alert-Background] Verificando si el viaje ofrecido es real...");
+        console.log("[Alert-Background] Viaje ofrecido detectado. Sonando inmediatamente.");
         prevOfferedId.current = offered.id;
+        
+        playAlert();
+        clearInterval(alertIntervalRef.current);
+        alertIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+
         base44.entities.RideOrder.get(offered.id).then(fresh => {
            if (prevOfferedId.current !== offered.id) return; // Prevent race conditions if state changed
            if (fresh && fresh.status === 'ofrecido') {
-              playAlert();
               if (Capacitor.isNativePlatform()) {
-                console.log("[Alert-Background] Viaje ofrecido real.");
+                console.log("[Alert-Background] Viaje ofrecido real verificado.");
               } else {
                 sendSystemNotification(offered);
                 notifySW({ type: "SHOW_NOTIFICATION", order: offered });
               }
-              clearInterval(alertIntervalRef.current);
-              alertIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
            } else {
+              console.log("[Alert-Background] Falsa alarma, deteniendo.");
               prevOfferedId.current = null;
+              stopAlert();
+              clearInterval(alertIntervalRef.current);
               window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
            }
         }).catch(() => {
-           if (prevOfferedId.current !== offered.id) return;
-           playAlert();
-           clearInterval(alertIntervalRef.current);
-           alertIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+           console.log("[Alert-Background] Error de red, asumiendo real.");
         });
       }
     } else {
@@ -1725,26 +1731,27 @@ export default function DriverApp() {
     // 2. Evaluate Broadcast
     if (broadcast && !offered) {
       if (broadcast.id !== prevBroadcastId.current) {
-        console.log("[Alert-Background] Verificando viaje broadcast...");
+        console.log("[Alert-Background] Viaje broadcast detectado. Sonando inmediatamente.");
         prevBroadcastId.current = broadcast.id;
+        
+        playAlert();
+        clearInterval(broadcastIntervalRef.current);
+        broadcastIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+
         base44.entities.RideOrder.get(broadcast.id).then(fresh => {
            if (prevBroadcastId.current !== broadcast.id) return;
            if (fresh && fresh.status === 'pendiente' && !fresh.driver_id) {
-              playAlert();
               if (!Capacitor.isNativePlatform()) {
                 sendSystemNotification(broadcast);
               }
-              clearInterval(broadcastIntervalRef.current);
-              broadcastIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
            } else {
               prevBroadcastId.current = null;
+              stopAlert();
+              clearInterval(broadcastIntervalRef.current);
               window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
            }
         }).catch(() => {
-           if (prevBroadcastId.current !== broadcast.id) return;
-           playAlert();
-           clearInterval(broadcastIntervalRef.current);
-           broadcastIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+           console.log("[Alert-Background] Error de red broadcast, asumiendo real.");
         });
       }
     } else {
