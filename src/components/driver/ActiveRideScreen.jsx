@@ -6,7 +6,7 @@ import { MapPin, Phone, Navigation, Car, CheckCircle2, XCircle, Timer, AlertCirc
 export const STATUS_CONFIG = {
   ofrecido:  { label: "Nuevo Viaje",    bg: "bg-amber-500"  },
   aceptado:  { label: "Aceptado",       bg: "bg-blue-500"   },
-  en_camino: { label: "En Camino",      bg: "bg-purple-500" },
+  en_camino: { label: "En Puerta",      bg: "bg-purple-500" },
   en_viaje:  { label: "En Viaje",       bg: "bg-cyan-500"   },
   completado:{ label: "Completado",     bg: "bg-green-500"  },
 };
@@ -172,21 +172,16 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     }
   };
 
-  const [bocinaEnviada, setBocinaEnviada] = useState(false);
-  const handleBocina = async () => {
-    if (!order.client_id) return;
-    setBocinaEnviada(true);
-    try {
-      await base44.functions.invoke("sendPushNotification", {
+  const handleLlegue = async () => {
+    if (order.client_id) {
+      base44.functions.invoke("sendPushNotification", {
         action: 'send_client_push',
         payloadType: 'bocina',
         userId: order.client_id,
         orderId: order.id
-      });
-      setTimeout(() => setBocinaEnviada(false), 5000);
-    } catch(e) {
-      setBocinaEnviada(false);
+      }).catch(() => {});
     }
+    onStatusChange("en_camino");
   };
 
   return (
@@ -287,8 +282,8 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
                 <Car className="w-5 h-5" /> Iniciar Viaje (Sin Destino)
               </button>
             ) : (
-              <button className="w-full h-14 rounded-2xl gap-2 bg-purple-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_camino")}>
-                <Navigation className="w-5 h-5" /> Saliendo a Buscar
+              <button className="w-full h-14 rounded-2xl gap-2 bg-amber-500 text-gray-900 text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={handleLlegue}>
+                <AlertCircle className="w-5 h-5" /> Llegué a la Puerta (Avisar)
               </button>
             )}
             <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all" onClick={onCancelRide}>
@@ -298,11 +293,11 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
         )}
         {order.status === "en_camino" && (
           <div className="space-y-2">
-            <button className="w-full h-14 rounded-2xl gap-2 bg-amber-500 text-gray-900 text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={handleBocina} disabled={bocinaEnviada || !order.client_id}>
-              <AlertCircle className="w-5 h-5" /> {bocinaEnviada ? "Avisado" : "Llegué / Tocar Bocina"}
-            </button>
             <button className="w-full h-14 rounded-2xl gap-2 bg-cyan-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_viaje")}>
               <Car className="w-5 h-5" /> Pasajero a Bordo
+            </button>
+            <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all" onClick={onCancelRide}>
+              <XCircle className="w-4 h-4" /> Anular — no salió / cancelar
             </button>
           </div>
         )}
