@@ -107,6 +107,7 @@ function unlockAudio() {
 }
 
 function playAlert() {
+  if (Date.now() < window._lastAlertStopTime + 1000) return;
   try { navigator.vibrate?.([500, 200, 500, 200, 1000, 300, 500]); } catch (_) {}
   
   // Alarma HTML5 (crear si no existe)
@@ -122,6 +123,7 @@ function playAlert() {
   try {
     const ctx = getAudioCtx();
     const doPlay = () => {
+      if (Date.now() < window._lastAlertStopTime + 1000) return;
       [[0, 880], [350, 1100], [700, 1320], [1050, 880]].forEach(([delay, freq]) => {
         const o = ctx.createOscillator();
         const g = ctx.createGain();
@@ -141,7 +143,9 @@ function playAlert() {
   } catch (_) {}
 }
 
+window._lastAlertStopTime = 0;
 function stopAlert() {
+  window._lastAlertStopTime = Date.now();
   try { if (alarmAudioElement) { alarmAudioElement.pause(); alarmAudioElement.currentTime = 0; } } catch (_) {}
 }
 
@@ -1203,6 +1207,7 @@ export default function DriverApp() {
     const urlParams = new URLSearchParams(window.location.search);
     const autoAcceptOrderId = getRealOrderId(urlParams.get("accept"));
     if (autoAcceptOrderId && myDriverId) {
+      stopAlert();
       if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
       base44.functions.invoke("acceptRide", {
         orderId: autoAcceptOrderId,
@@ -1227,6 +1232,7 @@ export default function DriverApp() {
     }
     const autoRejectOrderId = getRealOrderId(urlParams.get("reject"));
     if (autoRejectOrderId && myDriverId) {
+      stopAlert();
       ignoredOrdersRef.current.add(autoRejectOrderId);
       if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
       setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
@@ -1288,6 +1294,7 @@ export default function DriverApp() {
       if (msg.type === "SW_ACCEPT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "accept")) {
         const orderId = getRealOrderId(msg.orderId || msg.payload?.orderId);
         if (orderId && myDriverId) {
+          stopAlert();
           if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
           notifySW({ type: "ACK_ACCEPT_ORDER", orderId }); // Send ACK immediately so SW doesn't spawn a new tab
           setLocalOverride({ status: "en_viaje", optimisticOrderId: orderId });
@@ -1300,6 +1307,7 @@ export default function DriverApp() {
       if (msg.type === "SW_REJECT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "reject")) {
         const orderId = getRealOrderId(msg.orderId || msg.payload?.orderId);
         if (orderId && myDriverId) {
+          stopAlert();
           ignoredOrdersRef.current.add(orderId);
           if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
           notifySW({ type: "ACK_REJECT_ORDER", orderId }); // Send ACK
@@ -1859,14 +1867,20 @@ export default function DriverApp() {
           driverId: myDriverId
         }).catch(console.error);
       } else {
-        setLocalOverride({ status: "disponible" });
+        if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
+        setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
         alert("Este viaje ya fue tomado o reasignado.");
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       }
     } catch (error) {
-      alert("Error de red. Intente nuevamente.");
+      if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
+      setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
+      alert("Error de red. El viaje pudo haber sido tomado.");
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } finally {
       setIsAccepting(false);
+      stopAlert();
+      clearInterval(alertIntervalRef.current);
     }
   };
   const handleReject = async () => {
@@ -2057,14 +2071,20 @@ export default function DriverApp() {
           driverId: myDriverId
         }).catch(console.error);
       } else {
-        setLocalOverride({ status: "disponible" });
+        if (order?.id) ignoredOrdersRef.current.add(order.id);
+        setLocalOverride({ status: "disponible", _ignoredOrderId: order?.id });
         alert("Este viaje ya fue tomado o reasignado.");
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       }
     } catch (error) {
-      alert("Error de red. Intente nuevamente.");
+      if (order?.id) ignoredOrdersRef.current.add(order.id);
+      setLocalOverride({ status: "disponible", _ignoredOrderId: order?.id });
+      alert("Error de red. El viaje pudo haber sido tomado.");
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } finally {
       setIsAccepting(false);
+      stopAlert();
+      clearInterval(broadcastIntervalRef.current);
     }
   };
 
