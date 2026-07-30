@@ -1696,6 +1696,21 @@ export default function DriverApp() {
         clearInterval(alertIntervalRef.current);
         alertIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
 
+        if (Capacitor.isNativePlatform()) {
+          try {
+            LocalNotifications.schedule({
+              notifications: [{
+                id: 88888,
+                title: "🚖 ¡NUEVO VIAJE!",
+                body: `${offered.pickup_address}${offered.dropoff_address ? ' → ' + offered.dropoff_address : ''}`,
+                channelId: 'ride-alerts-urgent',
+                actionTypeId: 'RIDE_OFFER_ACTIONS',
+                extra: { orderId: offered.id }
+              }]
+            });
+          } catch(e) {}
+        }
+
         base44.entities.RideOrder.get(offered.id).then(fresh => {
            if (prevOfferedId.current !== offered.id) return; // Prevent race conditions if state changed
            if (fresh && fresh.status === 'ofrecido') {
@@ -1737,6 +1752,21 @@ export default function DriverApp() {
         playAlert();
         clearInterval(broadcastIntervalRef.current);
         broadcastIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
+
+        if (Capacitor.isNativePlatform()) {
+          try {
+            LocalNotifications.schedule({
+              notifications: [{
+                id: 77777,
+                title: "📢 VIAJE A TODOS",
+                body: `${broadcast.pickup_address}${broadcast.dropoff_address ? ' → ' + broadcast.dropoff_address : ''}`,
+                channelId: 'ride-alerts-urgent',
+                actionTypeId: 'RIDE_OFFER_ACTIONS',
+                extra: { orderId: broadcast.id }
+              }]
+            });
+          } catch(e) {}
+        }
 
         base44.entities.RideOrder.get(broadcast.id).then(fresh => {
            if (prevBroadcastId.current !== broadcast.id) return;
