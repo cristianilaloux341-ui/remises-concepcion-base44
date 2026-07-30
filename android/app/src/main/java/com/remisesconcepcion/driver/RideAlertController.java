@@ -122,8 +122,16 @@ public class RideAlertController {
             }
         }
 
-        // Se elimina el WakeLock manual porque Android 12+ lo bloquea y retrasa el hilo.
-        // Confiamos en el .setFullScreenIntent() de arriba que es la forma nativa correcta.
+        // Despertar la pantalla explícitamente
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (pm != null && !pm.isInteractive()) {
+                android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.FULL_WAKE_LOCK | android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP | android.os.PowerManager.ON_AFTER_RELEASE, TAG + ":WakeLock");
+                wl.acquire(5000);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error adquiriendo WakeLock", e);
+        }
 
         notificationManager.notify(reqCode, builder.build());
         Log.e(TAG, "FCM_NOTIFICATION_CREATED - ID " + reqCode);
