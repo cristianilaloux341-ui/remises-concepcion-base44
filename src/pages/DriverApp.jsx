@@ -700,6 +700,13 @@ function IncomingAlert({ order, onAccept, onReject, isAccepting }) {
             )}
           </div>
 
+          <div className="flex items-center justify-between px-2 bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl">
+            <span className="text-gray-600 dark:text-gray-300 font-bold text-base">Medio de pago</span>
+            <span className="text-lg font-black text-slate-700 dark:text-slate-200">
+              {order.payment_method === "Transferencia" ? "🏦 Transferencia" : "💵 Efectivo"}
+            </span>
+          </div>
+
           {order.fare && (
             <div className="flex items-center justify-between px-2 bg-green-50 dark:bg-green-900/20 p-4 rounded-2xl">
               <span className="text-gray-600 dark:text-gray-300 font-bold text-lg">Tarifa aprox.</span>
@@ -796,6 +803,13 @@ function BroadcastAlert({ order, onAccept, onReject, isAccepting }) {
               </>
             )}
           </div>
+          <div className="flex items-center justify-between px-2 bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl">
+            <span className="text-gray-600 dark:text-gray-300 font-bold text-base">Medio de pago</span>
+            <span className="text-lg font-black text-slate-700 dark:text-slate-200">
+              {order.payment_method === "Transferencia" ? "🏦 Transferencia" : "💵 Efectivo"}
+            </span>
+          </div>
+
           {order.fare && (
             <div className="flex items-center justify-between px-2 bg-green-50 dark:bg-green-900/20 p-4 rounded-2xl">
               <span className="text-gray-600 dark:text-gray-300 font-bold text-lg">Tarifa aprox.</span>
@@ -850,6 +864,14 @@ function AvailableOrders({ orders, onTake }) {
             <span className="text-sm text-gray-500 font-bold">{order.client_name}</span>
             {order.fare && <span className="font-black text-green-600 dark:text-green-400 text-2xl">${Number(order.fare).toLocaleString()}</span>}
           </div>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs text-gray-400 font-semibold">{order.payment_method === "Transferencia" ? "🏦 Transferencia" : "💵 Efectivo"}</span>
+          </div>
+          {order.notes && (
+            <p className="text-xs text-amber-600 dark:text-amber-500 italic truncate border-t border-gray-100 dark:border-slate-800 pt-1">
+              "{order.notes.replace(/^\[BROADCAST\]\s*/, "").trim()}"
+            </p>
+          )}
           <Button className="w-full rounded-2xl h-14 font-bold text-lg" onClick={() => onTake(order)}>
             Tomar este Viaje
           </Button>

@@ -130,7 +130,7 @@ export default function FareEstimate() {
       const clientName = localStorage.getItem('client_name') || "Cliente App";
       const clientPhone = localStorage.getItem('client_phone') || "";
 
-      let finalNotes = `Pasajeros: ${passengers} | Pago: ${paymentMethod}`;
+      let finalNotes = `Pasajeros: ${passengers}`;
       if (needsTrunk) finalNotes += ` | Con baúl`;
       if (needsHelp) finalNotes += ` | Ayuda para subir`;
       if (notes.trim()) finalNotes += ` | ${notes.trim()}`;
@@ -156,6 +156,7 @@ export default function FareEstimate() {
         dropoff_lat: resolvedDropoffCoords?.lat || null,
         dropoff_lng: resolvedDropoffCoords?.lng || null,
         notes: finalNotes,
+        payment_method: paymentMethod.includes('Transferencia') ? 'Transferencia' : 'Efectivo',
         zone: orderZone,
         status: "procesando_despacho",
         source: "cliente"
