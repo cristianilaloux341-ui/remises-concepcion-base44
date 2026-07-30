@@ -45,12 +45,9 @@ Deno.serve(async (req) => {
       assigned = true;
     }
 
-    // Como último recurso de emergencia, emitir broadcast si algo falló
+    // Si no hay móviles no hacemos broadcast, lo dejamos en pendiente para que el operador lo gestione
     if (!assigned) {
-      await b44.functions.invoke("broadcastRide", {
-         orderId: order.id, 
-         sessionToken: sessionToken || 'client_demo_token'
-      });
+       await b44.entities.RideOrder.update(order.id, { status: "pendiente" });
     }
     
     return Response.json({ success: true, orderId: order.id });

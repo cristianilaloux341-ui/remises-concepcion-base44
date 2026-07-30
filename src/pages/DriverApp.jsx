@@ -1547,6 +1547,7 @@ export default function DriverApp() {
     ? debugArray(safeOrders, 'safeOrders').find(o =>
         o.status === "pendiente" &&
         !o.driver_id &&
+        o.notes?.includes("[BROADCAST]") &&
         o.id !== ignoredOrderId &&
         (!Array.isArray(dismissedBroadcasts) ? false : !dismissedBroadcasts.includes(o.id))
       )

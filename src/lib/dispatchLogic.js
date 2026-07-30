@@ -152,7 +152,6 @@ export async function autoDispatch(order, drivers, bases) {
 }
 
 // Reassign after rejection: next in same base queue (skipping already-offered),
-// or broadcast to ALL available drivers if no one left in zone
 export async function reassignAfterReject(order, drivers, bases) {
   if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in reassignAfterReject!", drivers); return null; }
   if (!Array.isArray(bases)) { console.error("[CRITICAL ERROR] bases is not array in reassignAfterReject!", bases); bases = BASES; }
@@ -211,9 +210,18 @@ export async function reassignAfterReject(order, drivers, bases) {
     return "next_in_queue";
   }
 
-  // No one in same zone → broadcast a todos disponibles
-  await broadcastOrder(order, drivers);
-  return "broadcast";
+  // No one at all -> se pasa a pendiente
+  const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) 
+      ? sessionStorage.getItem("local_operator_token") 
+      : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
+  await base44.functions.invoke("assignRide", {
+      orderId: order.id,
+      forceManual: true,
+      manualDriverName: null,
+      statusOverride: "pendiente",
+      sessionToken
+  });
+  return "sin_moviles";
 }
 
 // ── Address Parsing ───────────────────────────────────────────────────────────
