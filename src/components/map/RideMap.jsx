@@ -140,10 +140,11 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
   const validDrivers = drivers.filter(d => {
     if (d.status === "no_disponible") return false;
     
-    // Filtrar "fantasmas": si no tuvo actualizaciones en las últimas 2 horas, ocultarlo
-    const lastUpdate = new Date(d.updated_date || d.created_date || Date.now());
-    const hoursSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60);
-    if (hoursSinceUpdate > 2) return false;
+    // Filtrar "fantasmas": si cerraron la app sin ponerse no_disponible, quedan colgados.
+    // Ocultamos a los que no reportaron actividad en los últimos 10 minutos.
+    const lastUpdate = new Date(d.last_active || d.updated_date || d.created_date || Date.now());
+    const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
+    if (minutesSinceUpdate > 10) return false;
 
     if (d.current_lat && d.current_lng) return isUrbano(d.current_lat, d.current_lng);
     return true; 
