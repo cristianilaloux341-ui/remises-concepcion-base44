@@ -125,15 +125,12 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
       });
 
       if (pushResult && pushResult.data && pushResult.data.ok === false) {
-         throw new Error("PUSH_FAILED: " + (pushResult.data.error || pushResult.data.reason));
+         console.warn("Push devolvió false, ignorando para evitar rollback prematuro:", pushResult.data.error || pushResult.data.reason);
       }
     } catch (pushErr) {
       console.error("Error trigger push en DispatchLogic:", pushErr);
-      // Failsafe: purga inmediata si falla la notificación para no dejar al chofer ni al viaje colgados
-      await b44.entities.RideOrder.updateMany({ id: order.id, status: 'ofrecido', reservation_token: token }, { $set: { status: 'procesando_despacho', reserved_driver_id: null, driver_name: null } });
-      await b44.entities.Driver.updateMany({ id: driver.id, reservation_token: token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } });
-      await safeAuditLog(b44, { action: 'DELIVERY_ERROR', user_type: 'sistema', user_name: 'System', details: 'Fallo push, reversión rápida: ' + pushErr.message }, failureInjector);
-      return false;
+      // Eliminado el Failsafe de purga inmediata. El temporizador de 60s se encargará si el chofer no responde.
+      await safeAuditLog(b44, { action: 'DELIVERY_WARNING', user_type: 'sistema', user_name: 'System', details: 'Fallo push, pero se mantiene asignación: ' + pushErr.message }, failureInjector);
     }
     
     return true;

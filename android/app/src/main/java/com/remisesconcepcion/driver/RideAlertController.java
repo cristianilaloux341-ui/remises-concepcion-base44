@@ -156,13 +156,17 @@ public class RideAlertController {
             
             android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
             if (audioManager != null) {
-                // Forzar volumen de alarma si está en silencio
-                int currentVol = audioManager.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
-                if (currentVol <= 1) {
-                    int maxVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
-                    audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxVol / 2, 0);
+                try {
+                    // Forzar volumen de alarma si está en silencio
+                    int currentVol = audioManager.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
+                    if (currentVol <= 1) {
+                        int maxVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
+                        audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxVol / 2, 0);
+                    }
+                    audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
+                } catch (Exception e) {
+                    Log.e(TAG, "No se pudo forzar volumen (posible Do Not Disturb)", e);
                 }
-                audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
             }
 
             mediaPlayer = new MediaPlayer();
