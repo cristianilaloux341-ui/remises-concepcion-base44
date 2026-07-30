@@ -116,8 +116,11 @@ public class MyFirebaseMessagingService extends MessagingService {
         Log.e(TAG, "Pasando mensaje al comportamiento original de Capacitor...");
         Log.e(TAG, "==========================================");
 
-        // Llamamos al super de Capacitor para no alterar la lógica en la UI de React
-        super.onMessageReceived(remoteMessage);
+        // Evitamos pasar el mensaje a Capacitor si es una oferta de viaje
+        // para evitar que la WebApp corte el sonido nativo en segundo plano
+        if (!isOfferPush) {
+            super.onMessageReceived(remoteMessage);
+        }
     }
 
     private void showInteractiveNotification(Map<String, String> data) {
