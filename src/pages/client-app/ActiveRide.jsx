@@ -22,6 +22,14 @@ export default function ActiveRide() {
     
     base44.entities.RideOrder.get(orderId).then(o => {
       setOrder(o);
+      if (o.status === 'completado') {
+        navigate('/app-cliente/rating', { state: { orderId }, replace: true });
+        return;
+      } else if (o.status === 'cancelado') {
+        toast.error('El viaje fue cancelado');
+        navigate('/app-cliente/home', { replace: true });
+        return;
+      }
       if (o.driver_id) {
         base44.entities.Driver.get(o.driver_id).then(setDriver).catch(console.error);
       }
@@ -55,6 +63,20 @@ export default function ActiveRide() {
       unsubMsgs();
     };
   }, [orderId, navigate]);
+
+  useEffect(() => {
+    if (order?.status === 'en_camino') {
+      try {
+        // Sonido de bocina corto para avisar que el auto está afuera
+        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+        audio.play().catch(() => {});
+        toast.success("¡Tu chofer ya está en la puerta!", {
+          duration: 5000,
+          position: 'top-center'
+        });
+      } catch(e) {}
+    }
+  }, [order?.status]);
 
   const handleShare = () => {
     const text = `Viajo en un remis. Chofer: ${driver?.name || order?.driver_name || 'No definido'}, Patente: ${driver?.vehicle_plate || ''}. Destino: ${order?.dropoff_address || 'No definido'} - Sigue mi viaje: ${window.location.href}`;
@@ -110,20 +132,22 @@ export default function ActiveRide() {
   return (
     <div className="h-[100dvh] flex flex-col relative bg-slate-100" style={{ paddingBottom: 'env(safe-area-bottom)' }}>
       <div className="absolute inset-0 z-0">
-        <RideMap className="border-none rounded-none w-full h-full" autoFit={false} zoom={16} />
+        <RideMap className="border-none rounded-none w-full h-full" autoFit={true} orders={order ? [order] : []} drivers={driver ? [driver] : []} zoom={16} />
       </div>
       
       {/* Etiqueta Superior */}
       <div className="absolute top-14 inset-x-0 flex justify-center z-10">
         <div className="bg-white px-6 py-4 rounded-3xl shadow-xl flex items-center gap-4">
           <div className="text-center">
-            <p className="text-3xl font-black text-slate-900">12<span className="text-lg">min</span></p>
-            <p className="text-slate-500 font-semibold text-xs">Llegada est. 14:30</p>
+            <p className="text-slate-500 font-semibold text-xs uppercase">Estado</p>
+            <p className="text-lg font-black text-blue-600">
+              {order?.status === 'en_camino' ? 'En la puerta' : 'En viaje'}
+            </p>
           </div>
           <div className="w-px h-10 bg-slate-200"></div>
           <div className="space-y-1">
             <p className="text-xs font-bold text-slate-400">DESTINO</p>
-            <p className="font-bold text-slate-800 text-sm w-40 truncate">Hospital Urquiza</p>
+            <p className="font-bold text-slate-800 text-sm w-40 truncate">{order?.dropoff_address || 'Sin destino'}</p>
           </div>
         </div>
       </div>
@@ -147,9 +171,11 @@ export default function ActiveRide() {
         
         <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
           <img src={driver?.photo_url || "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&h=100&q=80"} alt="Chofer" className="w-12 h-12 rounded-full object-cover shadow-sm" />
-          <div className="flex-1">
-            <p className="font-bold text-slate-900">Viajando con {order?.driver_name?.split(' ')[0] || 'tu chofer'}</p>
-            <p className="text-sm text-slate-500">{driver?.vehicle_model || 'Móvil'} · {driver?.vehicle_plate || ''}</p>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-slate-900 truncate">Chofer: {driver?.name || order?.driver_name || 'Asignado'}</p>
+            <p className="text-sm text-slate-500 truncate">
+              Móvil {driver?.vehicle_model || ''} · {driver?.vehicle_plate || ''} {driver?.vehicle_color ? `· ${driver?.vehicle_color}` : ''}
+            </p>
           </div>
         </div>
       </div>
