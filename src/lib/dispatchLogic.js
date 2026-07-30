@@ -106,7 +106,8 @@ export async function broadcastOrder(order, drivers = []) {
 // Auto-dispatch: intenta asignar por zona; si no hay nadie → asigna global
 // Retorna: "assigned" | "broadcast" | "no_drivers"
 export async function autoDispatch(order, drivers, bases) {
-  const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
+  const offeredIds = order.offered_driver_ids || [];
+  const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base && !offeredIds.includes(d.id));
 
   if (!availableDrivers.length) return "no_drivers";
 
@@ -119,7 +120,26 @@ export async function autoDispatch(order, drivers, bases) {
     }
   }
 
-  // 2) Si la zona está vacía o el pedido no tiene zona, asignamos al móvil libre de cualquier zona (el de mayor espera)
+  // 2) Si la zona está vacía o el pedido no tiene zona, asignamos al móvil más cercano
+  if (order.pickup_lat && order.pickup_lng) {
+    let closestDriver = null;
+    let minDistance = Infinity;
+    for (const d of availableDrivers) {
+      if (d.current_lat && d.current_lng) {
+        const dist = getDistance(order.pickup_lat, order.pickup_lng, d.current_lat, d.current_lng);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestDriver = d;
+        }
+      }
+    }
+    if (closestDriver) {
+      await assignDriverToOrder(order, closestDriver);
+      return "assigned";
+    }
+  }
+
+  // 3) Fallback al móvil libre de cualquier zona (el de mayor espera)
   const globalQueue = sortQueue(availableDrivers);
   if (globalQueue.length > 0) {
     await assignDriverToOrder(order, globalQueue[0]);
@@ -162,6 +182,32 @@ export async function reassignAfterReject(order, drivers, bases) {
 
   if (sameBaseQueue.length > 0) {
     await assignDriverToOrder(order, sameBaseQueue[0]);
+    return "next_in_queue";
+  }
+
+  // No one in same zone → closest driver!
+  if (order.pickup_lat && order.pickup_lng) {
+    let closestDriver = null;
+    let minDistance = Infinity;
+    for (const d of available) {
+      if (d.current_lat && d.current_lng) {
+        const dist = getDistance(order.pickup_lat, order.pickup_lng, d.current_lat, d.current_lng);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestDriver = d;
+        }
+      }
+    }
+    if (closestDriver) {
+      await assignDriverToOrder(order, closestDriver);
+      return "closest";
+    }
+  }
+
+  // Fallback global
+  const globalQueue = sortQueue(available);
+  if (globalQueue.length > 0) {
+    await assignDriverToOrder(order, globalQueue[0]);
     return "next_in_queue";
   }
 

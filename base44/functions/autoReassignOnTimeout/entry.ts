@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
 
       let nextDriver = null;
       if (available.length > 0) {
-        const lastBase = order.assigned_base;
+        const lastBase = order.assigned_base || order.zone;
         const sameBaseQueue = available
           .filter(d => d.current_base === lastBase)
           .sort((a, b) => {
@@ -46,7 +46,37 @@ Deno.serve(async (req) => {
             const tB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : 0;
             return tA - tB;
           });
-        nextDriver = sameBaseQueue.length > 0 ? sameBaseQueue[0] : available[0];
+        
+        if (sameBaseQueue.length > 0) {
+          nextDriver = sameBaseQueue[0];
+        } else {
+          // Haversine distance calc for closest fallback
+          const getDistance = (lat1, lng1, lat2, lng2) => {
+            const R = 6371; const dLat = ((lat2 - lat1) * Math.PI) / 180; const dLng = ((lng2 - lng1) * Math.PI) / 180;
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          };
+          
+          if (order.pickup_lat && order.pickup_lng) {
+            let minDistance = Infinity;
+            for (const d of available) {
+              if (d.current_lat && d.current_lng) {
+                const dist = getDistance(order.pickup_lat, order.pickup_lng, d.current_lat, d.current_lng);
+                if (dist < minDistance) {
+                  minDistance = dist;
+                  nextDriver = d;
+                }
+              }
+            }
+          }
+          if (!nextDriver) {
+            nextDriver = available.sort((a, b) => {
+              const tA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : 0;
+              const tB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : 0;
+              return tA - tB;
+            })[0];
+          }
+        }
       }
 
       const newAttempt = (order.assignment_attempt || 0) + 1;
