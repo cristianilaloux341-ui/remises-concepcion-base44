@@ -172,6 +172,23 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     }
   };
 
+  const [bocinaEnviada, setBocinaEnviada] = useState(false);
+  const handleBocina = async () => {
+    if (!order.client_id) return;
+    setBocinaEnviada(true);
+    try {
+      await base44.functions.invoke("sendPushNotification", {
+        action: 'send_client_push',
+        payloadType: 'bocina',
+        userId: order.client_id,
+        orderId: order.id
+      });
+      setTimeout(() => setBocinaEnviada(false), 5000);
+    } catch(e) {
+      setBocinaEnviada(false);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto bg-gray-950">
       <div className="px-4 pt-4 pb-6 space-y-3">
@@ -280,9 +297,14 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
           </div>
         )}
         {order.status === "en_camino" && (
-          <button className="w-full h-14 rounded-2xl gap-2 bg-cyan-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_viaje")}>
-            <Car className="w-5 h-5" /> Pasajero a Bordo
-          </button>
+          <div className="space-y-2">
+            <button className="w-full h-14 rounded-2xl gap-2 bg-amber-500 text-gray-900 text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={handleBocina} disabled={bocinaEnviada || !order.client_id}>
+              <AlertCircle className="w-5 h-5" /> {bocinaEnviada ? "Avisado" : "Llegué / Tocar Bocina"}
+            </button>
+            <button className="w-full h-14 rounded-2xl gap-2 bg-cyan-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_viaje")}>
+              <Car className="w-5 h-5" /> Pasajero a Bordo
+            </button>
+          </div>
         )}
         {order.status === "en_viaje" && (
           <button className="w-full h-14 rounded-2xl gap-2 bg-green-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg disabled:opacity-50" onClick={handleCompletar} disabled={isFinishing}>

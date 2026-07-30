@@ -286,7 +286,7 @@ public class RideAlertController {
     public synchronized void playOneShotSound(Context context, String type) {
         try {
             String fileName = "message";
-            if ("cancel".equals(type)) fileName = "cancel";
+            if ("cancel".equals(type) || "cancelar".equals(type)) fileName = "cancel";
             if ("bocina".equals(type)) fileName = "horn";
             if ("viaje_iniciado".equals(type)) fileName = "trip_started";
             
