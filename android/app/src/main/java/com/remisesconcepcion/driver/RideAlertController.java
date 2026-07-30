@@ -179,17 +179,23 @@ public class RideAlertController {
             mediaPlayer.setLooping(true);
             mediaPlayer.setVolume(1.0f, 1.0f); // Volumen al máximo en el reproductor
             
-            mediaPlayer.setOnPreparedListener(mp -> {
-                mp.start();
-                logDebug("startAlert: MediaPlayer iniciado con AudioFocus");
+            mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+                @Override
+                public void onPrepared(MediaPlayer mp) {
+                    mp.start();
+                    logDebug("startAlert: MediaPlayer iniciado con AudioFocus");
+                }
             });
-            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
-                Log.e(TAG, "MediaPlayer error: " + what + ", " + extra);
-                try {
-                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                    if (r != null) r.play();
-                } catch(Exception e2) {}
-                return true;
+            mediaPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+                @Override
+                public boolean onError(MediaPlayer mp, int what, int extra) {
+                    Log.e(TAG, "MediaPlayer error: " + what + ", " + extra);
+                    try {
+                        android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
+                        if (r != null) r.play();
+                    } catch(Exception e2) {}
+                    return true;
+                }
             });
             mediaPlayer.prepareAsync(); // Asíncrono para no bloquear el hilo
             
@@ -208,12 +214,12 @@ public class RideAlertController {
         }
 
         // Temporizador de vencimiento (60s)
-        timeoutRunnable = () -> {
-            logDebug("startAlert: Temporizador vencido para orderId=" + orderId);
-            stopAlert(context, orderId, "Vencimiento de temporizador nativo");
-            
-            // Opcional: Podríamos emitir un Broadcast a React, pero React ya tiene su propio timer
-            // y el backend igual auto-reasigna. El propósito principal aquí es el SILENCIO.
+        timeoutRunnable = new Runnable() {
+            @Override
+            public void run() {
+                logDebug("startAlert: Temporizador vencido para orderId=" + orderId);
+                stopAlert(context, orderId, "Vencimiento de temporizador nativo");
+            }
         };
         timeoutHandler.postDelayed(timeoutRunnable, 60000);
         logDebug("startAlert: Temporizador de 60s iniciado");
@@ -294,8 +300,18 @@ public class RideAlertController {
                     .build());
             mp.setDataSource(context, soundUri);
             mp.setVolume(1.0f, 1.0f);
-            mp.setOnPreparedListener(MediaPlayer::start);
-            mp.setOnCompletionListener(MediaPlayer::release);
+            mp.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+                @Override
+                public void onPrepared(MediaPlayer mediaPlayerObj) {
+                    mediaPlayerObj.start();
+                }
+            });
+            mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                @Override
+                public void onCompletion(MediaPlayer mediaPlayerObj) {
+                    mediaPlayerObj.release();
+                }
+            });
             mp.prepareAsync();
         } catch (Exception e) {
             Log.e(TAG, "Error reproduciendo sonido one-shot", e);
