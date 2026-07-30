@@ -166,8 +166,14 @@ public class RideAlertController {
                     .build());
             mediaPlayer.setLooping(true);
             mediaPlayer.prepare();
+
+            android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
+            }
+
             mediaPlayer.start();
-            logDebug("startAlert: MediaPlayer iniciado");
+            logDebug("startAlert: MediaPlayer iniciado con AudioFocus");
             
             vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
             if (vibrator != null) {
