@@ -350,6 +350,9 @@ Deno.serve(async (req) => {
          }
       }
 
+      const currentOrder = await base44.asServiceRole.entities.RideOrder.get(orderId).catch(() => null);
+      const currentAttempt = currentOrder ? (currentOrder.assignment_attempt || 1) : 1;
+      
       for (const dId of driversToCancel) {
         const drivers = await base44.asServiceRole.entities.Driver.filter({ id: dId });
         const driver = drivers[0];
@@ -363,7 +366,7 @@ Deno.serve(async (req) => {
                body: JSON.stringify({
                  message: {
                    token: driver.fcm_token,
-                   data: { type: "cancelar", orderId: String(orderId) },
+                   data: { type: "cancelar", orderId: String(orderId) + "_att_" + currentAttempt },
                    android: { priority: "HIGH" }
                  }
                })
@@ -515,7 +518,7 @@ Deno.serve(async (req) => {
                    token: driver.fcm_token,
                    data: {
                      type: "ofrecido",
-                     orderId: String(orderId),
+                     orderId: String(orderId) + "_att_" + (orderData?.assignmentAttempt || "1"),
                      driverId: String(driverId),
                      driverName: String(driver.name || ""),
                      base: String(driver.current_base || ""),

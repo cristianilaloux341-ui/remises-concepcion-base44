@@ -164,6 +164,8 @@ function sendSystemNotification(order) {
   } catch (_) {}
 }
 
+const getRealOrderId = (id) => id && typeof id === 'string' ? id.split('_att_')[0] : id;
+
 const getDeviceId = () => {
   let id = localStorage.getItem("device_id");
   if (!id) {
@@ -1194,7 +1196,7 @@ export default function DriverApp() {
 
     // Si la app fue abierta desde un tap de "Aceptar" en pantalla bloqueada
     const urlParams = new URLSearchParams(window.location.search);
-    const autoAcceptOrderId = urlParams.get("accept");
+    const autoAcceptOrderId = getRealOrderId(urlParams.get("accept"));
     if (autoAcceptOrderId && myDriverId) {
       if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
       base44.functions.invoke("acceptRide", {
@@ -1218,7 +1220,7 @@ export default function DriverApp() {
       });
       window.history.replaceState({}, "", "/driver-app");
     }
-    const autoRejectOrderId = urlParams.get("reject");
+    const autoRejectOrderId = getRealOrderId(urlParams.get("reject"));
     if (autoRejectOrderId && myDriverId) {
       ignoredOrdersRef.current.add(autoRejectOrderId);
       if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
@@ -1279,7 +1281,7 @@ export default function DriverApp() {
       if (!msg) return;
 
       if (msg.type === "SW_ACCEPT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "accept")) {
-        const orderId = msg.orderId || msg.payload?.orderId;
+        const orderId = getRealOrderId(msg.orderId || msg.payload?.orderId);
         if (orderId && myDriverId) {
           if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
           notifySW({ type: "ACK_ACCEPT_ORDER", orderId }); // Send ACK immediately so SW doesn't spawn a new tab
@@ -1291,7 +1293,7 @@ export default function DriverApp() {
       }
 
       if (msg.type === "SW_REJECT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "reject")) {
-        const orderId = msg.orderId || msg.payload?.orderId;
+        const orderId = getRealOrderId(msg.orderId || msg.payload?.orderId);
         if (orderId && myDriverId) {
           ignoredOrdersRef.current.add(orderId);
           if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
@@ -1603,7 +1605,7 @@ export default function DriverApp() {
       
       // Escuchar taps en notificaciones nativas
       LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
-        const orderId = notificationAction.notification.extra?.orderId;
+        const orderId = getRealOrderId(notificationAction.notification.extra?.orderId);
         const actionId = notificationAction.actionId;
         if (orderId) {
           if (actionId === 'accept') {
@@ -1619,7 +1621,7 @@ export default function DriverApp() {
       // Escuchar taps en notificaciones de Firebase (FCM)
       PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
         const data = notification.notification.data || notification.notification.data?.payload || {};
-        if (data.orderId || data.action === "open_messages") {
+        if (getRealOrderId(data.orderId) || data.action === "open_messages") {
           window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
       });

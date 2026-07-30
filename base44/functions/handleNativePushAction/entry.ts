@@ -19,8 +19,10 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, reason: "missing_params" });
     }
 
+    const realOrderId = orderId.includes('_att_') ? orderId.split('_att_')[0] : orderId;
+
     if (action === "native_accept") {
-      const order = await b44.entities.RideOrder.get(orderId);
+      const order = await b44.entities.RideOrder.get(realOrderId);
       if (!order) return Response.json({ success: false, reason: "order_not_found" });
       
       const driver = await b44.entities.Driver.get(driverId);
@@ -30,7 +32,7 @@ Deno.serve(async (req) => {
       
       // Llamamos internamente a la función de aceptación de producción
       const result = await b44.functions.invoke("acceptRide", {
-         orderId,
+         orderId: realOrderId,
          driverId,
          assignmentAttempt: attempt,
          sessionToken: driver.current_session_token
@@ -39,7 +41,7 @@ Deno.serve(async (req) => {
       return Response.json(result);
       
     } else if (action === "native_reject") {
-      const order = await b44.entities.RideOrder.get(orderId);
+      const order = await b44.entities.RideOrder.get(realOrderId);
       if (!order) return Response.json({ success: false, reason: "order_not_found" });
 
       if (order.status !== "ofrecido" || order.reserved_driver_id !== driverId) {
@@ -50,9 +52,9 @@ Deno.serve(async (req) => {
       const driver = await b44.entities.Driver.get(driverId);
       if (driver) {
         // Liberamos al conductor atómicamente si estaba bloqueado por este viaje
-        if (driver.dispatch_status === 'automatic_pending' || driver.reserved_order_id === orderId) {
+        if (driver.dispatch_status === 'automatic_pending' || driver.reserved_order_id === realOrderId) {
            await b44.entities.Driver.updateMany(
-             { id: driverId, reserved_order_id: orderId },
+             { id: driverId, reserved_order_id: realOrderId },
              { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } }
            );
         }
@@ -68,11 +70,11 @@ Deno.serve(async (req) => {
       let rejectResult;
       
       try {
-        rejectResult = await reassignAfterAutomaticReject(b44, baseId, orderId, driverId, oldToken);
+        rejectResult = await reassignAfterAutomaticReject(b44, baseId, realOrderId, driverId, oldToken);
       } catch (e) {
         // Si falla la reasignación atómica, forzamos la liberación del viaje
         await b44.entities.RideOrder.updateMany(
-           { id: orderId, status: "ofrecido", reserved_driver_id: driverId },
+           { id: realOrderId, status: "ofrecido", reserved_driver_id: driverId },
            { $set: { status: "procesando_despacho", reserved_driver_id: null, reservation_token: null, driver_name: null }, $push: { offered_driver_ids: driverId } }
         );
         rejectResult = { status: 'forced_reverted' };
@@ -82,7 +84,7 @@ Deno.serve(async (req) => {
         action: 'RIDE_REJECTED_NATIVE',
         user_type: 'chofer',
         user_name: driver ? driver.name : driverId,
-        details: `Chofer rechazó viaje ${orderId} desde notificación nativa. Resultado reasignación: ${rejectResult.status}`
+        details: `Chofer rechazó viaje ${realOrderId} desde notificación nativa. Resultado reasignación: ${rejectResult.status}`
       }).catch(() => {});
 
       return Response.json({ success: true, rejectResult });
