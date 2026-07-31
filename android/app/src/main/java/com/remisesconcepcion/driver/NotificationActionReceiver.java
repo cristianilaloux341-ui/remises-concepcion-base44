@@ -56,6 +56,7 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                 launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
                 launchIntent.putExtra("radiocab_action", "accept");
                 launchIntent.putExtra("orderId", orderId);
+                launchIntent.putExtra("assignmentAttempt", intent.getStringExtra("assignmentAttempt"));
                 context.startActivity(launchIntent);
                 
             } else if ("ACTION_REJECT".equals(action)) {

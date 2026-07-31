@@ -486,7 +486,7 @@ Deno.serve(async (req) => {
       if (driver.fcm_token) {
          try {
            // Generar URL pública asegurada para que el teléfono pueda hacer el POST de respuesta
-           const appId = "6a2195daf5c708d8398b3ca1"; // ID de la app
+           const appId = Deno.env.get("BASE44_APP_ID") || req.headers.get("x-base44-app-id") || "6a1fcdd119031a7db72f3840";
            const apiUrl = `https://base44.app/api/apps/${appId}/functions/invoke/handleNativePushAction`;
            const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
            if (saStr) {

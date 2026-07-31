@@ -23,6 +23,8 @@ public class MainActivity extends BridgeActivity {
         checkIntent(intent);
     }
 
+    private String pendingAttempt = null;
+
     private void checkIntent(Intent intent) {
         if (intent != null) {
             String action = intent.getStringExtra("radiocab_action");
@@ -30,6 +32,7 @@ public class MainActivity extends BridgeActivity {
             if (action != null && orderId != null) {
                 pendingAction = action;
                 pendingOrderId = orderId;
+                pendingAttempt = intent.getStringExtra("assignmentAttempt");
                 intent.removeExtra("radiocab_action");
                 executePendingAction();
             }
@@ -44,19 +47,21 @@ public class MainActivity extends BridgeActivity {
 
     private void executePendingAction() {
         if (pendingAction != null && pendingOrderId != null && bridge != null && bridge.getWebView() != null) {
+            String attemptQuery = pendingAttempt != null ? "&attempt=" + pendingAttempt : "";
             final String js = String.format(
                 "var checkInterval = setInterval(function() { " +
                 "  if (document.readyState === 'complete') { " +
                 "    clearInterval(checkInterval); " +
-                "    window.location.href = '/driver-app?%s=%s'; " +
+                "    window.location.href = '/driver-app?%s=%s%s'; " +
                 "  } " +
-                "}, 200);", pendingAction, pendingOrderId);
+                "}, 200);", pendingAction, pendingOrderId, attemptQuery);
                 
             bridge.getWebView().post(() -> {
                 bridge.getWebView().evaluateJavascript(js, null);
             });
             pendingAction = null;
             pendingOrderId = null;
+            pendingAttempt = null;
         }
     }
 }

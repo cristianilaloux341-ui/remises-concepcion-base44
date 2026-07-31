@@ -122,6 +122,7 @@ public class MyFirebaseMessagingService extends MessagingService {
         acceptIntent.putExtra("driverName", driverName);
         acceptIntent.putExtra("base", base);
         acceptIntent.putExtra("apiUrl", apiUrl);
+        acceptIntent.putExtra("assignmentAttempt", data.get("assignmentAttempt"));
 
         Intent rejectIntent = new Intent(context, NotificationActionReceiver.class);
         rejectIntent.setAction("ACTION_REJECT");
