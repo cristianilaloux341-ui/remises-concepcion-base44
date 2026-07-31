@@ -1721,6 +1721,17 @@ export default function DriverApp() {
         console.log("[FCM] Push recibido:", notification);
         const data = notification.data || notification.notification?.data || {};
         
+        if (data.type === "cancelar") {
+            const canceledOrderId = getRealOrderId(data.orderId);
+            if (canceledOrderId) {
+              ignoredOrdersRef.current.add(canceledOrderId);
+              setLocalOverride({ status: "disponible", _ignoredOrderId: canceledOrderId });
+              try { navigator.vibrate?.([300, 100, 300, 100, 300]); } catch (_) {}
+            }
+            window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+            return;
+        }
+        
         if (data.orderId) {
             // El sonido y la burbuja ya los maneja Java (MyFirebaseMessagingService).
             // Solo recargamos la interfaz para mostrar la pantalla amarilla:
