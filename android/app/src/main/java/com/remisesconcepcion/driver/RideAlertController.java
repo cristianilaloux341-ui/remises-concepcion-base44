@@ -133,6 +133,15 @@ public class RideAlertController {
             if (pm != null && !pm.isInteractive()) {
                 android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.FULL_WAKE_LOCK | android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP | android.os.PowerManager.ON_AFTER_RELEASE, TAG + ":WakeLock");
                 wl.acquire(5000);
+                
+                // Forzar el lanzamiento de la actividad. Como el MainActivity tiene showWhenLocked y turnScreenOn,
+                // esto encenderá la pantalla de forma confiable aunque Android bloquee el fullScreenIntent por estar en Foreground.
+                try {
+                    context.startActivity(openAppIntent);
+                } catch (Exception ex) {
+                    Log.e(TAG, "No se pudo lanzar Activity directamente", ex);
+                    try { openAppPendingIntent.send(); } catch(Exception e2) {}
+                }
             }
         } catch (Exception e) {
             Log.e(TAG, "Error adquiriendo WakeLock", e);
