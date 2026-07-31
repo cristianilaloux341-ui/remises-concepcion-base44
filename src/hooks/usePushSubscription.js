@@ -55,6 +55,7 @@ export function usePushSubscription(driverId) {
             action: "subscribe_fcm",
             driverId,
             token: token.value,
+            sessionToken: localStorage.getItem("session_token")
           });
           subscribedRef.current = true;
         });
@@ -133,6 +134,7 @@ export function usePushSubscription(driverId) {
           action: "subscribe",
           driverId,
           subscription: sub.toJSON(),
+          sessionToken: localStorage.getItem("session_token")
         });
 
         subscribedRef.current = true;

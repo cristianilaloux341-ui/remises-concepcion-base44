@@ -54,6 +54,7 @@ export function useOperatorPushSubscription(user) {
           action: "subscribe_operator",
           userId: user.id,
           subscription: sub.toJSON(),
+          sessionToken: sessionStorage.getItem("local_operator_token") || localStorage.getItem("access_token")
         });
 
         subscribedRef.current = true;
