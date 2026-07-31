@@ -3,6 +3,10 @@
   "appName": "Remises Concepción Cliente",
   "webDir": "dist",
   "bundledWebRuntime": false,
+  "server": {
+    "url": "https://remises-concepcion.com/app-cliente/splash",
+    "cleartext": true
+  },
   "plugins": {
     "PushNotifications": {
       "presentationOptions": ["badge", "sound", "alert"]

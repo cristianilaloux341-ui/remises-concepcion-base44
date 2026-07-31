@@ -3,6 +3,10 @@
   "appName": "Remises Concepción Chofer",
   "webDir": "dist",
   "bundledWebRuntime": false,
+  "server": {
+    "url": "https://remises-concepcion.com/driver-app",
+    "cleartext": true
+  },
   "plugins": {
     "PushNotifications": {
       "presentationOptions": ["badge", "sound", "alert"]
