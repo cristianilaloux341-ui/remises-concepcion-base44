@@ -160,7 +160,7 @@ async function sendWebPush(subscription, payload, vapidPublicKey, vapidPrivateKe
     'Encryption': `salt=${toBase64Url(salt)}`,
     'Crypto-Key': `dh=${toBase64Url(ephPubBuf)}`,
     'Content-Type': 'application/octet-stream',
-    'TTL': '0', // Cambiado a 0 para forzar entrega inmediata y despertar el dispositivo
+    'TTL': '60',
     'Urgency': 'high'
   };
 
@@ -351,7 +351,7 @@ Deno.serve(async (req) => {
       }
 
       const currentOrder = await base44.asServiceRole.entities.RideOrder.get(orderId).catch(() => null);
-      const currentAttempt = currentOrder ? (currentOrder.assignment_attempt || 1) : 1;
+      const currentAttempt = body.attemptOverride ? body.attemptOverride : (currentOrder ? (currentOrder.assignment_attempt || 1) : 1);
       
       for (const dId of driversToCancel) {
         const drivers = await base44.asServiceRole.entities.Driver.filter({ id: dId });
@@ -542,7 +542,7 @@ Deno.serve(async (req) => {
                    },
                    android: {
                      priority: "HIGH",
-                     ttl: "0s"
+                     ttl: "60s"
                    }
                  }
                };

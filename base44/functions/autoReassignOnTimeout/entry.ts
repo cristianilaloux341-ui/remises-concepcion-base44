@@ -167,6 +167,19 @@ Deno.serve(async (req) => {
              queue_entered_at: new Date().toISOString()
            }); 
          } catch(e){}
+         
+         // Enviar cancelación explícita al chofer anterior
+         try {
+           await base44.asServiceRole.functions.invoke('sendPushNotification', {
+             action: 'cancel_multiple',
+             orderId: order.id,
+             driversToCancel: [currentDriver.id],
+             attemptOverride: assignmentAttempt, // Cancel the previous attempt explicitly
+             internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+           });
+         } catch(e) {
+           console.error("Error cancelando push del chofer anterior:", e);
+         }
       }
       
       if (nextDriver) {
