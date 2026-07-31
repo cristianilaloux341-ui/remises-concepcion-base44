@@ -526,11 +526,13 @@ Deno.serve(async (req) => {
     
     const result = await acceptRideV2(b44, orderId, driverId, operationKey, assignmentAttempt || 1, invocationId);
     
-    const isAccepted = result.status === "SUCCESS" || result.status === "SUCCESS_ALREADY_PROCESSED";
+    const isAccepted = result.status === "SUCCESS" || 
+                       result.status === "SUCCESS_ALREADY_PROCESSED" || 
+                       result.status === "ALREADY_ACCEPTED_BY_SAME_DRIVER";
     
     return Response.json({ 
         accepted: isAccepted, 
-        idempotent: result.status === "SUCCESS_ALREADY_PROCESSED",
+        idempotent: result.status === "SUCCESS_ALREADY_PROCESSED" || result.status === "ALREADY_ACCEPTED_BY_SAME_DRIVER",
         reason: result.status
     });
   } catch (error: any) {
