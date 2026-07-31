@@ -476,57 +476,25 @@ export default function Agenda() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["scheduled"] }),
   });
 
-  const dispatchMutation = useMutation({
-    mutationFn: async (ride) => {
-      // 1. Geocodificar para auto-asignacion correcta si es necesario
-      let lat = undefined;
-      let lng = undefined;
-      try {
-        const sessionToken = sessionStorage.getItem('local_operator_token');
-        const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: ride.pickup_address, sessionToken });
-        const predictions = res.data?.predictions;
-        if (predictions?.length > 0) {
-          const details = await base44.functions.invoke("geocodeRoute", {
-            action: "placedetails",
-            place_id: predictions[0].place_id,
-            description: predictions[0].description,
-            sessionToken
-          });
-          lat = details.data?.lat;
-          lng = details.data?.lng;
+  const handleDispatch = (ride) => {
+    navigate("/orders/new", {
+      state: {
+        scheduled_ride_id: ride.id,
+        initialData: {
+          client_id: ride.client_id || "",
+          client_name: ride.client_name || "",
+          client_phone: ride.client_phone || "",
+          pickup_address: ride.pickup_address || "",
+          dropoff_address: ride.dropoff_address || "",
+          zone: ride.zone || "",
+          fare: ride.fare || "",
+          notes: ride.notes || "",
+          driver_id: ride.preferred_driver_id || "",
+          driver_name: ride.preferred_driver_name || ""
         }
-      } catch (e) {}
-
-      // Crear el pedido como pendiente
-      const order = await base44.entities.RideOrder.create({
-        client_name: ride.client_name,
-        client_phone: ride.client_phone || "",
-        pickup_address: ride.pickup_address,
-        pickup_lat: lat,
-        pickup_lng: lng,
-        dropoff_address: ride.dropoff_address || "",
-        zone: ride.zone || undefined,
-        fare: ride.fare && String(ride.fare).trim() !== "" && Number(ride.fare) > 0 ? Number(ride.fare) : undefined,
-        notes: ride.notes || "",
-        status: "pendiente",
-      });
-      
-      // Auto-asignar por zona (o broadcast si no hay nadie)
-      // Si tiene móvil preferido, asignar directo
-      if (ride.preferred_driver_id) {
-        const prefDriver = drivers.find(d => d.id === ride.preferred_driver_id);
-        if (prefDriver) await assignDriverToOrder(order, prefDriver);
-      } else {
-        await autoDispatch(order, drivers, bases);
       }
-      await base44.entities.ScheduledRide.update(ride.id, { status: "despachado", order_id: order.id });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["scheduled"] });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["drivers"] });
-    }
-  });
+    });
+  };
 
   const upcoming = rides.filter(r => !["cancelado", "completado"].includes(r.status))
     .sort((a, b) => new Date(a.scheduled_datetime) - new Date(b.scheduled_datetime));
@@ -613,9 +581,8 @@ export default function Agenda() {
                   {["pendiente", "notificado"].includes(ride.status) && (
                     <>
                       <Button size="sm" className="flex-1 gap-1 h-10 rounded-lg font-bold"
-                        onClick={() => dispatchMutation.mutate(ride)}
-                        disabled={dispatchMutation.isPending}>
-                        <Zap className="w-4 h-4" /> Despachar Ahora
+                        onClick={() => handleDispatch(ride)}>
+                        <Zap className="w-4 h-4" /> Abrir Pasaje
                       </Button>
                       <Button size="sm" variant="outline" className="h-10 px-4 rounded-lg font-bold text-black bg-white"
                         onClick={() => { setEditing(ride); setShowForm(true); }}>

@@ -1,6 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrderForm from "@/components/orders/OrderForm";
@@ -8,7 +8,11 @@ import { findBestDriver, findDriverInZone, assignDriverToOrder, broadcastOrder }
 
 export default function NewOrder() {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
+
+  const scheduledRideId = location.state?.scheduled_ride_id;
+  const initialData = location.state?.initialData;
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
@@ -27,6 +31,14 @@ export default function NewOrder() {
 
       // 1. Crear la orden
       const newOrder = await base44.entities.RideOrder.create(data);
+
+      // Si viene de la agenda, marcamos el pasaje como despachado
+      if (scheduledRideId) {
+        await base44.entities.ScheduledRide.update(scheduledRideId, {
+          status: "despachado",
+          order_id: newOrder.id
+        }).catch(() => {});
+      }
 
       // Lanzamos la lógica de asignación en segundo plano (fire-and-forget)
       (async () => {
@@ -94,7 +106,7 @@ export default function NewOrder() {
         <ArrowLeft className="w-4 h-4" />
         Volver
       </Button>
-      <OrderForm onSubmit={(data) => createMutation.mutate(data)} isSubmitting={createMutation.isPending} />
+      <OrderForm order={initialData} onSubmit={(data) => createMutation.mutate(data)} isSubmitting={createMutation.isPending} />
     </div>
   );
 }
