@@ -27,6 +27,15 @@ Deno.serve(async (req) => {
 
     let ghostsDisconnected = 0;
     for (const driver of ghostDrivers) {
+      // Si el móvil está agendado en una base, le damos 2 horas de gracia en vez de 10 min
+      if (driver.current_base) {
+        const twoHoursAgoTime = Date.now() - (120 * 60 * 1000);
+        const driverLastActive = driver.last_active ? new Date(driver.last_active).getTime() : 0;
+        if (driverLastActive > twoHoursAgoTime) {
+          continue;
+        }
+      }
+
       // Verificar doblemente que no estén en medio de un viaje
       const activeRides = await b44.entities.RideOrder.filter({
         status: { $in: ["ofrecido", "aceptado", "en_camino", "en_viaje"] },
