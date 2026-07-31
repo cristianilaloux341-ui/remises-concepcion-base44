@@ -240,8 +240,21 @@ public class RideAlertController {
         logDebug("startAlert: Temporizador de 60s iniciado");
     }
 
+    private String getBaseId(String orderId) {
+        if (orderId == null) return null;
+        if (orderId.contains("_att_")) {
+            return orderId.split("_att_")[0];
+        }
+        return orderId;
+    }
+
     public synchronized void stopAlert(Context context, String orderId, String reason) {
-        if (orderId == null || !orderId.equals(currentOrderId)) {
+        if (orderId == null || currentOrderId == null) return;
+        
+        String baseInput = getBaseId(orderId);
+        String baseCurrent = getBaseId(currentOrderId);
+
+        if (!baseInput.equals(baseCurrent)) {
             logDebug("stopAlert: Ignorado para orderId=" + orderId + " (actual=" + currentOrderId + "). Motivo recibido: " + reason);
             return;
         }
