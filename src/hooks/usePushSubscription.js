@@ -38,16 +38,17 @@ export function usePushSubscription(driverId) {
           return;
         }
 
-        await PushNotifications.register();
-        await base44.entities.AuditLog.create({
-          action: 'push_debug',
-          user_type: 'sistema',
-          user_name: 'Chofer ' + driverId,
-          details: 'PushNotifications.register() ejecutado'
-        }).catch(()=>{});
+        await PushNotifications.removeAllListeners();
 
         PushNotifications.addListener('registration', async (token) => {
           if (cancelled) return;
+          await base44.entities.AuditLog.create({
+            action: 'push_debug',
+            user_type: 'sistema',
+            user_name: 'Chofer ' + driverId,
+            details: 'TOKEN RECIBIDO CORRECTAMENTE'
+          }).catch(()=>{});
+
           await base44.functions.invoke("sendPushNotification", {
             action: "subscribe_fcm",
             driverId,
@@ -65,6 +66,15 @@ export function usePushSubscription(driverId) {
             details: 'FCM Reg Error: ' + (error.error || JSON.stringify(error))
           }).catch(()=>{});
         });
+
+        // Registrar SIEMPRE DESPUÉS de haber puesto los listeners
+        await PushNotifications.register();
+        await base44.entities.AuditLog.create({
+          action: 'push_debug',
+          user_type: 'sistema',
+          user_name: 'Chofer ' + driverId,
+          details: 'PushNotifications.register() ejecutado'
+        }).catch(()=>{});
       } catch (e) {
         console.error("Error en Push Nativo", e);
         base44.entities.AuditLog.create({
