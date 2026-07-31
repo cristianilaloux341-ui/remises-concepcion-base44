@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
+import { Capacitor, registerPlugin } from '@capacitor/core';
+const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 import { MapPin, Phone, Navigation, Car, CheckCircle2, XCircle, Timer, AlertCircle } from "lucide-react";
 
 export const STATUS_CONFIG = {
@@ -102,11 +104,13 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     contadorParadoRef.current = 0;
     let segundosEspera = order.segundos_espera_acumulados || 0;
 
-    if (navigator.geolocation) {
-      gpsWatchRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          const { latitude, longitude, speed } = pos.coords;
-          const speedKmh = (speed || 0) * 3.6;
+    const startTracking = async () => {
+      const onLocation = (location) => {
+        if (!location) return;
+        const latitude = location.latitude || location.coords?.latitude;
+        const longitude = location.longitude || location.coords?.longitude;
+        const speed = location.speed || location.coords?.speed || 0;
+        const speedKmh = speed * 3.6;
 
         if (lastPosRef.current) {
           const metros = haversineMetros(
@@ -127,7 +131,6 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
                 const excedenteAnterior = (metrosRef.current - metros) - distanciaTeórica;
                 if (excedenteAnterior < 0) {
                    const metrosExcedentes = metrosRef.current - distanciaTeórica;
-                   // Cobrar excedente por metro Y tiempo estimado para ese metro
                    const minutosEst = (metrosExcedentes / 7) / 60;
                    costoIncremental = (metrosExcedentes * tarifaRef.current.precio_por_metro) + (minutosEst * tarifaRef.current.precio_por_minuto_corrido);
                 } else {
@@ -153,8 +156,34 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
           setEnEspera(false);
           enEsperaRef.current = false;
         }
-      }, () => {}, { enableHighAccuracy: true, maximumAge: 0 });
-    }
+      };
+
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const watcherId = await BackgroundGeolocation.addWatcher(
+            {
+              backgroundMessage: "Taxímetro activo en segundo plano.",
+              backgroundTitle: "Viaje en curso",
+              requestPermissions: true,
+              stale: false,
+              distanceFilter: 2
+            },
+            (location, error) => {
+              if (!error && location) onLocation(location);
+            }
+          );
+          gpsWatchRef.current = watcherId;
+        } catch (e) {
+          console.error("Error BackgroundGeolocation en ActiveRide", e);
+        }
+      } else if (navigator.geolocation) {
+        gpsWatchRef.current = navigator.geolocation.watchPosition(
+          onLocation, () => {}, { enableHighAccuracy: true, maximumAge: 0 }
+        );
+      }
+    };
+
+    startTracking();
 
     timerRef.current = setInterval(() => {
       if (enEsperaRef.current || contadorParadoRef.current > 0) {
@@ -171,7 +200,13 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     }, 1000);
 
     return () => {
-      if (gpsWatchRef.current) navigator.geolocation.clearWatch(gpsWatchRef.current);
+      if (gpsWatchRef.current !== null) {
+        if (Capacitor.isNativePlatform() && typeof gpsWatchRef.current === 'string') {
+          BackgroundGeolocation.removeWatcher({ id: gpsWatchRef.current }).catch(() => {});
+        } else {
+          navigator.geolocation.clearWatch(gpsWatchRef.current);
+        }
+      }
       clearInterval(timerRef.current);
       clearTimeout(saveTimeoutRef.current);
     };

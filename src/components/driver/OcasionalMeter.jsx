@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
 import { DollarSign, Timer, Navigation, CheckCircle2, XCircle, Car, Zap, Clock } from "lucide-react";
+import { Capacitor, registerPlugin } from '@capacitor/core';
+const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 
 /**
  * Taxímetro GPS en tiempo real.
@@ -101,37 +103,60 @@ export default function OcasionalMeter({ onClose, driver }) {
     setPhase("running");
 
     // GPS: acumula distancia real con Haversine
-    if (navigator.geolocation) {
-      gpsWatchRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          const { latitude, longitude, speed } = pos.coords;
-          const speedKmh = (speed || 0) * 3.6;
+    const startTracking = async () => {
+      const onLocation = (location) => {
+        if (!location) return;
+        const latitude = location.latitude || location.coords?.latitude;
+        const longitude = location.longitude || location.coords?.longitude;
+        const speed = location.speed || location.coords?.speed || 0;
+        const speedKmh = speed * 3.6;
 
-          if (lastPosRef.current) {
-            const metros = haversineMetros(
-              lastPosRef.current.lat, lastPosRef.current.lng,
-              latitude, longitude
-            );
-            // Filtrar saltos de GPS (> 0.5m y < 300m entre lecturas)
-            if (metros > 0.5 && metros < 300) {
-              metrosRef.current += metros;
-              setMetrosRecorridos(Math.round(metrosRef.current));
-              setImporteActual(recalcular(metrosRef.current, segundosMovimientoRef.current, segundosEsperaRef.current));
+        if (lastPosRef.current) {
+          const metros = haversineMetros(
+            lastPosRef.current.lat, lastPosRef.current.lng,
+            latitude, longitude
+          );
+          if (metros > 0.5 && metros < 300) {
+            metrosRef.current += metros;
+            setMetrosRecorridos(Math.round(metrosRef.current));
+            setImporteActual(recalcular(metrosRef.current, segundosMovimientoRef.current, segundosEsperaRef.current));
+          }
+        }
+        lastPosRef.current = { lat: latitude, lng: longitude };
+
+        if (speedKmh < 5) {
+          enEsperaRef.current = true;
+        } else {
+          contadorParadoRef.current = 0;
+          enEsperaRef.current = false;
+        }
+      };
+
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const watcherId = await BackgroundGeolocation.addWatcher(
+            {
+              backgroundMessage: "Taxímetro ocasional activo en segundo plano.",
+              backgroundTitle: "Viaje en curso",
+              requestPermissions: true,
+              stale: false,
+              distanceFilter: 2
+            },
+            (location, error) => {
+              if (!error && location) onLocation(location);
             }
-          }
-          lastPosRef.current = { lat: latitude, lng: longitude };
-
-          if (speedKmh < 5) {
-            enEsperaRef.current = true;
-          } else {
-            contadorParadoRef.current = 0;
-            enEsperaRef.current = false;
-          }
-        },
-        () => {},
-        { enableHighAccuracy: true, maximumAge: 0 }
-      );
-    }
+          );
+          gpsWatchRef.current = watcherId;
+        } catch (e) {
+          console.error("Error BackgroundGeolocation en OcasionalMeter", e);
+        }
+      } else if (navigator.geolocation) {
+        gpsWatchRef.current = navigator.geolocation.watchPosition(
+          onLocation, () => {}, { enableHighAccuracy: true, maximumAge: 0 }
+        );
+      }
+    };
+    startTracking();
 
     // Timer: cada segundo suma tiempo y recalcula
     timerRef.current = setInterval(() => {
@@ -153,7 +178,11 @@ export default function OcasionalMeter({ onClose, driver }) {
 
   const terminarViaje = async () => {
     if (gpsWatchRef.current !== null) {
-      navigator.geolocation.clearWatch(gpsWatchRef.current);
+      if (Capacitor.isNativePlatform() && typeof gpsWatchRef.current === 'string') {
+        BackgroundGeolocation.removeWatcher({ id: gpsWatchRef.current }).catch(() => {});
+      } else {
+        navigator.geolocation.clearWatch(gpsWatchRef.current);
+      }
       gpsWatchRef.current = null;
     }
     clearInterval(timerRef.current);
@@ -187,7 +216,11 @@ export default function OcasionalMeter({ onClose, driver }) {
 
   const reiniciar = () => {
     if (gpsWatchRef.current !== null) {
-      navigator.geolocation.clearWatch(gpsWatchRef.current);
+      if (Capacitor.isNativePlatform() && typeof gpsWatchRef.current === 'string') {
+        BackgroundGeolocation.removeWatcher({ id: gpsWatchRef.current }).catch(() => {});
+      } else {
+        navigator.geolocation.clearWatch(gpsWatchRef.current);
+      }
       gpsWatchRef.current = null;
     }
     clearInterval(timerRef.current);
