@@ -542,16 +542,7 @@ Deno.serve(async (req) => {
                    },
                    android: {
                      priority: "HIGH",
-                     ttl: "60s",
-                     notification: {
-                       channel_id: "ride-alerts-urgent",
-                       sound: "default",
-                       click_action: "FLUTTER_NOTIFICATION_CLICK"
-                     }
-                   },
-                   notification: {
-                     title: String(title),
-                     body: String(bodyStr)
+                     ttl: "60s"
                    }
                  }
                };
