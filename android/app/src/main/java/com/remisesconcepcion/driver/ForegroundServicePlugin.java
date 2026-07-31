@@ -91,6 +91,25 @@ public class ForegroundServicePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void requestFullScreenIntentPermission(PluginCall call) {
+        Context context = getContext();
+        if (Build.VERSION.SDK_INT >= 34) { // Android 14
+            android.app.NotificationManager nm = (android.app.NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null && !nm.canUseFullScreenIntent()) {
+                try {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+                    intent.setData(Uri.parse("package:" + context.getPackageName()));
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    context.startActivity(intent);
+                } catch (Exception e) {
+                    Log.e("PushDiagnostic", "Error solicitando full screen intent", e);
+                }
+            }
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
     public void requestOverlayPermission(PluginCall call) {
         Context context = getContext();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

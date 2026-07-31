@@ -2405,6 +2405,10 @@ export default function DriverApp() {
         <DriverSettings
           driver={myDriver}
           onClose={() => setShowSettings(false)}
+          onOpenBatteryGuide={() => {
+            setShowSettings(false);
+            setShowBatteryGuide(true);
+          }}
           onLogout={() => {
             localStorage.removeItem("my_driver_id");
             localStorage.removeItem("remembered_driver_id");
@@ -2419,7 +2423,7 @@ export default function DriverApp() {
   );
 }
 
-function DriverSettings({ driver, onClose, onLogout }) {
+function DriverSettings({ driver, onClose, onLogout, onOpenBatteryGuide }) {
   const handleDeleteAccount = async () => {
     if (window.confirm("¿Estás seguro que querés eliminar tu cuenta? Vas a perder el acceso y el operador tendrá que registrarte nuevamente.")) {
       try {
@@ -2439,6 +2443,9 @@ function DriverSettings({ driver, onClose, onLogout }) {
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Chofer: {driver.name}</p>
         </div>
         <div className="space-y-3">
+          <Button variant="secondary" className="w-full h-12 rounded-xl bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-200" onClick={onOpenBatteryGuide}>
+            Permisos y Batería (Si no suena)
+          </Button>
           <Button variant="outline" className="w-full h-12 rounded-xl dark:border-slate-700 dark:text-white" onClick={onLogout}>Cerrar Sesión</Button>
           <Button variant="destructive" className="w-full h-12 rounded-xl" onClick={handleDeleteAccount}>Eliminar Mi Cuenta</Button>
           <Button variant="ghost" className="w-full h-12 rounded-xl dark:text-gray-300" onClick={onClose}>Cancelar</Button>

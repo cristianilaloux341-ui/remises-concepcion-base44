@@ -54,6 +54,7 @@ const BRAND_STEPS = {
     "Buscá **Batería** o **Ahorro de energía**",
     "Buscá **Optimización de apps** o **Batería adaptable**",
     "Buscá **Chrome** y seleccioná **Sin restricciones** o **No optimizar**",
+    "Importante: Asegurate de tocar el botón azul de abajo para dar permisos de pantalla.",
   ],
 };
 
@@ -152,10 +153,11 @@ export default function BatteryOptimizationGuide({ onClose, onDone }) {
                   try {
                     await Capacitor.Plugins.ForegroundService?.requestBatteryExemption();
                     await Capacitor.Plugins.ForegroundService?.requestOverlayPermission();
+                    await Capacitor.Plugins.ForegroundService?.requestFullScreenIntentPermission();
                   } catch(e) {}
                 }}
               >
-                Quitar restricción automático
+                Otorgar Permisos Obligatorios
               </Button>
             </div>
           )}
