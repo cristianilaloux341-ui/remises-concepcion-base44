@@ -63,6 +63,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
           tarifaRef.current = {
             bajada_bandera: raw.nocturna_bajada_bandera ?? 700,
             precio_por_metro: raw.nocturna_precio_por_metro ?? 2.8,
+            precio_por_minuto_corrido: raw.nocturna_precio_por_minuto_corrido ?? 45,
             precio_por_minuto_espera: raw.nocturna_precio_por_minuto_espera ?? 70,
             tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
           };
@@ -70,6 +71,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
           tarifaRef.current = {
             bajada_bandera: raw.bajada_bandera ?? 500,
             precio_por_metro: raw.precio_por_metro ?? 2,
+            precio_por_minuto_corrido: raw.precio_por_minuto_corrido ?? 30,
             precio_por_minuto_espera: raw.precio_por_minuto_espera ?? 50,
             tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
           };
@@ -118,15 +120,19 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
             let costoIncremental = 0;
             if (!order.dropoff_address) {
                 // Sin destino: cuenta desde el primer metro
-                costoIncremental = metros * tarifaRef.current.precio_por_metro;
+                const minutosEst = (metros / 7) / 60;
+                costoIncremental = (metros * tarifaRef.current.precio_por_metro) + (minutosEst * tarifaRef.current.precio_por_minuto_corrido);
             } else if (metrosRef.current > distanciaTeórica) {
                 // Con destino: cobra el excedente
                 const excedenteAnterior = (metrosRef.current - metros) - distanciaTeórica;
                 if (excedenteAnterior < 0) {
                    const metrosExcedentes = metrosRef.current - distanciaTeórica;
-                   costoIncremental = metrosExcedentes * tarifaRef.current.precio_por_metro;
+                   // Cobrar excedente por metro Y tiempo estimado para ese metro
+                   const minutosEst = (metrosExcedentes / 7) / 60;
+                   costoIncremental = (metrosExcedentes * tarifaRef.current.precio_por_metro) + (minutosEst * tarifaRef.current.precio_por_minuto_corrido);
                 } else {
-                   costoIncremental = metros * tarifaRef.current.precio_por_metro;
+                   const minutosEst = (metros / 7) / 60;
+                   costoIncremental = (metros * tarifaRef.current.precio_por_metro) + (minutosEst * tarifaRef.current.precio_por_minuto_corrido);
                 }
             }
 

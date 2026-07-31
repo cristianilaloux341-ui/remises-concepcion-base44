@@ -162,6 +162,25 @@ Deno.serve(async (req) => {
       if (nextDriver) {
          try { await base44.asServiceRole.entities.Driver.update(nextDriver.id, { status: 'ofrecido' }); } catch(e){}
          
+         // Enviar notificación Push al siguiente chofer
+         try {
+           await base44.asServiceRole.functions.invoke('sendPushNotification', {
+             action: 'send',
+             driverId: nextDriver.id,
+             orderId: order.id,
+             orderData: {
+               pickup_address: order.pickup_address,
+               dropoff_address: order.dropoff_address,
+               fare: order.fare,
+               notes: order.notes,
+               assignmentAttempt: newAttempt
+             },
+             internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+           });
+         } catch(pushErr) {
+           console.error("Error al enviar push en autoReassignOnTimeout:", pushErr);
+         }
+         
          const tarifaConfigs = await base44.asServiceRole.entities.TarifaConfig.list();
          const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
          const originalTimeoutSeconds = tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos ?? 60;

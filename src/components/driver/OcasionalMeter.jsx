@@ -22,7 +22,10 @@ export default function OcasionalMeter({ onClose, driver }) {
 
   // Refs para evitar stale closures en GPS/timer
   const metrosRef = useRef(0);
-  const segundosRef = useRef(0);
+  const segundosMovimientoRef = useRef(0);
+  const segundosEsperaRef = useRef(0);
+  const contadorParadoRef = useRef(0);
+  const enEsperaRef = useRef(false);
   const lastPosRef = useRef(null);
   const gpsWatchRef = useRef(null);
   const timerRef = useRef(null);
@@ -30,7 +33,9 @@ export default function OcasionalMeter({ onClose, driver }) {
   const tarifa = useRef({
     bajada_bandera: 500,
     precio_por_km: 2000,       // precio_por_metro * 1000
-    precio_por_minuto: 30,
+    precio_por_minuto_corrido: 30,
+    precio_por_minuto_espera: 50,
+    tolerancia_espera_segundos: 120,
     es_nocturna: false,
   });
 
@@ -49,7 +54,9 @@ export default function OcasionalMeter({ onClose, driver }) {
         tarifa.current = {
           bajada_bandera: raw.nocturna_bajada_bandera ?? 700,
           precio_por_km: (raw.nocturna_precio_por_metro ?? 2.8) * 1000,
-          precio_por_minuto: raw.nocturna_precio_por_minuto_corrido ?? 45,
+          precio_por_minuto_corrido: raw.nocturna_precio_por_minuto_corrido ?? 45,
+          precio_por_minuto_espera: raw.nocturna_precio_por_minuto_espera ?? 70,
+          tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
         };
         setEsNocturna(true);
         setTarifaLabel("🌙 Tarifa Nocturna");
@@ -57,7 +64,9 @@ export default function OcasionalMeter({ onClose, driver }) {
         tarifa.current = {
           bajada_bandera: raw.bajada_bandera ?? 500,
           precio_por_km: (raw.precio_por_metro ?? 2) * 1000,
-          precio_por_minuto: raw.precio_por_minuto_corrido ?? 30,
+          precio_por_minuto_corrido: raw.precio_por_minuto_corrido ?? 30,
+          precio_por_minuto_espera: raw.precio_por_minuto_espera ?? 50,
+          tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
         };
         setEsNocturna(false);
         setTarifaLabel("☀️ Tarifa Diurna");
@@ -66,20 +75,26 @@ export default function OcasionalMeter({ onClose, driver }) {
     }).catch(() => { setTarifaCargada(true); });
   }, []);
 
-  // Recalcular importe a partir de metros + segundos actuales
-  const recalcular = (metros, segundos) => {
+  // Recalcular importe a partir de metros, segundos en movimiento y segundos de espera
+  const recalcular = (metros, sMovimiento, sEspera) => {
     const km = metros / 1000;
-    const minutos = segundos / 60;
+    const minutosMov = sMovimiento / 60;
+    const minutosEsp = sEspera / 60;
     const total = tarifa.current.bajada_bandera
       + km * tarifa.current.precio_por_km
-      + minutos * tarifa.current.precio_por_minuto;
+      + minutosMov * tarifa.current.precio_por_minuto_corrido
+      + minutosEsp * tarifa.current.precio_por_minuto_espera;
     return Math.round(total);
   };
 
   const iniciarViaje = () => {
     metrosRef.current = 0;
-    segundosRef.current = 0;
+    segundosMovimientoRef.current = 0;
+    segundosEsperaRef.current = 0;
+    contadorParadoRef.current = 0;
+    enEsperaRef.current = false;
     lastPosRef.current = null;
+    
     setMetrosRecorridos(0);
     setSegundosTotales(0);
     setImporteActual(tarifa.current.bajada_bandera);
@@ -89,7 +104,9 @@ export default function OcasionalMeter({ onClose, driver }) {
     if (navigator.geolocation) {
       gpsWatchRef.current = navigator.geolocation.watchPosition(
         (pos) => {
-          const { latitude, longitude } = pos.coords;
+          const { latitude, longitude, speed } = pos.coords;
+          const speedKmh = (speed || 0) * 3.6;
+
           if (lastPosRef.current) {
             const metros = haversineMetros(
               lastPosRef.current.lat, lastPosRef.current.lng,
@@ -99,21 +116,38 @@ export default function OcasionalMeter({ onClose, driver }) {
             if (metros > 0.5 && metros < 300) {
               metrosRef.current += metros;
               setMetrosRecorridos(Math.round(metrosRef.current));
-              setImporteActual(recalcular(metrosRef.current, segundosRef.current));
+              setImporteActual(recalcular(metrosRef.current, segundosMovimientoRef.current, segundosEsperaRef.current));
             }
           }
           lastPosRef.current = { lat: latitude, lng: longitude };
+
+          if (speedKmh < 5) {
+            enEsperaRef.current = true;
+          } else {
+            contadorParadoRef.current = 0;
+            enEsperaRef.current = false;
+          }
         },
         () => {},
-        { enableHighAccuracy: true, maximumAge: 3000 }
+        { enableHighAccuracy: true, maximumAge: 0 }
       );
     }
 
     // Timer: cada segundo suma tiempo y recalcula
     timerRef.current = setInterval(() => {
-      segundosRef.current += 1;
-      setSegundosTotales(s => s + 1);
-      setImporteActual(recalcular(metrosRef.current, segundosRef.current));
+      if (enEsperaRef.current || contadorParadoRef.current > 0) {
+        contadorParadoRef.current += 1;
+        if (contadorParadoRef.current > tarifa.current.tolerancia_espera_segundos) {
+          segundosEsperaRef.current += 1;
+        } else {
+          segundosMovimientoRef.current += 1;
+        }
+      } else {
+        segundosMovimientoRef.current += 1;
+      }
+      
+      setSegundosTotales(segundosMovimientoRef.current + segundosEsperaRef.current);
+      setImporteActual(recalcular(metrosRef.current, segundosMovimientoRef.current, segundosEsperaRef.current));
     }, 1000);
   };
 
@@ -125,7 +159,7 @@ export default function OcasionalMeter({ onClose, driver }) {
     clearInterval(timerRef.current);
     setGuardando(true);
 
-    const importeFinal = recalcular(metrosRef.current, segundosRef.current);
+    const importeFinal = recalcular(metrosRef.current, segundosMovimientoRef.current, segundosEsperaRef.current);
 
     try {
       await base44.entities.RideOrder.create({
@@ -137,7 +171,7 @@ export default function OcasionalMeter({ onClose, driver }) {
         importe_real_actual: importeFinal,
         fare: importeFinal,
         source: "operador",
-        segundos_espera_acumulados: segundosRef.current,
+        segundos_espera_acumulados: segundosEsperaRef.current,
         distancia_teorica_metros: Math.round(metrosRef.current),
         created_date: new Date().toISOString()
       });
@@ -162,7 +196,10 @@ export default function OcasionalMeter({ onClose, driver }) {
     setMetrosRecorridos(0);
     setSegundosTotales(0);
     metrosRef.current = 0;
-    segundosRef.current = 0;
+    segundosMovimientoRef.current = 0;
+    segundosEsperaRef.current = 0;
+    contadorParadoRef.current = 0;
+    enEsperaRef.current = false;
   };
 
   // Formato mm:ss
@@ -170,9 +207,10 @@ export default function OcasionalMeter({ onClose, driver }) {
 
   // ── Pantalla: cobro final ──────────────────────────────────────────────────
   if (phase === "done") {
-    const importeFinal = recalcular(metrosRecorridos, segundosTotales);
+    const importeFinal = recalcular(metrosRecorridos, segundosMovimientoRef.current, segundosEsperaRef.current);
     const km = (metrosRecorridos / 1000).toFixed(2);
-    const minutos = (segundosTotales / 60).toFixed(1);
+    const minutosMov = (segundosMovimientoRef.current / 60).toFixed(1);
+    const minutosEsp = (segundosEsperaRef.current / 60).toFixed(1);
     return (
       <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col items-center justify-center p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="w-full max-w-sm space-y-5 text-center">
@@ -202,12 +240,21 @@ export default function OcasionalMeter({ onClose, driver }) {
             </div>
             <div className="h-px bg-gray-800" />
             <div className="flex justify-between">
-              <span className="text-gray-500">Tiempo de viaje</span>
-              <span className="text-white font-bold">{minutos} min</span>
+              <span className="text-gray-500">Tiempo en mov.</span>
+              <span className="text-white font-bold">{minutosMov} min</span>
             </div>
             <div className="flex justify-between text-xs text-gray-600">
-              <span>{minutos} min × ${tarifa.current.precio_por_minuto}/min</span>
-              <span>${Math.round((segundosTotales / 60) * tarifa.current.precio_por_minuto).toLocaleString()}</span>
+              <span>{minutosMov} min × ${tarifa.current.precio_por_minuto_corrido}/min</span>
+              <span>${Math.round((segundosMovimientoRef.current / 60) * tarifa.current.precio_por_minuto_corrido).toLocaleString()}</span>
+            </div>
+            <div className="h-px bg-gray-800" />
+            <div className="flex justify-between">
+              <span className="text-gray-500">Tiempo de espera</span>
+              <span className="text-white font-bold">{minutosEsp} min</span>
+            </div>
+            <div className="flex justify-between text-xs text-gray-600">
+              <span>{minutosEsp} min × ${tarifa.current.precio_por_minuto_espera}/min</span>
+              <span>${Math.round((segundosEsperaRef.current / 60) * tarifa.current.precio_por_minuto_espera).toLocaleString()}</span>
             </div>
             <div className="h-px bg-gray-800" />
             <div className="flex justify-between font-bold text-green-400">
