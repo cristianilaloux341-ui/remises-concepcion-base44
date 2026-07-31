@@ -351,7 +351,7 @@ Deno.serve(async (req) => {
       }
 
       const currentOrder = await base44.asServiceRole.entities.RideOrder.get(orderId).catch(() => null);
-      const currentAttempt = body.attemptOverride ? body.attemptOverride : (currentOrder ? (currentOrder.assignment_attempt || 1) : 1);
+      const currentAttempt = currentOrder ? (currentOrder.assignment_attempt || 1) : 1;
       
       for (const dId of driversToCancel) {
         const drivers = await base44.asServiceRole.entities.Driver.filter({ id: dId });

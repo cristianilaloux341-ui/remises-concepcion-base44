@@ -174,7 +174,6 @@ Deno.serve(async (req) => {
              action: 'cancel_multiple',
              orderId: order.id,
              driversToCancel: [currentDriver.id],
-             attemptOverride: assignmentAttempt, // Cancel the previous attempt explicitly
              internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
            });
          } catch(e) {

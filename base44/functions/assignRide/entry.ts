@@ -61,23 +61,9 @@ Deno.serve(async (req) => {
     const targetOrderStatus = autoAceptarViajes ? "aceptado" : "ofrecido";
     const targetDriverStatus = autoAceptarViajes ? "en_viaje" : "ofrecido";
 
-    const oldAttempt = orderReq.assignment_attempt || 1;
-    const newAttempt = oldAttempt + 1;
+    const newAttempt = (orderReq.assignment_attempt || 0) + 1;
     const offeredIds = [...(orderReq.offered_driver_ids || [])];
     if (!offeredIds.includes(driverId)) offeredIds.push(driverId);
-
-    // Cancelar la alerta del chofer anterior (si estaba sonando)
-    if (orderReq.status === 'ofrecido' || orderReq.status === 'esperando_confirmacion_manual') {
-      try {
-        await b44.functions.invoke('sendPushNotification', {
-          action: 'cancel_multiple',
-          orderId: orderId,
-          driversToCancel: orderReq.offered_driver_ids || [],
-          attemptOverride: oldAttempt,
-          internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
-        });
-      } catch(e) {}
-    }
 
     // Update basic tracking fields directly first, so Atomic gets the fresh object state
     orderReq.assignment_attempt = newAttempt;
