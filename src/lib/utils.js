@@ -8,6 +8,28 @@ export function cn(...inputs) {
 
 export const isIframe = window.self !== window.top;
 
+export function formatTimeBA(dateStr, formatType = "time") {
+  if (!dateStr) return "";
+  try {
+    const safeDateStr = (!dateStr.endsWith("Z") && dateStr.includes("T")) ? dateStr + "Z" : dateStr;
+    const d = new Date(safeDateStr);
+    if (isNaN(d.getTime())) return dateStr;
+
+    if (formatType === "time") {
+      return d.toLocaleTimeString("es-AR", { timeZone: "America/Buenos_Aires", hour: "2-digit", minute: "2-digit", hour12: false });
+    }
+    if (formatType === "short") {
+      return d.toLocaleString("es-AR", { timeZone: "America/Buenos_Aires", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    }
+    if (formatType === "full-sec") {
+      return d.toLocaleString("es-AR", { timeZone: "America/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    }
+    return d.toLocaleString("es-AR", { timeZone: "America/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  } catch(e) {
+    return "";
+  }
+}
+
 export function getDriverDisplay(numeroMovil, nombre) {
   let num = "";
   

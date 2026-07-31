@@ -13,8 +13,7 @@ import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
 import RideTicket from "@/components/orders/RideTicket";
 import RideMap from "@/components/map/RideMap";
 import { assignDriverToOrder } from "@/lib/dispatchLogic";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { formatTimeBA } from "@/lib/utils";
 
 export default function OrderDetail() {
   const { user } = useAuth();
@@ -267,7 +266,7 @@ export default function OrderDetail() {
             )}
 
             <div className="text-xs text-muted-foreground">
-              Creado: {order.created_date ? new Date(order.created_date).toLocaleString("es-AR", { timeZone: "America/Buenos_Aires", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Fecha desconocida"}
+              Creado: {order.created_date ? formatTimeBA(order.created_date, "short") : "Fecha desconocida"}
             </div>
           </CardContent>
         </Card>

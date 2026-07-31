@@ -6,18 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Send, Radio, User, MessageCircle, X } from "lucide-react";
-import { format } from "date-fns";
-
-const formatTimeBA = (dateStr) => {
-  if (!dateStr) return "";
-  try {
-    const safeDateStr = dateStr.endsWith("Z") ? dateStr : dateStr + "Z";
-    const d = new Date(safeDateStr);
-    return d.toLocaleTimeString("es-AR", { timeZone: "America/Buenos_Aires", hour: "2-digit", minute: "2-digit", hour12: false });
-  } catch(e) {
-    return format(new Date(dateStr), "HH:mm");
-  }
-};
+import { formatTimeBA } from "@/lib/utils";
 
 function playMsgSound() {
   try {

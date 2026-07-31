@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { format } from "date-fns";
+import { formatTimeBA } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldCheck, User, Zap, Settings, Ban, Car, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,7 @@ export default function AuditLogs() {
               {logs.map(log => (
                 <tr key={log.id} className="hover:bg-muted/30">
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground font-mono text-xs">
-                    {format(new Date(log.created_date), "dd/MM/yyyy HH:mm:ss")}
+                    {formatTimeBA(log.created_date, "full-sec")}
                   </td>
                   <td className="px-4 py-3 font-medium">{log.user_name}</td>
                   <td className="px-4 py-3">

@@ -1,19 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { MapPin, Phone, User, Clock, Trash2 } from "lucide-react";
 import OrderStatusBadge from "./OrderStatusBadge";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
-
-// Forzar zona horaria de Argentina (UTC-3) independientemente de la configuración de la PC
-function formatBuenosAires(dateStr) {
-  if (!dateStr) return "";
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleString("es-AR", { timeZone: "America/Buenos_Aires", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" });
-  } catch (e) {
-    return "";
-  }
-}
+import { formatTimeBA } from "@/lib/utils";
 
 export default function OrderCard({ order, onClick, isAdmin, onDelete }) {
   return (
@@ -71,7 +59,7 @@ export default function OrderCard({ order, onClick, isAdmin, onDelete }) {
       <div className="flex items-center justify-between mt-3 pt-3 border-t">
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <Clock className="w-3 h-3" />
-          {formatBuenosAires(order.created_date)}
+          {formatTimeBA(order.created_date, "short")}
         </div>
         {order.fare && (
           <span className="font-bold text-sm">${order.fare.toLocaleString()}</span>
