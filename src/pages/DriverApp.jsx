@@ -1217,12 +1217,23 @@ export default function DriverApp() {
     if (autoAcceptOrderId && myDriverId) {
       stopAlert();
       if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
-      base44.functions.invoke("acceptRide", {
-        orderId: autoAcceptOrderId,
-        driverId: myDriverId,
-        assignmentAttempt: autoAcceptAttempt,
-        sessionToken: getSessionToken()
-      }).then(res => {
+      const tryAutoAccept = async (retries = 3) => {
+        for (let i = 0; i < retries; i++) {
+          try {
+            return await base44.functions.invoke("acceptRide", {
+              orderId: autoAcceptOrderId,
+              driverId: myDriverId,
+              assignmentAttempt: autoAcceptAttempt,
+              sessionToken: getSessionToken()
+            });
+          } catch (err) {
+            if (i === retries - 1) throw err;
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        }
+      };
+
+      tryAutoAccept().then(res => {
         if (res.data?.accepted) {
           setLocalOverride({ status: "en_viaje", optimisticOrderId: autoAcceptOrderId });
           updateOrder.mutate({ id: autoAcceptOrderId, data: { status: "aceptado", driver_id: myDriverId } });
@@ -1233,7 +1244,7 @@ export default function DriverApp() {
           window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
       }).catch(() => {
-        alert("Error de red al aceptar.");
+        alert("Error de red al aceptar. Revisá tu conexión.");
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       });
       window.history.replaceState({}, "", "/driver-app");
@@ -1833,13 +1844,24 @@ export default function DriverApp() {
 
     setIsAccepting(true);
 
+    const tryAccept = async (retries = 3) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          return await base44.functions.invoke("acceptRide", {
+            orderId: offeredOrder.id,
+            driverId: myDriverId,
+            assignmentAttempt: offeredOrder.assignment_attempt || 1,
+            sessionToken: getSessionToken()
+          });
+        } catch (err) {
+          if (i === retries - 1) throw err;
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+    };
+
     try {
-      const res = await base44.functions.invoke("acceptRide", {
-        orderId: offeredOrder.id,
-        driverId: myDriverId,
-        assignmentAttempt: offeredOrder.assignment_attempt || 1,
-        sessionToken: getSessionToken()
-      });
+      const res = await tryAccept(3);
 
       if (res.data.accepted) {
         if(Capacitor.isNativePlatform()&&offeredOrder?.id){Capacitor.Plugins.ForegroundService?.markRideResolved({orderId:offeredOrder.id,assignmentAttempt:offeredOrder.assignment_attempt||1,resolutionType:"ACCEPTED"}).catch(()=>{});stopNativeRideAlert(offeredOrder.id);}
@@ -1863,9 +1885,7 @@ export default function DriverApp() {
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       }
     } catch (error) {
-      if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
-      setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
-      alert("Error de red. El viaje pudo haber sido tomado.");
+      alert("Error de red al intentar aceptar. Revisá tu conexión e intentá de nuevo.");
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } finally {
       setIsAccepting(false);
@@ -2037,13 +2057,24 @@ export default function DriverApp() {
 
     setIsAccepting(true);
 
+    const tryBroadcastAccept = async (retries = 3) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          return await base44.functions.invoke("acceptRide", {
+            orderId: order.id,
+            driverId: myDriverId,
+            assignmentAttempt: order.assignment_attempt || 1,
+            sessionToken: getSessionToken()
+          });
+        } catch (err) {
+          if (i === retries - 1) throw err;
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+    };
+
     try {
-      const res = await base44.functions.invoke("acceptRide", {
-        orderId: order.id,
-        driverId: myDriverId,
-        assignmentAttempt: order.assignment_attempt || 1,
-        sessionToken: getSessionToken()
-      });
+      const res = await tryBroadcastAccept(3);
 
       if (res.data.accepted) {
         if(Capacitor.isNativePlatform()&&order?.id){Capacitor.Plugins.ForegroundService?.markRideResolved({orderId:order.id,assignmentAttempt:order.assignment_attempt||1,resolutionType:"ACCEPTED"}).catch(()=>{});stopNativeRideAlert(order.id);}
@@ -2067,9 +2098,7 @@ export default function DriverApp() {
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       }
     } catch (error) {
-      if (order?.id) ignoredOrdersRef.current.add(order.id);
-      setLocalOverride({ status: "disponible", _ignoredOrderId: order?.id });
-      alert("Error de red. El viaje pudo haber sido tomado.");
+      alert("Error de red al intentar aceptar. Revisá tu conexión e intentá de nuevo.");
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } finally {
       setIsAccepting(false);
