@@ -15,6 +15,33 @@ Deno.serve(async (req) => {
       updated_date: { $lt: thresholdDate.toISOString() }
     });
 
+    // 2. Limpieza de choferes fantasma (desconectados o sin señal por más de 10 mins)
+    const tenMinsAgo = new Date(Date.now() - (10 * 60 * 1000)).toISOString();
+    const ghostDrivers = await b44.entities.Driver.filter({
+      status: "disponible",
+      $or: [
+        { last_active: { $lt: tenMinsAgo } },
+        { last_active: null }
+      ]
+    });
+
+    let ghostsDisconnected = 0;
+    for (const driver of ghostDrivers) {
+      // Verificar doblemente que no estén en medio de un viaje
+      const activeRides = await b44.entities.RideOrder.filter({
+        status: { $in: ["ofrecido", "aceptado", "en_camino", "en_viaje"] },
+        $or: [{ driver_id: driver.id }, { reserved_driver_id: driver.id }]
+      });
+      
+      if (activeRides.length === 0) {
+        await b44.entities.Driver.updateMany(
+          { id: driver.id },
+          { $set: { status: "no_disponible", current_base: null, queue_entered_at: null } }
+        );
+        ghostsDisconnected++;
+      }
+    }
+
     let count = 0;
     for (const order of stuckOrders) {
       if (order.driver_id || order.reserved_driver_id) {
@@ -42,7 +69,7 @@ Deno.serve(async (req) => {
       count++;
     }
 
-    return Response.json({ success: true, fixedCount: count });
+    return Response.json({ success: true, fixedCount: count, ghostsDisconnected });
   } catch(e) {
     return Response.json({ success: false, error: e.message }, { status: 500 });
   }
