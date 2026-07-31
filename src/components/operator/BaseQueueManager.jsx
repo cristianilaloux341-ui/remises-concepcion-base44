@@ -343,8 +343,11 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
         await base44.entities.Driver.update(driver.id, {
           current_base: null,
           status: "no_disponible",
+          dispatch_status: "normal",
+          reserved_order_id: null,
           queue_entered_at: null,
         });
+        window.dispatchEvent(new Event("force-driver-refresh"));
       } catch (err) {
       }
       setIsProcessing(false);
