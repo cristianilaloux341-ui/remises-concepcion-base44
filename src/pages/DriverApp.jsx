@@ -1246,11 +1246,9 @@ export default function DriverApp() {
           updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
           base44.functions.invoke("sendPushNotification", { action: "cancel_ride", orderId: autoAcceptOrderId, driverId: myDriverId }).catch(()=>{});
         } else {
-          alert("Este viaje ya fue tomado o reasignado.");
           window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
       }).catch(() => {
-        alert("Error de red al aceptar. Revisá tu conexión.");
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       });
       window.history.replaceState({}, "", "/driver-app");
@@ -1875,11 +1873,9 @@ export default function DriverApp() {
       } else {
         if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
         setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
-        alert("Este viaje ya fue tomado o reasignado.");
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       }
     } catch (error) {
-      alert("Error de red al intentar aceptar. Revisá tu conexión e intentá de nuevo.");
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } finally {
       setIsAccepting(false);
@@ -2088,11 +2084,9 @@ export default function DriverApp() {
       } else {
         if (order?.id) ignoredOrdersRef.current.add(order.id);
         setLocalOverride({ status: "disponible", _ignoredOrderId: order?.id });
-        alert("Este viaje ya fue tomado o reasignado.");
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       }
     } catch (error) {
-      alert("Error de red al intentar aceptar. Revisá tu conexión e intentá de nuevo.");
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } finally {
       setIsAccepting(false);
