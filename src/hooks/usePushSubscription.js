@@ -41,12 +41,14 @@ export function usePushSubscription(driverId) {
         await PushNotifications.removeAllListeners();
 
         PushNotifications.addListener('registration', async (token) => {
-          if (cancelled) return;
+          // Quitamos la validación de 'cancelled' porque en Android a veces la pantalla
+          // recarga muy rápido y mata el proceso justo cuando llega el token de Google.
+          
           await base44.entities.AuditLog.create({
             action: 'push_debug',
             user_type: 'sistema',
             user_name: 'Chofer ' + driverId,
-            details: 'TOKEN RECIBIDO CORRECTAMENTE'
+            details: 'TOKEN RECIBIDO CORRECTAMENTE: ' + token.value.substring(0, 10) + '...'
           }).catch(()=>{});
 
           await base44.functions.invoke("sendPushNotification", {
