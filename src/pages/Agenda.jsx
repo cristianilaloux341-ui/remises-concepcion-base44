@@ -30,12 +30,25 @@ const STATUS_COLORS = {
 };
 
 function ScheduledForm({ ride, drivers, onSave, onClose }) {
-  const [form, setForm] = useState(ride || {
-    client_name: "", client_phone: "", pickup_address: "", dropoff_address: "",
-    zone: "",
-    scheduled_datetime: "", notify_minutes_before: 10,
-    require_specific_driver: false, preferred_driver_id: "", preferred_driver_name: "",
-    fare: "", notes: ""
+  const formatForInput = (isoString) => {
+    if (!isoString) return "";
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return "";
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+  };
+
+  const [form, setForm] = useState(() => {
+    if (ride) {
+      return { ...ride, scheduled_datetime: formatForInput(ride.scheduled_datetime) };
+    }
+    return {
+      client_name: "", client_phone: "", pickup_address: "", dropoff_address: "",
+      zone: "",
+      scheduled_datetime: "", notify_minutes_before: 10,
+      require_specific_driver: false, preferred_driver_id: "", preferred_driver_name: "",
+      fare: "", notes: ""
+    };
   });
   
   // Estado para la recurrencia

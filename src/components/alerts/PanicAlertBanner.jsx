@@ -107,8 +107,13 @@ export default function PanicAlertBanner() {
   }, []);
 
   const dismiss = async (panic) => {
-    await base44.entities.PanicAlert.update(panic.id, { status: "atendido" });
+    // Optimistic UI: lo sacamos de la pantalla instantáneamente
     setPanics(prev => prev.filter(p => p.id !== panic.id));
+    try {
+      await base44.entities.PanicAlert.update(panic.id, { status: "atendido" });
+    } catch (e) {
+      console.error("Error al descartar pánico", e);
+    }
   };
 
   if (panics.length === 0) return null;
@@ -127,6 +132,13 @@ export default function PanicAlertBanner() {
               <p className="font-black text-white text-base leading-tight uppercase">¡ALERTA DE PÁNICO!</p>
               <p className="text-red-100 text-xs font-bold truncate">Móvil: {panic.driver_name} ({panic.vehicle_plate})</p>
             </div>
+            <button 
+              className="text-red-200 hover:text-white shrink-0 opacity-50 p-1"
+              onClick={() => setPanics(prev => prev.filter(p => p.id !== panic.id))}
+              title="Cerrar forzado localmente"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
           <div className="p-4 space-y-4">
              {panic.current_lat && panic.current_lng ? (

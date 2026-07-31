@@ -650,16 +650,29 @@ function IncomingAlert({ order, onAccept, onReject, isAccepting }) {
 
   useEffect(() => {
     let mounted = true;
-    base44.entities.RideOrder.get(order.id).then(fresh => {
-      if (mounted) {
-        if (fresh && fresh.status !== 'ofrecido') {
-          setIsValid(false);
-          window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+    let pollTimer;
+    
+    const checkStatus = () => {
+      base44.entities.RideOrder.get(order.id).then(fresh => {
+        if (mounted && fresh) {
+          if (fresh.status !== 'ofrecido' || (fresh.driver_id && fresh.driver_id !== order.driver_id)) {
+            setIsValid(false);
+            window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+          }
         }
-      }
-    }).catch(() => {});
-    return () => { mounted = false; };
-  }, [order.id]);
+      }).catch(() => {
+        // En caso de microcorte o error de red, NO cerramos el cartel
+      });
+    };
+    
+    checkStatus();
+    pollTimer = setInterval(checkStatus, 2000);
+    
+    return () => { 
+      mounted = false; 
+      clearInterval(pollTimer);
+    };
+  }, [order.id, order.driver_id]);
 
   if (isValid === false) return null;
 
@@ -1860,7 +1873,7 @@ export default function DriverApp() {
 
     setIsAccepting(true);
 
-    const tryAccept = async (retries = 3) => {
+    const tryAccept = async (retries = 5) => {
       for (let i = 0; i < retries; i++) {
         try {
           return await base44.functions.invoke("acceptRide", {
@@ -1871,7 +1884,7 @@ export default function DriverApp() {
           });
         } catch (err) {
           if (i === retries - 1) throw err;
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise(r => setTimeout(r, 1500));
         }
       }
     };
