@@ -139,6 +139,15 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
   // Filtramos choferes y puntos fuera del ejido urbano para no mostrarlos ni centrar en ellos
   const validDrivers = drivers.filter(d => {
     if (d.status === "no_disponible") return false;
+
+    // "Si ellos no están en servicio ni en posición o con pasaje en el mapa no tienen que aparecer"
+    const enPosicion = d.status === "disponible" && !!d.current_base;
+    const conPasaje = ["en_viaje", "en_camino", "aceptado", "ofrecido"].includes(d.status) || 
+                      ["automatic_pending", "manual_pending"].includes(d.dispatch_status);
+
+    if (!enPosicion && !conPasaje) {
+      return false;
+    }
     
     // Filtrar "fantasmas": si cerraron la app sin ponerse no_disponible, quedan colgados.
     // Ocultamos a los que no reportaron actividad en los últimos 10 minutos.
