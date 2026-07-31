@@ -1516,17 +1516,6 @@ export default function DriverApp() {
   // Wake Lock — mantiene la pantalla activa mientras el chofer está en servicio
   useWakeLock(!!myDriverId);
 
-  // Servicio en primer plano nativo (Android)
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      if (myDriverId && myDriver?.status !== "no_disponible") {
-         Capacitor.Plugins.ForegroundService?.startService().catch(console.error);
-      } else {
-         Capacitor.Plugins.ForegroundService?.stopService().catch(console.error);
-      }
-    }
-  }, [myDriverId, myDriver?.status]);
-
   // Push subscription — registra este dispositivo para recibir notificaciones push reales
   usePushSubscription(myDriverId || null);
 
@@ -1557,6 +1546,17 @@ export default function DriverApp() {
   const myDriver = myDriverRaw
     ? { ...myDriverRaw, ...(localOverride ?? {}) }
     : null;
+
+  // Servicio en primer plano nativo (Android)
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      if (myDriverId && myDriver?.status !== "no_disponible") {
+         Capacitor.Plugins.ForegroundService?.startService().catch(console.error);
+      } else {
+         Capacitor.Plugins.ForegroundService?.stopService().catch(console.error);
+      }
+    }
+  }, [myDriverId, myDriver?.status]);
 
   const ignoredOrderId = localOverride?._ignoredOrderId || null;
   const optimisticOrderId = localOverride?.optimisticOrderId || null;
