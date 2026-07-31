@@ -302,7 +302,8 @@ public class RideAlertController {
     }
 
     public synchronized boolean isAlertActive(String orderId) {
-        return orderId != null && orderId.equals(currentOrderId) && mediaPlayer != null;
+        if (orderId == null || currentOrderId == null) return false;
+        return getBaseId(orderId).equals(getBaseId(currentOrderId)) && mediaPlayer != null;
     }
 
     public synchronized void playOneShotSound(Context context, String type) {
