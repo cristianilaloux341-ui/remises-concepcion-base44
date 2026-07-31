@@ -406,6 +406,15 @@ export default function Agenda() {
   const saveMutation = useMutation({
     mutationFn: async ({ form, recurrence }) => {
       const dataToSave = { ...form };
+      
+      // Aseguramos que la fecha se guarde SIEMPRE en formato ISO 8601 (UTC) absoluto
+      if (dataToSave.scheduled_datetime && !dataToSave.scheduled_datetime.endsWith('Z')) {
+        const d = new Date(dataToSave.scheduled_datetime);
+        if (!isNaN(d.getTime())) {
+          dataToSave.scheduled_datetime = d.toISOString();
+        }
+      }
+
       if (dataToSave.fare && String(dataToSave.fare).trim() !== "") {
         dataToSave.fare = Number(dataToSave.fare);
       } else {
