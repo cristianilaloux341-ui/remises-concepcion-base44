@@ -62,6 +62,9 @@ function getAudioCtx() {
 }
 
 function unlockAudio() {
+  // En Android nativo, el OS ya maneja el audio en segundo plano. Esto solo causa cuelgues.
+  if (Capacitor.isNativePlatform()) return;
+  
   // Intentar reanudar siempre, no solo la primera vez
   try {
     const ctx = getAudioCtx();
@@ -113,6 +116,9 @@ function unlockAudio() {
 }
 
 function playAlert() {
+  // En Android nativo, Java ya reproduce el sonido `raw`. No pisar el audio ni vibrar desde la web.
+  if (Capacitor.isNativePlatform()) return;
+
   if (Date.now() < window._lastAlertStopTime + 1000) return;
   try { navigator.vibrate?.([500, 200, 500, 200, 1000, 300, 500]); } catch (_) {}
   
@@ -1689,8 +1695,8 @@ export default function DriverApp() {
         const data = notification.data || notification.notification?.data || {};
         
         if (data.orderId) {
-            // Forzar disparo del sonido inmediatamente
-            playAlert();
+            // El sonido y la burbuja ya los maneja Java (MyFirebaseMessagingService).
+            // Solo recargamos la interfaz para mostrar la pantalla amarilla:
             window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         } else {
             // Si es un mensaje de chat u otra cosa sin orderId, NO disparamos la alarma de viaje.
@@ -1747,20 +1753,8 @@ export default function DriverApp() {
         clearInterval(alertIntervalRef.current);
         alertIntervalRef.current = setInterval(() => { playAlert(); }, 4000);
 
-        if (Capacitor.isNativePlatform()) {
-          try {
-            LocalNotifications.schedule({
-              notifications: [{
-                id: 88888,
-                title: "🚖 ¡NUEVO VIAJE!",
-                body: `${offered.pickup_address}${offered.dropoff_address ? ' → ' + offered.dropoff_address : ''}`,
-                channelId: 'ride-alerts-urgent',
-                actionTypeId: 'RIDE_OFFER_ACTIONS',
-                extra: { orderId: offered.id, assignmentAttempt: offered.assignment_attempt || 1 }
-              }]
-            });
-          } catch(e) {}
-        }
+        // Eliminamos LocalNotifications.schedule porque Firebase/Java ya crea la burbuja nativa
+        // con los botones de aceptar/rechazar y el sonido `raw`.
 
         base44.entities.RideOrder.get(offered.id).then(fresh => {
            if (prevOfferedId.current !== offered.id) return; // Prevent race conditions if state changed
