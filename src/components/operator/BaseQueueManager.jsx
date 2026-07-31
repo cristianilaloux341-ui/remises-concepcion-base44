@@ -79,47 +79,20 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
       let driver = drivers.find(d => 
         d.id === inputTrimmed || 
         d.vehicle_model === inputTrimmed || 
-        d.name.toLowerCase() === inputTrimmed.toLowerCase()
+        d.name.toLowerCase() === inputTrimmed.toLowerCase() ||
+        (d.name && d.name.startsWith(inputTrimmed + " ")) || 
+        (d.name && d.name === inputTrimmed)
       );
 
-      // Si no existe, intentar auto-crearlo
+      // Búsqueda por número
+      const movilNum = parseInt(inputTrimmed);
+      if (!driver && !isNaN(movilNum)) {
+        driver = drivers.find(d => d.name && (d.name.startsWith(`${movilNum} `) || d.name.includes(` ${movilNum} `)));
+      }
+
+      // Si no existe, alertamos y bloqueamos (ya no creamos móviles fantasma)
       if (!driver) {
-        let movilNum = parseInt(inputTrimmed);
-        
-        if (isNaN(movilNum)) {
-          // No es un número, creamos un chofer genérico
-          driver = await base44.entities.Driver.create({
-            name: inputTrimmed,
-            phone: "0000000000",
-            vehicle_plate: "TEST-" + Math.floor(Math.random() * 1000),
-            status: "disponible"
-          });
-        } else {
-          // Es un número, auto-creamos Móvil y Chofer vinculados
-          try {
-            const moviles = await base44.entities.Movil.filter({ numero_movil: movilNum });
-            let movil = moviles[0];
-            
-            if (!movil) {
-              movil = await base44.entities.Movil.create({ numero_movil: movilNum, activo: true });
-            }
-
-            const fakePlate = `TEST${movilNum}`;
-            driver = await base44.entities.Driver.create({
-              name: `Móvil ${movilNum}`,
-              phone: `000000000${movilNum}`,
-              vehicle_plate: fakePlate,
-              vehicle_model: String(movilNum),
-              status: "disponible"
-            });
-
-            if (!movil.dominio) {
-              await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
-            }
-          } catch(e) {
-            throw new Error("No se pudo crear el chofer automáticamente");
-          }
-        }
+         throw new Error(`No se encontró un chofer válido con el número/nombre: ${inputTrimmed}`);
       }
 
       // Finalizar cualquier viaje activo al ponerlo en posición
@@ -283,43 +256,18 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
        });
     }
 
-    // Auto-crear Móvil si no existe (Modo Prueba / Carga Rápida)
-    if (!movil) {
-      try {
-        movil = await base44.entities.Movil.create({
-          numero_movil: movilNum,
-          activo: true
-        });
-      } catch (err) {
-        setIsProcessing(false);
-        return;
-      }
-    } else if (!movil.activo || movil.fuera_de_servicio) {
-      // Forzar activación para pruebas
+    // Auto-crear bloqueado - evitamos crear móviles fantasma
+    if (!movil || !driver) {
+      alert(`No se encontró un chofer registrado para el móvil ${movilNum}. Por favor, registralo primero.`);
+      setIsProcessing(false);
+      return;
+    }
+
+    if (!movil.activo || movil.fuera_de_servicio) {
+      // Forzar activación (mantenemos esto por si el operador lo saca de servicio y luego lo ingresa con un comando)
       try {
         await base44.entities.Movil.update(movil.id, { activo: true, fuera_de_servicio: false });
       } catch (err) {}
-    }
-
-    // Auto-crear Chofer si no existe (Modo Prueba / Carga Rápida)
-    if (!driver) {
-      try {
-        const fakePlate = `TEST-${movilNum}`;
-        driver = await base44.entities.Driver.create({
-          name: `Móvil ${movilNum}`,
-          phone: `${movilNum}n`,
-          vehicle_plate: fakePlate,
-          vehicle_model: String(movilNum),
-          status: "disponible"
-        });
-        
-        if (!movil.dominio) {
-          await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
-        }
-      } catch (err) {
-        setIsProcessing(false);
-        return;
-      }
     }
 
     // Finalizar cualquier viaje activo al ponerlo en posición o sacarlo de servicio

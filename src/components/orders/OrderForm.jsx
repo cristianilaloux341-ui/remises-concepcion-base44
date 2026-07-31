@@ -284,33 +284,25 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
       // Auto-create/force assign just like DispatchPanel
       const inputTrimmed = manualDriverInput.trim();
       let movilNum = parseInt(inputTrimmed);
+      
+      // Búsqueda más inteligente para encontrar al móvil real
       let driver = drivers.find(d => 
         d.id === inputTrimmed || 
         d.vehicle_model === inputTrimmed || 
-        d.name.toLowerCase() === inputTrimmed.toLowerCase()
+        d.name.toLowerCase() === inputTrimmed.toLowerCase() ||
+        (d.name && d.name.startsWith(inputTrimmed + " ")) || 
+        (d.name && d.name === inputTrimmed)
       );
 
+      // Si aún no lo encuentra y es un número, buscar en el string del nombre que contenga el número
       if (!driver && !isNaN(movilNum)) {
-        try {
-          const m = await base44.entities.Movil.filter({ numero_movil: movilNum });
-          let movil = m[0];
-          if (!movil) {
-            movil = await base44.entities.Movil.create({ numero_movil: movilNum, activo: true });
-          }
-          const fakePlate = `TEST${movilNum}`;
-          driver = await base44.entities.Driver.create({
-            name: `Móvil ${movilNum}`,
-            phone: `000000000${movilNum}`,
-            vehicle_plate: fakePlate,
-            vehicle_model: String(movilNum),
-            status: "disponible"
-          });
-          if (!movil.dominio) {
-            await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
-          }
-        } catch(err) {
-          console.error("Auto-create failed", err);
-        }
+        driver = drivers.find(d => d.name && (d.name.startsWith(`${movilNum} `) || d.name.includes(` ${movilNum} `)));
+      }
+
+      // No creamos móviles falsos ("Móvil XX"). Si no lo encuentra, lo dejamos para asignación manual obligatoria
+      if (!driver) {
+         alert(`No se encontró un chofer válido con el número/nombre: ${inputTrimmed}. Por favor, seleccionalo de la lista.`);
+         return; // Frenar el submit
       }
 
       if (driver) {

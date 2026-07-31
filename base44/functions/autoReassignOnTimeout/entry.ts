@@ -33,6 +33,13 @@ Deno.serve(async (req) => {
         return Response.json({ ok: true, skipped: true });
       }
 
+      // Fix "lo saca antes de cumplir el tiempo" - we must read the CURRENT order from DB before chaining 
+      // to ensure it hasn't been modified or incremented while we slept.
+      const freshOrder = await base44.asServiceRole.entities.RideOrder.get(orderId);
+      if (freshOrder && freshOrder.assignment_attempt !== assignmentAttempt) {
+         return Response.json({ ok: true, skipped: true, reason: 'attempt_changed' });
+      }
+
       // Invocar la siguiente iteración con el tiempo restante para evitar que este proceso exceda los 29s
       base44.functions.invoke("autoReassignOnTimeout", {
         orderId,
@@ -57,6 +64,9 @@ Deno.serve(async (req) => {
       }
       if (order.driver_id && order.driver_id !== driverId) {
         return Response.json({ ok: true, skipped: true });
+      }
+      if (order.assignment_attempt !== assignmentAttempt) {
+        return Response.json({ ok: true, skipped: true, reason: 'attempt_changed' });
       }
 
       const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
