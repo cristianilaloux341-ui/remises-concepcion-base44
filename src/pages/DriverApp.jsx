@@ -1222,7 +1222,11 @@ export default function DriverApp() {
     const autoAcceptAttempt = parseInt(urlParams.get("attempt") || "1", 10);
     if (autoAcceptOrderId && myDriverId) {
       stopAlert();
-      if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
+      if (Capacitor.isNativePlatform()) { 
+        PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
+        Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId: autoAcceptOrderId, assignmentAttempt: autoAcceptAttempt, resolutionType: "ACCEPTED" }).catch(()=>{});
+        stopNativeRideAlert(autoAcceptOrderId);
+      }
       const tryAutoAccept = async (retries = 3) => {
         for (let i = 0; i < retries; i++) {
           try {
@@ -1257,7 +1261,11 @@ export default function DriverApp() {
     if (autoRejectOrderId && myDriverId) {
       stopAlert();
       ignoredOrdersRef.current.add(autoRejectOrderId);
-      if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
+      if (Capacitor.isNativePlatform()) { 
+        PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
+        Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId: autoRejectOrderId, assignmentAttempt: 1, resolutionType: "REJECTED" }).catch(()=>{});
+        stopNativeRideAlert(autoRejectOrderId);
+      }
       setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
       updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
       Promise.all([
@@ -1338,7 +1346,11 @@ export default function DriverApp() {
         const orderId = getRealOrderId(msg.orderId || msg.payload?.orderId);
         if (orderId && myDriverId) {
           stopAlert();
-          if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
+          if (Capacitor.isNativePlatform()) { 
+             PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
+             Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId, assignmentAttempt: 1, resolutionType: "ACCEPTED" }).catch(()=>{});
+             stopNativeRideAlert(orderId);
+          }
           notifySW({ type: "ACK_ACCEPT_ORDER", orderId }); // Send ACK immediately so SW doesn't spawn a new tab
           setLocalOverride({ status: "en_viaje", optimisticOrderId: orderId });
           updateOrder.mutate({ id: orderId, data: { status: "aceptado", driver_id: myDriverId } });
@@ -1352,7 +1364,11 @@ export default function DriverApp() {
         if (orderId && myDriverId) {
           stopAlert();
           ignoredOrdersRef.current.add(orderId);
-          if (Capacitor.isNativePlatform()) { PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); }
+          if (Capacitor.isNativePlatform()) { 
+            PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
+            Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId, assignmentAttempt: 1, resolutionType: "REJECTED" }).catch(()=>{});
+            stopNativeRideAlert(orderId);
+          }
           notifySW({ type: "ACK_REJECT_ORDER", orderId }); // Send ACK
           setLocalOverride({ status: "disponible" });
           updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
@@ -1821,17 +1837,25 @@ export default function DriverApp() {
 
   const stopNativeRideAlert = async (orderId) => {
     if (!Capacitor.isNativePlatform() || !orderId) return;
-    try { await Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId }); }
+    try { await Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: getRealOrderId(orderId) }); }
     catch (error) { console.warn("No se pudo detener la alerta nativa", error); }
   };
 
   const handleAccept = async () => {
-    await stopNativeRideAlert(offeredOrder?.id);
+    const realId = getRealOrderId(offeredOrder?.id);
+    await stopNativeRideAlert(realId);
     stopAlert();
     clearInterval(alertIntervalRef.current);
     if (Capacitor.isNativePlatform()) {
       LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
       PushNotifications.removeAllDeliveredNotifications().catch(()=>{});
+      if(realId){
+        Capacitor.Plugins.ForegroundService?.markRideResolved({
+          orderId: realId,
+          assignmentAttempt: offeredOrder.assignment_attempt || 1,
+          resolutionType: "ACCEPTED"
+        }).catch(()=>{});
+      }
     }
 
     setIsAccepting(true);
@@ -1856,7 +1880,6 @@ export default function DriverApp() {
       const res = await tryAccept(3);
 
       if (res.data.accepted) {
-        if(Capacitor.isNativePlatform()&&offeredOrder?.id){Capacitor.Plugins.ForegroundService?.markRideResolved({orderId:offeredOrder.id,assignmentAttempt:offeredOrder.assignment_attempt||1,resolutionType:"ACCEPTED"}).catch(()=>{});stopNativeRideAlert(offeredOrder.id);}
         if (offeredOrder?.id) {
           setLocalOverride({ status: "en_viaje", optimisticOrderId: offeredOrder.id });
           updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado", driver_id: myDriverId } });
@@ -1884,12 +1907,20 @@ export default function DriverApp() {
     }
   };
   const handleReject = async () => {
-    await stopNativeRideAlert(offeredOrder?.id);
+    const realId = getRealOrderId(offeredOrder?.id);
+    await stopNativeRideAlert(realId);
     stopAlert();
     clearInterval(alertIntervalRef.current);
     if (Capacitor.isNativePlatform()) {
       LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
       PushNotifications.removeAllDeliveredNotifications().catch(()=>{});
+      if(realId){
+        Capacitor.Plugins.ForegroundService?.markRideResolved({
+          orderId: realId,
+          assignmentAttempt: offeredOrder.assignment_attempt || 1,
+          resolutionType: "REJECTED"
+        }).catch(()=>{});
+      }
     }
 
     if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
@@ -1907,7 +1938,6 @@ export default function DriverApp() {
     }).catch(console.error);
 
     await reassignAfterReject(currentOrder, drivers, []);
-    if(Capacitor.isNativePlatform()&&offeredOrder?.id){Capacitor.Plugins.ForegroundService?.markRideResolved({orderId:offeredOrder.id,assignmentAttempt:offeredOrder.assignment_attempt||1,resolutionType:"REJECTED"}).catch(()=>{});stopNativeRideAlert(offeredOrder.id);}
     base44.entities.AuditLog.create({
       action: "rechazar_viaje",
       user_type: "chofer",
@@ -1986,6 +2016,11 @@ export default function DriverApp() {
     });
   };
   const handleTakeOrder = (order) => {
+    const realId = getRealOrderId(order.id);
+    stopNativeRideAlert(realId);
+    if (Capacitor.isNativePlatform() && realId) {
+      Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId: realId, assignmentAttempt: 1, resolutionType: "ACCEPTED" }).catch(()=>{});
+    }
     setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
     updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
     updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
@@ -2037,12 +2072,20 @@ export default function DriverApp() {
   };
 
   const handleBroadcastAccept = async (order) => {
-    await stopNativeRideAlert(order?.id);
+    const realId = getRealOrderId(order?.id);
+    await stopNativeRideAlert(realId);
     stopAlert();
     clearInterval(broadcastIntervalRef.current);
     if (Capacitor.isNativePlatform()) {
       LocalNotifications.cancel({ notifications: [{ id: 77777 }] }).catch(()=>{});
       PushNotifications.removeAllDeliveredNotifications().catch(()=>{});
+      if(realId){
+        Capacitor.Plugins.ForegroundService?.markRideResolved({
+          orderId: realId,
+          assignmentAttempt: order.assignment_attempt || 1,
+          resolutionType: "ACCEPTED"
+        }).catch(()=>{});
+      }
     }
 
     setIsAccepting(true);
@@ -2067,7 +2110,6 @@ export default function DriverApp() {
       const res = await tryBroadcastAccept(3);
 
       if (res.data.accepted) {
-        if(Capacitor.isNativePlatform()&&order?.id){Capacitor.Plugins.ForegroundService?.markRideResolved({orderId:order.id,assignmentAttempt:order.assignment_attempt||1,resolutionType:"ACCEPTED"}).catch(()=>{});stopNativeRideAlert(order.id);}
         if (order?.id) {
           setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
           updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId } });
@@ -2096,12 +2138,20 @@ export default function DriverApp() {
   };
 
   const handleBroadcastReject = async (order) => {
-    await stopNativeRideAlert(order?.id);
+    const realId = getRealOrderId(order?.id);
+    await stopNativeRideAlert(realId);
     stopAlert();
     clearInterval(broadcastIntervalRef.current);
     if (Capacitor.isNativePlatform()) {
       LocalNotifications.cancel({ notifications: [{ id: 77777 }] }).catch(()=>{});
       PushNotifications.removeAllDeliveredNotifications().catch(()=>{});
+      if(realId){
+        Capacitor.Plugins.ForegroundService?.markRideResolved({
+          orderId: realId,
+          assignmentAttempt: order.assignment_attempt || 1,
+          resolutionType: "REJECTED"
+        }).catch(()=>{});
+      }
     }
 
     if (order?.id) ignoredOrdersRef.current.add(order.id);
@@ -2109,7 +2159,6 @@ export default function DriverApp() {
     const updated = [...dismissedBroadcasts, order.id];
     setDismissedBroadcasts(updated);
     localStorage.setItem(`dismissed_bc_${myDriverId}`, JSON.stringify(updated));
-    if(Capacitor.isNativePlatform()&&order?.id){Capacitor.Plugins.ForegroundService?.markRideResolved({orderId:order.id,assignmentAttempt:order.assignment_attempt||1,resolutionType:"REJECTED"}).catch(()=>{});}
 
     // Apagar sonido nativo en Android
     base44.functions.invoke("sendPushNotification", {
