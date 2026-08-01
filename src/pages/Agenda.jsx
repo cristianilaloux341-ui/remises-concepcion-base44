@@ -361,7 +361,16 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
 }
 
 function minutesUntil(datetime) {
-  return differenceInMinutes(new Date(datetime), new Date());
+  if (!datetime) return Infinity;
+  const d = new Date(datetime);
+  if (isNaN(d.getTime())) return Infinity;
+  return differenceInMinutes(d, new Date());
+}
+
+function safeTime(dt) {
+  if (!dt) return 0;
+  const t = new Date(dt).getTime();
+  return isNaN(t) ? 0 : t;
 }
 
 export default function Agenda() {
@@ -520,9 +529,9 @@ export default function Agenda() {
   };
 
   const upcoming = rides.filter(r => !["cancelado", "completado"].includes(r.status))
-    .sort((a, b) => new Date(a.scheduled_datetime) - new Date(b.scheduled_datetime));
+    .sort((a, b) => safeTime(a.scheduled_datetime) - safeTime(b.scheduled_datetime));
   const past = rides.filter(r => ["cancelado", "completado", "despachado"].includes(r.status))
-    .sort((a, b) => new Date(b.scheduled_datetime) - new Date(a.scheduled_datetime))
+    .sort((a, b) => safeTime(b.scheduled_datetime) - safeTime(a.scheduled_datetime))
     .slice(0, 20);
 
   const handleRefresh = async () => {
@@ -636,7 +645,7 @@ export default function Agenda() {
                   <p className="text-xs text-black font-medium">{ride.pickup_address}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <p className="text-xs text-black font-bold">{format(new Date(ride.scheduled_datetime), "dd/MM HH:mm")}</p>
+                  <p className="text-xs text-black font-bold">{ride.scheduled_datetime && !isNaN(new Date(ride.scheduled_datetime).getTime()) ? format(new Date(ride.scheduled_datetime), "dd/MM HH:mm") : "--/-- --:--"}</p>
                   <Badge className={STATUS_COLORS[ride.status] + " border-0 text-xs font-bold"}>{ride.status}</Badge>
                 </div>
               </CardContent>

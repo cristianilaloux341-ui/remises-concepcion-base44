@@ -10,7 +10,10 @@ import { motion } from "framer-motion";
 import { autoDispatch, assignDriverToOrder } from "@/lib/dispatchLogic";
 
 function minutesUntil(datetime) {
-  return differenceInMinutes(new Date(datetime), new Date());
+  if (!datetime) return Infinity;
+  const d = new Date(datetime);
+  if (isNaN(d.getTime())) return Infinity;
+  return differenceInMinutes(d, new Date());
 }
 
 export default function AgendaAlert() {
