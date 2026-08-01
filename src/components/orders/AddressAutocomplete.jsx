@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 const normalize = (s) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-export default function AddressAutocomplete({ value, onChange, placeholder, className, icon, required }) {
+export default function AddressAutocomplete({ value, onChange, placeholder, className, icon, required, autoFocus }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value || "");
   const containerRef = useRef(null);
@@ -93,6 +93,7 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
         onFocus={() => inputValue.length >= 3 && setOpen(true)}
         required={required}
         autoComplete="off"
+        autoFocus={autoFocus}
       />
       {showDropdown && (
         <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-xl shadow-lg overflow-hidden">

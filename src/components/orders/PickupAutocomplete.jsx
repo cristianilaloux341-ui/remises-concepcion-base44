@@ -10,7 +10,7 @@ import { useAddressSuggestions } from "@/hooks/useAddressSuggestions";
 const normalize = (s) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-export default function PickupAutocomplete({ value, onChange, onClientSelect, placeholder, className, required, restrictToClient }) {
+export default function PickupAutocomplete({ value, onChange, onClientSelect, placeholder, className, required, restrictToClient, autoFocus }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value || "");
   const containerRef = useRef(null);
@@ -129,6 +129,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
         onFocus={() => inputValue.length >= 3 && setOpen(true)}
         required={required}
         autoComplete="off"
+        autoFocus={autoFocus}
       />
       {open && suggestions.length > 0 && (
         <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-xl shadow-lg overflow-hidden max-h-72 overflow-y-auto">

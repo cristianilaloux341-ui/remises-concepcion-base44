@@ -442,6 +442,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
                 }))}
                 onClientSelect={handleAddressClientSelect}
                 required
+                autoFocus
               />
             </div>
             {/* Zona */}
@@ -492,7 +493,6 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
                     value={form.client_name}
                     onChange={(e) => handleChange("client_name", e.target.value)}
                     required
-                    autoFocus
                   />
                 </div>
               </div>
