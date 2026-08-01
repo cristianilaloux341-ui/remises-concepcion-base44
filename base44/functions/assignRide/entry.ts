@@ -30,15 +30,54 @@ Deno.serve(async (req) => {
     details: `Request to assign ride ${orderId} to driver ${forceManual ? manualDriverName : driverId}`
   }).catch(() => {});
 
-  if (forceManual) {
+  if (forceManual || payload.operatorOverride) {
     try {
+      const targetDriverId = driverId || (manualDriverName ? `manual-${manualDriverName}` : null);
+      
+      // Liberar al chofer de cualquier candado previo y forzar su disponibilidad
+      if (driverId) {
+        await b44.entities.Driver.updateMany(
+          { id: driverId },
+          { $set: { 
+              status: payload.statusOverride === 'aceptado' ? 'en_viaje' : 'ofrecido', 
+              dispatch_status: 'normal', 
+              reserved_order_id: null, 
+              reservation_token: null 
+          } }
+        );
+      }
+
+      const newAttempt = (orderReq.assignment_attempt || 0) + 1;
+
+      // Sobrescribir el pasaje ignorando cualquier estado atómico trabado
       await b44.entities.RideOrder.update(orderId, {
-        status: payload.statusOverride || "aceptado",
-        driver_id: driverId || (manualDriverName ? `manual-${manualDriverName}` : null),
-        driver_name: manualDriverName,
-        assigned_base: null
+        status: payload.statusOverride || "ofrecido",
+        driver_id: payload.statusOverride === 'aceptado' ? targetDriverId : null,
+        reserved_driver_id: targetDriverId,
+        driver_name: manualDriverName || (driverId ? targetDriverId : null),
+        assigned_base: null,
+        reservation_token: null,
+        assignment_attempt: newAttempt,
+        assigned_at: new Date().toISOString()
       });
-      return Response.json({ success: true });
+
+      // Si el operador lo forzó a "ofrecido", disparamos la notificación y el timer específico para este chofer
+      if ((payload.statusOverride || "ofrecido") === "ofrecido" && driverId) {
+        try {
+          await b44.functions.invoke('sendPushNotification', {
+            action: 'send', driverId, orderId, orderData: { pickup_address: orderReq.pickup_address, assignmentAttempt: newAttempt }, internalKey
+          });
+        } catch(e) {}
+        
+        const tarifaConfigs = await b44.entities.TarifaConfig.list();
+        const timeoutSeconds = tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos ?? 60;
+        
+        b44.functions.invoke("autoReassignOnTimeout", {
+           orderId, driverId, timeoutSeconds, assignmentAttempt: newAttempt, internalKey
+        }).catch(()=>{});
+      }
+
+      return Response.json({ success: true, reason: 'operator_override' });
     } catch (e) {
       return Response.json({ success: false, reason: e.message });
     }
@@ -75,7 +114,8 @@ Deno.serve(async (req) => {
       offered_driver_ids: offeredIds,
       assignment_attempt: newAttempt,
       assigned_base: driverReq.current_base,
-      driver_name: driverReq.name
+      driver_name: driverReq.name,
+      assigned_at: new Date().toISOString()
     });
 
     // 3. Dispatch Logic Atomic Run (handles the lock, Push, and Audit)

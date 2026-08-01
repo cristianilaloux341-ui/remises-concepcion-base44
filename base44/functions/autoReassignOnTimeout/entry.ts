@@ -144,7 +144,8 @@ Deno.serve(async (req) => {
             reserved_driver_id: nextDriver ? nextDriver.id : null,
             reservation_token: null,
             assigned_base: nextDriver ? nextDriver.current_base : null,
-            assignment_attempt: newAttempt
+            assignment_attempt: newAttempt,
+            assigned_at: nextDriver ? new Date().toISOString() : null
           },
           $addToSet: { offered_driver_ids: currentDriver?.id }
         }
