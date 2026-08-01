@@ -564,8 +564,8 @@ export default function Agenda() {
                     <p className="text-sm text-black font-bold">{ride.client_phone}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-bold text-lg text-black">{format(new Date(ride.scheduled_datetime), "HH:mm", { locale: es })}</p>
-                    <p className="text-sm text-black font-bold">{format(new Date(ride.scheduled_datetime), "dd/MM/yy")}</p>
+                    <p className="font-bold text-lg text-black">{ride.scheduled_datetime ? format(new Date(ride.scheduled_datetime), "HH:mm", { locale: es }) : "--:--"}</p>
+                    <p className="text-sm text-black font-bold">{ride.scheduled_datetime ? format(new Date(ride.scheduled_datetime), "dd/MM/yy") : "--/--/--"}</p>
                   </div>
                 </div>
 

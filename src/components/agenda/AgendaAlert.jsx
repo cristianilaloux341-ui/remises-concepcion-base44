@@ -144,7 +144,7 @@ export default function AgendaAlert() {
     <>
         {alerts.map((alert) => {
           const mins = minutesUntil(alert.scheduled_datetime);
-          const hora = format(new Date(alert.scheduled_datetime), "HH:mm", { locale: es });
+          const hora = alert.scheduled_datetime ? format(new Date(alert.scheduled_datetime), "HH:mm", { locale: es }) : "--:--";
           return (
             <motion.div drag dragMomentum={false} style={{ touchAction: "none" }} key={alert.id} className="pointer-events-auto w-full bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-amber-400 animate-in slide-in-from-right-8 fade-in duration-200 shrink-0">
               {/* Header llamativo */}
