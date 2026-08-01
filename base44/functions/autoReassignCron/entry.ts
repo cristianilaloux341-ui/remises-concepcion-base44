@@ -53,6 +53,8 @@ Deno.serve(async (req) => {
 
     let count = 0;
     for (const order of stuckOrders) {
+      if (order.status === 'completado' || order.status === 'cancelado') continue;
+      
       if (order.driver_id || order.reserved_driver_id) {
         const dId = order.driver_id || order.reserved_driver_id;
         try {

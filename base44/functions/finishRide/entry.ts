@@ -68,7 +68,18 @@ Deno.serve(async (req) => {
 
   const uOrder = await b44.entities.RideOrder.updateMany(
     { id: orderId, status: { $in: ['aceptado', 'en_viaje'] }, driver_id: driverId },
-    { $set: { status: 'completado', importe_real_actual: importeFinal, updated_date: new Date().toISOString() } }
+    { $set: { 
+        status: 'completado', 
+        importe_real_actual: importeFinal, 
+        updated_date: new Date().toISOString(),
+        reserved_driver_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        processingOwnerId: null,
+        processingPhase: null,
+        processingOperationKey: null
+      } 
+    }
   );
 
   if (uOrder.updated !== 1) {
