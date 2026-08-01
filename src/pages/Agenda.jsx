@@ -182,7 +182,7 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1 relative">
           <Label>Cliente</Label>
-          <Input className="bg-white text-black font-bold" value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} />
+          <Input className="bg-white text-black font-bold" value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} autoFocus />
           {showClientSuggestions && filteredClients.length > 0 && (
             <div className="absolute top-[100%] left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-10 mt-1">
               {filteredClients.map(client => (

@@ -16,7 +16,17 @@ import { useTarifaConfig, calcularDistanciaRuta, calcularImporte } from "@/hooks
 
 const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 
-export default function OrderForm({ order, onSubmit, isSubmitting }) {
+export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = () => {} }) {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCancel();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onCancel]);
   const [form, setForm] = useState({
     client_name: "",
     client_phone: "",
@@ -482,6 +492,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting }) {
                     value={form.client_name}
                     onChange={(e) => handleChange("client_name", e.target.value)}
                     required
+                    autoFocus
                   />
                 </div>
               </div>

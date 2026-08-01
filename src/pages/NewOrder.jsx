@@ -106,7 +106,7 @@ export default function NewOrder() {
         <ArrowLeft className="w-4 h-4" />
         Volver
       </Button>
-      <OrderForm order={initialData} onSubmit={(data) => createMutation.mutate(data)} isSubmitting={createMutation.isPending} />
+      <OrderForm order={initialData} onSubmit={(data) => createMutation.mutate(data)} isSubmitting={createMutation.isPending} onCancel={() => navigate(-1)} />
     </div>
   );
 }
