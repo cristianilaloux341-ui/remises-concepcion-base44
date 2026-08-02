@@ -32,6 +32,14 @@ Deno.serve(async (req) => {
 
   if (forceManual || payload.operatorOverride) {
     try {
+      // 1. Bloqueo estricto: no asignar manual a un móvil fuera de servicio
+      if (driverId) {
+         const driverReq = await b44.entities.Driver.get(driverId);
+         if (!driverReq || driverReq.status === 'no_disponible') {
+            return Response.json({ success: false, reason: 'El móvil no se encuentra en servicio.' });
+         }
+      }
+
       const targetDriverId = driverId || (manualDriverName ? `manual-${manualDriverName}` : null);
       
       // Liberar al chofer de cualquier candado previo y forzar su disponibilidad
@@ -58,10 +66,11 @@ Deno.serve(async (req) => {
         assigned_base: null,
         reservation_token: null,
         assignment_attempt: newAttempt,
-        assigned_at: new Date().toISOString()
+        assigned_at: new Date().toISOString(),
+        source: 'operador' // Marca explícita para que el cron no lo quite en 60s
       });
 
-      // Si el operador lo forzó a "ofrecido", disparamos la notificación y el timer específico para este chofer
+      // Si el operador lo forzó a "ofrecido", disparamos solo la notificación. No disparamos el timeout.
       if ((payload.statusOverride || "ofrecido") === "ofrecido" && driverId) {
         try {
           await b44.functions.invoke('sendPushNotification', {
@@ -69,12 +78,7 @@ Deno.serve(async (req) => {
           });
         } catch(e) {}
         
-        const tarifaConfigs = await b44.entities.TarifaConfig.list();
-        const timeoutSeconds = tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos ?? 60;
-        
-        b44.functions.invoke("autoReassignOnTimeout", {
-           orderId, driverId, timeoutSeconds, assignmentAttempt: newAttempt, internalKey
-        }).catch(()=>{});
+        // NO disparamos autoReassignOnTimeout porque la asignación manual es firme y no debe reasignarse a los 60 segs.
       }
 
       return Response.json({ success: true, reason: 'operator_override' });
@@ -86,6 +90,11 @@ Deno.serve(async (req) => {
   if (!driverId) return Response.json({ success: false, reason: 'Missing driverId' });
   const driverReq = await b44.entities.Driver.get(driverId);
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
+  
+  // 1.5 Bloqueo estricto
+  if (driverReq.status === 'no_disponible') {
+     return Response.json({ success: false, reason: 'El móvil no se encuentra en servicio.' });
+  }
 
   try {
     // Nota: Lógica de penalización de cola removida por pedido del cliente (mantenía a todos saltando de lugar incorrectamente)
