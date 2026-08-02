@@ -1007,6 +1007,15 @@ export default function DriverApp() {
     const onVisible = () => {
       if (document.visibilityState === "visible") {
         unlockAudio(); // Reforzar el lock de audio al ver la app
+        
+        // ESCUDO 2: Limpieza al Despertar
+        // Cortar cualquier alarma colgada antes de reevaluar
+        stopAlert();
+        if (Capacitor.isNativePlatform()) {
+           Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{});
+           LocalNotifications.cancel({ notifications: [{ id: 88888 }, { id: 77777 }] }).catch(()=>{});
+        }
+
         if (ref.current) {
           base44.entities.RideOrder.get(ref.current.id).then(fresh => {
              if (fresh && fresh.status === 'ofrecido') {
@@ -1407,17 +1416,17 @@ export default function DriverApp() {
         });
       }
     } else {
-      if (prevOfferedId.current) {
-        const idToStop = prevOfferedId.current;
-        prevOfferedId.current = null;
-        clearInterval(alertIntervalRef.current);
-        stopAlert();
-        if (Capacitor.isNativePlatform()) {
-          LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
-          Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: getRealOrderId(idToStop) }).catch(()=>{});
-        }
-        if (!Capacitor.isNativePlatform()) notifySW({ type: "OFFER_CLEARED" });
+      // ESCUDO 1: Apagado Agresivo
+      // Si no hay viaje ofrecido, forzamos el apagado de cualquier sonido que haya quedado colgado
+      const idToStop = prevOfferedId.current;
+      prevOfferedId.current = null;
+      clearInterval(alertIntervalRef.current);
+      stopAlert();
+      if (Capacitor.isNativePlatform()) {
+        LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
+        Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: idToStop ? getRealOrderId(idToStop) : 'all' }).catch(()=>{});
       }
+      if (!Capacitor.isNativePlatform()) notifySW({ type: "OFFER_CLEARED" });
     }
 
     // 2. Evaluate Broadcast (Eliminado por requerimiento de cliente)
@@ -1441,8 +1450,10 @@ export default function DriverApp() {
          const driver = myDriverRef.current;
          const isLocallyBusy = (driver && ["en_viaje", "aceptado", "en_camino"].includes(driver.status));
          if (isLocallyBusy || ignoredOrdersRef.current.has(pushedOrderId)) {
+             // ESCUDO 3: Doble Verificación
              if (Capacitor.isNativePlatform()) {
                 Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: pushedOrderId }).catch(()=>{});
+                Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{}); // Forzar apagado general
              }
              stopAlert();
          }
