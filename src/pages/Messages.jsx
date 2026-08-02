@@ -178,6 +178,9 @@ export default function Messages() {
           return msg.driver_id === targetDriverId;
         }).map(msg => {
           const isOperator = msg.from_type === "operador";
+          const isAudio = msg.content?.startsWith("[AUDIO]");
+          const audioUrl = isAudio ? msg.content.replace("[AUDIO]", "") : null;
+          
           return (
             <div key={msg.id} className={`flex ${isOperator ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 space-y-1 ${
@@ -185,7 +188,7 @@ export default function Messages() {
                   ? "bg-slate-900 text-white rounded-br-sm"
                   : "bg-white text-slate-900 border border-border rounded-bl-sm"
               }`}>
-                <div className="flex items-center gap-2 text-xs opacity-75">
+                <div className="flex items-center gap-2 text-xs opacity-75 mb-1">
                   <User className="w-3 h-3" />
                   <span className="font-semibold">{msg.from_name}</span>
                   {isOperator && !msg.to_driver_id && <span>→ Todos</span>}
@@ -193,8 +196,12 @@ export default function Messages() {
                     <span>→ {drivers.find(d => d.id === msg.to_driver_id)?.name || msg.to_driver_id}</span>
                   )}
                 </div>
-                <p className="text-sm">{msg.content}</p>
-                <p className={`text-xs ${isOperator ? "text-slate-400" : "text-muted-foreground"} text-right`}>
+                {isAudio ? (
+                  <audio controls src={audioUrl} className="h-10 w-full max-w-[250px]" />
+                ) : (
+                  <p className="text-sm">{msg.content}</p>
+                )}
+                <p className={`text-xs mt-1 ${isOperator ? "text-slate-400" : "text-muted-foreground"} text-right`}>
                   {formatTimeBA(msg.created_date)}
                 </p>
               </div>
@@ -208,8 +215,8 @@ export default function Messages() {
       <div className="border-t pt-4 space-y-2 bg-background">
         <div className="flex gap-2">
           <Input 
-            className="w-20 h-9 rounded-xl text-xs" 
-            placeholder="Nº..." 
+            className="w-24 h-9 rounded-xl text-xs" 
+            placeholder="Nº + Enter" 
             value={searchNum}
             onChange={e => setSearchNum(e.target.value)}
             onKeyDown={e => {
@@ -221,13 +228,21 @@ export default function Messages() {
                   setTimeout(() => inputRef.current?.focus(), 50);
                   return;
                 }
-                const movil = moviles.find(m => m.numero_movil?.toString() === val);
-                if (movil) {
-                   const dId = movil.driver_ids?.[0] || movil.driver_id;
-                   if (dId) setTargetDriverId(dId);
+                
+                // 1. Buscar coincidencia exacta por vehicle_model (Móvil)
+                const foundDriverByModel = drivers.find(d => d.vehicle_model === val);
+                if (foundDriverByModel) {
+                   setTargetDriverId(foundDriverByModel.id);
                 } else {
-                   const found = drivers.find(d => d.name.toLowerCase().includes(val.toLowerCase()) || d.vehicle_plate?.toLowerCase().includes(val.toLowerCase()));
-                   if (found) setTargetDriverId(found.id);
+                   // 2. Fallback a Moviles entity si no lo tiene configurado en Driver
+                   const movil = moviles.find(m => m.numero_movil?.toString() === val);
+                   if (movil && (movil.driver_ids?.[0] || movil.driver_id)) {
+                      setTargetDriverId(movil.driver_ids?.[0] || movil.driver_id);
+                   } else {
+                      // 3. Fallback a coincidencia parcial por nombre o patente
+                      const found = drivers.find(d => d.name.toLowerCase().includes(val.toLowerCase()) || d.vehicle_plate?.toLowerCase().includes(val.toLowerCase()));
+                      if (found) setTargetDriverId(found.id);
+                   }
                 }
                 setSearchNum("");
                 setTimeout(() => inputRef.current?.focus(), 50);
@@ -235,14 +250,14 @@ export default function Messages() {
             }}
           />
           <Select value={targetDriverId} onValueChange={setTargetDriverId}>
-            <SelectTrigger className="w-44 h-9 rounded-xl text-xs">
+            <SelectTrigger className="w-56 h-9 rounded-xl text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">📡 Todos los móviles</SelectItem>
               {drivers.map(d => (
                 <SelectItem key={d.id} value={d.id}>
-                  🚗 {d.name}
+                  🚗 {d.vehicle_model ? `Móvil ${d.vehicle_model} - ` : ''}{d.name}
                 </SelectItem>
               ))}
             </SelectContent>
