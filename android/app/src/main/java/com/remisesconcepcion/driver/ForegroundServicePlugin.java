@@ -48,7 +48,11 @@ public class ForegroundServicePlugin extends Plugin {
     public void stopRideAlert(PluginCall call) {
         String orderId = call.getString("orderId");
         if (orderId != null) {
-            RideAlertController.getInstance().stopAlert(getContext(), orderId, "Comando puente desde ReactJS (stopRideAlert)");
+            if ("all".equals(orderId)) {
+                RideAlertController.getInstance().stopAllAlerts(getContext(), "Comando puente desde ReactJS (stopRideAlert ALL)");
+            } else {
+                RideAlertController.getInstance().stopAlert(getContext(), orderId, "Comando puente desde ReactJS (stopRideAlert)");
+            }
         }
         call.resolve();
     }
