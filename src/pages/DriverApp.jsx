@@ -1195,7 +1195,8 @@ export default function DriverApp() {
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       if (myDriverId && myDriver?.status !== "no_disponible") {
-         Capacitor.Plugins.ForegroundService?.startService().catch(console.error);
+         // DESACTIVADO: Evita crasheos instantáneos al abrir en Android 14+
+         // Capacitor.Plugins.ForegroundService?.startService().catch(console.error);
       } else {
          Capacitor.Plugins.ForegroundService?.stopService().catch(console.error);
       }
