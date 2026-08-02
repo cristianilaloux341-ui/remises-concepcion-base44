@@ -96,13 +96,13 @@ export default function Messages() {
   // Drivers en tiempo real
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
-    queryFn: () => base44.entities.Driver.list(),
+    queryFn: () => base44.entities.Driver.list(null, 500),
     refetchInterval: 15000,
   });
 
   const { data: moviles = [] } = useQuery({
     queryKey: ["moviles"],
-    queryFn: () => base44.entities.Movil.list(),
+    queryFn: () => base44.entities.Movil.list(null, 500),
   });
 
   const sendMutation = useMutation({
@@ -126,7 +126,7 @@ export default function Messages() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, targetDriverId]);
 
   const targetName = targetDriverId === "todos"
     ? "Todos los móviles"
@@ -229,22 +229,44 @@ export default function Messages() {
                   return;
                 }
                 
-                // 1. Buscar coincidencia exacta por vehicle_model (Móvil)
-                const foundDriverByModel = drivers.find(d => d.vehicle_model === val);
+                let targetId = null;
+
+                // 1. Buscar coincidencia exacta por vehicle_model en Driver
+                const foundDriverByModel = drivers.find(d => 
+                  d.vehicle_model === val || 
+                  d.vehicle_model?.trim() === val || 
+                  d.vehicle_model?.toString() === val
+                );
+                
                 if (foundDriverByModel) {
-                   setTargetDriverId(foundDriverByModel.id);
+                   targetId = foundDriverByModel.id;
                 } else {
-                   // 2. Fallback a Moviles entity si no lo tiene configurado en Driver
+                   // 2. Fallback a Moviles entity
                    const movil = moviles.find(m => m.numero_movil?.toString() === val);
-                   if (movil && (movil.driver_ids?.[0] || movil.driver_id)) {
-                      setTargetDriverId(movil.driver_ids?.[0] || movil.driver_id);
-                   } else {
-                      // 3. Fallback a coincidencia parcial por nombre o patente
-                      const found = drivers.find(d => d.name.toLowerCase().includes(val.toLowerCase()) || d.vehicle_plate?.toLowerCase().includes(val.toLowerCase()));
-                      if (found) setTargetDriverId(found.id);
+                   if (movil) {
+                      const dId = movil.driver_ids?.[0] || movil.driver_id;
+                      if (dId && drivers.some(d => d.id === dId)) {
+                        targetId = dId;
+                      }
+                   }
+                   
+                   // 3. Fallback a coincidencia parcial por nombre o patente
+                   if (!targetId) {
+                     const found = drivers.find(d => 
+                       d.name?.toLowerCase().includes(val.toLowerCase()) || 
+                       d.vehicle_plate?.toLowerCase().includes(val.toLowerCase())
+                     );
+                     if (found) targetId = found.id;
                    }
                 }
-                setSearchNum("");
+                
+                if (targetId) {
+                  setTargetDriverId(targetId);
+                  setSearchNum("");
+                } else {
+                  alert(`No se encontró un chofer activo para la búsqueda "${val}".`);
+                }
+                
                 setTimeout(() => inputRef.current?.focus(), 50);
               }
             }}
