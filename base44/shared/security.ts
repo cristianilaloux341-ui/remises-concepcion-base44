@@ -114,7 +114,15 @@ export async function verifyRequestAuth(b44: any, payload: any, options: { allow
   // 3. Si se restringe a un driver específico, verificamos que su token coincida
   if (options.allowDriverId && sessionToken) {
     const drivers = await b44.entities.Driver.filter({ id: options.allowDriverId });
-    if (drivers.length > 0 && drivers[0].current_session_token === sessionToken) return true;
+    if (drivers.length > 0) {
+      if (drivers[0].current_session_token === sessionToken || !drivers[0].current_session_token) {
+        // Autocorrección del bug de sesión huérfana: si no tiene token, se lo asignamos
+        if (!drivers[0].current_session_token) {
+          await b44.entities.Driver.update(options.allowDriverId, { current_session_token: sessionToken });
+        }
+        return true;
+      }
+    }
   }
 
   // 4. Si se permite desde la app cliente, verificamos el token cliente

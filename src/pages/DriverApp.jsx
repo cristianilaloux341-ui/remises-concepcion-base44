@@ -1857,6 +1857,7 @@ export default function DriverApp() {
             drivers={safeDrivers}
             driversError={driversError}
             savedDriverId={savedDriverId}
+            getSessionToken={getSessionToken}
             onSelect={(id, isFirstTime) => {
               setMyDriverId(id);
               sessionStorage.setItem("my_driver_id", id);
