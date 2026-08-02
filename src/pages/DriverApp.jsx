@@ -1425,7 +1425,7 @@ export default function DriverApp() {
       stopAlert();
       if (Capacitor.isNativePlatform()) {
         LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
-        Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: idToStop ? getRealOrderId(idToStop) : 'all' }).catch(()=>{});
+        Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{});
       }
       if (!Capacitor.isNativePlatform()) notifySW({ type: "OFFER_CLEARED" });
     }
@@ -1477,7 +1477,7 @@ export default function DriverApp() {
       ["aceptado", "en_camino", "en_viaje"].includes(o.status)
     );
     if (activeOrder && activeOrder.id && Capacitor.isNativePlatform()) {
-       Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: getRealOrderId(activeOrder.id) }).catch(()=>{});
+       Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{});
     }
   }, [safeOrders, myDriver?.status, myDriver?.current_base, dismissedBroadcasts, evaluateAlerts, myDriverId]);
 
@@ -1495,7 +1495,7 @@ export default function DriverApp() {
 
   const stopNativeRideAlert = async (orderId) => {
     if (!Capacitor.isNativePlatform() || !orderId) return;
-    try { await Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: getRealOrderId(orderId) }); }
+    try { await Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }); }
     catch (error) { console.warn("No se pudo detener la alerta nativa", error); }
   };
 
