@@ -1408,11 +1408,13 @@ export default function DriverApp() {
       }
     } else {
       if (prevOfferedId.current) {
+        const idToStop = prevOfferedId.current;
         prevOfferedId.current = null;
         clearInterval(alertIntervalRef.current);
         stopAlert();
         if (Capacitor.isNativePlatform()) {
-          LocalNotifications.cancel({ notifications: [{ id: 88888 }] });
+          LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
+          Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: getRealOrderId(idToStop) }).catch(()=>{});
         }
         if (!Capacitor.isNativePlatform()) notifySW({ type: "OFFER_CLEARED" });
       }
