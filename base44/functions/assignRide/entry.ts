@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
         await b44.entities.Driver.updateMany(
           { id: driverId },
           { $set: { 
-              status: payload.statusOverride === 'aceptado' ? 'en_viaje' : 'ofrecido', 
+              status: payload.statusOverride === 'aceptado' ? 'en_viaje' : 'disponible', 
               dispatch_status: 'normal', 
               reserved_order_id: null, 
               reservation_token: null 

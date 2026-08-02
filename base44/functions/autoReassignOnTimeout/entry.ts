@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
       }
       
       if (nextDriver) {
-         try { await base44.asServiceRole.entities.Driver.update(nextDriver.id, { status: 'ofrecido' }); } catch(e){}
+         // El status se mantiene en 'disponible' para que acceptRideV2 no rechace la aceptación por DRIVER_ALREADY_BUSY
          
          // Enviar notificación Push al siguiente chofer
          try {
