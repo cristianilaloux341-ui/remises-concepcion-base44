@@ -1229,11 +1229,12 @@ export default function DriverApp() {
     ["en_viaje", "aceptado", "en_camino"].includes(myDriverRaw?.status) || 
     !!activeOrder;
   
-  // Ocultar burbujas de oferta si ya aceptamos/rechazamos localmente o estamos en viaje
-  const offeredOrder = isLocallyBusy ? null : debugArray(safeOrders, 'safeOrders').find(o => 
+  // SIEMPRE mostrar la burbuja de oferta directa, incluso si hay viajes colgados localmente
+  const offeredOrder = debugArray(safeOrders, 'safeOrders').find(o => 
     (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId) && 
     o.status === "ofrecido" && 
-    o.id !== ignoredOrderId
+    o.id !== ignoredOrderId &&
+    !ignoredOrdersRef.current.has(o.id)
   );
   
   // Broadcast desactivado
@@ -1380,7 +1381,8 @@ export default function DriverApp() {
 
     const ignoredOrderId = driver?._ignoredOrderId || null;
 
-    const offered = isLocallyBusy ? null : safeOrds.find(o => (o.driver_id === dId || o.reserved_driver_id === dId) && o.status === "ofrecido" && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId);
+    // ELIMINADO BLOQUEO isLocallyBusy: Si el servidor manda un viaje, SIEMPRE DEBE SONAR.
+    const offered = safeOrds.find(o => (o.driver_id === dId || o.reserved_driver_id === dId) && o.status === "ofrecido" && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId);
     const broadcast = (!isLocallyBusy && driver?.status === "disponible" && driver?.current_base && !offered)
       ? safeOrds.find(o => o.status === "pendiente" && !o.driver_id && o.notes?.includes("[BROADCAST]") && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId && (!dismissed || !dismissed.includes(o.id)))
       : null;
@@ -1452,9 +1454,9 @@ export default function DriverApp() {
     const latePushHandler = (e) => {
       const pushedOrderId = getRealOrderId(e.detail.orderId);
       if (myDriverIdRef.current) {
-         const driver = myDriverRef.current;
-         const isLocallyBusy = (driver && ["en_viaje", "aceptado", "en_camino"].includes(driver.status));
-         if (isLocallyBusy || ignoredOrdersRef.current.has(pushedOrderId)) {
+         // Solo matamos la alerta nativa si el viaje está explícitamente en la lista de ignorados/rechazados.
+         // Así garantizamos que TODO viaje nuevo suene y se muestre en pantalla (incluso si la app creía estar ocupada).
+         if (ignoredOrdersRef.current.has(pushedOrderId)) {
              // ESCUDO 3: Doble Verificación
              if (Capacitor.isNativePlatform()) {
                 Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: pushedOrderId }).catch(()=>{});
