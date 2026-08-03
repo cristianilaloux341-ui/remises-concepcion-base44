@@ -311,9 +311,10 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   const reservationKey = crypto.randomUUID();
 
   // Permitimos reservar si está disponible (flujo normal) o incluso si ya está marcado "en_viaje" por otra causa que no trabe (resiliencia temporal)
+  // Agregamos "no_disponible" para que si el cron los desconectó pero el operador les forzó un viaje, puedan aceptarlo igual.
   const reserveDriverFilter = { 
       id: driverId, 
-      status: { $in: ["disponible", "en_viaje"] },
+      status: { $in: ["disponible", "en_viaje", "no_disponible"] },
       driver_reservation_version: expectedDriverVersion 
   };
   const reserveDriverUpdate = { 

@@ -192,7 +192,11 @@ const getDeviceId = () => {
 const getSessionToken = () => {
   let token = localStorage.getItem("session_token");
   if (!token) {
-    token = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + crypto.getRandomValues(new Uint32Array(1))[0].toString(36));
+    try {
+      token = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + crypto.getRandomValues(new Uint32Array(1))[0].toString(36));
+    } catch (e) {
+      token = Date.now().toString(36) + Math.random().toString(36).substring(2, 10);
+    }
     localStorage.setItem("session_token", token);
   }
   localStorage.setItem("session_login_time", Date.now().toString());
@@ -1553,6 +1557,12 @@ export default function DriverApp() {
           driverId: myDriverId
         }).catch(console.error);
       } else {
+        base44.entities.AuditLog.create({
+          action: 'error_aceptar',
+          user_type: 'chofer',
+          user_name: myDriver?.name || 'Chofer',
+          details: `Rechazado por backend: ${res.data.reason || 'Desconocido'}`
+        }).catch(() => {});
         if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
         setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
