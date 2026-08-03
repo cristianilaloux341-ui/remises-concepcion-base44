@@ -31,6 +31,8 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   const [importeActual, setImporteActual] = useState(order.importe_real_actual || order.importe_estimado || 0);
   const [metrosRecorridos, setMetrosRecorridos] = useState(0);
   const [enEspera, setEnEspera] = useState(false);
+  const [esperaManual, setEsperaManual] = useState(false);
+  const esperaManualRef = useRef(false);
 
   const metrosRef = useRef(0);
   const importeRef = useRef(importeActual);
@@ -148,11 +150,11 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
 
         lastPosRef.current = { lat: latitude, lng: longitude };
 
-        if (speedKmh < 5) {
+        if (speedKmh < 5 || esperaManualRef.current) {
           setEnEspera(true);
           enEsperaRef.current = true;
         } else {
-          contadorParadoRef.current = 0;
+          // Ya NO reseteamos contadorParadoRef para que la tolerancia de espera sea acumulativa durante todo el viaje.
           setEnEspera(false);
           enEsperaRef.current = false;
         }
@@ -186,15 +188,21 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     startTracking();
 
     timerRef.current = setInterval(() => {
-      if (enEsperaRef.current || contadorParadoRef.current > 0) {
+      if (enEsperaRef.current || esperaManualRef.current) {
         contadorParadoRef.current += 1;
         if (contadorParadoRef.current > tarifaRef.current.tolerancia_espera_segundos) {
           segundosEspera += 1;
-          const costoPorSegundo = tarifaRef.current.precio_por_minuto_espera / 60;
-          const nuevo = importeRef.current + costoPorSegundo;
-          importeRef.current = nuevo;
-          setImporteActual(Math.round(nuevo));
-          saveImporte(nuevo, segundosEspera);
+          
+          // La espera se cobra estrictamente por minuto entero acumulado (ficha).
+          if (segundosEspera % 60 === 0) {
+            const nuevo = importeRef.current + tarifaRef.current.precio_por_minuto_espera;
+            importeRef.current = nuevo;
+            setImporteActual(Math.round(nuevo));
+            saveImporte(nuevo, segundosEspera);
+          } else {
+            // Guardamos solo los segundos acumulados silenciosamente
+            saveImporte(importeRef.current, segundosEspera);
+          }
         }
       }
     }, 1000);
@@ -325,13 +333,33 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
           <AlertCircle className="w-6 h-6" /> Botón de Pánico
         </button>
 
-        <button
-          className="w-full h-11 rounded-2xl gap-2 border border-blue-500/40 text-blue-400 bg-blue-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all"
-          onClick={handleNavigate}
-        >
-          <Navigation className="w-4 h-4" />
-          Navegar con Google Maps
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            className="w-full h-11 rounded-2xl gap-2 border border-blue-500/40 text-blue-400 bg-blue-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all"
+            onClick={handleNavigate}
+          >
+            <Navigation className="w-4 h-4" />
+            Navegar
+          </button>
+          
+          {order.status === "en_viaje" && (
+            <button
+              className={`w-full h-11 rounded-2xl gap-2 border font-semibold text-sm flex items-center justify-center active:scale-95 transition-all ${esperaManual ? "bg-amber-500 text-gray-900 border-amber-500" : "border-amber-500/40 text-amber-400 bg-amber-500/10"}`}
+              onClick={() => {
+                const next = !esperaManual;
+                setEsperaManual(next);
+                esperaManualRef.current = next;
+                if (next) {
+                  setEnEspera(true);
+                  enEsperaRef.current = true;
+                }
+              }}
+            >
+              <Timer className="w-4 h-4" />
+              {esperaManual ? "Esperando..." : "Forzar Espera"}
+            </button>
+          )}
+        </div>
 
         {order.status === "aceptado" && (
           <div className="space-y-2">

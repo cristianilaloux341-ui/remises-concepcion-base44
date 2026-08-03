@@ -21,8 +21,10 @@ export default function OcasionalMeter({ onClose, driver }) {
   const [esNocturna, setEsNocturna] = useState(false);
   const [tarifaLabel, setTarifaLabel] = useState("Cargando tarifa...");
   const [tarifaCargada, setTarifaCargada] = useState(false);
+  const [esperaManual, setEsperaManual] = useState(false);
 
   // Refs para evitar stale closures en GPS/timer
+  const esperaManualRef = useRef(false);
   const metrosRef = useRef(0);
   const segundosMovimientoRef = useRef(0);
   const segundosEsperaRef = useRef(0);
@@ -81,7 +83,8 @@ export default function OcasionalMeter({ onClose, driver }) {
   const recalcular = (metros, sMovimiento, sEspera) => {
     const km = metros / 1000;
     const minutosMov = sMovimiento / 60;
-    const minutosEsp = sEspera / 60;
+    // La espera "cae la ficha" por minuto entero, no fraccional
+    const minutosEsp = Math.floor(sEspera / 60);
     const total = tarifa.current.bajada_bandera
       + km * tarifa.current.precio_por_km
       + minutosMov * tarifa.current.precio_por_minuto_corrido
@@ -124,10 +127,10 @@ export default function OcasionalMeter({ onClose, driver }) {
         }
         lastPosRef.current = { lat: latitude, lng: longitude };
 
-        if (speedKmh < 5) {
+        if (speedKmh < 5 || esperaManualRef.current) {
           enEsperaRef.current = true;
         } else {
-          contadorParadoRef.current = 0;
+          // No reseteamos contadorParadoRef para que la tolerancia sea acumulativa
           enEsperaRef.current = false;
         }
       };
@@ -160,12 +163,12 @@ export default function OcasionalMeter({ onClose, driver }) {
 
     // Timer: cada segundo suma tiempo y recalcula
     timerRef.current = setInterval(() => {
-      if (enEsperaRef.current || contadorParadoRef.current > 0) {
+      if (enEsperaRef.current || esperaManualRef.current) {
         contadorParadoRef.current += 1;
         if (contadorParadoRef.current > tarifa.current.tolerancia_espera_segundos) {
           segundosEsperaRef.current += 1;
         } else {
-          segundosMovimientoRef.current += 1;
+          segundosMovimientoRef.current += 1; // Durante tolerancia cuenta como movimiento
         }
       } else {
         segundosMovimientoRef.current += 1;
@@ -352,6 +355,21 @@ export default function OcasionalMeter({ onClose, driver }) {
               <p className="text-xl font-black text-white">{fmtTiempo(segundosTotales)}</p>
             </div>
           </div>
+        </div>
+
+        <div className="mt-4">
+          <button
+            className={`w-full h-12 rounded-2xl gap-2 border font-semibold text-sm flex items-center justify-center active:scale-95 transition-all ${esperaManual ? "bg-amber-500 text-gray-900 border-amber-500" : "border-amber-500/40 text-amber-400 bg-amber-500/10"}`}
+            onClick={() => {
+              const next = !esperaManual;
+              setEsperaManual(next);
+              esperaManualRef.current = next;
+              if (next) enEsperaRef.current = true;
+            }}
+          >
+            <Timer className="w-4 h-4" />
+            {esperaManual ? "Esperando manualmente..." : "Forzar Espera"}
+          </button>
         </div>
 
         <button
