@@ -51,7 +51,7 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v10"; // Nuevo ID asegurado v10
+        String channelId = "ride_alerts_urgent_v13"; // v13 para forzar la recreación del canal
 
         // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -114,15 +114,17 @@ public class RideAlertController {
         try {
             android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
             if (pm != null && !pm.isInteractive()) {
-                android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.FULL_WAKE_LOCK | android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP | android.os.PowerManager.ON_AFTER_RELEASE, TAG + ":WakeLock");
+                @SuppressWarnings("deprecation")
+                android.os.PowerManager.WakeLock wl = pm.newWakeLock(
+                        android.os.PowerManager.FULL_WAKE_LOCK | 
+                        android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP | 
+                        android.os.PowerManager.ON_AFTER_RELEASE, 
+                        TAG + ":WakeLock"
+                );
                 wl.acquire(5000);
-                
-                try {
-                    context.startActivity(openAppIntent);
-                } catch (Exception ex) {
-                    Log.e(TAG, "No se pudo lanzar Activity directamente", ex);
-                    try { openAppPendingIntent.send(); } catch(Exception e2) {}
-                }
+                // NOTA: No llamamos a context.startActivity(openAppIntent) aquí porque en Android 10+ 
+                // lanzar una Activity desde background bloquea la notificación y no despliega la burbuja.
+                // Dejamos que builder.setFullScreenIntent haga su trabajo oficial.
             }
         } catch (Exception e) {
             Log.e(TAG, "Error adquiriendo WakeLock", e);
@@ -143,41 +145,37 @@ public class RideAlertController {
             
             final Uri finalSoundUri = soundUri;
 
-            new Handler(Looper.getMainLooper()).post(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        if (mediaPlayer != null) {
-                            try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
-                        }
-                        mediaPlayer = new MediaPlayer();
-                        mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_ALARM)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                .build());
-                        mediaPlayer.setDataSource(context, finalSoundUri);
-                        mediaPlayer.setLooping(true);
-                        mediaPlayer.setVolume(1.0f, 1.0f);
-                        mediaPlayer.prepare();
-                        mediaPlayer.start();
-                        Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente en el MainThread");
-                    } catch (Exception ex) {
-                        Log.e(TAG, "Fallo MediaPlayer, usando Ringtone fallback", ex);
-                        try {
-                            android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                            if (r != null) {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                                    r.setAudioAttributes(new AudioAttributes.Builder()
-                                            .setUsage(AudioAttributes.USAGE_ALARM)
-                                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                            .build());
-                                }
-                                r.play();
-                            }
-                        } catch(Exception e3) {}
-                    }
+            try {
+                if (mediaPlayer != null) {
+                    try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
                 }
-            });
+                mediaPlayer = new MediaPlayer();
+                mediaPlayer.setWakeMode(context, android.os.PowerManager.PARTIAL_WAKE_LOCK);
+                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build());
+                mediaPlayer.setDataSource(context, finalSoundUri);
+                mediaPlayer.setLooping(true);
+                mediaPlayer.setVolume(1.0f, 1.0f);
+                mediaPlayer.prepare();
+                mediaPlayer.start();
+                Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente de forma directa");
+            } catch (Exception ex) {
+                Log.e(TAG, "Fallo MediaPlayer, usando Ringtone fallback", ex);
+                try {
+                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
+                    if (r != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            r.setAudioAttributes(new AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_ALARM)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                    .build());
+                        }
+                        r.play();
+                    }
+                } catch(Exception e3) {}
+            }
             
             vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
             if (vibrator != null) {
