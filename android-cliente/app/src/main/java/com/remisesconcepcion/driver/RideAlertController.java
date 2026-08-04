@@ -51,7 +51,7 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v15"; // v15 para forzar la recreación del canal
+        String channelId = "ride_alerts_urgent_v16"; // v16 para forzar la recreación del canal
 
         // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -133,8 +133,11 @@ public class RideAlertController {
             Log.e(TAG, "Error adquiriendo WakeLock", e);
         }
 
-        notificationManager.notify(reqCode, builder.build());
-        Log.e(TAG, "FCM_NOTIFICATION_CREATED - ID " + reqCode);
+        android.app.Notification notification = builder.build();
+        // FLAG_INSISTENT fuerza al sistema operativo a repetir el sonido indefinidamente sin importar el estado de doze
+        notification.flags |= android.app.Notification.FLAG_INSISTENT;
+        notificationManager.notify(reqCode, notification);
+        Log.e(TAG, "FCM_NOTIFICATION_CREATED - ID " + reqCode + " WITH FLAG_INSISTENT");
 
         // --- SOLUCIÓN CRÍTICA DE SONIDO EN MAIN THREAD ---
         try {
@@ -160,43 +163,37 @@ public class RideAlertController {
                 }
             }
 
-            // Mover el reproductor al hilo principal para evitar que el OS lo mate por estar en background
-            new Handler(Looper.getMainLooper()).post(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        if (mediaPlayer != null) {
-                            try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
-                        }
-                        mediaPlayer = new MediaPlayer();
-                        mediaPlayer.setWakeMode(context, android.os.PowerManager.PARTIAL_WAKE_LOCK);
-                        mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_ALARM)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                .build());
-                        mediaPlayer.setDataSource(context, finalSoundUri);
-                        mediaPlayer.setLooping(true);
-                        mediaPlayer.setVolume(1.0f, 1.0f);
-                        mediaPlayer.prepare();
-                        mediaPlayer.start();
-                        Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente en hilo principal");
-                    } catch (Exception ex) {
-                        Log.e(TAG, "Fallo MediaPlayer, usando Ringtone fallback", ex);
-                        try {
-                            android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                            if (r != null) {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                                    r.setAudioAttributes(new AudioAttributes.Builder()
-                                            .setUsage(AudioAttributes.USAGE_ALARM)
-                                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                            .build());
-                                }
-                                r.play();
-                            }
-                        } catch(Exception e3) {}
-                    }
+            try {
+                if (mediaPlayer != null) {
+                    try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
                 }
-            });
+                mediaPlayer = new MediaPlayer();
+                mediaPlayer.setWakeMode(context, android.os.PowerManager.PARTIAL_WAKE_LOCK);
+                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build());
+                mediaPlayer.setDataSource(context, finalSoundUri);
+                mediaPlayer.setLooping(true);
+                mediaPlayer.setVolume(1.0f, 1.0f);
+                mediaPlayer.prepare();
+                mediaPlayer.start();
+                Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente, de forma directa y síncrona");
+            } catch (Exception ex) {
+                Log.e(TAG, "Fallo MediaPlayer, usando Ringtone fallback", ex);
+                try {
+                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
+                    if (r != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            r.setAudioAttributes(new AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_ALARM)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                    .build());
+                        }
+                        r.play();
+                    }
+                } catch(Exception e3) {}
+            }
             
             vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
             if (vibrator != null) {
