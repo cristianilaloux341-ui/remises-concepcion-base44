@@ -43,7 +43,7 @@ public class RideAlertController {
         }
     }
 
-    public synchronized void startAlert(Context context, String orderId, String title, String body, Intent acceptIntent, Intent rejectIntent, Intent openAppIntent) {
+    public synchronized void startAlert(final Context context, final String orderId, String title, String body, Intent acceptIntent, Intent rejectIntent, final Intent openAppIntent) {
         logDebug("startAlert: Intentando iniciar alerta para orderId=" + orderId);
         
         // Si ya hay algo sonando, detenerlo primero
@@ -51,47 +51,42 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v9"; // Nuevo ID para forzar Android a recrear el canal con sonido
+        String channelId = "ride_alerts_urgent_v10"; // Nuevo ID asegurado v10
 
         // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel existingChannel = notificationManager.getNotificationChannel(channelId);
-            if (existingChannel == null) {
-                Log.e(TAG, "FCM_CHANNEL_NOT_FOUND - Creando canal: " + channelId);
-                NotificationChannel channel = new NotificationChannel(
-                        channelId,
-                        "Alertas de Viaje",
-                        NotificationManager.IMPORTANCE_HIGH
-                );
-                int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
-                Uri channelSoundUri;
-                if (soundResId != 0) {
-                    channelSoundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
-                } else {
-                    channelSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-                    if (channelSoundUri == null) channelSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-                }
-                if (channelSoundUri != null) {
-                    AudioAttributes audioAttributes = new AudioAttributes.Builder()
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .build();
-                    channel.setSound(channelSoundUri, audioAttributes);
-                }
-                channel.enableVibration(true);
-                notificationManager.createNotificationChannel(channel);
+            NotificationChannel channel = new NotificationChannel(
+                    channelId,
+                    "Alertas de Viaje",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
+            Uri channelSoundUri;
+            if (soundResId != 0) {
+                channelSoundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
             } else {
-                Log.e(TAG, "Canal " + channelId + " encontrado. Importance: " + existingChannel.getImportance());
+                channelSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
             }
+            if (channelSoundUri != null) {
+                AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .build();
+                channel.setSound(channelSoundUri, audioAttributes);
+            }
+            channel.enableVibration(true);
+            channel.setBypassDnd(true);
+            channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+            notificationManager.createNotificationChannel(channel);
         }
 
         int reqCode = orderId != null ? orderId.hashCode() : 0;
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
 
-        PendingIntent acceptPendingIntent = PendingIntent.getBroadcast(context, reqCode, acceptIntent, flags);
+        final PendingIntent acceptPendingIntent = PendingIntent.getBroadcast(context, reqCode, acceptIntent, flags);
         PendingIntent rejectPendingIntent = PendingIntent.getBroadcast(context, reqCode + 1, rejectIntent, flags);
-        PendingIntent openAppPendingIntent = PendingIntent.getActivity(context, reqCode + 2, openAppIntent, flags);
+        final PendingIntent openAppPendingIntent = PendingIntent.getActivity(context, reqCode + 2, openAppIntent, flags);
         
         // DeleteIntent para cuando se desliza
         Intent dismissIntent = new Intent(context, NotificationActionReceiver.class);
@@ -103,28 +98,40 @@ public class RideAlertController {
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(title)
                 .setContentText(body)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
                 .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_CALL)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setOngoing(true)
                 .setAutoCancel(false)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setContentIntent(openAppPendingIntent)
                 .setFullScreenIntent(openAppPendingIntent, true)
                 .setDeleteIntent(dismissPendingIntent)
                 .addAction(0, "✅ ACEPTAR", acceptPendingIntent)
                 .addAction(0, "❌ RECHAZAR", rejectPendingIntent);
 
-        // Check POST_NOTIFICATIONS permission for Android 13+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                Log.e(TAG, "FCM_PERMISSION_DENIED - Permiso POST_NOTIFICATIONS no concedido");
+        // --- SOLUCIÓN CRÍTICA DE WAKE LOCK Y PANTALLA ---
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (pm != null && !pm.isInteractive()) {
+                android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.FULL_WAKE_LOCK | android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP | android.os.PowerManager.ON_AFTER_RELEASE, TAG + ":WakeLock");
+                wl.acquire(5000);
+                
+                try {
+                    context.startActivity(openAppIntent);
+                } catch (Exception ex) {
+                    Log.e(TAG, "No se pudo lanzar Activity directamente", ex);
+                    try { openAppPendingIntent.send(); } catch(Exception e2) {}
+                }
             }
+        } catch (Exception e) {
+            Log.e(TAG, "Error adquiriendo WakeLock", e);
         }
 
         notificationManager.notify(reqCode, builder.build());
         Log.e(TAG, "FCM_NOTIFICATION_CREATED - ID " + reqCode);
-        logDebug("startAlert: Notificación mostrada con ID " + reqCode);
 
-        // Sonido y Vibración
+        // --- SOLUCIÓN CRÍTICA DE SONIDO EN MAIN THREAD ---
         try {
             int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
             Uri soundUri;
@@ -132,63 +139,45 @@ public class RideAlertController {
                 soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
             } else {
                 soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-                if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-                if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
             }
             
             final Uri finalSoundUri = soundUri;
 
-            // Solicitar AudioFocus "suave" para que suene fuerte pero NO corte ni bloquee llamadas telefónicas
-            try {
-                android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-                if (audioManager != null) {
-                    audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
-                }
-            } catch (Exception ignored) {}
-
-            try {
-                if (mediaPlayer != null) {
-                    try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
-                }
-                
-                // ES CLAVE adquirir un WakeLock para que el CPU no se duerma mientras suena
-                android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
-                if (pm != null) {
-                    android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, TAG + ":AudioPlay");
-                    wl.acquire(60000); // 60 segundos
-                }
-
-                mediaPlayer = new MediaPlayer();
-                mediaPlayer.setWakeMode(context, android.os.PowerManager.PARTIAL_WAKE_LOCK);
-                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM) // Categoría Alarma para saltar modo Silencio
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build());
-                mediaPlayer.setDataSource(context, finalSoundUri);
-                mediaPlayer.setLooping(true);
-                mediaPlayer.setVolume(1.0f, 1.0f);
-                
-                // ES CRITICO USAR prepare() SINCRONO.
-                // Si usamos prepareAsync(), el servicio de Push termina y Android duerme el proceso
-                // ANTES de que termine de cargar, dejando el celular mudo.
-                mediaPlayer.prepare();
-                mediaPlayer.start();
-                Log.e(TAG, "ÉXITO: MediaPlayer INICIADO sincrónicamente");
-            } catch (Exception ex) {
-                Log.e(TAG, "Fallo al crear MediaPlayer, usando Ringtone fallback", ex);
-                try {
-                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                    if (r != null) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            r.setAudioAttributes(new AudioAttributes.Builder()
-                                    .setUsage(AudioAttributes.USAGE_ALARM)
-                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                    .build());
+            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (mediaPlayer != null) {
+                            try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
                         }
-                        r.play();
+                        mediaPlayer = new MediaPlayer();
+                        mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_ALARM)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .build());
+                        mediaPlayer.setDataSource(context, finalSoundUri);
+                        mediaPlayer.setLooping(true);
+                        mediaPlayer.setVolume(1.0f, 1.0f);
+                        mediaPlayer.prepare();
+                        mediaPlayer.start();
+                        Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente en el MainThread");
+                    } catch (Exception ex) {
+                        Log.e(TAG, "Fallo MediaPlayer, usando Ringtone fallback", ex);
+                        try {
+                            android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
+                            if (r != null) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                    r.setAudioAttributes(new AudioAttributes.Builder()
+                                            .setUsage(AudioAttributes.USAGE_ALARM)
+                                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                            .build());
+                                }
+                                r.play();
+                            }
+                        } catch(Exception e3) {}
                     }
-                } catch(Exception e3) {}
-            }
+                }
+            });
             
             vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
             if (vibrator != null) {
@@ -198,22 +187,19 @@ public class RideAlertController {
                 } else {
                     vibrator.vibrate(pattern, 0);
                 }
-                logDebug("startAlert: Vibrador iniciado");
             }
         } catch (Exception e) {
             Log.e(TAG, "Error reproduciendo sonido nativo", e);
         }
 
         // Temporizador de vencimiento (60s)
-        timeoutRunnable = () -> {
-            logDebug("startAlert: Temporizador vencido para orderId=" + orderId);
-            stopAlert(context, orderId, "Vencimiento de temporizador nativo");
-            
-            // Opcional: Podríamos emitir un Broadcast a React, pero React ya tiene su propio timer
-            // y el backend igual auto-reasigna. El propósito principal aquí es el SILENCIO.
+        timeoutRunnable = new Runnable() {
+            @Override
+            public void run() {
+                stopAlert(context, orderId, "Vencimiento de temporizador nativo");
+            }
         };
         timeoutHandler.postDelayed(timeoutRunnable, 60000);
-        logDebug("startAlert: Temporizador de 60s iniciado");
     }
 
     public synchronized void stopAlert(Context context, String orderId, String reason) {
