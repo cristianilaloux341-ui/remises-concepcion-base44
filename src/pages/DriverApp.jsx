@@ -1506,7 +1506,10 @@ export default function DriverApp() {
   const stopNativeRideAlert = async (orderId) => {
     if (!Capacitor.isNativePlatform() || !orderId) return;
     try { 
-      // Retrasar para evitar race condition nativa (Runnable vs JS thread) que orfana el MediaPlayer
+      // 1. Apagado inmediato (útil cuando se toca el botón de la web y el sonido ya estaba reproduciéndose)
+      Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{});
+      
+      // 2. Apagado diferido (para evitar race condition cuando la orden de apagar llega antes de que termine de inicializarse el MediaPlayer)
       setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{}), 400);
       setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{}), 1500);
     }
