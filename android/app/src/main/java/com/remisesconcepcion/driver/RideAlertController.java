@@ -49,7 +49,7 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v6"; // v6 para forzar recreación de canal con Ringtone
+        String channelId = "ride_alerts_urgent_v7"; // v7 para forzar recreación de canal con Alarma
 
         // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -73,7 +73,7 @@ public class RideAlertController {
                 if (channelSoundUri != null) {
                     AudioAttributes audioAttributes = new AudioAttributes.Builder()
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE) // Usar categoría de ringtone (llamada)
+                            .setUsage(AudioAttributes.USAGE_ALARM) // Usar categoría de alarma para saltar restricciones
                             .build();
                     channel.setSound(channelSoundUri, audioAttributes);
                 }
@@ -111,7 +111,7 @@ public class RideAlertController {
                 .setContentText(body)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
                 .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_CALL)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .setContentIntent(openAppPendingIntent)
@@ -168,24 +168,18 @@ public class RideAlertController {
             android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
             if (audioManager != null) {
                 try {
-                    // Forzar volumen de RINGTONE agresivamente
-                    int maxVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_RING);
-                    int targetVol = (int) (maxVol * 0.85); // 85% del volumen máximo
-                    int currentVol = audioManager.getStreamVolume(android.media.AudioManager.STREAM_RING);
-                    
-                    if (currentVol < targetVol) {
-                        audioManager.setStreamVolume(android.media.AudioManager.STREAM_RING, targetVol, 0);
-                        Log.e(TAG, "Volumen RING subido a " + targetVol + " (estaba en " + currentVol + ")");
-                    }
-                    
-                    // También subir el de ALARMA por si el dispositivo rutea distinto
+                    // Forzar volumen de ALARMA agresivamente (salta Do Not Disturb)
                     int maxAlarmVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
-                    if (audioManager.getStreamVolume(android.media.AudioManager.STREAM_ALARM) < (int)(maxAlarmVol * 0.85)) {
-                        audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, (int)(maxAlarmVol * 0.85), 0);
+                    int targetAlarmVol = (int) (maxAlarmVol * 0.85);
+                    int currentAlarmVol = audioManager.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
+                    
+                    if (currentAlarmVol < targetAlarmVol) {
+                        audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, targetAlarmVol, 0);
+                        Log.e(TAG, "Volumen ALARM subido a " + targetAlarmVol + " (estaba en " + currentAlarmVol + ")");
                     }
                     
-                    // Pedir el foco de audio
-                    audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_RING, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
+                    // Pedir el foco de audio para alarma
+                    audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
                 } catch (Exception e) {
                     Log.e(TAG, "No se pudo forzar volumen (posible Do Not Disturb o permisos)", e);
                 }
@@ -194,7 +188,7 @@ public class RideAlertController {
             try {
                 mediaPlayer = new MediaPlayer();
                 mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE) // Categoría de Llamada (salta Doze mejor)
+                        .setUsage(AudioAttributes.USAGE_ALARM) // Categoría de Alarma (salta Do Not Disturb en Android 11+)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build());
                 mediaPlayer.setDataSource(context, soundUri);
