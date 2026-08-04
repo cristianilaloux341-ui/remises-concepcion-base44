@@ -51,7 +51,7 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v4"; // Nuevo ID para forzar Android a recrear el canal en silencio
+        String channelId = "ride_alerts_urgent_v9"; // Nuevo ID para forzar Android a recrear el canal con sonido
 
         // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -150,7 +150,16 @@ public class RideAlertController {
                 if (mediaPlayer != null) {
                     try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
                 }
+                
+                // ES CLAVE adquirir un WakeLock para que el CPU no se duerma mientras suena
+                android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
+                if (pm != null) {
+                    android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, TAG + ":AudioPlay");
+                    wl.acquire(60000); // 60 segundos
+                }
+
                 mediaPlayer = new MediaPlayer();
+                mediaPlayer.setWakeMode(context, android.os.PowerManager.PARTIAL_WAKE_LOCK);
                 mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_ALARM) // Categoría Alarma para saltar modo Silencio
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -159,40 +168,25 @@ public class RideAlertController {
                 mediaPlayer.setLooping(true);
                 mediaPlayer.setVolume(1.0f, 1.0f);
                 
-                // Usamos prepareAsync() para no bloquear ningún hilo ni causar excepciones
-                mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-                    @Override
-                    public void onPrepared(MediaPlayer mp) {
-                        mp.start();
-                        Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente (prepareAsync)");
-                    }
-                });
-                
-                mediaPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
-                    @Override
-                    public boolean onError(MediaPlayer mp, int what, int extra) {
-                        Log.e(TAG, "Fallo MediaPlayer (" + what + "), usando Ringtone fallback");
-                        try {
-                            android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                            if (r != null) {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                                    r.setAudioAttributes(new AudioAttributes.Builder()
-                                            .setUsage(AudioAttributes.USAGE_ALARM)
-                                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                            .build());
-                                }
-                                r.play();
-                            }
-                        } catch(Exception e3) {}
-                        return true;
-                    }
-                });
-                mediaPlayer.prepareAsync();
+                // ES CRITICO USAR prepare() SINCRONO.
+                // Si usamos prepareAsync(), el servicio de Push termina y Android duerme el proceso
+                // ANTES de que termine de cargar, dejando el celular mudo.
+                mediaPlayer.prepare();
+                mediaPlayer.start();
+                Log.e(TAG, "ÉXITO: MediaPlayer INICIADO sincrónicamente");
             } catch (Exception ex) {
                 Log.e(TAG, "Fallo al crear MediaPlayer, usando Ringtone fallback", ex);
                 try {
                     android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                    if (r != null) r.play();
+                    if (r != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            r.setAudioAttributes(new AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_ALARM)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                    .build());
+                        }
+                        r.play();
+                    }
                 } catch(Exception e3) {}
             }
             
