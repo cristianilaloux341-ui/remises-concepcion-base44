@@ -49,7 +49,7 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v12"; // v12 para forzar la recreación del canal con prioridad MÁXIMA y permisos de burbuja desde cero
+        String channelId = "ride_alerts_urgent_v13"; // v13 para resetear el canal sin bloqueos de background-activity
 
         // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -89,10 +89,8 @@ public class RideAlertController {
 
         int reqCode = orderId != null ? orderId.hashCode() : 0;
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= 31) { // Android 12 (S)
-            flags |= 33554432; // PendingIntent.FLAG_MUTABLE
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE; // FLAG_IMMUTABLE es esencial para no ser bloqueado por seguridad en Android 12+
         }
 
         PendingIntent acceptPendingIntent = PendingIntent.getBroadcast(context, reqCode, acceptIntent, flags);
@@ -132,17 +130,18 @@ public class RideAlertController {
         try {
             android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
             if (pm != null && !pm.isInteractive()) {
-                android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.FULL_WAKE_LOCK | android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP | android.os.PowerManager.ON_AFTER_RELEASE, TAG + ":WakeLock");
-                wl.acquire(5000);
+                @SuppressWarnings("deprecation")
+                android.os.PowerManager.WakeLock wl = pm.newWakeLock(
+                        android.os.PowerManager.FULL_WAKE_LOCK | 
+                        android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP | 
+                        android.os.PowerManager.ON_AFTER_RELEASE, 
+                        TAG + ":WakeLock"
+                );
+                wl.acquire(5000); // Mantiene pantalla viva para que el Heads-Up/Burbuja se pueda dibujar
                 
-                // Forzar el lanzamiento de la actividad. Como el MainActivity tiene showWhenLocked y turnScreenOn,
-                // esto encenderá la pantalla de forma confiable aunque Android bloquee el fullScreenIntent por estar en Foreground.
-                try {
-                    context.startActivity(openAppIntent);
-                } catch (Exception ex) {
-                    Log.e(TAG, "No se pudo lanzar Activity directamente", ex);
-                    try { openAppPendingIntent.send(); } catch(Exception e2) {}
-                }
+                // IMPORTANTE: NO usamos context.startActivity() aquí. 
+                // Lanzar una Activity a la fuerza desde background en Android 10+ está prohibido
+                // y causa que el OS silencie/bloquee la notificación burbuja (fullScreenIntent) como penalización.
             }
         } catch (Exception e) {
             Log.e(TAG, "Error adquiriendo WakeLock", e);
