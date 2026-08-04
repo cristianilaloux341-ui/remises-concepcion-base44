@@ -122,9 +122,15 @@ public class RideAlertController {
                         TAG + ":WakeLock"
                 );
                 wl.acquire(5000);
-                // NOTA: No llamamos a context.startActivity(openAppIntent) aquí porque en Android 10+ 
-                // lanzar una Activity desde background bloquea la notificación y no despliega la burbuja.
-                // Dejamos que builder.setFullScreenIntent haga su trabajo oficial.
+                
+                // Forzar el lanzamiento de la actividad. Como el MainActivity tiene showWhenLocked y turnScreenOn,
+                // esto encenderá la pantalla de forma confiable e invocará el sonido desde la vista principal.
+                try {
+                    context.startActivity(openAppIntent);
+                } catch (Exception ex) {
+                    Log.e(TAG, "No se pudo lanzar Activity directamente", ex);
+                    try { openAppPendingIntent.send(); } catch(Exception e2) {}
+                }
             }
         } catch (Exception e) {
             Log.e(TAG, "Error adquiriendo WakeLock", e);
