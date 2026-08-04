@@ -1172,6 +1172,8 @@ export default function DriverApp() {
 
   // Estado local optimista — se sobreescribe con datos reales cuando llegan
   const [localOverride, setLocalOverride] = useState(null);
+  const localOverrideRef = useRef(localOverride);
+  useEffect(() => { localOverrideRef.current = localOverride; }, [localOverride]);
   const clearOverrideTimerRef = useRef(null);
 
   const safeDrivers = Array.isArray(drivers) ? drivers : [];
@@ -1456,13 +1458,13 @@ export default function DriverApp() {
     const latePushHandler = (e) => {
       const pushedOrderId = getRealOrderId(e.detail.orderId);
       if (myDriverIdRef.current) {
-         // Solo matamos la alerta nativa si el viaje está explícitamente en la lista de ignorados/rechazados.
-         // Así garantizamos que TODO viaje nuevo suene y se muestre en pantalla (incluso si la app creía estar ocupada).
-         if (ignoredOrdersRef.current.has(pushedOrderId)) {
-             // ESCUDO 3: Doble Verificación
+         const isOccupied = myDriverRef.current?.status && myDriverRef.current.status !== "disponible";
+         const isOptimistic = localOverrideRef.current?.status && localOverrideRef.current.status !== "disponible";
+         
+         if (ignoredOrdersRef.current.has(pushedOrderId) || isOccupied || isOptimistic) {
              if (Capacitor.isNativePlatform()) {
-                Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: pushedOrderId }).catch(()=>{});
-                Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{}); // Forzar apagado general
+                setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{}), 400);
+                setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{}), 1500);
              }
              stopAlert();
          }
@@ -1503,7 +1505,11 @@ export default function DriverApp() {
 
   const stopNativeRideAlert = async (orderId) => {
     if (!Capacitor.isNativePlatform() || !orderId) return;
-    try { await Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }); }
+    try { 
+      // Retrasar para evitar race condition nativa (Runnable vs JS thread) que orfana el MediaPlayer
+      setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{}), 400);
+      setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{}), 1500);
+    }
     catch (error) { console.warn("No se pudo detener la alerta nativa", error); }
   };
 
