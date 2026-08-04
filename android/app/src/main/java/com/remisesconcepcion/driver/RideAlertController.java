@@ -180,50 +180,44 @@ public class RideAlertController {
                 }
             }
 
-            // CORRECCION CRITICA: Pasar el MediaPlayer al hilo principal (MainThread) obligatoriamente. 
-            new Handler(Looper.getMainLooper()).post(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        if (mediaPlayer != null) {
-                            try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
-                        }
-                        mediaPlayer = new MediaPlayer();
-                        // Prevenir que el CPU se duerma mientras suena
-                        mediaPlayer.setWakeMode(context, PowerManager.PARTIAL_WAKE_LOCK);
+            try {
+                if (mediaPlayer != null) {
+                    try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
+                }
+                mediaPlayer = new MediaPlayer();
+                // Prevenir que el CPU se duerma mientras suena
+                mediaPlayer.setWakeMode(context, PowerManager.PARTIAL_WAKE_LOCK);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build());
+                } else {
+                    mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_ALARM);
+                }
+                mediaPlayer.setDataSource(context, finalSoundUri);
+                mediaPlayer.setLooping(true);
+                mediaPlayer.setVolume(1.0f, 1.0f);
+                mediaPlayer.prepare(); // SINCRONO
+                mediaPlayer.start();
+                Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente de forma directa");
+            } catch (Exception ex) {
+                Log.e(TAG, "Fallo MediaPlayer, usando Ringtone fallback", ex);
+                try {
+                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
+                    if (r != null) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                            r.setAudioAttributes(new AudioAttributes.Builder()
                                     .setUsage(AudioAttributes.USAGE_ALARM)
                                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                                     .build());
                         } else {
-                            mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_ALARM);
+                            r.setStreamType(android.media.AudioManager.STREAM_ALARM);
                         }
-                        mediaPlayer.setDataSource(context, finalSoundUri);
-                        mediaPlayer.setLooping(true);
-                        mediaPlayer.setVolume(1.0f, 1.0f);
-                        mediaPlayer.prepare(); // SINCRONO
-                        mediaPlayer.start();
-                        Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente en el MainThread");
-                    } catch (Exception ex) {
-                        Log.e(TAG, "Fallo MediaPlayer en MainThread, usando Ringtone fallback", ex);
-                        try {
-                            android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                            if (r != null) {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                                    r.setAudioAttributes(new AudioAttributes.Builder()
-                                            .setUsage(AudioAttributes.USAGE_ALARM)
-                                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                            .build());
-                                } else {
-                                    r.setStreamType(android.media.AudioManager.STREAM_ALARM);
-                                }
-                                r.play();
-                            }
-                        } catch(Exception e3) {}
+                        r.play();
                     }
-                }
-            });
+                } catch(Exception e3) {}
+            }
             
             vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
             if (vibrator != null) {
