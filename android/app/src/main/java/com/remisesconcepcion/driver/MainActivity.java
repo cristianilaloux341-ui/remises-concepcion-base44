@@ -47,6 +47,13 @@ public class MainActivity extends BridgeActivity {
 
     private void checkIntent(Intent intent) {
         if (intent != null) {
+            String incomingRide = intent.getStringExtra("radiocab_incoming_ride");
+            if (incomingRide != null) {
+                // El intent fue lanzado porque hay un nuevo viaje, forzar audio desde la actividad Foreground
+                RideAlertController.getInstance().playAudioFallback(this);
+                intent.removeExtra("radiocab_incoming_ride");
+            }
+            
             String action = intent.getStringExtra("radiocab_action");
             String orderId = intent.getStringExtra("orderId");
             if (action != null && orderId != null) {

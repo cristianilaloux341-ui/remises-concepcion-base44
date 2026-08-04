@@ -259,6 +259,54 @@ public class RideAlertController {
         return orderId;
     }
 
+    public synchronized void playAudioFallback(Context context) {
+        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+            return; // Ya está sonando correctamente
+        }
+        logDebug("playAudioFallback: Reintentando audio desde MainActivity");
+        try {
+            int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
+            Uri soundUri;
+            if (soundResId != 0) {
+                soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
+            } else {
+                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            }
+            final Uri finalSoundUri = soundUri;
+
+            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (mediaPlayer != null) {
+                            try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
+                        }
+                        mediaPlayer = new MediaPlayer();
+                        mediaPlayer.setWakeMode(context, PowerManager.PARTIAL_WAKE_LOCK);
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_ALARM)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                    .build());
+                        } else {
+                            mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_ALARM);
+                        }
+                        mediaPlayer.setDataSource(context, finalSoundUri);
+                        mediaPlayer.setLooping(true);
+                        mediaPlayer.setVolume(1.0f, 1.0f);
+                        mediaPlayer.prepare();
+                        mediaPlayer.start();
+                        Log.e(TAG, "FALLBACK AUDIO INICIADO DESDE MAIN ACTIVITY");
+                    } catch (Exception ex) {
+                        Log.e(TAG, "Error en fallback de audio", ex);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Excepción externa en fallback", e);
+        }
+    }
+
     public synchronized void stopAlert(Context context, String orderId, String reason) {
         if (orderId == null || currentOrderId == null) return;
         

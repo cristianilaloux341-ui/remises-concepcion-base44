@@ -133,6 +133,7 @@ public class MyFirebaseMessagingService extends MessagingService {
 
         Intent openAppIntent = new Intent(context, MainActivity.class);
         openAppIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        openAppIntent.putExtra("radiocab_incoming_ride", orderId);
 
         // Delegar la alerta al controlador centralizado
         RideAlertController.getInstance().startAlert(context, orderId, title, body, acceptIntent, rejectIntent, openAppIntent);
