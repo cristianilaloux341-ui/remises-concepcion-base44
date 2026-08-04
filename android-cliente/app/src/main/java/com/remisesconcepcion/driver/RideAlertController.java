@@ -126,27 +126,75 @@ public class RideAlertController {
 
         // Sonido y Vibración
         try {
-            // Intentar primero con el sonido personalizado horn, si no existe usar el tono de llamada (ringtone)
             int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
             Uri soundUri;
             if (soundResId != 0) {
                 soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
             } else {
-                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-                if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
                 if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
             }
             
-            mediaPlayer = new MediaPlayer();
-            mediaPlayer.setDataSource(context, soundUri);
-            mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build());
-            mediaPlayer.setLooping(true);
-            mediaPlayer.prepare();
-            mediaPlayer.start();
-            logDebug("startAlert: MediaPlayer iniciado");
+            final Uri finalSoundUri = soundUri;
+
+            // Solicitar AudioFocus "suave" para que suene fuerte pero NO corte ni bloquee llamadas telefónicas
+            try {
+                android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+                if (audioManager != null) {
+                    audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+                }
+            } catch (Exception ignored) {}
+
+            try {
+                if (mediaPlayer != null) {
+                    try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
+                }
+                mediaPlayer = new MediaPlayer();
+                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM) // Categoría Alarma para saltar modo Silencio
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build());
+                mediaPlayer.setDataSource(context, finalSoundUri);
+                mediaPlayer.setLooping(true);
+                mediaPlayer.setVolume(1.0f, 1.0f);
+                
+                // Usamos prepareAsync() para no bloquear ningún hilo ni causar excepciones
+                mediaPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+                    @Override
+                    public void onPrepared(MediaPlayer mp) {
+                        mp.start();
+                        Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente (prepareAsync)");
+                    }
+                });
+                
+                mediaPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+                    @Override
+                    public boolean onError(MediaPlayer mp, int what, int extra) {
+                        Log.e(TAG, "Fallo MediaPlayer (" + what + "), usando Ringtone fallback");
+                        try {
+                            android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
+                            if (r != null) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                    r.setAudioAttributes(new AudioAttributes.Builder()
+                                            .setUsage(AudioAttributes.USAGE_ALARM)
+                                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                            .build());
+                                }
+                                r.play();
+                            }
+                        } catch(Exception e3) {}
+                        return true;
+                    }
+                });
+                mediaPlayer.prepareAsync();
+            } catch (Exception ex) {
+                Log.e(TAG, "Fallo al crear MediaPlayer, usando Ringtone fallback", ex);
+                try {
+                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
+                    if (r != null) r.play();
+                } catch(Exception e3) {}
+            }
             
             vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
             if (vibrator != null) {
