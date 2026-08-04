@@ -1424,16 +1424,18 @@ export default function DriverApp() {
       }
     } else {
       // ESCUDO 1: Apagado Agresivo
-      // Si no hay viaje ofrecido, forzamos el apagado de cualquier sonido que haya quedado colgado
-      const idToStop = prevOfferedId.current;
-      prevOfferedId.current = null;
-      clearInterval(alertIntervalRef.current);
-      stopAlert();
-      if (Capacitor.isNativePlatform()) {
-        LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
-        Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{});
+      // SOLO si antes había un viaje y ahora desapareció de la vista
+      // (Para no matar prematuramente el sonido nativo por un micro-delay de red al abrir la app)
+      if (prevOfferedId.current !== null) {
+        prevOfferedId.current = null;
+        clearInterval(alertIntervalRef.current);
+        stopAlert();
+        if (Capacitor.isNativePlatform()) {
+          LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
+          Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{});
+        }
+        if (!Capacitor.isNativePlatform()) notifySW({ type: "OFFER_CLEARED" });
       }
-      if (!Capacitor.isNativePlatform()) notifySW({ type: "OFFER_CLEARED" });
     }
 
     // 2. Evaluate Broadcast (Eliminado por requerimiento de cliente)

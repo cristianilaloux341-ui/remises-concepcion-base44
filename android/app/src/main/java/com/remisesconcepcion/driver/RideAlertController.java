@@ -167,15 +167,20 @@ public class RideAlertController {
             android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
             if (audioManager != null) {
                 try {
-                    // Forzar volumen de alarma si está en silencio
+                    // Forzar volumen de alarma agresivamente para asegurar que suene en el auto
+                    int maxVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
+                    int targetVol = (int) (maxVol * 0.85); // 85% del volumen máximo
                     int currentVol = audioManager.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
-                    if (currentVol <= 1) {
-                        int maxVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
-                        audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxVol / 2, 0);
+                    
+                    if (currentVol < targetVol) {
+                        audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, targetVol, 0);
+                        Log.e(TAG, "Volumen ALARM subido a " + targetVol + " (estaba en " + currentVol + ")");
                     }
+                    
+                    // Pedir el foco de audio
                     audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
                 } catch (Exception e) {
-                    Log.e(TAG, "No se pudo forzar volumen (posible Do Not Disturb)", e);
+                    Log.e(TAG, "No se pudo forzar volumen (posible Do Not Disturb o permisos)", e);
                 }
             }
 
@@ -195,7 +200,15 @@ public class RideAlertController {
                         Log.e(TAG, "MediaPlayer error: " + what + " extra: " + extra);
                         try {
                             android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                            if (r != null) r.play();
+                            if (r != null) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                    r.setAudioAttributes(new AudioAttributes.Builder()
+                                            .setUsage(AudioAttributes.USAGE_ALARM)
+                                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                            .build());
+                                }
+                                r.play();
+                            }
                         } catch(Exception e2) {}
                         return true;
                     }
@@ -203,12 +216,20 @@ public class RideAlertController {
                 // Preparar síncronamente porque estamos en el background thread de FCM (sin Looper)
                 mediaPlayer.prepare();
                 mediaPlayer.start();
-                logDebug("startAlert: MediaPlayer iniciado");
+                logDebug("startAlert: MediaPlayer iniciado exitosamente");
             } catch (Exception ex) {
                 Log.e(TAG, "Excepcion critica en MediaPlayer, usando Ringtone fallback", ex);
                 try {
                     android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                    if (r != null) r.play();
+                    if (r != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            r.setAudioAttributes(new AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_ALARM)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                    .build());
+                        }
+                        r.play();
+                    }
                 } catch(Exception e3) {
                     Log.e(TAG, "Fallback Ringtone tambien fallo", e3);
                 }
