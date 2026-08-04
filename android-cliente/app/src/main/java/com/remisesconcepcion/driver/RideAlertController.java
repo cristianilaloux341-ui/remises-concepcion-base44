@@ -51,7 +51,7 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v16"; // v16 para forzar la recreación del canal
+        String channelId = "ride_alerts_urgent_v17"; // v17 para restaurar el comportamiento de la burbuja
 
         // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -122,12 +122,8 @@ public class RideAlertController {
                         TAG + ":WakeLock"
                 );
                 wl.acquire(5000);
-                
-                try {
-                    // Enviar el PendingIntent directamente fuerza la aparición de la burbuja y la actividad
-                    // sin violar las reglas de background startActivity de Android 10+
-                    openAppPendingIntent.send();
-                } catch (Exception e2) {}
+                // NOTA: Eliminamos openAppPendingIntent.send() porque eso forzaba a abrir la app 
+                // y causaba que el sistema operativo ocultara la burbuja de notificación superior.
             }
         } catch (Exception e) {
             Log.e(TAG, "Error adquiriendo WakeLock", e);
