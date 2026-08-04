@@ -71,11 +71,12 @@ public class MyFirebaseMessagingService extends MessagingService {
         if (isOfferPush) {
             // 1. La validación de antigüedad por sentAt se removió debido a desincronizaciones de reloj en Android.
 
-            // 2. Validar contra el Gatekeeper de resoluciones locales
-            if (orderId != null && RideStateManager.isResolved(getApplicationContext(), orderId, incomingAttempt)) {
-                Log.e(TAG, "=> PUSH DE OFERTA DESCARTADO: viaje ya resuelto (intento " + incomingAttempt + ").");
-                return;
-            }
+            // 2. Validar contra el Gatekeeper de resoluciones locales (DESACTIVADO POR EMERGENCIA)
+            // Si esto estaba trabado por cache en el teléfono, causaba que el viaje sea silenciado completamente y descartado.
+            // if (orderId != null && RideStateManager.isResolved(getApplicationContext(), orderId, incomingAttempt)) {
+            //     Log.e(TAG, "=> PUSH DE OFERTA DESCARTADO: viaje ya resuelto (intento " + incomingAttempt + ").");
+            //     return;
+            // }
             
             Log.e(TAG, "Construyendo notificación interactiva nativa para viaje...");
             showInteractiveNotification(data);

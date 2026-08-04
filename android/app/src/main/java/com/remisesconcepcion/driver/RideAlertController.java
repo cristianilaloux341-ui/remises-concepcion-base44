@@ -49,7 +49,7 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v8"; // v8 para asegurar que el canal se reescriba limpio
+        String channelId = "ride_alerts_urgent_v11"; // v11 para desmutear forzosamente el canal en Android desde cero
 
         // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -168,15 +168,10 @@ public class RideAlertController {
             android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
             if (audioManager != null) {
                 try {
-                    // Forzar volumen de ALARMA agresivamente (salta Do Not Disturb)
+                    // Forzar volumen de ALARMA agresivamente al MÁXIMO ABSOLUTO (salta Do Not Disturb)
                     int maxAlarmVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
-                    int targetAlarmVol = (int) (maxAlarmVol * 0.85);
-                    int currentAlarmVol = audioManager.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
-                    
-                    if (currentAlarmVol < targetAlarmVol) {
-                        audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, targetAlarmVol, 0);
-                        Log.e(TAG, "Volumen ALARM subido a " + targetAlarmVol + " (estaba en " + currentAlarmVol + ")");
-                    }
+                    audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxAlarmVol, 0);
+                    Log.e(TAG, "Volumen ALARM forzado al MÁXIMO: " + maxAlarmVol);
                     
                     // Pedir el foco de audio para alarma
                     audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
@@ -186,7 +181,6 @@ public class RideAlertController {
             }
 
             // CORRECCION CRITICA: Pasar el MediaPlayer al hilo principal (MainThread) obligatoriamente. 
-            // Si Firebase intenta abrir el MediaPlayer en su hilo de background, Android lo silencia y lo mata.
             new Handler(Looper.getMainLooper()).post(new Runnable() {
                 @Override
                 public void run() {
@@ -197,14 +191,18 @@ public class RideAlertController {
                         mediaPlayer = new MediaPlayer();
                         // Prevenir que el CPU se duerma mientras suena
                         mediaPlayer.setWakeMode(context, PowerManager.PARTIAL_WAKE_LOCK);
-                        mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_ALARM)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                .build());
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_ALARM)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                    .build());
+                        } else {
+                            mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_ALARM);
+                        }
                         mediaPlayer.setDataSource(context, finalSoundUri);
                         mediaPlayer.setLooping(true);
                         mediaPlayer.setVolume(1.0f, 1.0f);
-                        mediaPlayer.prepare();
+                        mediaPlayer.prepare(); // SINCRONO
                         mediaPlayer.start();
                         Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente en el MainThread");
                     } catch (Exception ex) {
@@ -217,6 +215,8 @@ public class RideAlertController {
                                             .setUsage(AudioAttributes.USAGE_ALARM)
                                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                                             .build());
+                                } else {
+                                    r.setStreamType(android.media.AudioManager.STREAM_ALARM);
                                 }
                                 r.play();
                             }
