@@ -503,7 +503,7 @@ Deno.serve(async (req) => {
     const b44 = base44.asServiceRole;
     
     const payload = await req.json();
-    const { orderId, driverId, assignmentAttempt, sessionToken } = payload;
+    const { orderId, driverId, assignmentAttempt, sessionToken, internalKey } = payload;
     
     if (!orderId || !driverId) {
       return Response.json({ accepted: false, reason: "missing_params" });
