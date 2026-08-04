@@ -51,7 +51,7 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v13"; // v13 para forzar la recreación del canal
+        String channelId = "ride_alerts_urgent_v15"; // v15 para forzar la recreación del canal
 
         // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -121,11 +121,13 @@ public class RideAlertController {
                         android.os.PowerManager.ON_AFTER_RELEASE, 
                         TAG + ":WakeLock"
                 );
-                wl.acquire(5000); // Mantiene pantalla viva para que el Heads-Up/Burbuja se pueda dibujar
+                wl.acquire(5000);
                 
-                // IMPORTANTE: NO usamos context.startActivity() aquí. 
-                // Lanzar una Activity a la fuerza desde background en Android 10+ está prohibido
-                // y causa que el OS silencie/bloquee la notificación burbuja (fullScreenIntent) como penalización.
+                try {
+                    // Enviar el PendingIntent directamente fuerza la aparición de la burbuja y la actividad
+                    // sin violar las reglas de background startActivity de Android 10+
+                    openAppPendingIntent.send();
+                } catch (Exception e2) {}
             }
         } catch (Exception e) {
             Log.e(TAG, "Error adquiriendo WakeLock", e);
@@ -158,37 +160,43 @@ public class RideAlertController {
                 }
             }
 
-            try {
-                if (mediaPlayer != null) {
-                    try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
-                }
-                mediaPlayer = new MediaPlayer();
-                mediaPlayer.setWakeMode(context, android.os.PowerManager.PARTIAL_WAKE_LOCK);
-                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build());
-                mediaPlayer.setDataSource(context, finalSoundUri);
-                mediaPlayer.setLooping(true);
-                mediaPlayer.setVolume(1.0f, 1.0f);
-                mediaPlayer.prepare();
-                mediaPlayer.start();
-                Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente de forma directa");
-            } catch (Exception ex) {
-                Log.e(TAG, "Fallo MediaPlayer, usando Ringtone fallback", ex);
-                try {
-                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                    if (r != null) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            r.setAudioAttributes(new AudioAttributes.Builder()
-                                    .setUsage(AudioAttributes.USAGE_ALARM)
-                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                    .build());
+            // Mover el reproductor al hilo principal para evitar que el OS lo mate por estar en background
+            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (mediaPlayer != null) {
+                            try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
                         }
-                        r.play();
+                        mediaPlayer = new MediaPlayer();
+                        mediaPlayer.setWakeMode(context, android.os.PowerManager.PARTIAL_WAKE_LOCK);
+                        mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_ALARM)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .build());
+                        mediaPlayer.setDataSource(context, finalSoundUri);
+                        mediaPlayer.setLooping(true);
+                        mediaPlayer.setVolume(1.0f, 1.0f);
+                        mediaPlayer.prepare();
+                        mediaPlayer.start();
+                        Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente en hilo principal");
+                    } catch (Exception ex) {
+                        Log.e(TAG, "Fallo MediaPlayer, usando Ringtone fallback", ex);
+                        try {
+                            android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
+                            if (r != null) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                    r.setAudioAttributes(new AudioAttributes.Builder()
+                                            .setUsage(AudioAttributes.USAGE_ALARM)
+                                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                            .build());
+                                }
+                                r.play();
+                            }
+                        } catch(Exception e3) {}
                     }
-                } catch(Exception e3) {}
-            }
+                }
+            });
             
             vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
             if (vibrator != null) {
