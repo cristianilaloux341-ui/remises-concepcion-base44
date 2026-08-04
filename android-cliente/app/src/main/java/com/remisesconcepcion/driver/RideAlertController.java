@@ -151,6 +151,18 @@ public class RideAlertController {
             
             final Uri finalSoundUri = soundUri;
 
+            // --- FORZAR FOCO DE AUDIO Y VOLUMEN AL MÁXIMO ---
+            android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                try {
+                    int maxAlarmVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
+                    audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxAlarmVol, 0);
+                    audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
+                } catch (Exception e) {
+                    Log.e(TAG, "No se pudo forzar volumen de audio", e);
+                }
+            }
+
             try {
                 if (mediaPlayer != null) {
                     try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
