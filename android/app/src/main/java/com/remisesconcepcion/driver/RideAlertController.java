@@ -49,7 +49,7 @@ public class RideAlertController {
 
         currentOrderId = orderId;
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v7"; // v7 para forzar recreación de canal con Alarma
+        String channelId = "ride_alerts_urgent_v8"; // v8 para asegurar que el canal se reescriba limpio
 
         // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -185,20 +185,30 @@ public class RideAlertController {
                 }
             }
 
-            try {
-                mediaPlayer = new MediaPlayer();
-                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM) // Categoría de Alarma (salta Do Not Disturb en Android 11+)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build());
-                mediaPlayer.setDataSource(context, soundUri);
-                mediaPlayer.setLooping(true);
-                mediaPlayer.setVolume(1.0f, 1.0f);
-                
-                mediaPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
-                    @Override
-                    public boolean onError(MediaPlayer mp, int what, int extra) {
-                        Log.e(TAG, "MediaPlayer error: " + what + " extra: " + extra);
+            // CORRECCION CRITICA: Pasar el MediaPlayer al hilo principal (MainThread) obligatoriamente. 
+            // Si Firebase intenta abrir el MediaPlayer en su hilo de background, Android lo silencia y lo mata.
+            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (mediaPlayer != null) {
+                            try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
+                        }
+                        mediaPlayer = new MediaPlayer();
+                        // Prevenir que el CPU se duerma mientras suena
+                        mediaPlayer.setWakeMode(context, PowerManager.PARTIAL_WAKE_LOCK);
+                        mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_ALARM)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .build());
+                        mediaPlayer.setDataSource(context, finalSoundUri);
+                        mediaPlayer.setLooping(true);
+                        mediaPlayer.setVolume(1.0f, 1.0f);
+                        mediaPlayer.prepare();
+                        mediaPlayer.start();
+                        Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente en el MainThread");
+                    } catch (Exception ex) {
+                        Log.e(TAG, "Fallo MediaPlayer en MainThread, usando Ringtone fallback", ex);
                         try {
                             android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
                             if (r != null) {
@@ -210,31 +220,10 @@ public class RideAlertController {
                                 }
                                 r.play();
                             }
-                        } catch(Exception e2) {}
-                        return true;
+                        } catch(Exception e3) {}
                     }
-                });
-                // Preparar síncronamente porque estamos en el background thread de FCM (sin Looper)
-                mediaPlayer.prepare();
-                mediaPlayer.start();
-                logDebug("startAlert: MediaPlayer iniciado exitosamente");
-            } catch (Exception ex) {
-                Log.e(TAG, "Excepcion critica en MediaPlayer, usando Ringtone fallback", ex);
-                try {
-                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                    if (r != null) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            r.setAudioAttributes(new AudioAttributes.Builder()
-                                    .setUsage(AudioAttributes.USAGE_ALARM)
-                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                    .build());
-                        }
-                        r.play();
-                    }
-                } catch(Exception e3) {
-                    Log.e(TAG, "Fallback Ringtone tambien fallo", e3);
                 }
-            }
+            });
             
             vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
             if (vibrator != null) {
@@ -344,21 +333,31 @@ public class RideAlertController {
             }
             if (soundUri == null) return;
             
-            MediaPlayer mp = new MediaPlayer();
-            mp.setAudioAttributes(new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build());
-            mp.setDataSource(context, soundUri);
-            mp.setVolume(1.0f, 1.0f);
-            mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            final Uri finalOneShotUri = soundUri;
+            new Handler(Looper.getMainLooper()).post(new Runnable() {
                 @Override
-                public void onCompletion(MediaPlayer mediaPlayerObj) {
-                    mediaPlayerObj.release();
+                public void run() {
+                    try {
+                        MediaPlayer mp = new MediaPlayer();
+                        mp.setAudioAttributes(new AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .build());
+                        mp.setDataSource(context, finalOneShotUri);
+                        mp.setVolume(1.0f, 1.0f);
+                        mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                            @Override
+                            public void onCompletion(MediaPlayer mediaPlayerObj) {
+                                mediaPlayerObj.release();
+                            }
+                        });
+                        mp.prepare();
+                        mp.start();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error reproduciendo sonido one-shot", e);
+                    }
                 }
             });
-            mp.prepare();
-            mp.start();
         } catch (Exception e) {
             Log.e(TAG, "Error reproduciendo sonido one-shot", e);
         }
