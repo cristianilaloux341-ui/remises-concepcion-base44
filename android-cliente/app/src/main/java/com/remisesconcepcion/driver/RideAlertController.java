@@ -110,7 +110,7 @@ public class RideAlertController {
                 .addAction(0, "✅ ACEPTAR", acceptPendingIntent)
                 .addAction(0, "❌ RECHAZAR", rejectPendingIntent);
 
-        // --- SOLUCIÓN CRÍTICA DE WAKE LOCK Y PANTALLA ---
+        // Despertar la pantalla explícitamente
         try {
             android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
             if (pm != null && !pm.isInteractive()) {
@@ -121,16 +121,11 @@ public class RideAlertController {
                         android.os.PowerManager.ON_AFTER_RELEASE, 
                         TAG + ":WakeLock"
                 );
-                wl.acquire(5000);
+                wl.acquire(5000); // Mantiene pantalla viva para que el Heads-Up/Burbuja se pueda dibujar
                 
-                // Forzar el lanzamiento de la actividad. Como el MainActivity tiene showWhenLocked y turnScreenOn,
-                // esto encenderá la pantalla de forma confiable e invocará el sonido desde la vista principal.
-                try {
-                    context.startActivity(openAppIntent);
-                } catch (Exception ex) {
-                    Log.e(TAG, "No se pudo lanzar Activity directamente", ex);
-                    try { openAppPendingIntent.send(); } catch(Exception e2) {}
-                }
+                // IMPORTANTE: NO usamos context.startActivity() aquí. 
+                // Lanzar una Activity a la fuerza desde background en Android 10+ está prohibido
+                // y causa que el OS silencie/bloquee la notificación burbuja (fullScreenIntent) como penalización.
             }
         } catch (Exception e) {
             Log.e(TAG, "Error adquiriendo WakeLock", e);
