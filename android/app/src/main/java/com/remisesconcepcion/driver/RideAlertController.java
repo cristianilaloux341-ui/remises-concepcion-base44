@@ -22,8 +22,6 @@ public class RideAlertController {
     private static final String TAG = "RideAlertController";
     
     private static RideAlertController instance;
-    private MediaPlayer mediaPlayer;
-    private Vibrator vibrator;
     private String currentOrderId;
     private Handler timeoutHandler = new Handler(Looper.getMainLooper());
     private Runnable timeoutRunnable;
@@ -37,67 +35,49 @@ public class RideAlertController {
         return instance;
     }
 
-    private void logDebug(String message) {
-        // Log.d(TAG, message);
-    }
-
-    public synchronized void startAlert(final Context context, final String orderId, final String title, final String body, final Intent acceptIntent, final Intent rejectIntent, final Intent openAppIntent) {
-        logDebug("startAlert: Intentando iniciar alerta para orderId=" + orderId);
-        
-        // Si ya hay algo sonando, detenerlo primero
-        stopAllAlerts(context, "Nuevo viaje entrante reemplaza al anterior");
-
+    public synchronized void startAlert(final Context context, final String orderId, String title, String body, Intent acceptIntent, Intent rejectIntent, final Intent openAppIntent) {
+        stopAllAlerts(context, "Nuevo viaje entrante");
         currentOrderId = orderId;
+        
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v13"; // v13 para resetear el canal sin bloqueos de background-activity
+        String channelId = "ride_alerts_urgent_v18"; 
 
-        // Verificar si existe el canal de Capacitor o crearlo manual si es necesario
+        int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
+        Uri soundUri;
+        if (soundResId != 0) {
+            soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
+        } else {
+            soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel existingChannel = notificationManager.getNotificationChannel(channelId);
-            if (existingChannel == null) {
-                Log.e(TAG, "FCM_CHANNEL_NOT_FOUND - Creando canal: " + channelId);
-                NotificationChannel channel = new NotificationChannel(
-                        channelId,
-                        "Alertas de Viaje",
-                        NotificationManager.IMPORTANCE_HIGH
-                );
-                int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
-                Uri channelSoundUri;
-                if (soundResId != 0) {
-                    channelSoundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
-                } else {
-                    channelSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-                    if (channelSoundUri == null) channelSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-                }
-                
-                if (channelSoundUri != null) {
-                    AudioAttributes audioAttributes = new AudioAttributes.Builder()
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .setUsage(AudioAttributes.USAGE_ALARM) // Usar categoría de alarma para saltar restricciones
-                            .build();
-                    channel.setSound(channelSoundUri, audioAttributes);
-                }
-                
-                channel.enableVibration(true); 
-                channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
-                channel.setBypassDnd(true); // Intentar saltar el "No Molestar"
-                notificationManager.createNotificationChannel(channel);
-            } else {
-                Log.e(TAG, "Canal " + channelId + " encontrado. Importance: " + existingChannel.getImportance());
+            NotificationChannel channel = new NotificationChannel(
+                    channelId,
+                    "Alertas de Viaje",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .build();
+            if (soundUri != null) {
+                channel.setSound(soundUri, audioAttributes);
             }
+            channel.enableVibration(true);
+            channel.setVibrationPattern(new long[]{0, 500, 200, 500, 200, 1000});
+            channel.setBypassDnd(true);
+            channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+            notificationManager.createNotificationChannel(channel);
         }
 
         int reqCode = orderId != null ? orderId.hashCode() : 0;
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags |= PendingIntent.FLAG_IMMUTABLE; // FLAG_IMMUTABLE es esencial para no ser bloqueado por seguridad en Android 12+
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
 
         PendingIntent acceptPendingIntent = PendingIntent.getBroadcast(context, reqCode, acceptIntent, flags);
         PendingIntent rejectPendingIntent = PendingIntent.getBroadcast(context, reqCode + 1, rejectIntent, flags);
         PendingIntent openAppPendingIntent = PendingIntent.getActivity(context, reqCode + 2, openAppIntent, flags);
         
-        // DeleteIntent para cuando se desliza
         Intent dismissIntent = new Intent(context, NotificationActionReceiver.class);
         dismissIntent.setAction("ACTION_DISMISS");
         dismissIntent.putExtra("orderId", orderId);
@@ -112,21 +92,27 @@ public class RideAlertController {
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setOngoing(true)
                 .setAutoCancel(false)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setContentIntent(openAppPendingIntent)
                 .setFullScreenIntent(openAppPendingIntent, true)
                 .setDeleteIntent(dismissPendingIntent)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .addAction(0, "✅ ACEPTAR", acceptPendingIntent)
                 .addAction(0, "❌ RECHAZAR", rejectPendingIntent);
 
-        // Check POST_NOTIFICATIONS permission for Android 13+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                Log.e(TAG, "FCM_PERMISSION_DENIED - Permiso POST_NOTIFICATIONS no concedido");
-            }
+        if (soundUri != null) {
+            builder.setSound(soundUri);
         }
+        builder.setVibrate(new long[]{0, 500, 200, 500, 200, 1000});
 
-        // Despertar la pantalla explícitamente
+        // Forzar que el volumen multimedia de alarmas esté al máximo.
+        try {
+            android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                int maxAlarmVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
+                audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxAlarmVol, 0);
+            }
+        } catch (Exception e) {}
+
         try {
             android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
             if (pm != null && !pm.isInteractive()) {
@@ -135,187 +121,32 @@ public class RideAlertController {
                         android.os.PowerManager.FULL_WAKE_LOCK | 
                         android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP | 
                         android.os.PowerManager.ON_AFTER_RELEASE, 
-                        TAG + ":WakeLock"
+                        "RideAlertController:WakeLock"
                 );
-                wl.acquire(5000); // Mantiene pantalla viva para que el Heads-Up/Burbuja se pueda dibujar
-                
-                // IMPORTANTE: NO usamos context.startActivity() aquí. 
-                // Lanzar una Activity a la fuerza desde background en Android 10+ está prohibido
-                // y causa que el OS silencie/bloquee la notificación burbuja (fullScreenIntent) como penalización.
+                wl.acquire(5000);
             }
-        } catch (Exception e) {
-            Log.e(TAG, "Error adquiriendo WakeLock", e);
-        }
+        } catch (Exception e) {}
 
-        notificationManager.notify(reqCode, builder.build());
-        Log.e(TAG, "FCM_NOTIFICATION_CREATED - ID " + reqCode);
-        logDebug("startAlert: Notificación mostrada con ID " + reqCode);
+        android.app.Notification notification = builder.build();
+        // ESTA ES LA MAGIA: El sistema operativo se encarga de repetir el sonido en loop. 
+        notification.flags |= android.app.Notification.FLAG_INSISTENT;
+        notificationManager.notify(reqCode, notification);
 
-        // Sonido y Vibración
-        try {
-            int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
-            Uri soundUri;
-            if (soundResId != 0) {
-                soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
-            } else {
-                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-                if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-                if (soundUri == null) soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-            }
-            
-            final Uri finalSoundUri = soundUri;
-            android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            if (audioManager != null) {
-                try {
-                    // Forzar volumen de ALARMA agresivamente al MÁXIMO ABSOLUTO (salta Do Not Disturb)
-                    int maxAlarmVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
-                    audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxAlarmVol, 0);
-                    Log.e(TAG, "Volumen ALARM forzado al MÁXIMO: " + maxAlarmVol);
-                    
-                    // Pedir el foco de audio para alarma
-                    audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
-                } catch (Exception e) {
-                    Log.e(TAG, "No se pudo forzar volumen (posible Do Not Disturb o permisos)", e);
-                }
-            }
-
-            try {
-                if (mediaPlayer != null) {
-                    try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
-                }
-                mediaPlayer = new MediaPlayer();
-                // Prevenir que el CPU se duerma mientras suena
-                mediaPlayer.setWakeMode(context, PowerManager.PARTIAL_WAKE_LOCK);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build());
-                } else {
-                    mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_ALARM);
-                }
-                mediaPlayer.setDataSource(context, finalSoundUri);
-                mediaPlayer.setLooping(true);
-                mediaPlayer.setVolume(1.0f, 1.0f);
-                mediaPlayer.prepare(); // SINCRONO
-                mediaPlayer.start();
-                Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente de forma directa");
-            } catch (Exception ex) {
-                Log.e(TAG, "Fallo MediaPlayer, usando Ringtone fallback", ex);
-                try {
-                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                    if (r != null) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            r.setAudioAttributes(new AudioAttributes.Builder()
-                                    .setUsage(AudioAttributes.USAGE_ALARM)
-                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                    .build());
-                        } else {
-                            r.setStreamType(android.media.AudioManager.STREAM_ALARM);
-                        }
-                        r.play();
-                    }
-                } catch(Exception e3) {}
-            }
-            
-            vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
-            if (vibrator != null) {
-                long[] pattern = {0, 500, 200, 500, 200, 1000};
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0));
-                } else {
-                    vibrator.vibrate(pattern, 0);
-                }
-                logDebug("startAlert: Vibrador iniciado");
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error reproduciendo sonido nativo", e);
-        }
-
-        // Temporizador de vencimiento (60s)
         timeoutRunnable = new Runnable() {
             @Override
             public void run() {
-                logDebug("startAlert: Temporizador vencido para orderId=" + orderId);
-                stopAlert(context, orderId, "Vencimiento de temporizador nativo");
+                stopAlert(context, orderId, "Vencimiento");
             }
         };
         timeoutHandler.postDelayed(timeoutRunnable, 60000);
-        logDebug("startAlert: Temporizador de 60s iniciado");
-    }
-
-    private String getBaseId(String orderId) {
-        if (orderId == null) return null;
-        if (orderId.contains("_att_")) {
-            return orderId.split("_att_")[0];
-        }
-        return orderId;
-    }
-
-    public synchronized void playAudioFallback(Context context) {
-        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
-            return; // Ya está sonando correctamente
-        }
-        logDebug("playAudioFallback: Reintentando audio desde MainActivity");
-        try {
-            int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
-            Uri soundUri;
-            if (soundResId != 0) {
-                soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
-            } else {
-                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-            }
-            final Uri finalSoundUri = soundUri;
-
-            new Handler(Looper.getMainLooper()).post(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        if (mediaPlayer != null) {
-                            try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
-                        }
-                        mediaPlayer = new MediaPlayer();
-                        mediaPlayer.setWakeMode(context, PowerManager.PARTIAL_WAKE_LOCK);
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                                    .setUsage(AudioAttributes.USAGE_ALARM)
-                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                    .build());
-                        } else {
-                            mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_ALARM);
-                        }
-                        mediaPlayer.setDataSource(context, finalSoundUri);
-                        mediaPlayer.setLooping(true);
-                        mediaPlayer.setVolume(1.0f, 1.0f);
-                        mediaPlayer.prepare();
-                        mediaPlayer.start();
-                        Log.e(TAG, "FALLBACK AUDIO INICIADO DESDE MAIN ACTIVITY");
-                    } catch (Exception ex) {
-                        Log.e(TAG, "Error en fallback de audio", ex);
-                    }
-                }
-            });
-        } catch (Exception e) {
-            Log.e(TAG, "Excepción externa en fallback", e);
-        }
     }
 
     public synchronized void stopAlert(Context context, String orderId, String reason) {
-        if (orderId == null || currentOrderId == null) return;
-        
-        String baseInput = getBaseId(orderId);
-        String baseCurrent = getBaseId(currentOrderId);
-
-        if (!baseInput.equals(baseCurrent)) {
-            logDebug("stopAlert: Ignorado para orderId=" + orderId + " (actual=" + currentOrderId + "). Motivo recibido: " + reason);
-            return;
-        }
-        logDebug("stopAlert: Deteniendo alerta para orderId=" + orderId + ". Motivo: " + reason);
+        if (orderId == null || !orderId.equals(currentOrderId)) return;
         executeStop(context, orderId);
     }
 
     public synchronized void stopAllAlerts(Context context, String reason) {
-        logDebug("stopAllAlerts: Deteniendo todas las alertas. Motivo: " + reason);
         if (currentOrderId != null) {
             executeStop(context, currentOrderId);
         }
@@ -325,82 +156,39 @@ public class RideAlertController {
         if (timeoutRunnable != null) {
             timeoutHandler.removeCallbacks(timeoutRunnable);
             timeoutRunnable = null;
-            logDebug("executeStop: Temporizador cancelado");
         }
-
-        if (mediaPlayer != null) {
-            try {
-                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
-                mediaPlayer.release();
-                logDebug("executeStop: MediaPlayer detenido y liberado");
-            } catch (Exception e) {
-                Log.e(TAG, "Error liberando MediaPlayer", e);
-            }
-            mediaPlayer = null;
-        }
-
-        if (vibrator != null) {
-            try { vibrator.cancel(); logDebug("executeStop: Vibración cancelada"); } catch (Exception e) {}
-            vibrator = null;
-        }
-
         if (orderId != null) {
+            // Al cancelar la notificación, el sistema operativo corta el sonido de inmediato.
             NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             notificationManager.cancel(orderId.hashCode());
-            logDebug("executeStop: Notificación cancelada (ID=" + orderId.hashCode() + ")");
         }
-        
         currentOrderId = null;
     }
 
     public synchronized boolean isAlertActive(String orderId) {
-        if (orderId == null || currentOrderId == null) return false;
-        return getBaseId(orderId).equals(getBaseId(currentOrderId)) && mediaPlayer != null;
+        return orderId != null && orderId.equals(currentOrderId);
     }
 
     public synchronized void playOneShotSound(Context context, String type) {
         try {
             String fileName = "message";
-            if ("cancel".equals(type) || "cancelar".equals(type)) fileName = "cancel";
+            if ("cancel".equals(type)) fileName = "cancel";
             if ("bocina".equals(type)) fileName = "horn";
             if ("viaje_iniciado".equals(type)) fileName = "trip_started";
             
             int soundResId = context.getResources().getIdentifier(fileName, "raw", context.getPackageName());
-            Uri soundUri;
-            if (soundResId != 0) {
-                soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
-            } else {
-                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-            }
-            if (soundUri == null) return;
+            if (soundResId == 0) return;
             
-            final Uri finalOneShotUri = soundUri;
-            new Handler(Looper.getMainLooper()).post(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        MediaPlayer mp = new MediaPlayer();
-                        mp.setAudioAttributes(new AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                .build());
-                        mp.setDataSource(context, finalOneShotUri);
-                        mp.setVolume(1.0f, 1.0f);
-                        mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-                            @Override
-                            public void onCompletion(MediaPlayer mediaPlayerObj) {
-                                mediaPlayerObj.release();
-                            }
-                        });
-                        mp.prepare();
-                        mp.start();
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error reproduciendo sonido one-shot", e);
-                    }
-                }
-            });
-        } catch (Exception e) {
-            Log.e(TAG, "Error reproduciendo sonido one-shot", e);
-        }
+            Uri soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
+            MediaPlayer mp = new MediaPlayer();
+            mp.setDataSource(context, soundUri);
+            mp.setAudioAttributes(new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build());
+            mp.setOnCompletionListener(MediaPlayer::release);
+            mp.prepare();
+            mp.start();
+        } catch (Exception e) {}
     }
 }
