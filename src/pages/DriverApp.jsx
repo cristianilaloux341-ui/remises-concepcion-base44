@@ -1012,24 +1012,30 @@ export default function DriverApp() {
       if (document.visibilityState === "visible") {
         unlockAudio(); // Reforzar el lock de audio al ver la app
         
-        // ESCUDO 2: Limpieza al Despertar
-        // Cortar cualquier alarma colgada antes de reevaluar
-        stopAlert();
-        if (Capacitor.isNativePlatform()) {
-           Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: 'onVisibilityChange_clear' }).catch(()=>{});
-           LocalNotifications.cancel({ notifications: [{ id: 88888 }, { id: 77777 }] }).catch(()=>{});
-        }
-
         if (ref.current) {
           base44.entities.RideOrder.get(ref.current.id).then(fresh => {
              if (fresh && fresh.status === 'ofrecido') {
+                 // Sigue ofrecido: en Web reactivamos alarma, en Nativo dejamos que siga sonando.
                  playAlert();
              } else {
+                 // Ya no está ofrecido, limpiar de verdad (Escudo de limpieza)
+                 stopAlert();
+                 if (Capacitor.isNativePlatform()) {
+                    Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: 'onVisibilityChange_clear_invalid' }).catch(()=>{});
+                    LocalNotifications.cancel({ notifications: [{ id: 88888 }, { id: 77777 }] }).catch(()=>{});
+                 }
                  window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
              }
           }).catch(() => {
-             playAlert();
+             playAlert(); // Si falla la red, asumimos que sigue sonando
           });
+        } else {
+          // No hay orden ofrecida localmente, limpiar por si quedó alguna alerta fantasma sonando
+          stopAlert();
+          if (Capacitor.isNativePlatform()) {
+             Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: 'onVisibilityChange_clear_empty' }).catch(()=>{});
+             LocalNotifications.cancel({ notifications: [{ id: 88888 }, { id: 77777 }] }).catch(()=>{});
+          }
         }
       }
     };
