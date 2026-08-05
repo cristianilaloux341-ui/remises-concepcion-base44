@@ -40,7 +40,7 @@ public class RideAlertController {
         currentOrderId = orderId;
         
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "ride_alerts_urgent_v18"; 
+        String channelId = "ride_alerts_urgent_v19"; 
 
         int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
         Uri soundUri;
@@ -58,7 +58,7 @@ public class RideAlertController {
             );
             AudioAttributes audioAttributes = new AudioAttributes.Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
                     .build();
             if (soundUri != null) {
                 channel.setSound(soundUri, audioAttributes);
