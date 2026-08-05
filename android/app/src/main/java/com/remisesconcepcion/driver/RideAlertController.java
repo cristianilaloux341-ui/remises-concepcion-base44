@@ -22,6 +22,8 @@ public class RideAlertController {
     private static final String TAG = "RideAlertController";
     
     private static RideAlertController instance;
+    private MediaPlayer mediaPlayer;
+    private Vibrator vibrator;
     private String currentOrderId;
     private Handler timeoutHandler = new Handler(Looper.getMainLooper());
     private Runnable timeoutRunnable;
@@ -104,15 +106,7 @@ public class RideAlertController {
         }
         builder.setVibrate(new long[]{0, 500, 200, 500, 200, 1000});
 
-        // Forzar que el volumen multimedia de alarmas esté al máximo.
-        try {
-            android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            if (audioManager != null) {
-                int maxAlarmVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
-                audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxAlarmVol, 0);
-            }
-        } catch (Exception e) {}
-
+        // Despertar la pantalla explícitamente
         try {
             android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
             if (pm != null && !pm.isInteractive()) {
@@ -121,16 +115,81 @@ public class RideAlertController {
                         android.os.PowerManager.FULL_WAKE_LOCK | 
                         android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP | 
                         android.os.PowerManager.ON_AFTER_RELEASE, 
-                        "RideAlertController:WakeLock"
+                        TAG + ":WakeLock"
                 );
                 wl.acquire(5000);
             }
         } catch (Exception e) {}
 
         android.app.Notification notification = builder.build();
-        // ESTA ES LA MAGIA: El sistema operativo se encarga de repetir el sonido en loop. 
         notification.flags |= android.app.Notification.FLAG_INSISTENT;
         notificationManager.notify(reqCode, notification);
+
+        // --- MANEJO DE AUDIO ROBUSTO (Híbrido Cliente + Delay) ---
+        try {
+            final Uri finalSoundUri = soundUri;
+            android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                try {
+                    int maxAlarmVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
+                    audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxAlarmVol, 0);
+                    // Adquirir AudioFocus (Estaba en cliente, faltaba en chofer)
+                    audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
+                } catch (Exception e) {}
+            }
+
+            try {
+                if (mediaPlayer != null) {
+                    try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
+                }
+                mediaPlayer = new MediaPlayer();
+                // IMPORTANTE: setWakeMode asegura que el audio corra en modo doze (Estaba en cliente, faltaba en chofer)
+                mediaPlayer.setWakeMode(context, android.os.PowerManager.PARTIAL_WAKE_LOCK);
+                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build());
+                mediaPlayer.setDataSource(context, finalSoundUri);
+                mediaPlayer.setLooping(true);
+                mediaPlayer.setVolume(1.0f, 1.0f);
+                mediaPlayer.prepare();
+                
+                // Retardo mínimo para esperar a que el hardware de audio despierte tras el WakeLock
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (mediaPlayer != null) {
+                            mediaPlayer.start();
+                        }
+                    }
+                }, 200);
+            } catch (Exception ex) {
+                // Fallback a Ringtone (Estaba en cliente, faltaba en chofer)
+                try {
+                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
+                    if (r != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            r.setAudioAttributes(new AudioAttributes.Builder()
+                                    .setUsage(AudioAttributes.USAGE_ALARM)
+                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                    .build());
+                        }
+                        r.play();
+                    }
+                } catch(Exception e3) {}
+            }
+            
+            // Vibración explícita (Estaba en cliente, faltaba en chofer)
+            vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator != null) {
+                long[] pattern = {0, 500, 200, 500, 200, 1000};
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createWaveform(pattern, 0));
+                } else {
+                    vibrator.vibrate(pattern, 0);
+                }
+            }
+        } catch (Exception e) {}
 
         timeoutRunnable = new Runnable() {
             @Override
@@ -157,8 +216,21 @@ public class RideAlertController {
             timeoutHandler.removeCallbacks(timeoutRunnable);
             timeoutRunnable = null;
         }
+
+        if (mediaPlayer != null) {
+            try {
+                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
+                mediaPlayer.release();
+            } catch (Exception e) {}
+            mediaPlayer = null;
+        }
+
+        if (vibrator != null) {
+            try { vibrator.cancel(); } catch (Exception e) {}
+            vibrator = null;
+        }
+
         if (orderId != null) {
-            // Al cancelar la notificación, el sistema operativo corta el sonido de inmediato.
             NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             notificationManager.cancel(orderId.hashCode());
         }
