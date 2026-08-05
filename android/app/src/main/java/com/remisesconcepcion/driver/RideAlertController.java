@@ -232,18 +232,20 @@ public class RideAlertController {
     }
 
     public synchronized void stopAlert(Context context, String orderId, String reason) {
+        Log.d(TAG, "stopAlert INVOCADO. Motivo: " + reason + "\n" + Log.getStackTraceString(new Throwable()));
         if (orderId == null || !orderId.equals(currentOrderId)) return;
         executeStop(context, orderId);
     }
 
     public synchronized void stopAllAlerts(Context context, String reason) {
+        Log.d(TAG, "stopAllAlerts INVOCADO. Motivo: " + reason + "\n" + Log.getStackTraceString(new Throwable()));
         if (currentOrderId != null) {
             executeStop(context, currentOrderId);
         }
     }
 
     private void executeStop(Context context, String orderId) {
-        Log.d(TAG, "executeStop INVOCADO - Hilo: " + Thread.currentThread().getName() + " - OrderID: " + orderId);
+        Log.d(TAG, "executeStop INVOCADO - Hilo: " + Thread.currentThread().getName() + " - OrderID: " + orderId + "\n" + Log.getStackTraceString(new Throwable()));
         if (timeoutRunnable != null) {
             timeoutHandler.removeCallbacks(timeoutRunnable);
             timeoutRunnable = null;
