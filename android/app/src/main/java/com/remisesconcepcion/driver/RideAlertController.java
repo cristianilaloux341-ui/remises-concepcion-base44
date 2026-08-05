@@ -38,6 +38,11 @@ public class RideAlertController {
     }
 
     public synchronized void startAlert(final Context context, final String orderId, String title, String body, Intent acceptIntent, Intent rejectIntent, final Intent openAppIntent) {
+        currentAlertInstanceId = java.util.UUID.randomUUID().toString();
+        Log.e(TAG, "==== START ALERT INVOCADO ====\n" +
+                "Instancia: " + currentAlertInstanceId + "\n" +
+                "OrderID: " + orderId + "\n" +
+                "Hilo: " + Thread.currentThread().getName());
         stopAllAlerts(context, "Nuevo viaje entrante");
         currentOrderId = orderId;
         
@@ -231,21 +236,38 @@ public class RideAlertController {
         timeoutHandler.postDelayed(timeoutRunnable, 60000);
     }
 
+    private String currentAlertInstanceId;
+
     public synchronized void stopAlert(Context context, String orderId, String reason) {
-        Log.d(TAG, "stopAlert INVOCADO. Motivo: " + reason + "\n" + Log.getStackTraceString(new Throwable()));
+        Log.e(TAG, "==== STOP ALERT INVOCADO ====\n" +
+                "Instancia: " + currentAlertInstanceId + "\n" +
+                "OrderID: " + orderId + "\n" +
+                "Motivo: " + reason + "\n" +
+                "Hilo: " + Thread.currentThread().getName() + "\n" +
+                Log.getStackTraceString(new Throwable()));
+                
         if (orderId == null || !orderId.equals(currentOrderId)) return;
         executeStop(context, orderId);
     }
 
     public synchronized void stopAllAlerts(Context context, String reason) {
-        Log.d(TAG, "stopAllAlerts INVOCADO. Motivo: " + reason + "\n" + Log.getStackTraceString(new Throwable()));
+        Log.e(TAG, "==== STOP ALL ALERTS INVOCADO ====\n" +
+                "Instancia: " + currentAlertInstanceId + "\n" +
+                "Motivo: " + reason + "\n" +
+                "Hilo: " + Thread.currentThread().getName() + "\n" +
+                Log.getStackTraceString(new Throwable()));
+                
         if (currentOrderId != null) {
             executeStop(context, currentOrderId);
         }
     }
 
     private void executeStop(Context context, String orderId) {
-        Log.d(TAG, "executeStop INVOCADO - Hilo: " + Thread.currentThread().getName() + " - OrderID: " + orderId + "\n" + Log.getStackTraceString(new Throwable()));
+        Log.e(TAG, "==== EXECUTE STOP INVOCADO ====\n" +
+                "Instancia: " + currentAlertInstanceId + "\n" +
+                "OrderID: " + orderId + "\n" +
+                "Hilo: " + Thread.currentThread().getName() + "\n" +
+                Log.getStackTraceString(new Throwable()));
         if (timeoutRunnable != null) {
             timeoutHandler.removeCallbacks(timeoutRunnable);
             timeoutRunnable = null;

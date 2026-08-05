@@ -832,7 +832,7 @@ export default function DriverApp() {
       if (Capacitor.isNativePlatform()) { 
         PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
         Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId: autoAcceptOrderId, assignmentAttempt: autoAcceptAttempt, resolutionType: "ACCEPTED" }).catch(()=>{});
-        stopNativeRideAlert(autoAcceptOrderId);
+        stopNativeRideAlert(autoAcceptOrderId, "autoAcceptFromURL");
       }
       const tryAutoAccept = async (retries = 3) => {
         for (let i = 0; i < retries; i++) {
@@ -871,7 +871,7 @@ export default function DriverApp() {
       if (Capacitor.isNativePlatform()) { 
         PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
         Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId: autoRejectOrderId, assignmentAttempt: 1, resolutionType: "REJECTED" }).catch(()=>{});
-        stopNativeRideAlert(autoRejectOrderId);
+        stopNativeRideAlert(autoRejectOrderId, "autoRejectFromURL");
       }
       setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
       updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
@@ -956,7 +956,7 @@ export default function DriverApp() {
           if (Capacitor.isNativePlatform()) { 
              PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
              Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId, assignmentAttempt: 1, resolutionType: "ACCEPTED" }).catch(()=>{});
-             stopNativeRideAlert(orderId);
+             stopNativeRideAlert(orderId, "swAcceptOrder");
           }
           notifySW({ type: "ACK_ACCEPT_ORDER", orderId }); // Send ACK immediately so SW doesn't spawn a new tab
           setLocalOverride({ status: "en_viaje", optimisticOrderId: orderId });
@@ -974,7 +974,7 @@ export default function DriverApp() {
           if (Capacitor.isNativePlatform()) { 
             PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
             Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId, assignmentAttempt: 1, resolutionType: "REJECTED" }).catch(()=>{});
-            stopNativeRideAlert(orderId);
+            stopNativeRideAlert(orderId, "swRejectOrder");
           }
           notifySW({ type: "ACK_REJECT_ORDER", orderId }); // Send ACK
           setLocalOverride({ status: "disponible" });
@@ -1016,7 +1016,7 @@ export default function DriverApp() {
         // Cortar cualquier alarma colgada antes de reevaluar
         stopAlert();
         if (Capacitor.isNativePlatform()) {
-           Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{});
+           Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: 'onVisibilityChange_clear' }).catch(()=>{});
            LocalNotifications.cancel({ notifications: [{ id: 88888 }, { id: 77777 }] }).catch(()=>{});
         }
 
@@ -1434,7 +1434,7 @@ export default function DriverApp() {
         stopAlert();
         if (Capacitor.isNativePlatform()) {
           LocalNotifications.cancel({ notifications: [{ id: 88888 }] }).catch(()=>{});
-          Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{});
+          Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: 'evaluateAlerts_aggressiveOff' }).catch(()=>{});
         }
         if (!Capacitor.isNativePlatform()) notifySW({ type: "OFFER_CLEARED" });
       }
@@ -1463,8 +1463,8 @@ export default function DriverApp() {
          
          if (ignoredOrdersRef.current.has(pushedOrderId) || isOccupied || isOptimistic) {
              if (Capacitor.isNativePlatform()) {
-                setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{}), 400);
-                setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{}), 1500);
+                setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: 'latePushHandler_400' }).catch(()=>{}), 400);
+                setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: 'latePushHandler_1500' }).catch(()=>{}), 1500);
              }
              stopAlert();
          }
@@ -1487,7 +1487,7 @@ export default function DriverApp() {
       ["aceptado", "en_camino", "en_viaje"].includes(o.status)
     );
     if (activeOrder && activeOrder.id && Capacitor.isNativePlatform()) {
-       Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{});
+       Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: 'useEffect_appLoading_occupied' }).catch(()=>{});
     }
   }, [safeOrders, myDriver?.status, myDriver?.current_base, dismissedBroadcasts, evaluateAlerts, myDriverId]);
 
@@ -1503,22 +1503,22 @@ export default function DriverApp() {
     retryDelay: (attempt) => Math.min(1000 * 1.5 ** attempt, 10000),
   });
 
-  const stopNativeRideAlert = async (orderId) => {
+  const stopNativeRideAlert = async (orderId, sourceReason = "unknown") => {
     if (!Capacitor.isNativePlatform() || !orderId) return;
     try { 
       // 1. Apagado inmediato (útil cuando se toca el botón de la web y el sonido ya estaba reproduciéndose)
-      Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{});
+      Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: sourceReason + '_immediate' }).catch(()=>{});
       
       // 2. Apagado diferido (para evitar race condition cuando la orden de apagar llega antes de que termine de inicializarse el MediaPlayer)
-      setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{}), 400);
-      setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all' }).catch(()=>{}), 1500);
+      setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: sourceReason + '_delayed400' }).catch(()=>{}), 400);
+      setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: sourceReason + '_delayed1500' }).catch(()=>{}), 1500);
     }
     catch (error) { console.warn("No se pudo detener la alerta nativa", error); }
   };
 
   const handleAccept = async () => {
     const realId = getRealOrderId(offeredOrder?.id);
-    await stopNativeRideAlert(realId);
+    await stopNativeRideAlert(realId, "handleAccept");
     stopAlert();
     clearInterval(alertIntervalRef.current);
     prevOfferedId.current = null;
@@ -1590,7 +1590,7 @@ export default function DriverApp() {
   };
   const handleReject = async () => {
     const realId = getRealOrderId(offeredOrder?.id);
-    await stopNativeRideAlert(realId);
+    await stopNativeRideAlert(realId, "handleReject");
     stopAlert();
     clearInterval(alertIntervalRef.current);
     prevOfferedId.current = null;
@@ -1700,7 +1700,7 @@ export default function DriverApp() {
   };
   const handleTakeOrder = (order) => {
     const realId = getRealOrderId(order.id);
-    stopNativeRideAlert(realId);
+    stopNativeRideAlert(realId, "handleTakeOrder");
     if (Capacitor.isNativePlatform() && realId) {
       Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId: realId, assignmentAttempt: 1, resolutionType: "ACCEPTED" }).catch(()=>{});
     }
@@ -1756,7 +1756,7 @@ export default function DriverApp() {
 
   const handleBroadcastAccept = async (order) => {
     const realId = getRealOrderId(order?.id);
-    await stopNativeRideAlert(realId);
+    await stopNativeRideAlert(realId, "handleBroadcastAccept");
     stopAlert();
     clearInterval(broadcastIntervalRef.current);
     prevBroadcastId.current = null;
@@ -1823,7 +1823,7 @@ export default function DriverApp() {
 
   const handleBroadcastReject = async (order) => {
     const realId = getRealOrderId(order?.id);
-    await stopNativeRideAlert(realId);
+    await stopNativeRideAlert(realId, "handleBroadcastReject");
     stopAlert();
     clearInterval(broadcastIntervalRef.current);
     prevBroadcastId.current = null;

@@ -47,11 +47,15 @@ public class ForegroundServicePlugin extends Plugin {
     @PluginMethod
     public void stopRideAlert(PluginCall call) {
         String orderId = call.getString("orderId");
+        String reason = call.getString("reason", "Sin especificar en JS");
+        
+        Log.e("PushDiagnostic", "ForegroundServicePlugin.stopRideAlert INVOCADO DESDE JS. OrderId: " + orderId + ", Reason: " + reason);
+        
         if (orderId != null) {
             if ("all".equals(orderId)) {
-                RideAlertController.getInstance().stopAllAlerts(getContext(), "Comando puente desde ReactJS (stopRideAlert ALL)");
+                RideAlertController.getInstance().stopAllAlerts(getContext(), "JS Plugin: " + reason);
             } else {
-                RideAlertController.getInstance().stopAlert(getContext(), orderId, "Comando puente desde ReactJS (stopRideAlert)");
+                RideAlertController.getInstance().stopAlert(getContext(), orderId, "JS Plugin: " + reason);
             }
         }
         call.resolve();
