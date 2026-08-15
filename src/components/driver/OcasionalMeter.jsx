@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { haversineMetros, calcularImportePorFichas } from "@/hooks/useTarifaConfig";
+import { haversineMetros, calcularImportePorFichas, METROS_POR_FICHA, VALOR_FICHA, SEGUNDOS_POR_FICHA_ESPERA } from "@/hooks/useTarifaConfig";
 import { DollarSign, Timer, Navigation, CheckCircle2, XCircle, Car, Zap, Clock } from "lucide-react";
 import { Capacitor, registerPlugin } from '@capacitor/core';
 const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
@@ -228,6 +228,8 @@ export default function OcasionalMeter({ onClose, driver }) {
     const km = (metrosRecorridos / 1000).toFixed(2);
     const minutosMov = (segundosMovimientoRef.current / 60).toFixed(1);
     const minutosEsp = (segundosEsperaRef.current / 60).toFixed(1);
+    const fichasDistancia = Math.floor(metrosRecorridos / METROS_POR_FICHA);
+    const fichasEspera = Math.floor(segundosEsperaRef.current / SEGUNDOS_POR_FICHA_ESPERA);
     return (
       <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col items-center justify-center p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="w-full max-w-sm space-y-5 text-center">
@@ -252,8 +254,8 @@ export default function OcasionalMeter({ onClose, driver }) {
               <span className="text-white font-bold">{km} km</span>
             </div>
             <div className="flex justify-between text-xs text-gray-600">
-              <span>{km} km × ${tarifa.current.precio_por_km.toLocaleString()}/km</span>
-              <span>${Math.round((metrosRecorridos / 1000) * tarifa.current.precio_por_km).toLocaleString()}</span>
+              <span>{fichasDistancia} fichas × ${VALOR_FICHA}</span>
+              <span>${(fichasDistancia * VALOR_FICHA).toLocaleString()}</span>
             </div>
             <div className="h-px bg-gray-800" />
             <div className="flex justify-between">
@@ -261,8 +263,8 @@ export default function OcasionalMeter({ onClose, driver }) {
               <span className="text-white font-bold">{minutosMov} min</span>
             </div>
             <div className="flex justify-between text-xs text-gray-600">
-              <span>{minutosMov} min × ${tarifa.current.precio_por_minuto_corrido}/min</span>
-              <span>${Math.round((segundosMovimientoRef.current / 60) * tarifa.current.precio_por_minuto_corrido).toLocaleString()}</span>
+              <span>No se cobra tiempo en movimiento</span>
+              <span>$0</span>
             </div>
             <div className="h-px bg-gray-800" />
             <div className="flex justify-between">
@@ -270,8 +272,8 @@ export default function OcasionalMeter({ onClose, driver }) {
               <span className="text-white font-bold">{minutosEsp} min</span>
             </div>
             <div className="flex justify-between text-xs text-gray-600">
-              <span>{minutosEsp} min × ${tarifa.current.precio_por_minuto_espera}/min</span>
-              <span>${Math.round((segundosEsperaRef.current / 60) * tarifa.current.precio_por_minuto_espera).toLocaleString()}</span>
+              <span>{fichasEspera} fichas × ${VALOR_FICHA}</span>
+              <span>${(fichasEspera * VALOR_FICHA).toLocaleString()}</span>
             </div>
             <div className="h-px bg-gray-800" />
             <div className="flex justify-between font-bold text-green-400">
