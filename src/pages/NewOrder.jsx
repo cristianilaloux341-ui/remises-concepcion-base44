@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrderForm from "@/components/orders/OrderForm";
-import { findBestDriver, findDriverInZone, assignDriverToOrder, broadcastOrder } from "@/lib/dispatchLogic";
+import { findBestDriver, findDriverInZone, assignDriverToOrder } from "@/lib/dispatchLogic";
 
 export default function NewOrder() {
   const navigate = useNavigate();
