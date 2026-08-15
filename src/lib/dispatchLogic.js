@@ -66,23 +66,23 @@ export function findDriverInZone(zone, drivers) {
 }
 
 // Assign driver to order (direct / zone-based)
-export async function assignDriverToOrder(order, driver) {
-  try {
-    const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) 
-      ? sessionStorage.getItem("local_operator_token") 
-      : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
-    const res = await base44.functions.invoke("assignRide", {
-      orderId: order.id,
-      driverId: driver.id,
-      sessionToken,
-      isOperatorManualAssignment: true
-    });
-    if (!res.data || !res.data.success) {
-      console.error("AssignRide backend returned false:", res.data?.reason);
-    }
-  } catch (e) {
-    console.error("Error invoking assignRide", e);
+export async function assignDriverToOrder(order, driver, options = {}) {
+  const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token"))
+    ? sessionStorage.getItem("local_operator_token")
+    : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
+
+  const res = await base44.functions.invoke("assignRide", {
+    orderId: order.id,
+    driverId: driver.id,
+    sessionToken,
+    requireDriverConfirmation: options.requireDriverConfirmation === true
+  });
+
+  if (!res.data?.success) {
+    throw new Error(res.data?.reason || "No se pudo asignar el viaje");
   }
+
+  return res.data;
 }
 
 // Broadcast: marcar el pedido como "pendiente_broadcast" para que TODOS los disponibles lo vean
