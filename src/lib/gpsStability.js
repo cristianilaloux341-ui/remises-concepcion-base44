@@ -71,7 +71,9 @@ export function createGpsStabilityFilter() {
         return { accepted: false, reason: "jump" };
       }
 
-      const effectiveSpeedKmh = reportedSpeedKmh !== null ? reportedSpeedKmh : impliedSpeedKmh;
+      // Algunos equipos informan speed=0 aunque las coordenadas avancen.
+      // Usamos la mayor señal entre velocidad del sensor y desplazamiento real.
+      const effectiveSpeedKmh = Math.max(reportedSpeedKmh || 0, impliedSpeedKmh);
       const combinedAccuracy = Math.max(lastGood.accuracy || 0, point.accuracy || 0);
       const driftRadius = Math.max(4, Math.min(12, combinedAccuracy * 0.25));
       const isDrift = effectiveSpeedKmh < 5 && distance <= driftRadius;
