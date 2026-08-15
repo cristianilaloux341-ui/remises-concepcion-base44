@@ -132,6 +132,18 @@
       "type": "number",
       "default": 0
     },
+    "taximetro_iniciado": {
+      "type": "boolean",
+      "default": false
+    },
+    "metros_taximetro": {
+      "type": "number",
+      "default": 0
+    },
+    "segundos_tolerancia_espera_usados": {
+      "type": "number",
+      "default": 0
+    },
     "assignment_attempt": {
       "type": "number",
       "default": 1
