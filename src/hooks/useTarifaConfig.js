@@ -1,16 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 
+export const METROS_POR_FICHA = 85;
+export const VALOR_FICHA = 100;
+export const SEGUNDOS_POR_FICHA_ESPERA = 30;
+
 const DEFAULTS = {
-  bajada_bandera: 500,
-  precio_por_metro: 2,
-  precio_por_minuto_corrido: 30,
-  precio_por_minuto_espera: 50,
+  bajada_bandera: 1700,
+  precio_por_metro: VALOR_FICHA / METROS_POR_FICHA,
+  precio_por_minuto_corrido: 0,
+  precio_por_minuto_espera: 200,
   tolerancia_espera_segundos: 120,
-  nocturna_bajada_bandera: 700,
-  nocturna_precio_por_metro: 2.8,
-  nocturna_precio_por_minuto_corrido: 45,
-  nocturna_precio_por_minuto_espera: 70,
+  nocturna_bajada_bandera: 1900,
+  nocturna_precio_por_metro: VALOR_FICHA / METROS_POR_FICHA,
+  nocturna_precio_por_minuto_corrido: 0,
+  nocturna_precio_por_minuto_espera: 200,
   nocturna_hora_inicio: 22,
   nocturna_hora_fin: 6,
 };
@@ -97,14 +101,18 @@ export async function calcularDistanciaRuta(origen, destino, origenCoords = null
 }
 
 /**
- * Calcula importe estimado unificando costo por distancia y tiempo promedio.
+ * Reproduce el reloj físico: $100 cada 85 m y $100 cada 30 s de espera
+ * después de consumir una única tolerancia acumulada de 120 s.
+ */
+export function calcularImportePorFichas(metros, segundosEspera, bajadaBandera) {
+  const fichasDistancia = Math.floor(Math.max(0, metros) / METROS_POR_FICHA);
+  const fichasEspera = Math.floor(Math.max(0, segundosEspera) / SEGUNDOS_POR_FICHA_ESPERA);
+  return Math.round(bajadaBandera + ((fichasDistancia + fichasEspera) * VALOR_FICHA));
+}
+
+/**
+ * Estimación previa del viaje. El tiempo en movimiento no se cobra.
  */
 export function calcularImporte(distanciaMetros, tarifa) {
-  const precioPorMetro = tarifa.precio_por_metro ?? 2;
-  const precioPorMinuto = tarifa.precio_por_minuto_corrido ?? 30;
-  
-  // Tiempo promedio urbano: 25 km/h = ~7 m/s
-  const minutosEstimados = (distanciaMetros / 7) / 60;
-  
-  return Math.round(tarifa.bajada_bandera + (distanciaMetros * precioPorMetro) + (minutosEstimados * precioPorMinuto));
+  return calcularImportePorFichas(distanciaMetros, 0, tarifa.bajada_bandera);
 }
