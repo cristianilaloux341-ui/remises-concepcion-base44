@@ -71,18 +71,19 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     }).finally(() => setTarifaCargada(true));
   }, []);
 
-  const saveTimeoutRef = useRef(null);
+  const lastSaveAtRef = useRef(0);
   const saveImporte = (nuevoImporte, segundosEspera, metros, segundosTolerancia) => {
-    clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => {
-      base44.entities.RideOrder.update(order.id, {
-        importe_real_actual: Math.round(nuevoImporte),
-        segundos_espera_acumulados: segundosEspera,
-        metros_taximetro: metros,
-        segundos_tolerancia_espera_usados: segundosTolerancia,
-        taximetro_iniciado: true,
-      }).catch(() => {});
-    }, 3000);
+    const ahora = Date.now();
+    if (ahora - lastSaveAtRef.current < 3000) return;
+    lastSaveAtRef.current = ahora;
+
+    base44.entities.RideOrder.update(order.id, {
+      importe_real_actual: Math.round(nuevoImporte),
+      segundos_espera_acumulados: segundosEspera,
+      metros_taximetro: metros,
+      segundos_tolerancia_espera_usados: segundosTolerancia,
+      taximetro_iniciado: true,
+    }).catch(() => {});
   };
 
   useEffect(() => {
@@ -212,7 +213,6 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
         }
       }
       clearInterval(timerRef.current);
-      clearTimeout(saveTimeoutRef.current);
     };
   }, [order.status, order.id, tarifaCargada]);
 
