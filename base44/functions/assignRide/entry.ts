@@ -43,9 +43,34 @@ Deno.serve(async (req) => {
   const driverReq = await b44.entities.Driver.get(driverId);
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
   
-  // 1.5 Bloqueo estricto
+  // 1.5 Bloqueo estricto: la asignación manual nunca puede despertar
+  // ni reservar un móvil fuera de servicio, ocupado o con otro viaje activo.
   if (driverReq.status !== 'disponible') {
-     return Response.json({ success: false, reason: 'El móvil está fuera de servicio u ocupado.' });
+    return Response.json({
+      success: false,
+      reason: 'El móvil está fuera de servicio u ocupado. El pasaje no fue enviado.'
+    });
+  }
+  if ((driverReq.dispatch_status && driverReq.dispatch_status !== 'normal') || driverReq.reserved_order_id) {
+    return Response.json({
+      success: false,
+      reason: 'El móvil ya tiene una asignación pendiente o un viaje activo. El pasaje no fue enviado.'
+    });
+  }
+
+  const [assignedOrders, reservedOrders] = await Promise.all([
+    b44.entities.RideOrder.filter({ driver_id: driverId }),
+    b44.entities.RideOrder.filter({ reserved_driver_id: driverId })
+  ]);
+  const activeStatuses = new Set(['ofrecido', 'aceptado', 'en_camino', 'en_viaje']);
+  const conflictingOrder = [...assignedOrders, ...reservedOrders].find(
+    (existing: any) => existing.id !== orderId && activeStatuses.has(existing.status)
+  );
+  if (conflictingOrder) {
+    return Response.json({
+      success: false,
+      reason: 'El móvil ya tiene otro pasaje activo. Este pasaje quedó pendiente y no fue enviado.'
+    });
   }
 
   try {
