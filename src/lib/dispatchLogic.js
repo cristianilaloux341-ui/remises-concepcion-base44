@@ -148,12 +148,12 @@ export async function autoDispatch(order, drivers, bases) {
   }
 
   // Fallback: se deja pendiente (Broadcast fue deshabilitado por requerimiento del cliente)
-  await base44.functions.invoke("assignRide", {
-      orderId: order.id,
-      forceManual: true,
-      manualDriverName: null,
-      statusOverride: "pendiente",
-      sessionToken: (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) ? sessionStorage.getItem("local_operator_token") : "client_demo_token"
+  await base44.entities.RideOrder.update(order.id, {
+    status: "pendiente",
+    driver_id: null,
+    reserved_driver_id: null,
+    driver_name: null,
+    reservation_token: null
   });
   return "no_drivers";
 }
@@ -172,12 +172,12 @@ export async function reassignAfterReject(order, drivers, bases) {
     const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) 
       ? sessionStorage.getItem("local_operator_token") 
       : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
-    await base44.functions.invoke("assignRide", {
-      orderId: order.id,
-      forceManual: true,
-      manualDriverName: null,
-      statusOverride: "pendiente",
-      sessionToken
+    await base44.entities.RideOrder.update(order.id, {
+      status: "pendiente",
+      driver_id: null,
+      reserved_driver_id: null,
+      driver_name: null,
+      reservation_token: null
     });
     return !autoReassignActive ? "manual" : "sin_moviles";
   }
@@ -221,12 +221,12 @@ export async function reassignAfterReject(order, drivers, bases) {
   const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) 
       ? sessionStorage.getItem("local_operator_token") 
       : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
-  await base44.functions.invoke("assignRide", {
-      orderId: order.id,
-      forceManual: true,
-      manualDriverName: null,
-      statusOverride: "pendiente",
-      sessionToken
+  await base44.entities.RideOrder.update(order.id, {
+    status: "pendiente",
+    driver_id: null,
+    reserved_driver_id: null,
+    driver_name: null,
+    reservation_token: null
   });
   return "sin_moviles";
 }
