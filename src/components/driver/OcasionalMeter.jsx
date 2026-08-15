@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { calcularImportePorFichas, METROS_POR_FICHA, VALOR_FICHA, SEGUNDOS_POR_FICHA_ESPERA } from "@/hooks/useTarifaConfig";
 import { createGpsStabilityFilter, GPS_LOCATION_EVENT } from "@/lib/gpsStability";
-import { DollarSign, Timer, Navigation, CheckCircle2, XCircle, Car, Zap, Clock } from "lucide-react";
+import { DollarSign, Timer, Navigation, CheckCircle2, XCircle, Zap, Clock } from "lucide-react";
 
 /**
  * Taxímetro GPS en tiempo real, igual al reloj físico.
