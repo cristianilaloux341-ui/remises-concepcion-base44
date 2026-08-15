@@ -35,32 +35,22 @@ Deno.serve(async (req) => {
       // 1. Bloqueo estricto: no asignar manual a un móvil fuera de servicio
       if (driverId) {
          const driverReq = await b44.entities.Driver.get(driverId);
-         if (!driverReq || driverReq.status === 'no_disponible') {
-            return Response.json({ success: false, reason: 'El móvil no se encuentra en servicio.' });
+         if (!driverReq || driverReq.status !== 'disponible') {
+            return Response.json({ success: false, reason: 'El móvil está fuera de servicio u ocupado.' });
          }
       }
 
       const targetDriverId = driverId || (manualDriverName ? `manual-${manualDriverName}` : null);
       
-      // Liberar al chofer de cualquier candado previo y forzar su disponibilidad
-      if (driverId) {
-        await b44.entities.Driver.updateMany(
-          { id: driverId },
-          { $set: { 
-              status: payload.statusOverride === 'aceptado' ? 'en_viaje' : 'disponible', 
-              dispatch_status: 'normal', 
-              reserved_order_id: null, 
-              reservation_token: null 
-          } }
-        );
-      }
+      // No se alteran ni liberan estados del chofer desde una asignación manual.
+      // La disponibilidad comprobada arriba debe mantenerse hasta la reserva atómica.
 
       const newAttempt = (orderReq.assignment_attempt || 0) + 1;
 
       // Sobrescribir el pasaje ignorando cualquier estado atómico trabado
       await b44.entities.RideOrder.update(orderId, {
-        status: payload.statusOverride || "ofrecido",
-        driver_id: payload.statusOverride === 'aceptado' ? targetDriverId : null,
+        status: payload.requireDriverConfirmation === true ? "ofrecido" : (payload.statusOverride || "ofrecido"),
+        driver_id: payload.requireDriverConfirmation === true ? null : (payload.statusOverride === 'aceptado' ? targetDriverId : null),
         reserved_driver_id: targetDriverId,
         driver_name: manualDriverName || (driverId ? targetDriverId : null),
         assigned_base: null,
@@ -71,7 +61,7 @@ Deno.serve(async (req) => {
       });
 
       // Si el operador lo forzó a "ofrecido", disparamos solo la notificación. No disparamos el timeout.
-      if ((payload.statusOverride || "ofrecido") === "ofrecido" && driverId) {
+      if ((payload.requireDriverConfirmation === true || (payload.statusOverride || "ofrecido") === "ofrecido") && driverId) {
         try {
           await b44.functions.invoke('sendPushNotification', {
             action: 'send', driverId, orderId, orderData: { pickup_address: orderReq.pickup_address, assignmentAttempt: newAttempt }, internalKey
@@ -92,8 +82,8 @@ Deno.serve(async (req) => {
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
   
   // 1.5 Bloqueo estricto
-  if (driverReq.status === 'no_disponible') {
-     return Response.json({ success: false, reason: 'El móvil no se encuentra en servicio.' });
+  if (driverReq.status !== 'disponible') {
+     return Response.json({ success: false, reason: 'El móvil está fuera de servicio u ocupado.' });
   }
 
   try {
@@ -104,7 +94,10 @@ Deno.serve(async (req) => {
     const config = tarifaConfigs[0] || {};
     const timeoutSeconds = config.tiempo_maximo_respuesta_segundos ?? 60;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
-    const autoAceptarViajes = config.auto_aceptar_viajes ?? false;
+    // Una asignación manual siempre debe esperar la aceptación del chofer.
+    const autoAceptarViajes = payload.requireDriverConfirmation === true
+      ? false
+      : (config.auto_aceptar_viajes ?? false);
 
     const targetOrderStatus = autoAceptarViajes ? "aceptado" : "ofrecido";
     const targetDriverStatus = autoAceptarViajes ? "en_viaje" : "ofrecido";
@@ -156,40 +149,19 @@ Deno.serve(async (req) => {
         }).catch((e: any) => console.error("AutoReassign Trigger Error:", e));
       }
     } else {
-        // Fallback: Si el sistema atómico falla, el operador espera que el viaje vaya a ESTE móvil de todas formas.
-        // Forzamos el estado a ofrecido/aceptado para no volver a "pendiente".
-        await b44.entities.RideOrder.update(orderId, { 
-           status: targetOrderStatus,
-           reserved_driver_id: driverId 
-        });
-        
-        try {
-          await b44.functions.invoke('sendPushNotification', {
-            action: 'send',
-            driverId: driverId,
-            orderId: orderId,
-            orderData: {
-              pickup_address: orderReq.pickup_address,
-              dropoff_address: orderReq.dropoff_address,
-              fare: orderReq.fare,
-              notes: orderReq.notes,
-              assignmentAttempt: newAttempt
-            },
-            internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
-          });
-        } catch (e) {}
-
-        if (targetOrderStatus === "ofrecido" && autoReassignActive) {
-          b44.functions.invoke("autoReassignOnTimeout", {
-            orderId: orderId,
-            driverId: driverId,
-            timeoutSeconds: timeoutSeconds,
-            assignmentAttempt: newAttempt,
-            internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
-          }).catch((e: any) => console.error("AutoReassign Trigger Error:", e));
-        }
-
-        return Response.json({ success: true, reason: 'forced after atomic fail' });
+      // Si la reserva atómica falla, no se fuerza el viaje ni se envía una notificación.
+      // Esto cubre la carrera en la que el móvil sale de servicio mientras el operador asigna.
+      await b44.entities.RideOrder.update(orderId, {
+        status: "pendiente",
+        driver_id: null,
+        reserved_driver_id: null,
+        driver_name: null,
+        reservation_token: null
+      });
+      return Response.json({
+        success: false,
+        reason: "El móvil ya no está disponible. El pasaje quedó pendiente."
+      });
     }
 
     return Response.json({ success: true });
