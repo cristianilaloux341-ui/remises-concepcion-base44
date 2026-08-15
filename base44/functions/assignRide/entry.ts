@@ -30,51 +30,13 @@ Deno.serve(async (req) => {
     details: `Request to assign ride ${orderId} to driver ${forceManual ? manualDriverName : driverId}`
   }).catch(() => {});
 
+  // Las asignaciones forzadas y los choferes ficticios quedan deshabilitados.
+  // Toda asignación debe pasar por la validación y la reserva atómica de abajo.
   if (forceManual || payload.operatorOverride) {
-    try {
-      // 1. Bloqueo estricto: no asignar manual a un móvil fuera de servicio
-      if (driverId) {
-         const driverReq = await b44.entities.Driver.get(driverId);
-         if (!driverReq || driverReq.status !== 'disponible') {
-            return Response.json({ success: false, reason: 'El móvil está fuera de servicio u ocupado.' });
-         }
-      }
-
-      const targetDriverId = driverId || (manualDriverName ? `manual-${manualDriverName}` : null);
-      
-      // No se alteran ni liberan estados del chofer desde una asignación manual.
-      // La disponibilidad comprobada arriba debe mantenerse hasta la reserva atómica.
-
-      const newAttempt = (orderReq.assignment_attempt || 0) + 1;
-
-      // Sobrescribir el pasaje ignorando cualquier estado atómico trabado
-      await b44.entities.RideOrder.update(orderId, {
-        status: payload.requireDriverConfirmation === true ? "ofrecido" : (payload.statusOverride || "ofrecido"),
-        driver_id: payload.requireDriverConfirmation === true ? null : (payload.statusOverride === 'aceptado' ? targetDriverId : null),
-        reserved_driver_id: targetDriverId,
-        driver_name: manualDriverName || (driverId ? targetDriverId : null),
-        assigned_base: null,
-        reservation_token: null,
-        assignment_attempt: newAttempt,
-        assigned_at: new Date().toISOString(),
-        source: 'operador' // Marca explícita para que el cron no lo quite en 60s
-      });
-
-      // Si el operador lo forzó a "ofrecido", disparamos solo la notificación. No disparamos el timeout.
-      if ((payload.requireDriverConfirmation === true || (payload.statusOverride || "ofrecido") === "ofrecido") && driverId) {
-        try {
-          await b44.functions.invoke('sendPushNotification', {
-            action: 'send', driverId, orderId, orderData: { pickup_address: orderReq.pickup_address, assignmentAttempt: newAttempt }, internalKey
-          });
-        } catch(e) {}
-        
-        // NO disparamos autoReassignOnTimeout porque la asignación manual es firme y no debe reasignarse a los 60 segs.
-      }
-
-      return Response.json({ success: true, reason: 'operator_override' });
-    } catch (e) {
-      return Response.json({ success: false, reason: e.message });
-    }
+    return Response.json({
+      success: false,
+      reason: 'La asignación forzada está deshabilitada. Seleccione un móvil real y disponible.'
+    });
   }
 
   if (!driverId) return Response.json({ success: false, reason: 'Missing driverId' });
