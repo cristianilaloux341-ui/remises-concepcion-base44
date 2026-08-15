@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Zap, User, MapPin, Loader2, ChevronRight, Car, CheckCircle2, Radio } from "lucide-react";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
-import { autoDispatch, assignDriverToOrder, getBaseQueue, BASES } from "@/lib/dispatchLogic";
+import { autoDispatch, assignDriverToOrder, getBaseQueue } from "@/lib/dispatchLogic";
 import { getDriverDisplay } from "@/lib/utils";
 
 function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
