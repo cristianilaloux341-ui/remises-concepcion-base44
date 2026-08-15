@@ -290,6 +290,9 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     }
     
     data.segundos_espera_acumulados = 0;
+    data.segundos_tolerancia_espera_usados = 0;
+    data.metros_taximetro = 0;
+    data.taximetro_iniciado = false;
 
     // La selección visual nunca puede saltar la validación del estado real del chofer.
     if (data.driver_id) {
@@ -679,7 +682,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
               </div>
               {distanciaCalculada > 0 && (
                 <p className="text-xs text-green-600">
-                  📍 {(distanciaCalculada / 1000).toFixed(1)} km · Bandera ${tarifa.bajada_bandera} + ${tarifa.precio_por_metro}/m {tarifa.es_nocturna ? "🌙 nocturna" : ""}
+                  📍 {(distanciaCalculada / 1000).toFixed(1)} km · Bandera ${tarifa.bajada_bandera} + $100 cada 85 m {tarifa.es_nocturna ? "🌙 nocturna" : ""}
                 </p>
               )}
               {distanciaCalculada === -1 && (
