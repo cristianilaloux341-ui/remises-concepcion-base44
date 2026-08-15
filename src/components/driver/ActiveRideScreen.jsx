@@ -86,15 +86,34 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   };
 
   useEffect(() => {
-    if (order.status !== "en_viaje") return;
+    if (order.status !== "en_viaje" || !tarifaCargada) return;
 
-    // Si no hay destino, la base inicial es la bajada de bandera
-    const importeInicial = order.importe_real_actual || order.importe_estimado || tarifaRef.current.bajada_bandera;
+    // Primera puesta en marcha: siempre comienza en la bajada de bandera.
+    // Si Android recarga la pantalla durante el viaje, se recuperan los acumulados guardados.
+    const reanudando = order.taximetro_iniciado === true;
+    metrosRef.current = reanudando ? (order.metros_taximetro || 0) : 0;
+    contadorParadoRef.current = reanudando ? (order.segundos_tolerancia_espera_usados || 0) : 0;
+    let segundosEspera = reanudando ? (order.segundos_espera_acumulados || 0) : 0;
+    lastPosRef.current = null;
+
+    const importeInicial = calcularImportePorFichas(
+      metrosRef.current,
+      segundosEspera,
+      tarifaRef.current.bajada_bandera
+    );
+    setMetrosRecorridos(Math.round(metrosRef.current));
     setImporteActual(importeInicial);
     importeRef.current = importeInicial;
-    metrosRef.current = 0;
-    contadorParadoRef.current = 0;
-    let segundosEspera = order.segundos_espera_acumulados || 0;
+
+    if (!reanudando) {
+      base44.entities.RideOrder.update(order.id, {
+        importe_real_actual: importeInicial,
+        segundos_espera_acumulados: 0,
+        metros_taximetro: 0,
+        segundos_tolerancia_espera_usados: 0,
+        taximetro_iniciado: true,
+      }).catch(() => {});
+    }
 
     const startTracking = async () => {
       const onLocation = (location) => {
@@ -109,32 +128,19 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
             lastPosRef.current.lat, lastPosRef.current.lng,
             latitude, longitude
           );
-          if (metros > 0.5 && metros < 500) { 
+          // Debajo de 5 km/h el reloj trabaja por espera; no sumamos deriva del GPS.
+          if (speedKmh >= 5 && metros > 0.5 && metros < 500) {
             metrosRef.current += metros;
             setMetrosRecorridos(Math.round(metrosRef.current));
 
-            let costoIncremental = 0;
-            if (!order.dropoff_address) {
-                // Sin destino: cuenta desde el primer metro
-                const minutosEst = (metros / 7) / 60;
-                costoIncremental = (metros * tarifaRef.current.precio_por_metro) + (minutosEst * tarifaRef.current.precio_por_minuto_corrido);
-            } else if (metrosRef.current > distanciaTeórica) {
-                // Con destino: cobra el excedente
-                const excedenteAnterior = (metrosRef.current - metros) - distanciaTeórica;
-                if (excedenteAnterior < 0) {
-                   const metrosExcedentes = metrosRef.current - distanciaTeórica;
-                   const minutosEst = (metrosExcedentes / 7) / 60;
-                   costoIncremental = (metrosExcedentes * tarifaRef.current.precio_por_metro) + (minutosEst * tarifaRef.current.precio_por_minuto_corrido);
-                } else {
-                   const minutosEst = (metros / 7) / 60;
-                   costoIncremental = (metros * tarifaRef.current.precio_por_metro) + (minutosEst * tarifaRef.current.precio_por_minuto_corrido);
-                }
-            }
-
-            if (costoIncremental > 0) {
-                importeRef.current += costoIncremental;
-                setImporteActual(Math.round(importeRef.current));
-            }
+            const nuevo = calcularImportePorFichas(
+              metrosRef.current,
+              segundosEspera,
+              tarifaRef.current.bajada_bandera
+            );
+            importeRef.current = nuevo;
+            setImporteActual(nuevo);
+            saveImporte(nuevo, segundosEspera, metrosRef.current, contadorParadoRef.current);
           }
         }
 
@@ -179,21 +185,21 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
 
     timerRef.current = setInterval(() => {
       if (enEsperaRef.current || esperaManualRef.current) {
-        contadorParadoRef.current += 1;
-        if (contadorParadoRef.current > tarifaRef.current.tolerancia_espera_segundos) {
+        // La tolerancia de 120 s se consume una sola vez y nunca se reinicia.
+        if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
+          contadorParadoRef.current += 1;
+        } else {
           segundosEspera += 1;
-          
-          // La espera se cobra estrictamente por minuto entero acumulado (ficha).
-          if (segundosEspera % 60 === 0) {
-            const nuevo = importeRef.current + tarifaRef.current.precio_por_minuto_espera;
-            importeRef.current = nuevo;
-            setImporteActual(Math.round(nuevo));
-            saveImporte(nuevo, segundosEspera);
-          } else {
-            // Guardamos solo los segundos acumulados silenciosamente
-            saveImporte(importeRef.current, segundosEspera);
-          }
         }
+
+        const nuevo = calcularImportePorFichas(
+          metrosRef.current,
+          segundosEspera,
+          tarifaRef.current.bajada_bandera
+        );
+        importeRef.current = nuevo;
+        setImporteActual(nuevo);
+        saveImporte(nuevo, segundosEspera, metrosRef.current, contadorParadoRef.current);
       }
     }, 1000);
 
@@ -208,7 +214,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
       clearInterval(timerRef.current);
       clearTimeout(saveTimeoutRef.current);
     };
-  }, [order.status, order.id]);
+  }, [order.status, order.id, tarifaCargada]);
 
   const handleNavigate = () => {
     const address = order.status === "en_viaje" ? order.dropoff_address : order.pickup_address;
