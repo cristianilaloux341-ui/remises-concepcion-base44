@@ -30,6 +30,7 @@ export default function OcasionalMeter({ onClose, driver }) {
   const enEsperaRef = useRef(false);
   const gpsFilterRef = useRef(null);
   const gpsEventHandlerRef = useRef(null);
+  const lastGpsAtRef = useRef(0);
   const timerRef = useRef(null);
 
   const tarifa = useRef({
@@ -106,6 +107,7 @@ export default function OcasionalMeter({ onClose, driver }) {
     const onGpsLocation = (event) => {
       const result = gpsFilter.process(event.detail);
       if (!result.accepted) return;
+      lastGpsAtRef.current = Date.now();
 
       if (result.distance > 0) {
         metrosRef.current += result.distance;
@@ -121,7 +123,8 @@ export default function OcasionalMeter({ onClose, driver }) {
 
     // Timer: cada segundo suma tiempo y recalcula
     timerRef.current = setInterval(() => {
-      if (enEsperaRef.current || esperaManualRef.current) {
+      const gpsSilencioso = lastGpsAtRef.current > 0 && Date.now() - lastGpsAtRef.current > 15_000;
+      if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
         if (contadorParadoRef.current < tarifa.current.tolerancia_espera_segundos) {
           contadorParadoRef.current += 1;
         } else {
@@ -179,6 +182,7 @@ export default function OcasionalMeter({ onClose, driver }) {
     segundosEsperaRef.current = 0;
     contadorParadoRef.current = 0;
     enEsperaRef.current = false;
+    lastGpsAtRef.current = 0;
   };
 
   // Formato mm:ss
