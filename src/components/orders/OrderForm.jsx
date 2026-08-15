@@ -209,7 +209,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     }
     const driver = drivers.find(d => d.id === driverId);
     if (driver) {
-      setForm(prev => ({ ...prev, driver_id: driverId, driver_name: driver.name, status: "aceptado" }));
+      setForm(prev => ({ ...prev, driver_id: driverId, driver_name: driver.name, status: "ofrecido" }));
       setManualDriverInput(driver.name);
     }
   };
@@ -218,7 +218,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     setAutoAssigning(true);
     const driver = await findBestDriver({ zone: form.zone, pickup_address: form.pickup_address }, drivers, bases);
     if (driver) {
-      setForm(prev => ({ ...prev, driver_id: driver.id, driver_name: driver.name, status: "aceptado" }));
+      setForm(prev => ({ ...prev, driver_id: driver.id, driver_name: driver.name, status: "ofrecido" }));
       setSuggestedDriver(driver);
     }
     setAutoAssigning(false);
@@ -290,6 +290,18 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     }
     
     data.segundos_espera_acumulados = 0;
+
+    // La selección visual nunca puede saltar la validación del estado real del chofer.
+    if (data.driver_id) {
+      const selectedDriver = drivers.find(d => d.id === data.driver_id);
+      if (!selectedDriver || selectedDriver.status !== "disponible") {
+        alert(`El móvil ${data.driver_name || manualDriverInput || ""} está fuera de servicio u ocupado. El pasaje no fue asignado.`);
+        return;
+      }
+      data.driver_name = selectedDriver.name;
+      data.status = "ofrecido";
+    }
+
     if (!data.driver_id && manualDriverInput) {
       // Auto-create/force assign just like DispatchPanel
       const inputTrimmed = manualDriverInput.trim();
@@ -316,14 +328,18 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       }
 
       if (driver) {
+        if (driver.status !== "disponible") {
+          alert(`El móvil ${driver.name} está fuera de servicio u ocupado. El pasaje no fue asignado.`);
+          return;
+        }
         data.driver_id = driver.id;
         data.driver_name = driver.name;
-        data.status = "aceptado";
+        data.status = "ofrecido";
       } else {
         // Fuerza sin entidad para pruebas
         data.driver_id = `manual-${inputTrimmed}`;
         data.driver_name = isNaN(movilNum) ? inputTrimmed : `Móvil ${movilNum}`;
-        data.status = "aceptado";
+        data.status = "ofrecido";
       }
     } else if (!data.driver_id) {
       delete data.driver_id; 
