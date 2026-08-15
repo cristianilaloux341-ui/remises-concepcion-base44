@@ -71,13 +71,18 @@ export function createGpsStabilityFilter() {
         return { accepted: false, reason: "jump" };
       }
 
-      // Algunos equipos informan speed=0 aunque las coordenadas avancen.
-      // Usamos la mayor señal entre velocidad del sensor y desplazamiento real.
-      const effectiveSpeedKmh = Math.max(reportedSpeedKmh || 0, impliedSpeedKmh);
       const combinedAccuracy = Math.max(lastGood.accuracy || 0, point.accuracy || 0);
       const driftRadius = Math.max(4, Math.min(12, combinedAccuracy * 0.25));
-      const isDrift = effectiveSpeedKmh < 5 && distance <= driftRadius;
-      const moving = !isDrift && effectiveSpeedKmh >= 5;
+      const coordinateThreshold = Math.max(driftRadius, Math.min(20, combinedAccuracy * 0.5));
+
+      // Priorizamos no cobrar de más: una coordenada solo confirma movimiento
+      // cuando supera claramente el margen de error informado por el GPS.
+      const sensorMovementConfirmed = reportedSpeedKmh !== null && reportedSpeedKmh >= 5;
+      const coordinateMovementConfirmed = impliedSpeedKmh >= 8 && distance > coordinateThreshold;
+      const moving = sensorMovementConfirmed || coordinateMovementConfirmed;
+      const effectiveSpeedKmh = sensorMovementConfirmed
+        ? reportedSpeedKmh
+        : (coordinateMovementConfirmed ? impliedSpeedKmh : (reportedSpeedKmh || 0));
 
       lastGood = point;
       return {
