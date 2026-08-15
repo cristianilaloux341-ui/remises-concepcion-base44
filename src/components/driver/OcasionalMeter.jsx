@@ -1,16 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { haversineMetros } from "@/hooks/useTarifaConfig";
+import { haversineMetros, calcularImportePorFichas } from "@/hooks/useTarifaConfig";
 import { DollarSign, Timer, Navigation, CheckCircle2, XCircle, Car, Zap, Clock } from "lucide-react";
 import { Capacitor, registerPlugin } from '@capacitor/core';
 const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 
 /**
- * Taxímetro GPS en tiempo real.
- * Fórmula: Precio = Bajada_Bandera + (km × precio_km) + (minutos × precio_minuto)
- * - La distancia se mide con GPS + Haversine cada actualización de posición.
- * - El tiempo corre desde que se pulsa "Iniciar" hasta "Terminar".
- * - No depende de ninguna API externa.
+ * Taxímetro GPS en tiempo real, igual al reloj físico.
+ * - $100 por cada ficha completa de 85 metros.
+ * - Una única tolerancia acumulada de 120 segundos detenido.
+ * - Después, $100 por cada 30 segundos acumulados de espera.
  */
 export default function OcasionalMeter({ onClose, driver }) {
   const [phase, setPhase] = useState("idle"); // 'idle' | 'running' | 'done'
@@ -35,10 +34,7 @@ export default function OcasionalMeter({ onClose, driver }) {
   const timerRef = useRef(null);
 
   const tarifa = useRef({
-    bajada_bandera: 500,
-    precio_por_km: 2000,       // precio_por_metro * 1000
-    precio_por_minuto_corrido: 30,
-    precio_por_minuto_espera: 50,
+    bajada_bandera: 1700,
     tolerancia_espera_segundos: 120,
     es_nocturna: false,
   });
@@ -56,20 +52,14 @@ export default function OcasionalMeter({ onClose, driver }) {
 
       if (nocturna) {
         tarifa.current = {
-          bajada_bandera: raw.nocturna_bajada_bandera ?? 700,
-          precio_por_km: (raw.nocturna_precio_por_metro ?? 2.8) * 1000,
-          precio_por_minuto_corrido: raw.nocturna_precio_por_minuto_corrido ?? 45,
-          precio_por_minuto_espera: raw.nocturna_precio_por_minuto_espera ?? 70,
+          bajada_bandera: raw.nocturna_bajada_bandera ?? 1900,
           tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
         };
         setEsNocturna(true);
         setTarifaLabel("🌙 Tarifa Nocturna");
       } else {
         tarifa.current = {
-          bajada_bandera: raw.bajada_bandera ?? 500,
-          precio_por_km: (raw.precio_por_metro ?? 2) * 1000,
-          precio_por_minuto_corrido: raw.precio_por_minuto_corrido ?? 30,
-          precio_por_minuto_espera: raw.precio_por_minuto_espera ?? 50,
+          bajada_bandera: raw.bajada_bandera ?? 1700,
           tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
         };
         setEsNocturna(false);
@@ -79,17 +69,9 @@ export default function OcasionalMeter({ onClose, driver }) {
     }).catch(() => { setTarifaCargada(true); });
   }, []);
 
-  // Recalcular importe a partir de metros, segundos en movimiento y segundos de espera
-  const recalcular = (metros, sMovimiento, sEspera) => {
-    const km = metros / 1000;
-    const minutosMov = sMovimiento / 60;
-    // La espera "cae la ficha" por minuto entero, no fraccional
-    const minutosEsp = Math.floor(sEspera / 60);
-    const total = tarifa.current.bajada_bandera
-      + km * tarifa.current.precio_por_km
-      + minutosMov * tarifa.current.precio_por_minuto_corrido
-      + minutosEsp * tarifa.current.precio_por_minuto_espera;
-    return Math.round(total);
+  // El tiempo en movimiento no se cobra: solo distancia y espera.
+  const recalcular = (metros, _sMovimiento, sEspera) => {
+    return calcularImportePorFichas(metros, sEspera, tarifa.current.bajada_bandera);
   };
 
   const iniciarViaje = () => {
@@ -119,7 +101,7 @@ export default function OcasionalMeter({ onClose, driver }) {
             lastPosRef.current.lat, lastPosRef.current.lng,
             latitude, longitude
           );
-          if (metros > 0.5 && metros < 300) {
+          if (speedKmh >= 5 && metros > 0.5 && metros < 300) {
             metrosRef.current += metros;
             setMetrosRecorridos(Math.round(metrosRef.current));
             setImporteActual(recalcular(metrosRef.current, segundosMovimientoRef.current, segundosEsperaRef.current));
@@ -164,11 +146,10 @@ export default function OcasionalMeter({ onClose, driver }) {
     // Timer: cada segundo suma tiempo y recalcula
     timerRef.current = setInterval(() => {
       if (enEsperaRef.current || esperaManualRef.current) {
-        contadorParadoRef.current += 1;
-        if (contadorParadoRef.current > tarifa.current.tolerancia_espera_segundos) {
-          segundosEsperaRef.current += 1;
+        if (contadorParadoRef.current < tarifa.current.tolerancia_espera_segundos) {
+          contadorParadoRef.current += 1;
         } else {
-          segundosMovimientoRef.current += 1; // Durante tolerancia cuenta como movimiento
+          segundosEsperaRef.current += 1;
         }
       } else {
         segundosMovimientoRef.current += 1;
