@@ -9,15 +9,15 @@ import { Switch } from "@/components/ui/switch";
 import { DollarSign, Save, Loader2, Lock, Moon, Sun, KeyRound, Timer } from "lucide-react";
 
 const DEFAULTS = {
-  bajada_bandera: 500,
-  precio_por_metro: 2,
-  precio_por_minuto_corrido: 30,
-  precio_por_minuto_espera: 50,
+  bajada_bandera: 1700,
+  precio_por_metro: 100 / 85,
+  precio_por_minuto_corrido: 0,
+  precio_por_minuto_espera: 200,
   tolerancia_espera_segundos: 120,
-  nocturna_bajada_bandera: 700,
-  nocturna_precio_por_metro: 2.8,
-  nocturna_precio_por_minuto_corrido: 45,
-  nocturna_precio_por_minuto_espera: 70,
+  nocturna_bajada_bandera: 1900,
+  nocturna_precio_por_metro: 100 / 85,
+  nocturna_precio_por_minuto_corrido: 0,
+  nocturna_precio_por_minuto_espera: 200,
   nocturna_hora_inicio: 22,
   nocturna_hora_fin: 6,
   minutos_libre_post_viaje: 0,
@@ -273,11 +273,12 @@ export default function TarifaConfigPanel() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            Reloj configurado por fichas: <strong>$100 cada 85 metros</strong>. El tiempo en movimiento no se cobra.
+            La espera suma <strong>$100 cada 30 segundos</strong> después de consumir una sola vez la tolerancia.
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <CampoMoneda label="Bajada de bandera" description="Importe fijo al iniciar" field="bajada_bandera" form={form} onChange={handleChange} />
-            <CampoMoneda label="Precio por metro" description="Por cada metro recorrido" field="precio_por_metro" form={form} onChange={handleChange} />
-            <CampoMoneda label="Tiempo corrido (por minuto)" description="En movimiento" field="precio_por_minuto_corrido" form={form} onChange={handleChange} />
-            <CampoMoneda label="Tiempo de espera (por minuto)" description="Menos de 5 km/h" field="precio_por_minuto_espera" form={form} onChange={handleChange} />
             <div className="space-y-1.5">
               <Label className="text-sm font-semibold">Tolerancia de espera</Label>
               <div className="relative">
@@ -342,11 +343,8 @@ export default function TarifaConfigPanel() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <CampoMoneda label="Bajada de bandera" field="nocturna_bajada_bandera" form={form} onChange={handleChange} />
-            <CampoMoneda label="Precio por metro" field="nocturna_precio_por_metro" form={form} onChange={handleChange} />
-            <CampoMoneda label="Tiempo corrido (por min)" field="nocturna_precio_por_minuto_corrido" form={form} onChange={handleChange} />
-            <CampoMoneda label="Tiempo de espera (por min)" field="nocturna_precio_por_minuto_espera" form={form} onChange={handleChange} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CampoMoneda label="Bajada de bandera" description="Es el único valor que cambia de noche" field="nocturna_bajada_bandera" form={form} onChange={handleChange} />
           </div>
         </CardContent>
       </Card>
