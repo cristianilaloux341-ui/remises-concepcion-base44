@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, Phone, CheckCircle2, XCircle, Navigation, Car, Clock, LogIn, Bell, List, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2, Zap, Settings } from "lucide-react";
 import { haversineMetros } from "@/hooks/useTarifaConfig";
 import { withRetry } from "@/lib/retryFetch";
+import { createGpsStabilityFilter, GPS_LOCATION_EVENT } from "@/lib/gpsStability";
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import PullToRefresh from "@/components/ui/pull-to-refresh";
@@ -1043,97 +1044,6 @@ export default function DriverApp() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // GPS — nativo en segundo plano (Capacitor) o Web (HTML5)
-  const gpsIdRef = useRef(null);
-  useEffect(() => {
-    if (!myDriverId) return;
-
-    const startNativeBackgroundTracking = async () => {
-      try {
-        const watcherId = await BackgroundGeolocation.addWatcher(
-          {
-            backgroundMessage: "La app está activa buscando viajes.",
-            backgroundTitle: "Remises Concepción Activo",
-            requestPermissions: true,
-            stale: false,
-            distanceFilter: 10
-          },
-          function callback(location, error) {
-            if (error) {
-              console.error("GPS Nativo Error:", error);
-              return;
-            }
-            if (location) {
-              withRetry(() => base44.entities.Driver.update(myDriverId, {
-                current_lat: location.latitude,
-                current_lng: location.longitude,
-              })).catch(() => {});
-            }
-          }
-        );
-        gpsIdRef.current = watcherId;
-      } catch(e) {
-        console.error("Error iniciando GPS nativo", e);
-      }
-    };
-
-    const startWebWatch = () => {
-      if (!navigator.geolocation) return;
-      if (gpsIdRef.current !== null) {
-        navigator.geolocation.clearWatch(gpsIdRef.current);
-      }
-      gpsIdRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          withRetry(() => base44.entities.Driver.update(myDriverId, {
-            current_lat: pos.coords.latitude,
-            current_lng: pos.coords.longitude,
-          })).catch(() => {});
-        },
-        (err) => {
-          console.warn("GPS error:", err.code, err.message);
-          setTimeout(startWebWatch, 5000);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    };
-
-    if (Capacitor.isNativePlatform()) {
-      startNativeBackgroundTracking();
-    } else {
-      startWebWatch();
-    }
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible" && !Capacitor.isNativePlatform()) {
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              base44.entities.Driver.update(myDriverId, {
-                current_lat: pos.coords.latitude,
-                current_lng: pos.coords.longitude,
-              }).catch(() => {});
-            },
-            () => {},
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-          );
-        }
-        startWebWatch();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      if (Capacitor.isNativePlatform()) {
-        if (gpsIdRef.current) {
-           BackgroundGeolocation.removeWatcher({ id: gpsIdRef.current }).catch(()=>{});
-        }
-      } else {
-        if (gpsIdRef.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(gpsIdRef.current);
-      }
-    };
-  }, [myDriverId]);
-
   // ── Tiempo real: suscripciones en lugar de polling ────────────────────────
   const { drivers, isLoading: driversLoading, error: driversError } = useRealtimeDrivers();
   // Se aumenta el límite y se ordena por updated_date para evitar que el viaje activo desaparezca (causa de que el taxímetro se corte)
@@ -1167,9 +1077,6 @@ export default function DriverApp() {
     return () => clearTimeout(t);
   }, [driversLoading]);
 
-  // Wake Lock — mantiene la pantalla activa mientras el chofer está en servicio
-  useWakeLock(!!myDriverId);
-
   // Push subscription — registra este dispositivo para recibir notificaciones push reales
   usePushSubscription(myDriverId || null);
 
@@ -1202,6 +1109,106 @@ export default function DriverApp() {
   const myDriver = myDriverRaw
     ? { ...myDriverRaw, ...(localOverride ?? {}) }
     : null;
+
+  // Un solo proveedor GPS compartido. Se apaga por completo fuera de servicio.
+  const gpsTrackingEnabled = !!myDriverId && !!myDriver && myDriver.status !== "no_disponible";
+  const preciseGpsTracking = myDriver?.status === "en_viaje" || showOcasional;
+  const gpsIdRef = useRef(null);
+
+  // La pantalla solo se mantiene despierta mientras se usa el taxímetro.
+  useWakeLock(gpsTrackingEnabled && preciseGpsTracking);
+
+  useEffect(() => {
+    if (!gpsTrackingEnabled) return;
+
+    const filter = createGpsStabilityFilter();
+    let stopped = false;
+    let webRetryTimer = null;
+    let lastPublishedAt = 0;
+    let distanceSincePublish = 0;
+
+    const handleLocation = (location, error = null) => {
+      if (stopped) return;
+      if (error) {
+        console.warn("GPS descartado:", error);
+        return;
+      }
+
+      const result = filter.process(location);
+      if (!result.accepted) return;
+
+      window.dispatchEvent(new CustomEvent(GPS_LOCATION_EVENT, { detail: result.point }));
+      if (result.moving) distanceSincePublish += result.rawDistance || 0;
+
+      const now = Date.now();
+      const shouldPublish = lastPublishedAt === 0
+        || now - lastPublishedAt >= 15_000
+        || distanceSincePublish >= 30;
+
+      if (shouldPublish) {
+        lastPublishedAt = now;
+        distanceSincePublish = 0;
+        withRetry(() => base44.entities.Driver.update(myDriverId, {
+          current_lat: result.point.latitude,
+          current_lng: result.point.longitude,
+        })).catch(() => {});
+      }
+    };
+
+    const startWebWatch = () => {
+      if (stopped || !navigator.geolocation || gpsIdRef.current !== null) return;
+      gpsIdRef.current = navigator.geolocation.watchPosition(
+        handleLocation,
+        (err) => {
+          console.warn("GPS web:", err.code, err.message);
+          if (gpsIdRef.current !== null) {
+            navigator.geolocation.clearWatch(gpsIdRef.current);
+            gpsIdRef.current = null;
+          }
+          clearTimeout(webRetryTimer);
+          webRetryTimer = setTimeout(startWebWatch, 5000);
+        },
+        { enableHighAccuracy: preciseGpsTracking, timeout: 15000, maximumAge: 5000 }
+      );
+    };
+
+    if (Capacitor.isNativePlatform()) {
+      BackgroundGeolocation.addWatcher(
+        {
+          backgroundMessage: preciseGpsTracking
+            ? "Taxímetro activo durante el viaje."
+            : "Ubicación activa mientras está en servicio.",
+          backgroundTitle: "Remises Concepción",
+          requestPermissions: true,
+          stale: false,
+          distanceFilter: preciseGpsTracking ? 3 : 20
+        },
+        handleLocation
+      ).then(id => {
+        if (stopped) {
+          BackgroundGeolocation.removeWatcher({ id }).catch(() => {});
+        } else {
+          gpsIdRef.current = id;
+        }
+      }).catch(e => console.error("Error iniciando GPS nativo", e));
+    } else {
+      startWebWatch();
+    }
+
+    return () => {
+      stopped = true;
+      clearTimeout(webRetryTimer);
+      const id = gpsIdRef.current;
+      gpsIdRef.current = null;
+      filter.reset();
+
+      if (Capacitor.isNativePlatform()) {
+        if (id) BackgroundGeolocation.removeWatcher({ id }).catch(() => {});
+      } else if (id !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(id);
+      }
+    };
+  }, [myDriverId, gpsTrackingEnabled, preciseGpsTracking]);
 
   // Servicio en primer plano nativo (Android)
   useEffect(() => {
