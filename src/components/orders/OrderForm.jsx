@@ -303,7 +303,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     }
 
     if (!data.driver_id && manualDriverInput) {
-      // Auto-create/force assign just like DispatchPanel
+      // Resolver únicamente contra un chofer real registrado.
       const inputTrimmed = manualDriverInput.trim();
       let movilNum = parseInt(inputTrimmed);
       
@@ -327,20 +327,13 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
          return; // Frenar el submit
       }
 
-      if (driver) {
-        if (driver.status !== "disponible") {
-          alert(`El móvil ${driver.name} está fuera de servicio u ocupado. El pasaje no fue asignado.`);
-          return;
-        }
-        data.driver_id = driver.id;
-        data.driver_name = driver.name;
-        data.status = "ofrecido";
-      } else {
-        // Fuerza sin entidad para pruebas
-        data.driver_id = `manual-${inputTrimmed}`;
-        data.driver_name = isNaN(movilNum) ? inputTrimmed : `Móvil ${movilNum}`;
-        data.status = "ofrecido";
+      if (driver.status !== "disponible") {
+        alert(`El móvil ${driver.name} está fuera de servicio u ocupado. El pasaje no fue asignado.`);
+        return;
       }
+      data.driver_id = driver.id;
+      data.driver_name = driver.name;
+      data.status = "ofrecido";
     } else if (!data.driver_id) {
       delete data.driver_id; 
       delete data.driver_name;
