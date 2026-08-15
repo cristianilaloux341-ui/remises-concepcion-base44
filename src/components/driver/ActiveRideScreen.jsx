@@ -38,6 +38,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   const importeRef = useRef(importeActual);
   const contadorParadoRef = useRef(0);
   const enEsperaRef = useRef(false); // ref para evitar stale closure en setInterval
+  const lastGpsAtRef = useRef(0);
   const timerRef = useRef(null);
 
   useEffect(() => { importeRef.current = importeActual; }, [importeActual]);
@@ -115,6 +116,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     const onGpsLocation = (event) => {
       const result = gpsFilter.process(event.detail);
       if (!result.accepted) return;
+      lastGpsAtRef.current = Date.now();
 
       if (result.distance > 0) {
         metrosRef.current += result.distance;
@@ -138,7 +140,10 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     window.addEventListener(GPS_LOCATION_EVENT, onGpsLocation);
 
     timerRef.current = setInterval(() => {
-      if (enEsperaRef.current || esperaManualRef.current) {
+      // Respaldo: si después de una lectura válida dejan de llegar puntos por 15 s,
+      // se considera detenido. No se acredita el período dudoso anterior para evitar cobrar de más.
+      const gpsSilencioso = lastGpsAtRef.current > 0 && Date.now() - lastGpsAtRef.current > 15_000;
+      if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
         // La tolerancia de 120 s se consume una sola vez y nunca se reinicia.
         if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
           contadorParadoRef.current += 1;
