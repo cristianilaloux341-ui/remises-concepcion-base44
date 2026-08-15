@@ -38,74 +38,44 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   const handleManualAssign = async () => {
     if (!selectedDriverId) return;
     setDispatching(true);
-    
-    const inputTrimmed = selectedDriverId.trim();
-    const movilByPlate = Object.fromEntries((moviles || []).map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
-    
-    // Buscar si existe el chofer por ID, nombre, modelo de vehículo o patente
-    let driver = drivers.find(d => 
-      d.id === inputTrimmed || 
-      d.vehicle_model === inputTrimmed || 
-      d.name.toLowerCase() === inputTrimmed.toLowerCase() ||
-      (movilByPlate[d.vehicle_plate?.toUpperCase()] === parseInt(inputTrimmed))
-    );
-    
-    let movilNum = parseInt(inputTrimmed);
 
-    // Si no existe y es un número, intentar auto-crearlo
-    if (!driver && !isNaN(movilNum)) {
-      try {
-        const m = await base44.entities.Movil.filter({ numero_movil: movilNum });
-        let movil = m[0];
-        if (!movil) {
-          movil = await base44.entities.Movil.create({ numero_movil: movilNum, activo: true });
-        }
-        const fakePlate = `TEST${movilNum}`;
-        driver = await base44.entities.Driver.create({
-          name: `Móvil ${movilNum}`,
-          phone: `000000000${movilNum}`,
-          vehicle_plate: fakePlate,
-          vehicle_model: String(movilNum),
-          status: "disponible"
-        });
-        if (!movil.dominio) {
-          await base44.entities.Movil.update(movil.id, { dominio: fakePlate });
-        }
-      } catch(err) {
-        console.error("Auto-create failed", err);
+    try {
+      const inputTrimmed = selectedDriverId.trim();
+      const movilByPlate = Object.fromEntries((moviles || []).map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
+
+      // Solo se puede asignar un chofer real y actualmente disponible.
+      const driver = drivers.find(d =>
+        d.id === inputTrimmed ||
+        d.vehicle_model === inputTrimmed ||
+        d.name.toLowerCase() === inputTrimmed.toLowerCase() ||
+        (movilByPlate[d.vehicle_plate?.toUpperCase()] === parseInt(inputTrimmed))
+      );
+
+      if (!driver) {
+        throw new Error(`No existe un chofer registrado para el móvil "${inputTrimmed}".`);
       }
-    }
+      if (driver.status !== "disponible") {
+        throw new Error(`El móvil ${inputTrimmed} está fuera de servicio u ocupado. El pasaje no fue enviado.`);
+      }
 
-    const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+      await assignDriverToOrder(order, driver, { requireDriverConfirmation: true });
 
-    if (driver) {
-      await assignDriverToOrder(order, driver);
+      const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
       base44.entities.AuditLog.create({
         action: "asignar_viaje",
         user_type: localOp?.role || "operador",
         user_name: localOp?.name || "Operador",
         details: `Asignó manualmente a ${driver.name} el viaje de ${order.client_name}`
       }).catch(() => {});
-    } else {
-      // Forzar asignación sin entidad via backend
-      await base44.functions.invoke("assignRide", {
-        orderId: order.id,
-        driverId: `manual-${inputTrimmed}`,
-        forceManual: true,
-        manualDriverName: isNaN(movilNum) ? inputTrimmed : `Móvil ${movilNum}`
-      });
-      base44.entities.AuditLog.create({
-        action: "asignar_viaje_manual_forzado",
-        user_type: localOp?.role || "operador",
-        user_name: localOp?.name || "Operador",
-        details: `Forzó asignación manual a "${inputTrimmed}" para el viaje de ${order.client_name}`
-      }).catch(() => {});
-    }
 
-    setSelectedDriverId("");
-    onDispatched();
-    window.dispatchEvent(new Event("force-driver-refresh"));
-    setDispatching(false);
+      setSelectedDriverId("");
+      onDispatched();
+      window.dispatchEvent(new Event("force-driver-refresh"));
+    } catch (err) {
+      alert(err?.message || "No se pudo asignar el pasaje");
+    } finally {
+      setDispatching(false);
+    }
   };
 
   return (
