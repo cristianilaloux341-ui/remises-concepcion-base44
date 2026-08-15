@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { haversineMetros } from "@/hooks/useTarifaConfig";
+import { haversineMetros, calcularImportePorFichas } from "@/hooks/useTarifaConfig";
 import { Capacitor, registerPlugin } from '@capacitor/core';
 const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 import { MapPin, Phone, Navigation, Car, CheckCircle2, XCircle, Timer, AlertCircle } from "lucide-react";
@@ -32,6 +32,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   const [metrosRecorridos, setMetrosRecorridos] = useState(0);
   const [enEspera, setEnEspera] = useState(false);
   const [esperaManual, setEsperaManual] = useState(false);
+  const [tarifaCargada, setTarifaCargada] = useState(false);
   const esperaManualRef = useRef(false);
 
   const metrosRef = useRef(0);
@@ -44,55 +45,44 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
 
   useEffect(() => { importeRef.current = importeActual; }, [importeActual]);
 
-  const distanciaTeórica = order.distancia_teorica_metros || 0;
   const tarifaRef = useRef({
-    bajada_bandera: 500,
-    precio_por_metro: 2,
-    precio_por_minuto_espera: 50,
+    bajada_bandera: 1700,
     tolerancia_espera_segundos: 120,
   });
 
   useEffect(() => {
     base44.entities.TarifaConfig.list().then(configs => {
-      if (configs[0]) {
-        const raw = configs[0];
-        const hora = new Date().getHours();
-        const horaInicio = raw.nocturna_hora_inicio ?? 22;
-        const horaFin = raw.nocturna_hora_fin ?? 6;
-        const nocturna = horaInicio > horaFin
-          ? (hora >= horaInicio || hora < horaFin)
-          : (hora >= horaInicio && hora < horaFin);
-        
-        if (nocturna) {
-          tarifaRef.current = {
-            bajada_bandera: raw.nocturna_bajada_bandera ?? 700,
-            precio_por_metro: raw.nocturna_precio_por_metro ?? 2.8,
-            precio_por_minuto_corrido: raw.nocturna_precio_por_minuto_corrido ?? 45,
-            precio_por_minuto_espera: raw.nocturna_precio_por_minuto_espera ?? 70,
-            tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
-          };
-        } else {
-          tarifaRef.current = {
-            bajada_bandera: raw.bajada_bandera ?? 500,
-            precio_por_metro: raw.precio_por_metro ?? 2,
-            precio_por_minuto_corrido: raw.precio_por_minuto_corrido ?? 30,
-            precio_por_minuto_espera: raw.precio_por_minuto_espera ?? 50,
-            tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
-          };
-        }
-      }
-    }).catch(() => {});
+      const raw = configs[0] || {};
+      const hora = new Date().getHours();
+      const horaInicio = raw.nocturna_hora_inicio ?? 22;
+      const horaFin = raw.nocturna_hora_fin ?? 6;
+      const nocturna = horaInicio > horaFin
+        ? (hora >= horaInicio || hora < horaFin)
+        : (hora >= horaInicio && hora < horaFin);
+
+      tarifaRef.current = {
+        bajada_bandera: nocturna
+          ? (raw.nocturna_bajada_bandera ?? 1900)
+          : (raw.bajada_bandera ?? 1700),
+        tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
+      };
+    }).catch(() => {
+      tarifaRef.current = { bajada_bandera: 1700, tolerancia_espera_segundos: 120 };
+    }).finally(() => setTarifaCargada(true));
   }, []);
 
   const saveTimeoutRef = useRef(null);
-  const saveImporte = (nuevoImporte, segundosEspera) => {
+  const saveImporte = (nuevoImporte, segundosEspera, metros, segundosTolerancia) => {
     clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       base44.entities.RideOrder.update(order.id, {
         importe_real_actual: Math.round(nuevoImporte),
         segundos_espera_acumulados: segundosEspera,
+        metros_taximetro: metros,
+        segundos_tolerancia_espera_usados: segundosTolerancia,
+        taximetro_iniciado: true,
       }).catch(() => {});
-    }, 3000); 
+    }, 3000);
   };
 
   useEffect(() => {
