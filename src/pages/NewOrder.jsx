@@ -16,21 +16,21 @@ export default function NewOrder() {
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      // Guardamos la asignación manual para hacerla pasar por assignDriverToOrder
       const manualDriverId = data.driver_id;
-      const manualDriverName = data.driver_name;
-      const manualStatus = data.status;
+      const orderData = { ...data };
 
-      // Si es manual, lo creamos YA con el driver asignado y estado ofrecido/aceptado
-      // para que en la interfaz aparezca instantáneamente asignado sin parpadear en "pendiente"
+      // La orden nunca nace aceptada. La asignación real pasa por el backend.
       if (manualDriverId) {
-        data.status = manualStatus === "aceptado" ? "aceptado" : "ofrecido";
+        orderData.status = "pendiente";
+        delete orderData.driver_id;
+        delete orderData.driver_name;
+        delete orderData.reserved_driver_id;
       } else {
-        data.status = "procesando_despacho";
+        orderData.status = "procesando_despacho";
       }
 
-      // 1. Crear la orden
-      const newOrder = await base44.entities.RideOrder.create(data);
+      // 1. Crear la orden sin saltar la validación del chofer
+      const newOrder = await base44.entities.RideOrder.create(orderData);
 
       // Si viene de la agenda, marcamos el pasaje como despachado
       if (scheduledRideId) {
@@ -40,23 +40,23 @@ export default function NewOrder() {
         }).catch(() => {});
       }
 
-      // Lanzamos la lógica de asignación en segundo plano (fire-and-forget)
+      // La asignación manual se confirma antes de continuar y siempre exige respuesta del chofer.
+      if (manualDriverId) {
+        const driver = await base44.entities.Driver.get(manualDriverId);
+        if (!driver || driver.status !== "disponible") {
+          throw new Error("El móvil está fuera de servicio u ocupado. El pasaje quedó pendiente y no fue enviado.");
+        }
+        await assignDriverToOrder(newOrder, driver, { requireDriverConfirmation: true });
+        return newOrder;
+      }
+
+      // El despacho automático continúa en segundo plano.
       (async () => {
         try {
           const [drivers, bases] = await Promise.all([
             base44.entities.Driver.list(),
             base44.entities.Base.list(),
           ]);
-
-          if (manualDriverId) {
-            const driver = drivers.find(d => d.id === manualDriverId);
-            if (driver) {
-              // Llamamos a assignDriverToOrder para que dispare la notificación al chofer y la reserva,
-              // pero la orden YA se creó visualmente asignada.
-              await assignDriverToOrder(newOrder, driver);
-            }
-            return;
-          }
 
           if (newOrder.status === "procesando_despacho" || newOrder.status === "pendiente") {
             if (newOrder.zone) {
@@ -94,6 +94,7 @@ export default function NewOrder() {
     },
     onError: (err, variables, context) => {
       if (context?.previous) queryClient.setQueryData(["orders"], context.previous);
+      alert(err?.message || "No se pudo asignar el pasaje");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
