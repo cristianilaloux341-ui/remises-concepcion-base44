@@ -97,18 +97,20 @@ export default function OrderDetail() {
 
   const handleAssignDriver = async (driverId) => {
     const driver = drivers.find(d => d.id === driverId);
-    if (driver) {
-      await assignDriverToOrder(order, driver);
+    if (!driver) {
+      alert("No se encontró el móvil seleccionado. Actualizá la lista e intentá nuevamente.");
+      return;
+    }
+    if (driver.status !== "disponible") {
+      alert(`El móvil ${driver.name} está fuera de servicio u ocupado. El pasaje no fue enviado.`);
+      return;
+    }
+    try {
+      await assignDriverToOrder(order, driver, { requireDriverConfirmation: true });
       queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
-    } else {
-      updateMutation.mutate({
-        id: order.id,
-        data: {
-          driver_id: driverId,
-          status: "ofrecido",
-          offered_driver_ids: [...(order.offered_driver_ids || []), driverId],
-        },
-      });
+    } catch (err) {
+      alert(err?.message || "No se pudo asignar el pasaje");
+      queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
     }
   };
 
