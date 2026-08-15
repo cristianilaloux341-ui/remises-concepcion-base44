@@ -5,6 +5,7 @@ import RideMap from '@/components/map/RideMap';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { detectZoneFromCoords, detectZoneFromAddress, findDriverInZone, assignDriverToOrder, broadcastOrder } from '@/lib/dispatchLogic';
+import { calcularImportePorFichas } from '@/hooks/useTarifaConfig';
 
 export default function FareEstimate() {
   const navigate = useNavigate();
@@ -108,12 +109,13 @@ export default function FareEstimate() {
               return inicio > fin ? (hora >= inicio || hora < fin) : (hora >= inicio && hora < fin);
             };
             const nocturna = isNocturna();
-            const bajada = nocturna ? (currentTarifa.nocturna_bajada_bandera ?? 700) : (currentTarifa.bajada_bandera ?? 500);
-            const precioMetro = nocturna ? (currentTarifa.nocturna_precio_por_metro ?? 2.8) : (currentTarifa.precio_por_metro ?? 2);
-            
-            // Exact same calculation as Central
-            const calculated = bajada + (dist * precioMetro);
-            setEstimatedPrice(Math.round(calculated));
+            const bajada = nocturna
+              ? (currentTarifa.nocturna_bajada_bandera ?? 1900)
+              : (currentTarifa.bajada_bandera ?? 1700);
+
+            // La app cliente usa la misma tabla de fichas que la central y el reloj.
+            const calculated = calcularImportePorFichas(dist, 0, bajada);
+            setEstimatedPrice(calculated);
           }
         }
       } catch (e) {
