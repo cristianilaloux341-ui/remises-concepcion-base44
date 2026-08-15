@@ -93,6 +93,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     metrosRef.current = reanudando ? (order.metros_taximetro || 0) : 0;
     contadorParadoRef.current = reanudando ? (order.segundos_tolerancia_espera_usados || 0) : 0;
     let segundosEspera = reanudando ? (order.segundos_espera_acumulados || 0) : 0;
+    lastGpsAtRef.current = 0;
     const importeInicial = calcularImportePorFichas(
       metrosRef.current,
       segundosEspera,
