@@ -72,8 +72,8 @@ export function createGpsStabilityFilter() {
       }
 
       const combinedAccuracy = Math.max(lastGood.accuracy || 0, point.accuracy || 0);
-      const driftRadius = Math.max(4, Math.min(12, combinedAccuracy * 0.25));
-      const coordinateThreshold = Math.max(driftRadius, Math.min(20, combinedAccuracy * 0.5));
+      const driftRadius = Math.max(6, Math.min(15, combinedAccuracy * 0.5));
+      const coordinateThreshold = Math.max(driftRadius, Math.min(25, combinedAccuracy * 0.75));
 
       // Priorizamos no cobrar de más: una coordenada solo confirma movimiento
       // cuando supera claramente el margen de error informado por el GPS.
