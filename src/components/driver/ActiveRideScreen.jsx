@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { haversineMetros, calcularImportePorFichas } from "@/hooks/useTarifaConfig";
-import { Capacitor, registerPlugin } from '@capacitor/core';
-const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
+import { calcularImportePorFichas } from "@/hooks/useTarifaConfig";
+import { createGpsStabilityFilter, GPS_LOCATION_EVENT } from "@/lib/gpsStability";
 import { MapPin, Phone, Navigation, Car, CheckCircle2, XCircle, Timer, AlertCircle } from "lucide-react";
 
 export const STATUS_CONFIG = {
@@ -39,8 +38,6 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   const importeRef = useRef(importeActual);
   const contadorParadoRef = useRef(0);
   const enEsperaRef = useRef(false); // ref para evitar stale closure en setInterval
-  const lastPosRef = useRef(null);
-  const gpsWatchRef = useRef(null);
   const timerRef = useRef(null);
 
   useEffect(() => { importeRef.current = importeActual; }, [importeActual]);
@@ -95,8 +92,6 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     metrosRef.current = reanudando ? (order.metros_taximetro || 0) : 0;
     contadorParadoRef.current = reanudando ? (order.segundos_tolerancia_espera_usados || 0) : 0;
     let segundosEspera = reanudando ? (order.segundos_espera_acumulados || 0) : 0;
-    lastPosRef.current = null;
-
     const importeInicial = calcularImportePorFichas(
       metrosRef.current,
       segundosEspera,
@@ -116,73 +111,31 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
       }).catch(() => {});
     }
 
-    const startTracking = async () => {
-      const onLocation = (location) => {
-        if (!location) return;
-        const latitude = location.latitude || location.coords?.latitude;
-        const longitude = location.longitude || location.coords?.longitude;
-        const speed = location.speed || location.coords?.speed || 0;
-        const speedKmh = speed * 3.6;
+    const gpsFilter = createGpsStabilityFilter();
+    const onGpsLocation = (event) => {
+      const result = gpsFilter.process(event.detail);
+      if (!result.accepted) return;
 
-        if (lastPosRef.current) {
-          const metros = haversineMetros(
-            lastPosRef.current.lat, lastPosRef.current.lng,
-            latitude, longitude
-          );
-          // Debajo de 5 km/h el reloj trabaja por espera; no sumamos deriva del GPS.
-          if (speedKmh >= 5 && metros > 0.5 && metros < 500) {
-            metrosRef.current += metros;
-            setMetrosRecorridos(Math.round(metrosRef.current));
+      if (result.distance > 0) {
+        metrosRef.current += result.distance;
+        setMetrosRecorridos(Math.round(metrosRef.current));
 
-            const nuevo = calcularImportePorFichas(
-              metrosRef.current,
-              segundosEspera,
-              tarifaRef.current.bajada_bandera
-            );
-            importeRef.current = nuevo;
-            setImporteActual(nuevo);
-            saveImporte(nuevo, segundosEspera, metrosRef.current, contadorParadoRef.current);
-          }
-        }
-
-        lastPosRef.current = { lat: latitude, lng: longitude };
-
-        if (speedKmh < 5 || esperaManualRef.current) {
-          setEnEspera(true);
-          enEsperaRef.current = true;
-        } else {
-          // Ya NO reseteamos contadorParadoRef para que la tolerancia de espera sea acumulativa durante todo el viaje.
-          setEnEspera(false);
-          enEsperaRef.current = false;
-        }
-      };
-
-      if (Capacitor.isNativePlatform()) {
-        try {
-          const watcherId = await BackgroundGeolocation.addWatcher(
-            {
-              backgroundMessage: "Taxímetro activo en segundo plano.",
-              backgroundTitle: "Viaje en curso",
-              requestPermissions: true,
-              stale: false,
-              distanceFilter: 2
-            },
-            (location, error) => {
-              if (!error && location) onLocation(location);
-            }
-          );
-          gpsWatchRef.current = watcherId;
-        } catch (e) {
-          console.error("Error BackgroundGeolocation en ActiveRide", e);
-        }
-      } else if (navigator.geolocation) {
-        gpsWatchRef.current = navigator.geolocation.watchPosition(
-          onLocation, () => {}, { enableHighAccuracy: true, maximumAge: 0 }
+        const nuevo = calcularImportePorFichas(
+          metrosRef.current,
+          segundosEspera,
+          tarifaRef.current.bajada_bandera
         );
+        importeRef.current = nuevo;
+        setImporteActual(nuevo);
+        saveImporte(nuevo, segundosEspera, metrosRef.current, contadorParadoRef.current);
       }
+
+      const esperando = result.speedKmh < 5 || esperaManualRef.current;
+      setEnEspera(esperando);
+      enEsperaRef.current = esperando;
     };
 
-    startTracking();
+    window.addEventListener(GPS_LOCATION_EVENT, onGpsLocation);
 
     timerRef.current = setInterval(() => {
       if (enEsperaRef.current || esperaManualRef.current) {
@@ -205,13 +158,8 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     }, 1000);
 
     return () => {
-      if (gpsWatchRef.current !== null) {
-        if (Capacitor.isNativePlatform() && typeof gpsWatchRef.current === 'string') {
-          BackgroundGeolocation.removeWatcher({ id: gpsWatchRef.current }).catch(() => {});
-        } else {
-          navigator.geolocation.clearWatch(gpsWatchRef.current);
-        }
-      }
+      window.removeEventListener(GPS_LOCATION_EVENT, onGpsLocation);
+      gpsFilter.reset();
       clearInterval(timerRef.current);
     };
   }, [order.status, order.id, tarifaCargada]);
@@ -225,7 +173,6 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   const handleCompletar = async () => {
     if (isFinishing) return; 
     setIsFinishing(true);
-    clearTimeout(saveTimeoutRef.current);
     const finalFare = Math.round(importeRef.current);
     if (onFinishRide) {
       await onFinishRide(finalFare);
