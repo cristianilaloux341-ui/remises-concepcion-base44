@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { haversineMetros, calcularImportePorFichas, METROS_POR_FICHA, VALOR_FICHA, SEGUNDOS_POR_FICHA_ESPERA } from "@/hooks/useTarifaConfig";
+import { calcularImportePorFichas, METROS_POR_FICHA, VALOR_FICHA, SEGUNDOS_POR_FICHA_ESPERA } from "@/hooks/useTarifaConfig";
+import { createGpsStabilityFilter, GPS_LOCATION_EVENT } from "@/lib/gpsStability";
 import { DollarSign, Timer, Navigation, CheckCircle2, XCircle, Car, Zap, Clock } from "lucide-react";
-import { Capacitor, registerPlugin } from '@capacitor/core';
-const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 
 /**
  * Taxímetro GPS en tiempo real, igual al reloj físico.
@@ -29,8 +28,8 @@ export default function OcasionalMeter({ onClose, driver }) {
   const segundosEsperaRef = useRef(0);
   const contadorParadoRef = useRef(0);
   const enEsperaRef = useRef(false);
-  const lastPosRef = useRef(null);
-  const gpsWatchRef = useRef(null);
+  const gpsFilterRef = useRef(null);
+  const gpsEventHandlerRef = useRef(null);
   const timerRef = useRef(null);
 
   const tarifa = useRef({
@@ -69,6 +68,22 @@ export default function OcasionalMeter({ onClose, driver }) {
     }).catch(() => { setTarifaCargada(true); });
   }, []);
 
+  const stopGpsConsumption = () => {
+    if (gpsEventHandlerRef.current) {
+      window.removeEventListener(GPS_LOCATION_EVENT, gpsEventHandlerRef.current);
+      gpsEventHandlerRef.current = null;
+    }
+    gpsFilterRef.current?.reset();
+    gpsFilterRef.current = null;
+  };
+
+  useEffect(() => {
+    return () => {
+      stopGpsConsumption();
+      clearInterval(timerRef.current);
+    };
+  }, []);
+
   // El tiempo en movimiento no se cobra: solo distancia y espera.
   const recalcular = (metros, _sMovimiento, sEspera) => {
     return calcularImportePorFichas(metros, sEspera, tarifa.current.bajada_bandera);
@@ -80,68 +95,29 @@ export default function OcasionalMeter({ onClose, driver }) {
     segundosEsperaRef.current = 0;
     contadorParadoRef.current = 0;
     enEsperaRef.current = false;
-    lastPosRef.current = null;
-    
     setMetrosRecorridos(0);
     setSegundosTotales(0);
     setImporteActual(tarifa.current.bajada_bandera);
     setPhase("running");
 
-    // GPS: acumula distancia real con Haversine
-    const startTracking = async () => {
-      const onLocation = (location) => {
-        if (!location) return;
-        const latitude = location.latitude || location.coords?.latitude;
-        const longitude = location.longitude || location.coords?.longitude;
-        const speed = location.speed || location.coords?.speed || 0;
-        const speedKmh = speed * 3.6;
+    // Consume la única señal GPS compartida por la aplicación.
+    stopGpsConsumption();
+    const gpsFilter = createGpsStabilityFilter();
+    const onGpsLocation = (event) => {
+      const result = gpsFilter.process(event.detail);
+      if (!result.accepted) return;
 
-        if (lastPosRef.current) {
-          const metros = haversineMetros(
-            lastPosRef.current.lat, lastPosRef.current.lng,
-            latitude, longitude
-          );
-          if (speedKmh >= 5 && metros > 0.5 && metros < 300) {
-            metrosRef.current += metros;
-            setMetrosRecorridos(Math.round(metrosRef.current));
-            setImporteActual(recalcular(metrosRef.current, segundosMovimientoRef.current, segundosEsperaRef.current));
-          }
-        }
-        lastPosRef.current = { lat: latitude, lng: longitude };
-
-        if (speedKmh < 5 || esperaManualRef.current) {
-          enEsperaRef.current = true;
-        } else {
-          // No reseteamos contadorParadoRef para que la tolerancia sea acumulativa
-          enEsperaRef.current = false;
-        }
-      };
-
-      if (Capacitor.isNativePlatform()) {
-        try {
-          const watcherId = await BackgroundGeolocation.addWatcher(
-            {
-              backgroundMessage: "Taxímetro ocasional activo en segundo plano.",
-              backgroundTitle: "Viaje en curso",
-              requestPermissions: true,
-              stale: false,
-              distanceFilter: 2
-            },
-            (location, error) => {
-              if (!error && location) onLocation(location);
-            }
-          );
-          gpsWatchRef.current = watcherId;
-        } catch (e) {
-          console.error("Error BackgroundGeolocation en OcasionalMeter", e);
-        }
-      } else if (navigator.geolocation) {
-        gpsWatchRef.current = navigator.geolocation.watchPosition(
-          onLocation, () => {}, { enableHighAccuracy: true, maximumAge: 0 }
-        );
+      if (result.distance > 0) {
+        metrosRef.current += result.distance;
+        setMetrosRecorridos(Math.round(metrosRef.current));
+        setImporteActual(recalcular(metrosRef.current, segundosMovimientoRef.current, segundosEsperaRef.current));
       }
+
+      enEsperaRef.current = result.speedKmh < 5 || esperaManualRef.current;
     };
-    startTracking();
+    gpsFilterRef.current = gpsFilter;
+    gpsEventHandlerRef.current = onGpsLocation;
+    window.addEventListener(GPS_LOCATION_EVENT, onGpsLocation);
 
     // Timer: cada segundo suma tiempo y recalcula
     timerRef.current = setInterval(() => {
@@ -161,14 +137,7 @@ export default function OcasionalMeter({ onClose, driver }) {
   };
 
   const terminarViaje = async () => {
-    if (gpsWatchRef.current !== null) {
-      if (Capacitor.isNativePlatform() && typeof gpsWatchRef.current === 'string') {
-        BackgroundGeolocation.removeWatcher({ id: gpsWatchRef.current }).catch(() => {});
-      } else {
-        navigator.geolocation.clearWatch(gpsWatchRef.current);
-      }
-      gpsWatchRef.current = null;
-    }
+    stopGpsConsumption();
     clearInterval(timerRef.current);
     setGuardando(true);
 
@@ -199,14 +168,7 @@ export default function OcasionalMeter({ onClose, driver }) {
   };
 
   const reiniciar = () => {
-    if (gpsWatchRef.current !== null) {
-      if (Capacitor.isNativePlatform() && typeof gpsWatchRef.current === 'string') {
-        BackgroundGeolocation.removeWatcher({ id: gpsWatchRef.current }).catch(() => {});
-      } else {
-        navigator.geolocation.clearWatch(gpsWatchRef.current);
-      }
-      gpsWatchRef.current = null;
-    }
+    stopGpsConsumption();
     clearInterval(timerRef.current);
     setPhase("idle");
     setImporteActual(0);
