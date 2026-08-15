@@ -82,19 +82,20 @@ export default function NewOrder() {
 
       return newOrder;
     },
-    onMutate: async (data) => {
+    onMutate: async () => {
+      // No abandonar esta pantalla hasta que el backend confirme la asignación.
+      // Así el operador siempre ve el cartel si el móvil está fuera de servicio,
+      // ocupado o ya tiene otro viaje activo.
       await queryClient.cancelQueries({ queryKey: ["orders"] });
-      const previous = queryClient.getQueryData(["orders"]);
-      queryClient.setQueryData(["orders"], old => {
-        if (!old) return [];
-        return [{ id: 'temp-' + Date.now(), ...data, created_date: new Date().toISOString() }, ...old];
-      });
-      navigate("/orders");
-      return { previous };
+      return { previous: queryClient.getQueryData(["orders"]) };
     },
     onError: (err, variables, context) => {
       if (context?.previous) queryClient.setQueryData(["orders"], context.previous);
       alert(err?.message || "No se pudo asignar el pasaje");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      navigate("/orders");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
