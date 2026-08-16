@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Clock, CreditCard, ShieldCheck, Loader2 } from 'lucide-react';
+import { ArrowLeft, CreditCard, ShieldCheck, Loader2 } from 'lucide-react';
 import RideMap from '@/components/map/RideMap';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { detectZoneFromCoords, detectZoneFromAddress, findDriverInZone, assignDriverToOrder, broadcastOrder } from '@/lib/dispatchLogic';
+import { detectZoneFromCoords, detectZoneFromAddress } from '@/lib/dispatchLogic';
 import { calcularImportePorFichas, normalizarTarifa } from '@/hooks/useTarifaConfig';
 
 export default function FareEstimate() {
