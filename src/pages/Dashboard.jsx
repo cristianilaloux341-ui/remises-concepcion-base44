@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
+import { resolvePanicAlert } from "@/lib/panicAlerts";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -89,20 +90,26 @@ export default function Dashboard() {
     return () => unsubscribe?.();
   }, [orders, toast]);
 
-  // Suscribirse a alertas de pánico en tiempo real
+  // Mantener únicamente alertas activas. Las atendidas nunca vuelven al recargar.
   useEffect(() => {
     let unsubscribe = null;
     let lastEvent = Date.now();
     let pollInterval = null;
 
+    const loadActive = () => {
+      base44.entities.PanicAlert.filter({ status: "activo" })
+        .then(data => setPanicAlerts(data.sort((a, b) => new Date(b.created_date) - new Date(a.created_date))))
+        .catch(() => {});
+    };
+
     const connect = () => {
       unsubscribe?.();
+      loadActive();
       unsubscribe = base44.entities.PanicAlert.subscribe((event) => {
         lastEvent = Date.now();
-        if (event.type === "create") {
-          setPanicAlerts(prev => [event.data, ...prev]);
+        if (event.type === "create" && event.data?.status === "activo") {
+          setPanicAlerts(prev => prev.some(a => a.id === event.id) ? prev : [event.data, ...prev]);
           setShowPanicPanel(true);
-          // Audio alert
           try {
             navigator.vibrate?.([500, 200, 500, 200, 500]);
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -119,6 +126,14 @@ export default function Dashboard() {
               o.start(t); o.stop(t + 0.4);
             });
           } catch (_) {}
+        } else if (event.type === "update") {
+          if (event.data?.status !== "activo") {
+            setPanicAlerts(prev => prev.filter(alert => alert.id !== event.id));
+          } else {
+            setPanicAlerts(prev => prev.map(alert => alert.id === event.id ? { ...alert, ...event.data } : alert));
+          }
+        } else if (event.type === "delete") {
+          setPanicAlerts(prev => prev.filter(alert => alert.id !== event.id));
         }
       });
     };
@@ -133,6 +148,16 @@ export default function Dashboard() {
       clearInterval(pollInterval);
     };
   }, []);
+
+  const handleResolvePanic = async (alert) => {
+    setPanicAlerts(prev => prev.filter(item => item.id !== alert.id));
+    try {
+      await resolvePanicAlert(alert.id);
+    } catch (error) {
+      setPanicAlerts(prev => prev.some(item => item.id === alert.id) ? prev : [alert, ...prev]);
+      alert(error?.message || "No se pudo marcar la alerta como atendida.");
+    }
+  };
 
   const activeOrders = orders.filter(o => ["pendiente", "ofrecido", "aceptado", "en_camino", "en_viaje"].includes(o.status));
   const pendingOrders = orders.filter(o => o.status === "pendiente");
@@ -269,7 +294,7 @@ export default function Dashboard() {
                       Ver en Maps
                     </button>
                     <button
-                      onClick={() => base44.entities.PanicAlert.update(alert.id, { status: "atendido" }).then(() => setPanicAlerts(prev => prev.filter(a => a.id !== alert.id)))}
+                      onClick={() => handleResolvePanic(alert)}
                       className="flex-1 text-xs bg-green-500 hover:bg-green-600 text-white py-1 rounded"
                     >
                       Atendido
