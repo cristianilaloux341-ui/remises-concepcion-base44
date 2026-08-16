@@ -49,6 +49,19 @@
     "notes": {
       "type": "string",
       "description": "Notas adicionales del operador"
+    },
+    "resolved_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha y hora en que la alerta fue atendida"
+    },
+    "resolved_by_id": {
+      "type": "string",
+      "description": "ID del operador que atendi\u00f3 la alerta"
+    },
+    "resolved_by_name": {
+      "type": "string",
+      "description": "Nombre del operador que atendi\u00f3 la alerta"
     }
   },
   "required": [
