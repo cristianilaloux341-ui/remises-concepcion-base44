@@ -149,13 +149,13 @@ export default function Dashboard() {
     };
   }, []);
 
-  const handleResolvePanic = async (alert) => {
-    setPanicAlerts(prev => prev.filter(item => item.id !== alert.id));
+  const handleResolvePanic = async (panic) => {
+    setPanicAlerts(prev => prev.filter(item => item.id !== panic.id));
     try {
-      await resolvePanicAlert(alert.id);
+      await resolvePanicAlert(panic.id);
     } catch (error) {
-      setPanicAlerts(prev => prev.some(item => item.id === alert.id) ? prev : [alert, ...prev]);
-      alert(error?.message || "No se pudo marcar la alerta como atendida.");
+      setPanicAlerts(prev => prev.some(item => item.id === panic.id) ? prev : [panic, ...prev]);
+      window.alert(error?.message || "No se pudo marcar la alerta como atendida.");
     }
   };
 
