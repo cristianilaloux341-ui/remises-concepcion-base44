@@ -17,7 +17,9 @@ export default function NewOrder() {
   const createMutation = useMutation({
     mutationFn: async (data) => {
       const manualDriverId = data.driver_id;
+      const resolvedMobileId = data._resolved_mobile_id || null;
       const orderData = { ...data };
+      delete orderData._resolved_mobile_id;
 
       // La orden nunca nace aceptada. La asignación real pasa por el backend.
       if (manualDriverId) {
@@ -46,7 +48,10 @@ export default function NewOrder() {
         if (!driver || driver.status !== "disponible") {
           throw new Error("El móvil está fuera de servicio u ocupado. El pasaje quedó pendiente y no fue enviado.");
         }
-        await assignDriverToOrder(newOrder, driver, { requireDriverConfirmation: true });
+        await assignDriverToOrder(newOrder, driver, {
+          requireDriverConfirmation: true,
+          mobileId: resolvedMobileId,
+        });
         return newOrder;
       }
 
