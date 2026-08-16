@@ -13,6 +13,7 @@ import PickupAutocomplete from "@/components/orders/PickupAutocomplete";
 import AddressAutocomplete from "@/components/orders/AddressAutocomplete";
 import { recordAddressUsage } from "@/hooks/useAddressSuggestions";
 import { useTarifaConfig, calcularDistanciaRuta, calcularImporte } from "@/hooks/useTarifaConfig";
+import { resolveActiveDriverForMobile } from "@/lib/mobileDriverResolver";
 
 const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 
@@ -117,6 +118,11 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
+  });
+
+  const { data: moviles = [] } = useQuery({
+    queryKey: ["moviles"],
+    queryFn: () => base44.entities.Movil.list(),
   });
 
   const { data: clients = [] } = useQuery({
@@ -306,36 +312,16 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     }
 
     if (!data.driver_id && manualDriverInput) {
-      // Resolver únicamente contra un chofer real registrado.
       const inputTrimmed = manualDriverInput.trim();
-      let movilNum = parseInt(inputTrimmed);
-      
-      // Búsqueda más inteligente para encontrar al móvil real
-      let driver = drivers.find(d => 
-        d.id === inputTrimmed || 
-        d.vehicle_model === inputTrimmed || 
-        d.name.toLowerCase() === inputTrimmed.toLowerCase() ||
-        (d.name && d.name.startsWith(inputTrimmed + " ")) || 
-        (d.name && d.name === inputTrimmed)
-      );
-
-      // Si aún no lo encuentra y es un número, buscar en el string del nombre que contenga el número
-      if (!driver && !isNaN(movilNum)) {
-        driver = drivers.find(d => d.name && (d.name.startsWith(`${movilNum} `) || d.name.includes(` ${movilNum} `)));
-      }
-
-      // No creamos móviles falsos ("Móvil XX"). Si no lo encuentra, lo dejamos para asignación manual obligatoria
-      if (!driver) {
-         alert(`No se encontró un chofer válido con el número/nombre: ${inputTrimmed}. Por favor, seleccionalo de la lista.`);
-         return; // Frenar el submit
-      }
-
-      if (driver.status !== "disponible") {
-        alert(`El móvil ${driver.name} está fuera de servicio u ocupado. El pasaje no fue asignado.`);
+      const resolved = resolveActiveDriverForMobile(inputTrimmed, drivers, moviles);
+      if (!resolved.driver) {
+        alert(resolved.error);
         return;
       }
-      data.driver_id = driver.id;
-      data.driver_name = driver.name;
+
+      data.driver_id = resolved.driver.id;
+      data.driver_name = resolved.driver.name;
+      data._resolved_mobile_id = resolved.mobile?.id || null;
       data.status = "ofrecido";
     } else if (!data.driver_id) {
       delete data.driver_id; 
