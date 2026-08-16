@@ -332,7 +332,7 @@ export default function TarifaConfigPanel() {
             </div>
           </div>
           <div className="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">
-            Ejemplo actual: bandera diurna <strong>$${form.bajada_bandera}</strong> + <strong>$${form.valor_ficha}</strong> cada <strong>{form.metros_por_ficha} m</strong>. Después de <strong>{form.tolerancia_espera_segundos} s</strong> acumulados detenido, suma <strong>$${form.valor_ficha_espera}</strong> cada <strong>{form.segundos_por_ficha_espera} s</strong>.
+            Ejemplo actual: bandera diurna <strong>${form.bajada_bandera}</strong> + <strong>${form.valor_ficha}</strong> cada <strong>{form.metros_por_ficha} m</strong>. Después de <strong>{form.tolerancia_espera_segundos} s</strong> acumulados detenido, suma <strong>${form.valor_ficha_espera}</strong> cada <strong>{form.segundos_por_ficha_espera} s</strong>.
           </div>
         </CardContent>
       </Card>
