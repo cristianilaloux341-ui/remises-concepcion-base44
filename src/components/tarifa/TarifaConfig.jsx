@@ -10,14 +10,12 @@ import { DollarSign, Save, Loader2, Lock, Moon, Sun, KeyRound, Timer } from "luc
 
 const DEFAULTS = {
   bajada_bandera: 1700,
-  precio_por_metro: 100 / 85,
-  precio_por_minuto_corrido: 0,
-  precio_por_minuto_espera: 200,
+  valor_ficha: 100,
+  metros_por_ficha: 85,
+  valor_ficha_espera: 100,
+  segundos_por_ficha_espera: 30,
   tolerancia_espera_segundos: 120,
   nocturna_bajada_bandera: 1900,
-  nocturna_precio_por_metro: 100 / 85,
-  nocturna_precio_por_minuto_corrido: 0,
-  nocturna_precio_por_minuto_espera: 200,
   nocturna_hora_inicio: 22,
   nocturna_hora_fin: 6,
   minutos_libre_post_viaje: 0,
@@ -68,14 +66,12 @@ export default function TarifaConfigPanel() {
     if (config) {
       setForm({
          bajada_bandera: config.bajada_bandera ?? DEFAULTS.bajada_bandera,
-         precio_por_metro: config.precio_por_metro ?? DEFAULTS.precio_por_metro,
-         precio_por_minuto_corrido: config.precio_por_minuto_corrido ?? DEFAULTS.precio_por_minuto_corrido,
-         precio_por_minuto_espera: config.precio_por_minuto_espera ?? DEFAULTS.precio_por_minuto_espera,
+         valor_ficha: config.valor_ficha ?? DEFAULTS.valor_ficha,
+         metros_por_ficha: config.metros_por_ficha ?? DEFAULTS.metros_por_ficha,
+         valor_ficha_espera: config.valor_ficha_espera ?? config.valor_ficha ?? DEFAULTS.valor_ficha_espera,
+         segundos_por_ficha_espera: config.segundos_por_ficha_espera ?? DEFAULTS.segundos_por_ficha_espera,
          tolerancia_espera_segundos: config.tolerancia_espera_segundos ?? DEFAULTS.tolerancia_espera_segundos,
          nocturna_bajada_bandera: config.nocturna_bajada_bandera ?? DEFAULTS.nocturna_bajada_bandera,
-         nocturna_precio_por_metro: config.nocturna_precio_por_metro ?? DEFAULTS.nocturna_precio_por_metro,
-         nocturna_precio_por_minuto_corrido: config.nocturna_precio_por_minuto_corrido ?? DEFAULTS.nocturna_precio_por_minuto_corrido,
-         nocturna_precio_por_minuto_espera: config.nocturna_precio_por_minuto_espera ?? DEFAULTS.nocturna_precio_por_minuto_espera,
          nocturna_hora_inicio: config.nocturna_hora_inicio ?? DEFAULTS.nocturna_hora_inicio,
          nocturna_hora_fin: config.nocturna_hora_fin ?? DEFAULTS.nocturna_hora_fin,
          minutos_libre_post_viaje: config.minutos_libre_post_viaje ?? DEFAULTS.minutos_libre_post_viaje,
@@ -114,7 +110,7 @@ export default function TarifaConfigPanel() {
         action: "modificar_tarifa",
         user_type: "admin",
         user_name: localOp?.name || "Administrador",
-        details: "Modificó los valores de las tarifas"
+        details: `Nueva tarifa: bandera día $${form.bajada_bandera}, noche $${form.nocturna_bajada_bandera}, ficha $${form.valor_ficha} cada ${form.metros_por_ficha} m, espera $${form.valor_ficha_espera} cada ${form.segundos_por_ficha_espera} s, tolerancia ${form.tolerancia_espera_segundos} s`
       }).catch(() => {});
 
       qc.invalidateQueries(["tarifa_config"]);
@@ -147,6 +143,24 @@ export default function TarifaConfigPanel() {
 
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = () => {
+    const positiveFields = ["bajada_bandera", "valor_ficha", "metros_por_ficha", "valor_ficha_espera", "segundos_por_ficha_espera", "nocturna_bajada_bandera"];
+    if (positiveFields.some(field => !Number.isFinite(Number(form[field])) || Number(form[field]) <= 0)) {
+      alert("Revisá los valores: banderas, fichas, metros y segundos deben ser mayores que cero.");
+      return;
+    }
+    if (!Number.isFinite(Number(form.tolerancia_espera_segundos)) || Number(form.tolerancia_espera_segundos) < 0) {
+      alert("La tolerancia debe ser cero o un número positivo.");
+      return;
+    }
+    if ([form.nocturna_hora_inicio, form.nocturna_hora_fin].some(v => Number(v) < 0 || Number(v) > 23)) {
+      alert("Las horas de la tarifa nocturna deben estar entre 0 y 23.");
+      return;
+    }
+    const resumen = `Día: $${form.bajada_bandera}\nNoche: $${form.nocturna_bajada_bandera}\nDistancia: $${form.valor_ficha} cada ${form.metros_por_ficha} metros\nEspera: $${form.valor_ficha_espera} cada ${form.segundos_por_ficha_espera} segundos\nTolerancia: ${form.tolerancia_espera_segundos} segundos\n\n¿Confirmás esta nueva tarifa para los viajes que comiencen después de guardar?`;
+    if (window.confirm(resumen)) saveMutation.mutate(form);
   };
 
   const handleUnlock = () => {
