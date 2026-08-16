@@ -102,12 +102,6 @@ export default function FareEstimate() {
 
           if (dist) {
             setDistance(dist);
-            const isNocturna = () => {
-              const hora = new Date().getHours();
-              const inicio = currentTarifa.nocturna_hora_inicio ?? 22;
-              const fin = currentTarifa.nocturna_hora_fin ?? 6;
-              return inicio > fin ? (hora >= inicio || hora < fin) : (hora >= inicio && hora < fin);
-            };
             // La app cliente usa exactamente los valores editables de la central.
             const tarifaVigente = normalizarTarifa(currentTarifa);
             const calculated = calcularImportePorFichas(dist, 0, tarifaVigente);
