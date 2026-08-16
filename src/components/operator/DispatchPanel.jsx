@@ -6,6 +6,7 @@ import { Zap, User, MapPin, Loader2, ChevronRight, Car, CheckCircle2, Radio } fr
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
 import { autoDispatch, assignDriverToOrder, getBaseQueue } from "@/lib/dispatchLogic";
 import { getDriverDisplay } from "@/lib/utils";
+import { resolveActiveDriverForMobile } from "@/lib/mobileDriverResolver";
 
 function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   const [dispatching, setDispatching] = useState(false);
@@ -40,24 +41,14 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
 
     try {
       const inputTrimmed = selectedDriverId.trim();
-      const movilByPlate = Object.fromEntries((moviles || []).map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
+      const resolved = resolveActiveDriverForMobile(inputTrimmed, drivers, moviles);
+      if (!resolved.driver) throw new Error(resolved.error);
 
-      // Solo se puede asignar un chofer real y actualmente disponible.
-      const driver = drivers.find(d =>
-        d.id === inputTrimmed ||
-        d.vehicle_model === inputTrimmed ||
-        d.name.toLowerCase() === inputTrimmed.toLowerCase() ||
-        (movilByPlate[d.vehicle_plate?.toUpperCase()] === parseInt(inputTrimmed))
-      );
-
-      if (!driver) {
-        throw new Error(`No existe un chofer registrado para el móvil "${inputTrimmed}".`);
-      }
-      if (driver.status !== "disponible") {
-        throw new Error(`El móvil ${inputTrimmed} está fuera de servicio u ocupado. El pasaje no fue enviado.`);
-      }
-
-      await assignDriverToOrder(order, driver, { requireDriverConfirmation: true });
+      const driver = resolved.driver;
+      await assignDriverToOrder(order, driver, {
+        requireDriverConfirmation: true,
+        mobileId: resolved.mobile?.id || null,
+      });
 
       const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
       base44.entities.AuditLog.create({
