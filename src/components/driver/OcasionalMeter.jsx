@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { calcularImportePorFichas, METROS_POR_FICHA, VALOR_FICHA, SEGUNDOS_POR_FICHA_ESPERA } from "@/hooks/useTarifaConfig";
+import { calcularImportePorFichas, normalizarTarifa, TARIFA_DEFAULTS } from "@/hooks/useTarifaConfig";
 import { createGpsStabilityFilter, GPS_LOCATION_EVENT } from "@/lib/gpsStability";
 import { DollarSign, Timer, Navigation, CheckCircle2, XCircle, Zap, Clock } from "lucide-react";
 
@@ -33,38 +33,14 @@ export default function OcasionalMeter({ onClose, driver }) {
   const lastGpsAtRef = useRef(0);
   const timerRef = useRef(null);
 
-  const tarifa = useRef({
-    bajada_bandera: 1700,
-    tolerancia_espera_segundos: 120,
-    es_nocturna: false,
-  });
+  const tarifa = useRef({ ...TARIFA_DEFAULTS, es_nocturna: false });
 
   // Cargar tarifa al montar
   useEffect(() => {
     base44.entities.TarifaConfig.list().then(configs => {
-      const raw = configs[0] || {};
-      const hora = new Date().getHours();
-      const horaInicio = raw.nocturna_hora_inicio ?? 22;
-      const horaFin = raw.nocturna_hora_fin ?? 6;
-      const nocturna = horaInicio > horaFin
-        ? (hora >= horaInicio || hora < horaFin)
-        : (hora >= horaInicio && hora < horaFin);
-
-      if (nocturna) {
-        tarifa.current = {
-          bajada_bandera: raw.nocturna_bajada_bandera ?? 1900,
-          tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
-        };
-        setEsNocturna(true);
-        setTarifaLabel("🌙 Tarifa Nocturna");
-      } else {
-        tarifa.current = {
-          bajada_bandera: raw.bajada_bandera ?? 1700,
-          tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
-        };
-        setEsNocturna(false);
-        setTarifaLabel("☀️ Tarifa Diurna");
-      }
+      tarifa.current = normalizarTarifa(configs[0] || {});
+      setEsNocturna(tarifa.current.es_nocturna);
+      setTarifaLabel(tarifa.current.es_nocturna ? "🌙 Tarifa Nocturna" : "☀️ Tarifa Diurna");
       setTarifaCargada(true);
     }).catch(() => { setTarifaCargada(true); });
   }, []);
@@ -87,7 +63,7 @@ export default function OcasionalMeter({ onClose, driver }) {
 
   // El tiempo en movimiento no se cobra: solo distancia y espera.
   const recalcular = (metros, _sMovimiento, sEspera) => {
-    return calcularImportePorFichas(metros, sEspera, tarifa.current.bajada_bandera);
+    return calcularImportePorFichas(metros, sEspera, tarifa.current);
   };
 
   const iniciarViaje = () => {
@@ -158,6 +134,14 @@ export default function OcasionalMeter({ onClose, driver }) {
         source: "operador",
         segundos_espera_acumulados: segundosEsperaRef.current,
         distancia_teorica_metros: Math.round(metrosRef.current),
+        taximetro_iniciado: true,
+        metros_taximetro: Math.round(metrosRef.current),
+        tarifa_bajada_bandera: tarifa.current.bajada_bandera,
+        tarifa_valor_ficha: tarifa.current.valor_ficha,
+        tarifa_metros_por_ficha: tarifa.current.metros_por_ficha,
+        tarifa_valor_ficha_espera: tarifa.current.valor_ficha_espera,
+        tarifa_segundos_por_ficha_espera: tarifa.current.segundos_por_ficha_espera,
+        tarifa_tolerancia_espera_segundos: tarifa.current.tolerancia_espera_segundos,
         created_date: new Date().toISOString()
       });
       // Forzar recarga de los viajes para que aparezca en estadísticas
@@ -194,8 +178,8 @@ export default function OcasionalMeter({ onClose, driver }) {
     const km = (metrosRecorridos / 1000).toFixed(2);
     const minutosMov = (segundosMovimientoRef.current / 60).toFixed(1);
     const minutosEsp = (segundosEsperaRef.current / 60).toFixed(1);
-    const fichasDistancia = Math.floor(metrosRecorridos / METROS_POR_FICHA);
-    const fichasEspera = Math.floor(segundosEsperaRef.current / SEGUNDOS_POR_FICHA_ESPERA);
+    const fichasDistancia = Math.floor(metrosRecorridos / tarifa.current.metros_por_ficha);
+    const fichasEspera = Math.floor(segundosEsperaRef.current / tarifa.current.segundos_por_ficha_espera);
     return (
       <div className="fixed inset-0 z-[9999] bg-gray-950 flex flex-col items-center justify-center p-6" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="w-full max-w-sm space-y-5 text-center">
@@ -220,8 +204,8 @@ export default function OcasionalMeter({ onClose, driver }) {
               <span className="text-white font-bold">{km} km</span>
             </div>
             <div className="flex justify-between text-xs text-gray-600">
-              <span>{fichasDistancia} fichas × ${VALOR_FICHA}</span>
-              <span>${(fichasDistancia * VALOR_FICHA).toLocaleString()}</span>
+              <span>{fichasDistancia} fichas × ${tarifa.current.valor_ficha}</span>
+              <span>${(fichasDistancia * tarifa.current.valor_ficha).toLocaleString()}</span>
             </div>
             <div className="h-px bg-gray-800" />
             <div className="flex justify-between">
@@ -238,8 +222,8 @@ export default function OcasionalMeter({ onClose, driver }) {
               <span className="text-white font-bold">{minutosEsp} min</span>
             </div>
             <div className="flex justify-between text-xs text-gray-600">
-              <span>{fichasEspera} fichas × ${VALOR_FICHA}</span>
-              <span>${(fichasEspera * VALOR_FICHA).toLocaleString()}</span>
+              <span>{fichasEspera} fichas × ${tarifa.current.valor_ficha_espera}</span>
+              <span>${(fichasEspera * tarifa.current.valor_ficha_espera).toLocaleString()}</span>
             </div>
             <div className="h-px bg-gray-800" />
             <div className="flex justify-between font-bold text-green-400">
