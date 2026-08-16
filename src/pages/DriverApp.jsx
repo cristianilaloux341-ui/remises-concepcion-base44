@@ -852,8 +852,7 @@ export default function DriverApp() {
       tryAutoAccept().then(res => {
         if (res.data?.accepted) {
           setLocalOverride({ status: "en_viaje", optimisticOrderId: autoAcceptOrderId });
-          updateOrder.mutate({ id: autoAcceptOrderId, data: { status: "aceptado", driver_id: myDriverId } });
-          updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+          // acceptRide es la única autoridad que confirma el viaje y ocupa al chofer.
           base44.functions.invoke("sendPushNotification", { action: "cancel_ride", orderId: autoAcceptOrderId, driverId: myDriverId }).catch(()=>{});
         } else {
           window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
@@ -959,8 +958,7 @@ export default function DriverApp() {
           }
           notifySW({ type: "ACK_ACCEPT_ORDER", orderId }); // Send ACK immediately so SW doesn't spawn a new tab
           setLocalOverride({ status: "en_viaje", optimisticOrderId: orderId });
-          updateOrder.mutate({ id: orderId, data: { status: "aceptado", driver_id: myDriverId } });
-          updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
+          // acceptRide es la única autoridad que confirma el viaje y ocupa al chofer.
           window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
       }
