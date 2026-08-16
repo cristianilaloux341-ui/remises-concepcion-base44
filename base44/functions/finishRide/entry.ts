@@ -39,13 +39,13 @@ Deno.serve(async (req) => {
   }
 
   const checkAndRepairDriver = async (currentDriver) => {
-    if (['disponible', 'no_disponible'].includes(currentDriver.status) && !currentDriver.active_order_id && !currentDriver.reserved_order_id && !currentDriver.reservation_token && !currentDriver.manual_reservation_token) {
+    if (['disponible', 'no_disponible'].includes(currentDriver.status) && !currentDriver.active_ride_id && !currentDriver.reserved_order_id && !currentDriver.reservation_token && !currentDriver.manual_reservation_token) {
       await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Already completed perfectly', metadata: { orderId, driverId } });
       return Response.json({ success: true, idempotent: true, reason: 'ALREADY_PROCESSED' });
     } else {
       const fixRes = await b44.entities.Driver.updateMany(
         { id: driverId },
-        { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, active_order_id: null } }
+        { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, active_ride_id: null } }
       );
       if (fixRes.updated === 1) {
          await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Repaired driver state', metadata: { orderId, driverId } });
@@ -69,7 +69,8 @@ Deno.serve(async (req) => {
   const uOrder = await b44.entities.RideOrder.updateMany(
     { id: orderId, status: { $in: ['aceptado', 'en_viaje'] }, driver_id: driverId },
     { $set: { 
-        status: 'completado', 
+        status: 'completado',
+        taximetro_iniciado: false,
         importe_real_actual: importeFinal, 
         updated_date: new Date().toISOString(),
         reserved_driver_id: null,
@@ -98,7 +99,7 @@ Deno.serve(async (req) => {
 
   const uDriver = await b44.entities.Driver.updateMany(
     { id: driverId },
-    { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, active_order_id: null } }
+    { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, active_ride_id: null } }
   );
 
   if (uDriver.updated !== 1) {
