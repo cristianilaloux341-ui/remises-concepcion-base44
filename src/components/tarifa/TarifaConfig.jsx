@@ -286,28 +286,53 @@ export default function TarifaConfigPanel() {
             Tarifa Diurna
           </CardTitle>
         </CardHeader>
+        <CardContent>
+          <CampoMoneda label="Bajada de bandera diurna" description="Importe inicial para viajes que comienzan durante el día" field="bajada_bandera" form={form} onChange={handleChange} />
+        </CardContent>
+      </Card>
+
+      {/* Fichas compartidas por día y noche */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-green-600" />
+            Fichas y espera
+          </CardTitle>
+        </CardHeader>
         <CardContent className="space-y-5">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            Reloj configurado por fichas: <strong>$100 cada 85 metros</strong>. El tiempo en movimiento no se cobra.
-            La espera suma <strong>$100 cada 30 segundos</strong> después de consumir una sola vez la tolerancia.
+          <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+            El tiempo en movimiento no se cobra. Estos valores se aplican tanto de día como de noche.
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <CampoMoneda label="Bajada de bandera" description="Importe fijo al iniciar" field="bajada_bandera" form={form} onChange={handleChange} />
+            <CampoMoneda label="Precio por ficha" description="Importe que suma cada ficha de distancia" field="valor_ficha" form={form} onChange={handleChange} />
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold">Tolerancia de espera</Label>
+              <Label className="text-sm font-semibold">Metros por ficha</Label>
               <div className="relative">
-                <Input
-                  type="number"
-                  min={0}
-                  step={1}
-                  className="pr-14"
-                  value={form.tolerancia_espera_segundos}
-                  onChange={(e) => handleChange("tolerancia_espera_segundos", e.target.value)}
-                />
+                <Input type="number" min={1} step={1} className="pr-14" value={form.metros_por_ficha} onChange={(e) => handleChange("metros_por_ficha", e.target.value)} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">metros</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Distancia completa necesaria para sumar una ficha</p>
+            </div>
+            <CampoMoneda label="Precio por ficha de espera" description="Importe que suma cada ficha mientras está detenido" field="valor_ficha_espera" form={form} onChange={handleChange} />
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold">Segundos por ficha de espera</Label>
+              <div className="relative">
+                <Input type="number" min={1} step={1} className="pr-14" value={form.segundos_por_ficha_espera} onChange={(e) => handleChange("segundos_por_ficha_espera", e.target.value)} />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">seg</span>
               </div>
-              <p className="text-xs text-muted-foreground">Gracia antes de cobrar espera</p>
+              <p className="text-xs text-muted-foreground">Tiempo completo detenido para sumar una ficha</p>
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold">Tolerancia inicial de espera</Label>
+              <div className="relative">
+                <Input type="number" min={0} step={1} className="pr-14" value={form.tolerancia_espera_segundos} onChange={(e) => handleChange("tolerancia_espera_segundos", e.target.value)} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">seg</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Se consume una sola vez durante todo el viaje</p>
+            </div>
+          </div>
+          <div className="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">
+            Ejemplo actual: bandera diurna <strong>$${form.bajada_bandera}</strong> + <strong>$${form.valor_ficha}</strong> cada <strong>{form.metros_por_ficha} m</strong>. Después de <strong>{form.tolerancia_espera_segundos} s</strong> acumulados detenido, suma <strong>$${form.valor_ficha_espera}</strong> cada <strong>{form.segundos_por_ficha_espera} s</strong>.
           </div>
         </CardContent>
       </Card>
@@ -449,7 +474,7 @@ export default function TarifaConfigPanel() {
       {/* Acciones */}
       <div className="flex items-center gap-3 flex-wrap">
         <Button
-          onClick={() => saveMutation.mutate(form)}
+          onClick={handleSave}
           disabled={saveMutation.isPending}
           className={`gap-2 ${saved ? "bg-green-500 hover:bg-green-600" : ""}`}
         >
