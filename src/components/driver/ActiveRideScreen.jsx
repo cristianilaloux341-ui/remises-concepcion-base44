@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
-import { calcularImportePorFichas } from "@/hooks/useTarifaConfig";
+import { calcularImportePorFichas, normalizarTarifa, TARIFA_DEFAULTS } from "@/hooks/useTarifaConfig";
 import { createGpsStabilityFilter, GPS_LOCATION_EVENT } from "@/lib/gpsStability";
 import { MapPin, Phone, Navigation, Car, CheckCircle2, XCircle, Timer, AlertCircle } from "lucide-react";
 
@@ -43,29 +43,13 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
 
   useEffect(() => { importeRef.current = importeActual; }, [importeActual]);
 
-  const tarifaRef = useRef({
-    bajada_bandera: 1700,
-    tolerancia_espera_segundos: 120,
-  });
+  const tarifaRef = useRef({ ...TARIFA_DEFAULTS });
 
   useEffect(() => {
     base44.entities.TarifaConfig.list().then(configs => {
-      const raw = configs[0] || {};
-      const hora = new Date().getHours();
-      const horaInicio = raw.nocturna_hora_inicio ?? 22;
-      const horaFin = raw.nocturna_hora_fin ?? 6;
-      const nocturna = horaInicio > horaFin
-        ? (hora >= horaInicio || hora < horaFin)
-        : (hora >= horaInicio && hora < horaFin);
-
-      tarifaRef.current = {
-        bajada_bandera: nocturna
-          ? (raw.nocturna_bajada_bandera ?? 1900)
-          : (raw.bajada_bandera ?? 1700),
-        tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? 120,
-      };
+      tarifaRef.current = normalizarTarifa(configs[0] || {});
     }).catch(() => {
-      tarifaRef.current = { bajada_bandera: 1700, tolerancia_espera_segundos: 120 };
+      tarifaRef.current = { ...TARIFA_DEFAULTS };
     }).finally(() => setTarifaCargada(true));
   }, []);
 
@@ -87,9 +71,19 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   useEffect(() => {
     if (order.status !== "en_viaje" || !tarifaCargada) return;
 
-    // Primera puesta en marcha: siempre comienza en la bajada de bandera.
-    // Si Android recarga la pantalla durante el viaje, se recuperan los acumulados guardados.
+    // Primera puesta en marcha: se congela la tarifa vigente dentro del viaje.
+    // Si Android recarga, recupera exactamente esa tarifa aunque la empresa haya publicado otra.
     const reanudando = order.taximetro_iniciado === true;
+    if (reanudando && order.tarifa_bajada_bandera) {
+      tarifaRef.current = {
+        bajada_bandera: order.tarifa_bajada_bandera,
+        valor_ficha: order.tarifa_valor_ficha || TARIFA_DEFAULTS.valor_ficha,
+        metros_por_ficha: order.tarifa_metros_por_ficha || TARIFA_DEFAULTS.metros_por_ficha,
+        valor_ficha_espera: order.tarifa_valor_ficha_espera || TARIFA_DEFAULTS.valor_ficha_espera,
+        segundos_por_ficha_espera: order.tarifa_segundos_por_ficha_espera || TARIFA_DEFAULTS.segundos_por_ficha_espera,
+        tolerancia_espera_segundos: order.tarifa_tolerancia_espera_segundos ?? TARIFA_DEFAULTS.tolerancia_espera_segundos,
+      };
+    }
     metrosRef.current = reanudando ? (order.metros_taximetro || 0) : 0;
     contadorParadoRef.current = reanudando ? (order.segundos_tolerancia_espera_usados || 0) : 0;
     let segundosEspera = reanudando ? (order.segundos_espera_acumulados || 0) : 0;
@@ -97,7 +91,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     const importeInicial = calcularImportePorFichas(
       metrosRef.current,
       segundosEspera,
-      tarifaRef.current.bajada_bandera
+      tarifaRef.current
     );
     setMetrosRecorridos(Math.round(metrosRef.current));
     setImporteActual(importeInicial);
@@ -110,6 +104,12 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
         metros_taximetro: 0,
         segundos_tolerancia_espera_usados: 0,
         taximetro_iniciado: true,
+        tarifa_bajada_bandera: tarifaRef.current.bajada_bandera,
+        tarifa_valor_ficha: tarifaRef.current.valor_ficha,
+        tarifa_metros_por_ficha: tarifaRef.current.metros_por_ficha,
+        tarifa_valor_ficha_espera: tarifaRef.current.valor_ficha_espera,
+        tarifa_segundos_por_ficha_espera: tarifaRef.current.segundos_por_ficha_espera,
+        tarifa_tolerancia_espera_segundos: tarifaRef.current.tolerancia_espera_segundos,
       }).catch(() => {});
     }
 
@@ -126,7 +126,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
         const nuevo = calcularImportePorFichas(
           metrosRef.current,
           segundosEspera,
-          tarifaRef.current.bajada_bandera
+          tarifaRef.current
         );
         importeRef.current = nuevo;
         setImporteActual(nuevo);
@@ -155,7 +155,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
         const nuevo = calcularImportePorFichas(
           metrosRef.current,
           segundosEspera,
-          tarifaRef.current.bajada_bandera
+          tarifaRef.current
         );
         importeRef.current = nuevo;
         setImporteActual(nuevo);
