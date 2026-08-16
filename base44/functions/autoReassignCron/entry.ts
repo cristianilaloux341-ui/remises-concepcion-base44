@@ -31,41 +31,10 @@ Deno.serve(async (req) => {
       updated_date: { $lt: twoHoursAgoStr }
     });
 
-    // 2. Limpieza de choferes fantasma (desconectados o sin señal por más de 10 mins)
-    const tenMinsAgo = new Date(Date.now() - (10 * 60 * 1000)).toISOString();
-    const ghostDrivers = await b44.entities.Driver.filter({
-      status: "disponible",
-      $or: [
-        { last_active: { $lt: tenMinsAgo } },
-        { last_active: null }
-      ]
-    });
-
-    let ghostsDisconnected = 0;
-    for (const driver of ghostDrivers) {
-      // Si el móvil está agendado en una base, le damos 2 horas de gracia en vez de 10 min
-      if (driver.current_base) {
-        const twoHoursAgoTime = Date.now() - (120 * 60 * 1000);
-        const driverLastActive = driver.last_active ? new Date(driver.last_active).getTime() : 0;
-        if (driverLastActive > twoHoursAgoTime) {
-          continue;
-        }
-      }
-
-      // Verificar doblemente que no estén en medio de un viaje
-      const activeRides = await b44.entities.RideOrder.filter({
-        status: { $in: ["ofrecido", "aceptado", "en_camino", "en_viaje"] },
-        $or: [{ driver_id: driver.id }, { reserved_driver_id: driver.id }]
-      });
-      
-      if (activeRides.length === 0) {
-        await b44.entities.Driver.updateMany(
-          { id: driver.id },
-          { $set: { status: "no_disponible", current_base: null, queue_entered_at: null } }
-        );
-        ghostsDisconnected++;
-      }
-    }
+    // La falta de heartbeat no cambia el estado operativo del chofer.
+    // Android puede suspender JavaScript durante horas aunque el servicio nativo siga activo.
+    // Un móvil sale de servicio únicamente por una acción explícita del chofer.
+    const ghostsDisconnected = 0;
 
     let count = 0;
     
