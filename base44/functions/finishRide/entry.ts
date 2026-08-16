@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     } else {
       const fixRes = await b44.entities.Driver.updateMany(
         { id: driverId },
-        { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, active_ride_id: null } }
+        { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null, active_ride_id: null } }
       );
       if (fixRes.updated === 1) {
          await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Repaired driver state', metadata: { orderId, driverId } });
@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
 
   const uDriver = await b44.entities.Driver.updateMany(
     { id: driverId },
-    { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, active_ride_id: null } }
+    { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null, active_ride_id: null } }
   );
 
   if (uDriver.updated !== 1) {
