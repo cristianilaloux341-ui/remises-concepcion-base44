@@ -1660,34 +1660,61 @@ export default function DriverApp() {
   }, [libreBlockedSegs > 0]);
 
   const handleFinishRide = async (finalFare) => {
-    if (!activeOrder) return;
+    if (!activeOrder) return false;
     const currentOrderId = activeOrder.id;
-    
-    // Optimistic UI - bloquear futuros updates via websocket
+
+    // La pantalla no libera al chofer hasta que el servidor confirme que limpió
+    // tanto el viaje como active_ride_id. Si se corta Internet, se reintenta.
+    let confirmed = false;
+    let lastError = null;
+    for (let attempt = 0; attempt < 5 && !confirmed; attempt++) {
+      try {
+        const res = await base44.functions.invoke("finishRide", {
+          orderId: currentOrderId,
+          driverId: myDriverId,
+          importeFinal: finalFare,
+          sessionToken: getSessionToken()
+        });
+        confirmed = res.data?.success === true || res.data?.idempotent === true;
+        if (!confirmed) lastError = new Error(res.data?.reason || "finish_not_confirmed");
+      } catch (error) {
+        lastError = error;
+      }
+      if (!confirmed && attempt < 4) {
+        await new Promise(resolve => setTimeout(resolve, 1200 * (attempt + 1)));
+      }
+    }
+
+    if (!confirmed) {
+      console.error("No se pudo confirmar la finalización", lastError);
+      window.alert("No se pudo confirmar el fin del viaje. Revisá Internet y tocá Terminar Viaje nuevamente.");
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+      return false;
+    }
+
     ignoredOrdersRef.current.add(currentOrderId);
-    
     setReceiptOrder({ ...activeOrder, importe_final: finalFare || activeOrder.importe_real_actual || activeOrder.importe_estimado });
     lastRideBaseRef.current = activeOrder.assigned_base || myDriver?.current_base || null;
-    
+
     const secs = (tarifaMinutosRef.current || 0) * 60;
     if (secs > 0) setLibreBlockedSegs(secs);
-    
+
+    const queueEnteredAt = new Date().toISOString();
     setLocalOverride({ status: "disponible", current_base: null, _ignoredOrderId: currentOrderId });
-    updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
-    
-    try {
-      const res = await base44.functions.invoke("finishRide", {
-        orderId: currentOrderId,
-        driverId: myDriverId,
-        importeFinal: finalFare,
-        sessionToken: getSessionToken()
-      });
-      if (!res.data?.success && !res.data?.idempotent) {
-        console.warn("Fallo al finalizar viaje en backend:", res?.data?.reason);
+    updateDriver.mutate({
+      id: myDriverId,
+      data: {
+        status: "disponible",
+        dispatch_status: "normal",
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null,
+        queue_entered_at: queueEnteredAt
       }
-    } catch (e) {
-      console.error("Error de red al finalizar viaje", e);
-    }
+    });
+    return true;
   };
 
   const handleStatusChange = (newStatus) => {
@@ -1709,15 +1736,36 @@ export default function DriverApp() {
       data: { current_base: newBase, status: "disponible", queue_entered_at: ts },
     });
   };
-  const handleTakeOrder = (order) => {
+  const handleTakeOrder = async (order) => {
+    if (isAccepting || !order?.id) return;
     const realId = getRealOrderId(order.id);
-    stopNativeRideAlert(realId, "handleTakeOrder");
-    if (Capacitor.isNativePlatform() && realId) {
-      Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId: realId, assignmentAttempt: 1, resolutionType: "ACCEPTED" }).catch(()=>{});
+    await stopNativeRideAlert(realId, "handleTakeOrder");
+    setIsAccepting(true);
+    try {
+      const res = await base44.functions.invoke("acceptRide", {
+        orderId: order.id,
+        driverId: myDriverId,
+        assignmentAttempt: order.assignment_attempt || 1,
+        sessionToken: getSessionToken()
+      });
+      if (!res.data?.accepted) {
+        window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+        return;
+      }
+      if (Capacitor.isNativePlatform() && realId) {
+        Capacitor.Plugins.ForegroundService?.markRideResolved({
+          orderId: realId,
+          assignmentAttempt: order.assignment_attempt || 1,
+          resolutionType: "ACCEPTED"
+        }).catch(()=>{});
+      }
+      setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
+    } catch (error) {
+      console.error("No se pudo aceptar el viaje", error);
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+    } finally {
+      setIsAccepting(false);
     }
-    setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
-    updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId, driver_name: myDriver?.name, assigned_base: myDriver?.current_base } });
-    updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
   };
 
   const handleGoOffService = () => {
@@ -1752,7 +1800,20 @@ export default function DriverApp() {
 
     const ts = new Date(0).toISOString(); // timestamp en el pasado → queda primero en la cola
     setLocalOverride({ status: "disponible", current_base: base, queue_entered_at: ts });
-    updateDriver.mutate({ id: myDriverId, data: { status: "disponible", current_base: base, queue_entered_at: ts } });
+    updateDriver.mutate({
+      id: myDriverId,
+      data: {
+        status: "disponible",
+        dispatch_status: "normal",
+        current_base: base,
+        queue_entered_at: ts,
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
+      }
+    });
     setLibreBlockedSegs(0); // al anular no aplica bloqueo
 
     // Disparamos la reasignación automática para que no quede trabado
@@ -1805,14 +1866,13 @@ export default function DriverApp() {
       const res = await tryBroadcastAccept(3);
 
       if (res.data.accepted) {
+        // La aceptación ya quedó confirmada de forma atómica en acceptRide.
         if (order?.id) {
           setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
-          updateOrder.mutate({ id: order.id, data: { status: "aceptado", driver_id: myDriverId } });
         } else {
           setLocalOverride({ status: "en_viaje" });
         }
-        updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
-        
+
         base44.functions.invoke("sendPushNotification", {
           action: "cancel_ride",
           orderId: order.id,
