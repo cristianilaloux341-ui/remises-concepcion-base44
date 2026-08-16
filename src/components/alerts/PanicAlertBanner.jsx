@@ -4,6 +4,7 @@ import { AlertTriangle, X, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
+import { resolvePanicAlert } from "@/lib/panicAlerts";
 
 // ── Sonido de pánico ── fuerte, repetitivo, urgente
 let audioCtx = null;
@@ -107,12 +108,14 @@ export default function PanicAlertBanner() {
   }, []);
 
   const dismiss = async (panic) => {
-    // Optimistic UI: lo sacamos de la pantalla instantáneamente
+    // Optimistic UI: se oculta instantáneamente, pero sólo queda cerrado si el backend confirma.
     setPanics(prev => prev.filter(p => p.id !== panic.id));
     try {
-      await base44.entities.PanicAlert.update(panic.id, { status: "atendido" });
+      await resolvePanicAlert(panic.id);
     } catch (e) {
-      console.error("Error al descartar pánico", e);
+      console.error("Error al atender pánico", e);
+      setPanics(prev => prev.some(p => p.id === panic.id) ? prev : [panic, ...prev]);
+      alert(e?.message || "No se pudo marcar la alerta como atendida.");
     }
   };
 
@@ -134,8 +137,8 @@ export default function PanicAlertBanner() {
             </div>
             <button 
               className="text-red-200 hover:text-white shrink-0 opacity-50 p-1"
-              onClick={() => setPanics(prev => prev.filter(p => p.id !== panic.id))}
-              title="Cerrar forzado localmente"
+              onClick={() => dismiss(panic)}
+              title="Cerrar y marcar como atendida"
             >
               <X className="w-5 h-5" />
             </button>
