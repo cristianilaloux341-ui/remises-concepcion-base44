@@ -47,8 +47,15 @@ async function validateDriverAndVehicle(base44: any, driver: any) {
     } catch (_) {}
   }
   if (!movil) {
-    const moviles = await base44.asServiceRole.entities.Movil.filter({ driver_id: driver.id });
-    if (moviles.length > 0) movil = moviles[0];
+    const moviles = await base44.asServiceRole.entities.Movil.list();
+    movil = moviles.find((candidate: any) => {
+      const ids = Array.isArray(candidate.driver_ids) ? candidate.driver_ids : [];
+      if (ids.includes(driver.id) || candidate.driver_id === driver.id) return true;
+      if (String(candidate.numero_movil ?? "") === String(driver.vehicle_model ?? "")) return true;
+      const mobilePlate = String(candidate.dominio || "").replace(/\s+/g, "").toUpperCase();
+      const driverPlate = String(driver.vehicle_plate || "").replace(/\s+/g, "").toUpperCase();
+      return mobilePlate && mobilePlate === driverPlate;
+    }) || null;
   }
 
   if (movil?.fuera_de_servicio) return { status: "blocked", message: "Móvil fuera de servicio." };
