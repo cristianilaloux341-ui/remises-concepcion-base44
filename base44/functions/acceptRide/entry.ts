@@ -394,7 +394,11 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   const commitNow = Date.now();
   const commitFilter = { 
       id: rideOrderId, 
-      status: isNowBroadcast ? "pendiente" : "ofrecido", 
+      // Compatibilidad defensiva con APK anteriores: algunas versiones adelantaban
+      // el estado visual antes de que este commit terminara. La reserva del móvil,
+      // el intento y el lease siguen validando que sea el mismo ofrecimiento.
+      status: isNowBroadcast ? "pendiente" : { $in: ["ofrecido", "aceptado", "en_camino", "en_viaje"] },
+      driver_id: isNowBroadcast ? null : { $in: [null, driverId] },
       reserved_driver_id: isNowBroadcast ? null : driverId, 
       assignment_attempt: isNowBroadcast ? order.assignment_attempt : assignmentAttempt, 
       processingOwnerId: ownerId, 
@@ -472,7 +476,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     else if (!isNowBroadcast && check.assignment_attempt !== assignmentAttempt) commercialStatus = "STALE_ASSIGNMENT_ATTEMPT";
     else if (!isNowBroadcast && check.driver_id !== driverId && check.reserved_driver_id !== driverId) commercialStatus = "INVALID_DRIVER";
     else if (check.processingOwnerId !== ownerId || check.processingLeaseVersion !== acquiredLeaseVersion || check.processingAction !== "ACCEPT" || check.processingOperationKey !== operationKey || check.processingLeaseExpiresAt <= commitNow) commercialStatus = "LEASE_LOST";
-    else if (!isNowBroadcast && check.status !== "ofrecido") commercialStatus = "INVALID_STATE";
+    else if (!isNowBroadcast && !["ofrecido", "aceptado", "en_camino", "en_viaje"].includes(check.status)) commercialStatus = "INVALID_STATE";
     else commercialStatus = "INTERNAL_INCONSISTENCY";
 
     const comp = await compensateDriverCAS(b44, driverId, rideOrderId, reservationKey, reservedDriverVersion, correlationId, ctx);
