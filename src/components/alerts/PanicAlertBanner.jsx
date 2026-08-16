@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { AlertTriangle, X, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { resolvePanicAlert } from "@/lib/panicAlerts";
 
