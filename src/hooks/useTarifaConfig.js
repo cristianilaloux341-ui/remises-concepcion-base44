@@ -5,26 +5,43 @@ export const METROS_POR_FICHA = 85;
 export const VALOR_FICHA = 100;
 export const SEGUNDOS_POR_FICHA_ESPERA = 30;
 
-const DEFAULTS = {
+export const TARIFA_DEFAULTS = {
   bajada_bandera: 1700,
-  precio_por_metro: VALOR_FICHA / METROS_POR_FICHA,
-  precio_por_minuto_corrido: 0,
-  precio_por_minuto_espera: 200,
-  tolerancia_espera_segundos: 120,
   nocturna_bajada_bandera: 1900,
-  nocturna_precio_por_metro: VALOR_FICHA / METROS_POR_FICHA,
-  nocturna_precio_por_minuto_corrido: 0,
-  nocturna_precio_por_minuto_espera: 200,
+  valor_ficha: VALOR_FICHA,
+  metros_por_ficha: METROS_POR_FICHA,
+  valor_ficha_espera: VALOR_FICHA,
+  segundos_por_ficha_espera: SEGUNDOS_POR_FICHA_ESPERA,
+  tolerancia_espera_segundos: 120,
   nocturna_hora_inicio: 22,
   nocturna_hora_fin: 6,
 };
 
-function esHorarioNocturno(horaInicio, horaFin) {
-  const hora = new Date().getHours();
+function esHorarioNocturno(horaInicio, horaFin, fecha = new Date()) {
+  const hora = fecha.getHours();
   if (horaInicio > horaFin) {
     return hora >= horaInicio || hora < horaFin;
   }
   return hora >= horaInicio && hora < horaFin;
+}
+
+export function normalizarTarifa(raw = {}, fecha = new Date()) {
+  const horaInicio = Number(raw.nocturna_hora_inicio ?? TARIFA_DEFAULTS.nocturna_hora_inicio);
+  const horaFin = Number(raw.nocturna_hora_fin ?? TARIFA_DEFAULTS.nocturna_hora_fin);
+  const nocturna = esHorarioNocturno(horaInicio, horaFin, fecha);
+  return {
+    bajada_bandera: Number(nocturna
+      ? (raw.nocturna_bajada_bandera ?? TARIFA_DEFAULTS.nocturna_bajada_bandera)
+      : (raw.bajada_bandera ?? TARIFA_DEFAULTS.bajada_bandera)),
+    valor_ficha: Number(raw.valor_ficha ?? TARIFA_DEFAULTS.valor_ficha),
+    metros_por_ficha: Number(raw.metros_por_ficha ?? TARIFA_DEFAULTS.metros_por_ficha),
+    valor_ficha_espera: Number(raw.valor_ficha_espera ?? raw.valor_ficha ?? TARIFA_DEFAULTS.valor_ficha_espera),
+    segundos_por_ficha_espera: Number(raw.segundos_por_ficha_espera ?? TARIFA_DEFAULTS.segundos_por_ficha_espera),
+    tolerancia_espera_segundos: Number(raw.tolerancia_espera_segundos ?? TARIFA_DEFAULTS.tolerancia_espera_segundos),
+    es_nocturna: nocturna,
+    nocturna_hora_inicio: horaInicio,
+    nocturna_hora_fin: horaFin,
+  };
 }
 
 export function useTarifaConfig() {
@@ -33,32 +50,7 @@ export function useTarifaConfig() {
     queryFn: () => base44.entities.TarifaConfig.list(),
     staleTime: 60_000,
   });
-
-  const raw = configs[0] || {};
-  const nocturna = esHorarioNocturno(
-    raw.nocturna_hora_inicio ?? DEFAULTS.nocturna_hora_inicio,
-    raw.nocturna_hora_fin ?? DEFAULTS.nocturna_hora_fin
-  );
-
-  if (nocturna) {
-    return {
-      bajada_bandera: raw.nocturna_bajada_bandera ?? DEFAULTS.nocturna_bajada_bandera,
-      precio_por_metro: raw.nocturna_precio_por_metro ?? DEFAULTS.nocturna_precio_por_metro,
-      precio_por_minuto_corrido: raw.nocturna_precio_por_minuto_corrido ?? DEFAULTS.nocturna_precio_por_minuto_corrido,
-      precio_por_minuto_espera: raw.nocturna_precio_por_minuto_espera ?? DEFAULTS.nocturna_precio_por_minuto_espera,
-      tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? DEFAULTS.tolerancia_espera_segundos,
-      es_nocturna: true,
-    };
-  }
-
-  return {
-    bajada_bandera: raw.bajada_bandera ?? DEFAULTS.bajada_bandera,
-    precio_por_metro: raw.precio_por_metro ?? DEFAULTS.precio_por_metro,
-    precio_por_minuto_corrido: raw.precio_por_minuto_corrido ?? DEFAULTS.precio_por_minuto_corrido,
-    precio_por_minuto_espera: raw.precio_por_minuto_espera ?? DEFAULTS.precio_por_minuto_espera,
-    tolerancia_espera_segundos: raw.tolerancia_espera_segundos ?? DEFAULTS.tolerancia_espera_segundos,
-    es_nocturna: false,
-  };
+  return normalizarTarifa(configs[0] || {});
 }
 
 /**
@@ -104,15 +96,25 @@ export async function calcularDistanciaRuta(origen, destino, origenCoords = null
  * Reproduce el reloj físico: $100 cada 85 m y $100 cada 30 s de espera
  * después de consumir una única tolerancia acumulada de 120 s.
  */
-export function calcularImportePorFichas(metros, segundosEspera, bajadaBandera) {
-  const fichasDistancia = Math.floor(Math.max(0, metros) / METROS_POR_FICHA);
-  const fichasEspera = Math.floor(Math.max(0, segundosEspera) / SEGUNDOS_POR_FICHA_ESPERA);
-  return Math.round(bajadaBandera + ((fichasDistancia + fichasEspera) * VALOR_FICHA));
+export function calcularImportePorFichas(metros, segundosEspera, tarifaOBase) {
+  // Compatibilidad: las llamadas antiguas pueden seguir pasando solo la bajada.
+  const tarifa = typeof tarifaOBase === "number"
+    ? { ...TARIFA_DEFAULTS, bajada_bandera: tarifaOBase }
+    : { ...TARIFA_DEFAULTS, ...(tarifaOBase || {}) };
+  const metrosPorFicha = Math.max(1, Number(tarifa.metros_por_ficha));
+  const segundosPorFicha = Math.max(1, Number(tarifa.segundos_por_ficha_espera));
+  const fichasDistancia = Math.floor(Math.max(0, metros) / metrosPorFicha);
+  const fichasEspera = Math.floor(Math.max(0, segundosEspera) / segundosPorFicha);
+  return Math.round(
+    Number(tarifa.bajada_bandera)
+    + fichasDistancia * Number(tarifa.valor_ficha)
+    + fichasEspera * Number(tarifa.valor_ficha_espera)
+  );
 }
 
 /**
  * Estimación previa del viaje. El tiempo en movimiento no se cobra.
  */
 export function calcularImporte(distanciaMetros, tarifa) {
-  return calcularImportePorFichas(distanciaMetros, 0, tarifa.bajada_bandera);
+  return calcularImportePorFichas(distanciaMetros, 0, tarifa);
 }
