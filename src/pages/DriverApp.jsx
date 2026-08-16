@@ -1567,14 +1567,14 @@ export default function DriverApp() {
       const res = await tryAccept(3);
 
       if (res.data.accepted) {
+        // El backend acceptRide es el único que confirma y guarda la aceptación.
+        // La pantalla solamente se adelanta visualmente; no vuelve a escribir los mismos estados.
         if (offeredOrder?.id) {
           setLocalOverride({ status: "en_viaje", optimisticOrderId: offeredOrder.id });
-          updateOrder.mutate({ id: offeredOrder.id, data: { status: "aceptado", driver_id: myDriverId } });
         } else {
           setLocalOverride({ status: "en_viaje" });
         }
-        updateDriver.mutate({ id: myDriverId, data: { status: "en_viaje" } });
-        
+
         base44.functions.invoke("sendPushNotification", {
           action: "cancel_ride",
           orderId: offeredOrder.id,
