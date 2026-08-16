@@ -181,7 +181,8 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     setIsFinishing(true);
     const finalFare = Math.round(importeRef.current);
     if (onFinishRide) {
-      await onFinishRide(finalFare);
+      const completed = await onFinishRide(finalFare);
+      if (completed === false) setIsFinishing(false);
     } else {
       onStatusChange("completado", finalFare);
     }
