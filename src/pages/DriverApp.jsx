@@ -1144,10 +1144,25 @@ export default function DriverApp() {
       if (shouldPublish) {
         lastPublishedAt = now;
         distanceSincePublish = 0;
-        withRetry(() => base44.entities.Driver.update(myDriverId, {
+        
+        const dataToUpdate = {
           current_lat: result.point.latitude,
           current_lng: result.point.longitude,
-        })).catch(() => {});
+        };
+        
+        // Si está reportando posición como "disponible" pero quedó con un estado pendiente colgado en el backend,
+        // lo limpiamos aprovechando el latido de GPS.
+        if (myDriverRef.current?.status === "disponible" && (myDriverRef.current?.dispatch_status === "automatic_pending" || myDriverRef.current?.reserved_order_id)) {
+          if (!offeredOrderRef.current) {
+            dataToUpdate.dispatch_status = "normal";
+            dataToUpdate.reserved_order_id = null;
+            dataToUpdate.active_ride_id = null;
+            dataToUpdate.reservation_token = null;
+            dataToUpdate.driver_reservation_key = null;
+          }
+        }
+
+        withRetry(() => base44.entities.Driver.update(myDriverId, dataToUpdate)).catch(() => {});
       }
     };
 
@@ -1491,14 +1506,35 @@ export default function DriverApp() {
     evaluateAlerts(safeOrders);
     
     // Si la app carga y estamos ocupados (viaje activo), matar cualquier alerta nativa que haya quedado sonando
-    const activeOrder = safeOrders.find(o => 
+    const activeOrderLocal = safeOrders.find(o => 
       (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId) && 
       ["aceptado", "en_camino", "en_viaje"].includes(o.status)
     );
-    if (activeOrder && activeOrder.id && Capacitor.isNativePlatform()) {
+    if (activeOrderLocal && activeOrderLocal.id && Capacitor.isNativePlatform()) {
        Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: 'useEffect_appLoading_occupied' }).catch(()=>{});
     }
-  }, [safeOrders, myDriver?.status, myDriver?.current_base, dismissedBroadcasts, evaluateAlerts, myDriverId]);
+
+    // Auto-destrabar: Si el móvil quedó colgado con status 'automatic_pending' o un 'reserved_order_id'
+    // pero no tiene ni viaje ofrecido ni viaje activo real en el sistema.
+    if (myDriver && (myDriver.dispatch_status === 'automatic_pending' || myDriver.reserved_order_id)) {
+      const offeredLocal = safeOrders.find(o => 
+        (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId) && 
+        o.status === "ofrecido"
+      );
+      if (!offeredLocal && !activeOrderLocal && myDriver.status === "disponible") {
+        updateDriver.mutate({
+          id: myDriverId,
+          data: {
+            dispatch_status: "normal",
+            reserved_order_id: null,
+            active_ride_id: null,
+            reservation_token: null,
+            driver_reservation_key: null
+          }
+        });
+      }
+    }
+  }, [safeOrders, myDriver?.status, myDriver?.current_base, myDriver?.dispatch_status, myDriver?.reserved_order_id, dismissedBroadcasts, evaluateAlerts, myDriverId]);
 
   // Retries agresivos: reintenta hasta 15 veces, con backoff para sobrevivir a la reconexión de red al despertar
   const updateOrder = useMutation({
