@@ -261,17 +261,29 @@ async function processPendingOrders(testB44, BASES) {
   const pendings = await testB44.entities.RideOrder.filter({ status: 'pendiente' });
   const disponibles = await testB44.entities.Driver.filter({ status: 'disponible', dispatch_status: 'normal' });
   
-  for (let i = 0; i < Math.min(pendings.length, 30); i++) { 
+  let assignedCount = 0;
+  for (let i = 0; i < pendings.length; i++) { 
+    if (assignedCount >= 100) break; // Procesa hasta 100 por tick para ganarle a la tasa de generación (50)
     try {
       const order = pendings[i];
-      const candidate = disponibles.find(d => d.current_base === order.zone) || disponibles[i % disponibles.length];
+      if (disponibles.length === 0) break; // Si no hay más móviles, frenamos
+      
+      const candidateIdx = disponibles.findIndex(d => d.current_base === order.zone);
+      const candidate = candidateIdx > -1 ? disponibles[candidateIdx] : disponibles[0];
       
       if (candidate) {
         const token = crypto.randomUUID();
         await assignDriverToOrderAtomic(testB44, order, candidate, token);
-        await traceTransition(testB44, order.id, 'pendiente', 'ofrecido', candidate.id, 'assignDriverToOrderAtomic');
+        await traceTransition(testB44, order.id, 'pendiente', 'ofrecido', candidate.id, 'Asignación Exitosa');
+        
+        // Removemos de la lista en memoria para no re-asignar el mismo móvil en el mismo tick
+        const usedIdx = disponibles.findIndex(d => d.id === candidate.id);
+        if (usedIdx > -1) disponibles.splice(usedIdx, 1);
+        assignedCount++;
       }
-    } catch(e) {}
+    } catch(e) {
+      await traceTransition(testB44, pendings[i].id, 'pendiente', 'pendiente', null, `Error al asignar: ${e.message}`);
+    }
   }
 }
 
@@ -279,16 +291,29 @@ async function simulateBehaviors(testB44) {
   const ofrecidos = await testB44.entities.RideOrder.filter({ status: 'ofrecido' });
   for (const o of ofrecidos) {
     try {
-      if (!o.reserved_driver_id) continue;
+      if (!o.reserved_driver_id) {
+         await testB44.entities.RideOrder.updateMany({ id: o.id }, { $set: { status: 'pendiente' } });
+         await traceTransition(testB44, o.id, 'ofrecido', 'pendiente', null, 'Huérfano (sin reserved_driver_id)');
+         continue;
+      }
       const ds = await testB44.entities.Driver.filter({ id: o.reserved_driver_id });
-      if (ds.length === 0) continue;
+      if (ds.length === 0) {
+         await testB44.entities.RideOrder.updateMany({ id: o.id }, { $set: { status: 'pendiente' } });
+         await traceTransition(testB44, o.id, 'ofrecido', 'pendiente', null, 'El chofer asignado no existe');
+         continue;
+      }
       const driver = ds[0];
 
       if (Math.random() < driver.reject_rate) {
         const bases = await testB44.entities.Base.filter({ name: driver.current_base });
         if (bases.length > 0) {
           await reassignAfterAutomaticReject(testB44, bases[0].id, o.id, driver.id, o.reservation_token);
-          await traceTransition(testB44, o.id, 'ofrecido', 'pendiente', driver.id, 'Rechazado');
+          await traceTransition(testB44, o.id, 'ofrecido', 'pendiente', driver.id, 'Chofer rechazó el viaje');
+        } else {
+          // Fallback por si la base no existe
+          await testB44.entities.RideOrder.updateMany({ id: o.id }, { $set: { status: 'pendiente' } });
+          await testB44.entities.Driver.updateMany({ id: driver.id }, { $set: { status: 'disponible', reserved_order_id: null, reservation_token: null } });
+          await traceTransition(testB44, o.id, 'ofrecido', 'pendiente', driver.id, 'Rechazo (sin base)');
         }
       } else {
         const res = await testB44.entities.RideOrder.updateMany(
@@ -301,25 +326,35 @@ async function simulateBehaviors(testB44) {
             { $set: { status: 'en_viaje', dispatch_status: 'normal', reservation_token: null, reserved_order_id: null } }
           );
           await traceTransition(testB44, o.id, 'ofrecido', 'aceptado', driver.id, 'Aceptado');
+        } else {
+          await traceTransition(testB44, o.id, 'ofrecido', 'ofrecido', driver.id, 'Fallo al aceptar (concurrencia de update)');
         }
       }
-    } catch(e) {}
+    } catch(e) {
+      await traceTransition(testB44, o.id, 'ofrecido', 'ofrecido', null, `Error en comportamiento: ${e.message}`);
+    }
   }
 
   const aceptados = await testB44.entities.RideOrder.filter({ status: { $in: ['aceptado', 'en_camino', 'en_viaje'] } });
+  
+  // Como solo hay 50 móviles, podemos procesarlos a todos sin saturar la DB
+  const BASES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
+  
   for (const o of aceptados) {
     try {
       if (o.status === 'aceptado') {
         await testB44.entities.RideOrder.updateMany({ id: o.id }, { $set: { status: 'en_camino' } });
-        await traceTransition(testB44, o.id, 'aceptado', 'en_camino', o.driver_id);
+        await traceTransition(testB44, o.id, 'aceptado', 'en_camino', o.driver_id, 'En Camino');
       } else if (o.status === 'en_camino') {
         await testB44.entities.RideOrder.updateMany({ id: o.id }, { $set: { status: 'en_viaje' } });
-        await traceTransition(testB44, o.id, 'en_camino', 'en_viaje', o.driver_id);
+        await traceTransition(testB44, o.id, 'en_camino', 'en_viaje', o.driver_id, 'Pasajero a Bordo');
       } else if (o.status === 'en_viaje') {
         await testB44.entities.RideOrder.updateMany({ id: o.id }, { $set: { status: 'completado' } });
         await testB44.entities.Driver.updateMany({ id: o.driver_id }, { $set: { status: 'disponible', current_base: BASES[Math.floor(Math.random() * BASES.length)] } });
-        await traceTransition(testB44, o.id, 'en_viaje', 'completado', o.driver_id);
+        await traceTransition(testB44, o.id, 'en_viaje', 'completado', o.driver_id, 'Finalizado');
       }
-    } catch(e) {}
+    } catch(e) {
+      await traceTransition(testB44, o.id, o.status, o.status, o.driver_id, `Error en tránsito: ${e.message}`);
+    }
   }
 }
