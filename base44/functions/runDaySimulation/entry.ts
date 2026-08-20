@@ -13,7 +13,19 @@ export default async function (req) {
   const payload = await req.json();
   const { action, internalKey } = payload;
   
-  if (internalKey !== Deno.env.get("INTERNAL_SERVICE_KEY")) {
+  let isAuthorized = false;
+  if (internalKey && internalKey === Deno.env.get("INTERNAL_SERVICE_KEY")) {
+    isAuthorized = true;
+  } else {
+    try {
+      const me = await base44.auth.me();
+      if (me && (me.role === 'admin' || me.role === 'supervisor')) {
+        isAuthorized = true;
+      }
+    } catch (e) {}
+  }
+
+  if (!isAuthorized) {
     return Response.json({ success: false, reason: "Unauthorized" }, { status: 401 });
   }
 
