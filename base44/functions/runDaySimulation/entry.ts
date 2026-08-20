@@ -11,11 +11,16 @@ export default async function (req) {
   const b44 = base44.asServiceRole;
   
   const payload = await req.json();
-  const { action, internalKey } = payload;
+  const { action, internalKey, operatorId } = payload;
   
   let isAuthorized = false;
   if (internalKey && internalKey === Deno.env.get("INTERNAL_SERVICE_KEY")) {
     isAuthorized = true;
+  } else if (operatorId) {
+    const ops = await b44.entities.Operator.filter({ id: operatorId });
+    if (ops.length > 0 && (ops[0].role === 'admin' || ops[0].role === 'supervisor')) {
+      isAuthorized = true;
+    }
   } else {
     try {
       const me = await base44.auth.me();
@@ -98,7 +103,7 @@ export default async function (req) {
       }
       
       // Trigger first block
-      b44.functions.invoke('runDaySimulation', { action: 'tick', internalKey }).catch(e => console.error("Error triggering tick", e));
+      b44.functions.invoke('runDaySimulation', { action: 'tick', internalKey: Deno.env.get("INTERNAL_SERVICE_KEY") }).catch(e => console.error("Error triggering tick", e));
       
       return Response.json({ success: true, message: 'Simulation started' });
     }
@@ -113,7 +118,7 @@ export default async function (req) {
       if (state.processedOrders >= TOTAL_ORDERS && state.status !== 'finalizing') {
         // Mark for finalization
         await b44.entities.DispatchConfig.updateMany({ zone: 'SIM_DAY' }, { $set: { notes: JSON.stringify({ ...state, status: 'finalizing' }) } });
-        b44.functions.invoke('runDaySimulation', { action: 'finalize', internalKey }).catch(e => null);
+        b44.functions.invoke('runDaySimulation', { action: 'finalize', internalKey: Deno.env.get("INTERNAL_SERVICE_KEY") }).catch(e => null);
         return Response.json({ success: true, status: 'finalizing' });
       }
 
@@ -145,7 +150,7 @@ export default async function (req) {
       await b44.entities.DispatchConfig.updateMany({ zone: 'SIM_DAY' }, { $set: { notes: JSON.stringify(state) } });
 
       // Recursively schedule next tick
-      b44.functions.invoke('runDaySimulation', { action: 'tick', internalKey }).catch(e => null);
+      b44.functions.invoke('runDaySimulation', { action: 'tick', internalKey: Deno.env.get("INTERNAL_SERVICE_KEY") }).catch(e => null);
       
       return Response.json({ success: true, processed: state.processedOrders });
     }

@@ -14,7 +14,12 @@ export default function SimulacionDiaReal() {
 
   const fetchStatus = async () => {
     try {
-      const res = await base44.functions.invoke('runDaySimulation', { action: 'status', internalKey: import.meta.env.VITE_INTERNAL_SERVICE_KEY || "rc-internal-master-key-2024" });
+      const localOp = JSON.parse(sessionStorage.getItem('local_operator') || '{}');
+      const res = await base44.functions.invoke('runDaySimulation', { 
+        action: 'status', 
+        internalKey: import.meta.env.VITE_INTERNAL_SERVICE_KEY || "rc-internal-master-key-2024",
+        operatorId: localOp.id 
+      });
       if (res.data?.success) {
         setStatus(res.data.state);
       }
@@ -34,7 +39,12 @@ export default function SimulacionDiaReal() {
   const handleStart = async () => {
     setLoading(true);
     try {
-      const res = await base44.functions.invoke('runDaySimulation', { action: 'start', internalKey: import.meta.env.VITE_INTERNAL_SERVICE_KEY || "rc-internal-master-key-2024" });
+      const localOp = JSON.parse(sessionStorage.getItem('local_operator') || '{}');
+      const res = await base44.functions.invoke('runDaySimulation', { 
+        action: 'start', 
+        internalKey: import.meta.env.VITE_INTERNAL_SERVICE_KEY || "rc-internal-master-key-2024",
+        operatorId: localOp.id 
+      });
       if (res.data?.success) {
         toast({ title: 'Simulación iniciada', description: 'El día virtual comenzó.' });
         fetchStatus();
@@ -52,7 +62,12 @@ export default function SimulacionDiaReal() {
     if (!confirm('¿Seguro que deseas abortar la simulación en curso?')) return;
     setLoading(true);
     try {
-      await base44.functions.invoke('runDaySimulation', { action: 'abort', internalKey: import.meta.env.VITE_INTERNAL_SERVICE_KEY || "rc-internal-master-key-2024" });
+      const localOp = JSON.parse(sessionStorage.getItem('local_operator') || '{}');
+      await base44.functions.invoke('runDaySimulation', { 
+        action: 'abort', 
+        internalKey: import.meta.env.VITE_INTERNAL_SERVICE_KEY || "rc-internal-master-key-2024",
+        operatorId: localOp.id 
+      });
       toast({ title: 'Simulación abortada' });
       fetchStatus();
     } catch (e) {
