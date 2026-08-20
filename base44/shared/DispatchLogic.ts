@@ -95,7 +95,15 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
     await failureInjector.hit('AFTER_AUTO_DRIVER_RESERVE');
 
     const rideRes = await b44.entities.RideOrder.updateMany(
-      { id: order.id },
+      { 
+        id: order.id,
+        status: { $in: ['pendiente', 'procesando_despacho', 'ofrecido'] },
+        $or: [
+          { reservation_token: null },
+          { reservation_token: { $exists: false } },
+          { reservation_token: order.reservation_token || null }
+        ]
+      },
       { $set: { status: 'ofrecido', reservation_token: token, reserved_driver_id: driver.id } }
     );
     if ((rideRes.matchedCount ?? rideRes.modifiedCount ?? rideRes.updated ?? 0) !== 1) {

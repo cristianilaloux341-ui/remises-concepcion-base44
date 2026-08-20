@@ -132,19 +132,11 @@ Deno.serve(async (req) => {
     const offeredIds = [...(orderReq.offered_driver_ids || [])];
     if (!offeredIds.includes(driverId)) offeredIds.push(driverId);
 
-    // Update basic tracking fields directly first, so Atomic gets the fresh object state
+    // Update memory object for Push payload
     orderReq.assignment_attempt = newAttempt;
     orderReq.offered_driver_ids = offeredIds;
     orderReq.assigned_base = driverReq.current_base;
     orderReq.driver_name = driverReq.name;
-
-    await b44.entities.RideOrder.update(orderId, {
-      offered_driver_ids: offeredIds,
-      assignment_attempt: newAttempt,
-      assigned_base: driverReq.current_base,
-      driver_name: driverReq.name,
-      assigned_at: new Date().toISOString()
-    });
 
     // 3. Dispatch Logic Atomic Run (handles the lock, Push, and Audit)
     const token = crypto.randomUUID();
@@ -161,8 +153,17 @@ Deno.serve(async (req) => {
       if (targetDriverStatus === "en_viaje") {
         await b44.entities.Driver.update(driverId, { status: "en_viaje" });
       }
-      // Siempre forzamos el estado visual de la orden para que el operador lo vea correcto en la plantilla
-      await b44.entities.RideOrder.update(orderId, { status: targetOrderStatus, reserved_driver_id: driverId });
+      
+      // Escribir los datos de asignación solo después del éxito atómico
+      await b44.entities.RideOrder.update(orderId, {
+        status: targetOrderStatus, 
+        reserved_driver_id: driverId,
+        offered_driver_ids: offeredIds,
+        assignment_attempt: newAttempt,
+        assigned_base: driverReq.current_base,
+        driver_name: driverReq.name,
+        assigned_at: new Date().toISOString()
+      });
 
       // 5. Trigger Reassignment if needed
       if (targetOrderStatus === "ofrecido" && autoReassignActive) {
@@ -175,18 +176,11 @@ Deno.serve(async (req) => {
         }).catch((e: any) => console.error("AutoReassign Trigger Error:", e));
       }
     } else {
-      // Si la reserva atómica falla, no se fuerza el viaje ni se envía una notificación.
-      // Esto cubre la carrera en la que el móvil sale de servicio mientras el operador asigna.
-      await b44.entities.RideOrder.update(orderId, {
-        status: "pendiente",
-        driver_id: null,
-        reserved_driver_id: null,
-        driver_name: null,
-        reservation_token: null
-      });
+      // Si la reserva atómica falla, el pasaje ya fue tomado por otro proceso o el móvil ya no está disponible.
+      // No modificamos la orden para no pisar un éxito concurrente.
       return Response.json({
         success: false,
-        reason: "El móvil ya no está disponible. El pasaje quedó pendiente."
+        reason: "No se pudo reservar el pasaje (asignación concurrente o móvil ocupado)."
       });
     }
 
