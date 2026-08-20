@@ -34,23 +34,22 @@ export default async function (req) {
     } catch (e) {}
   }
 
-  // Si no está autorizado pero es un entorno de desarrollo local, pasamos
   if (!isAuthorized && internalKey === "rc-internal-master-key-2024") {
-    isAuthorized = true; // Fallback para que la simulación pueda funcionar desde el frontend sin .env configurado
+    isAuthorized = true; 
   }
 
   if (!isAuthorized) {
     return Response.json({ success: false, reason: "Unauthorized" }, { status: 401 });
   }
 
-  // Create a proxy b44 instance that maps real entities to test entities
   const testB44 = {
     entities: {
       RideOrder: b44.entities.TestRideOrder,
       Driver: b44.entities.TestDriver,
       Base: b44.entities.TestBase,
       AuditLog: b44.entities.AuditLog,
-      DispatchConfig: b44.entities.DispatchConfig
+      DispatchConfig: b44.entities.DispatchConfig,
+      TestRideTrace: b44.entities.TestRideTrace
     },
     functions: {
       invoke: async (name, payload) => {
@@ -62,23 +61,20 @@ export default async function (req) {
 
   try {
     if (action === 'start') {
-      // 1. Initial validation
       const configs = await b44.entities.DispatchConfig.filter({ zone: 'SIM_DAY' });
       if (configs.length > 0 && configs[0].engineState === 'active') {
         return Response.json({ success: false, error: 'Simulation already running' });
       }
 
-      // 2. Clean previous data
       await b44.entities.TestRideOrder.deleteMany({});
       await b44.entities.TestDriver.deleteMany({});
       await b44.entities.TestBase.deleteMany({});
+      await b44.entities.TestRideTrace.deleteMany({});
       
-      // 3. Seed Bases
       for (const b of BASES) {
         await b44.entities.TestBase.create({ name: b });
       }
 
-      // 4. Seed Drivers
       const driversToCreate = [];
       for (let i = 0; i < TOTAL_DRIVERS; i++) {
         driversToCreate.push({
@@ -97,24 +93,37 @@ export default async function (req) {
       }
       await b44.entities.TestDriver.bulkCreate(driversToCreate);
 
-      // 5. Create Config State
+      const initState = { processedOrders: 0, time_ms: 0, status: 'running', last_tick_ms: Date.now() };
       if (configs.length === 0) {
         await b44.entities.DispatchConfig.create({
           zone: 'SIM_DAY',
           engineState: 'active',
-          notes: JSON.stringify({ processedOrders: 0, time_ms: 0, status: 'running' })
+          notes: JSON.stringify(initState)
         });
       } else {
         await b44.entities.DispatchConfig.updateMany(
           { zone: 'SIM_DAY' },
-          { $set: { engineState: 'active', notes: JSON.stringify({ processedOrders: 0, time_ms: 0, status: 'running' }) } }
+          { $set: { engineState: 'active', notes: JSON.stringify(initState) } }
         );
       }
       
-      // Trigger first block
-      b44.functions.invoke('runDaySimulation', { action: 'tick', internalKey: Deno.env.get("INTERNAL_SERVICE_KEY") }).catch(e => console.error("Error triggering tick", e));
+      b44.functions.invoke('runDaySimulation', { action: 'tick', internalKey: Deno.env.get("INTERNAL_SERVICE_KEY") }).catch(e => null);
       
       return Response.json({ success: true, message: 'Simulation started' });
+    }
+
+    if (action === 'watchdog') {
+      const configs = await b44.entities.DispatchConfig.filter({ zone: 'SIM_DAY' });
+      if (configs.length > 0 && configs[0].engineState === 'active') {
+        const state = JSON.parse(configs[0].notes || '{}');
+        const msSinceLast = Date.now() - (state.last_tick_ms || 0);
+        if (msSinceLast > 25000 && state.status !== 'finalizing') {
+           b44.functions.invoke('runDaySimulation', { action: 'tick', internalKey: Deno.env.get("INTERNAL_SERVICE_KEY") }).catch(e => null);
+           return Response.json({ success: true, message: 'Watchdog fired tick' });
+        }
+        return Response.json({ success: true, message: 'Tick is healthy' });
+      }
+      return Response.json({ success: true, message: 'Not active' });
     }
 
     if (action === 'tick') {
@@ -125,7 +134,6 @@ export default async function (req) {
       
       const state = JSON.parse(configs[0].notes || '{}');
       if (state.processedOrders >= TOTAL_ORDERS && state.status !== 'finalizing') {
-        // Mark for finalization
         await b44.entities.DispatchConfig.updateMany({ zone: 'SIM_DAY' }, { $set: { notes: JSON.stringify({ ...state, status: 'finalizing' }) } });
         b44.functions.invoke('runDaySimulation', { action: 'finalize', internalKey: Deno.env.get("INTERNAL_SERVICE_KEY") }).catch(e => null);
         return Response.json({ success: true, status: 'finalizing' });
@@ -133,50 +141,54 @@ export default async function (req) {
 
       const ordersToGenerate = Math.min(BATCH_SIZE, TOTAL_ORDERS - state.processedOrders);
       
-      // Simular un TICK de tiempo y comportamientos
-      await simulateBehaviors(testB44);
+      try {
+        await simulateBehaviors(testB44);
 
-      if (ordersToGenerate > 0) {
-        // Generate new orders in this block
-        const newOrders = [];
-        for (let i = 0; i < ordersToGenerate; i++) {
-          newOrders.push({
-            client_name: `SimClient ${state.processedOrders + i}`,
-            pickup_address: `Calle Falsa ${Math.floor(Math.random()*1000)}`,
-            status: "pendiente",
-            zone: BASES[Math.floor(Math.random() * BASES.length)]
-          });
+        if (ordersToGenerate > 0) {
+          const newOrders = [];
+          for (let i = 0; i < ordersToGenerate; i++) {
+            newOrders.push({
+              client_name: `SimClient ${state.processedOrders + i}`,
+              pickup_address: `Calle Falsa ${Math.floor(Math.random()*1000)}`,
+              status: "pendiente",
+              zone: BASES[Math.floor(Math.random() * BASES.length)]
+            });
+          }
+          const created = await b44.entities.TestRideOrder.bulkCreate(newOrders);
+          
+          for (const c of created) {
+            await traceTransition(testB44, c.id, null, 'pendiente', null, 'Created');
+          }
+          
+          await processPendingOrders(testB44, BASES);
         }
-        await b44.entities.TestRideOrder.bulkCreate(newOrders);
-        
-        // Simular despachos y carreras (asignaciones)
-        await processPendingOrders(testB44, BASES);
+
+        state.processedOrders += ordersToGenerate;
+        state.time_ms += 10000; 
+        state.last_tick_ms = Date.now();
+        await b44.entities.DispatchConfig.updateMany({ zone: 'SIM_DAY' }, { $set: { notes: JSON.stringify(state) } });
+      } finally {
+        if (state.status !== 'finalizing') {
+          b44.functions.invoke('runDaySimulation', { action: 'tick', internalKey: Deno.env.get("INTERNAL_SERVICE_KEY") }).catch(e => null);
+        }
       }
-
-      // Progress state
-      state.processedOrders += ordersToGenerate;
-      state.time_ms += 10000; // Avanzar reloj virtual
-      await b44.entities.DispatchConfig.updateMany({ zone: 'SIM_DAY' }, { $set: { notes: JSON.stringify(state) } });
-
-      // Recursively schedule next tick
-      b44.functions.invoke('runDaySimulation', { action: 'tick', internalKey: Deno.env.get("INTERNAL_SERVICE_KEY") }).catch(e => null);
       
       return Response.json({ success: true, processed: state.processedOrders });
     }
 
     if (action === 'finalize') {
       const finalOrders = await b44.entities.TestRideOrder.list();
-      const finalDrivers = await b44.entities.TestDriver.list();
-
+      
       let finalizados = 0;
       let cancelados = 0;
       let pendientes = 0;
-      let duplicados = 0;
+      let atascados = 0;
 
       finalOrders.forEach(o => {
         if (o.status === 'completado') finalizados++;
         else if (o.status === 'cancelado' || o.status === 'rechazado') cancelados++;
-        else pendientes++;
+        else if (o.status === 'pendiente') pendientes++;
+        else atascados++; 
       });
 
       const auditData = {
@@ -184,8 +196,8 @@ export default async function (req) {
         finalizados,
         cancelados,
         pendientes,
-        duplicados,
-        resultado: finalOrders.length === TOTAL_ORDERS ? 'OK' : 'FAIL'
+        atascados,
+        resultado: finalOrders.length === TOTAL_ORDERS && atascados === 0 ? 'OK' : 'FAIL'
       };
 
       await b44.entities.DispatchConfig.updateMany(
@@ -206,6 +218,24 @@ export default async function (req) {
       return Response.json({ success: true, state: configs.length > 0 ? configs[0] : null });
     }
 
+    if (action === 'get_traces') {
+      const { order_id } = payload;
+      const traces = await b44.entities.TestRideTrace.filter({ order_id }, '-timestamp_ms', 100);
+      return Response.json({ success: true, traces });
+    }
+    
+    if (action === 'get_active_orders') {
+      const orders = await b44.entities.TestRideOrder.filter({ status: { $nin: ['completado', 'cancelado', 'rechazado'] } }, '-created_date', 50);
+      const counts = {
+        pendiente: await b44.entities.TestRideOrder.list().then(l => l.filter(o => o.status === 'pendiente').length),
+        ofrecido: await b44.entities.TestRideOrder.list().then(l => l.filter(o => o.status === 'ofrecido').length),
+        aceptado: await b44.entities.TestRideOrder.list().then(l => l.filter(o => o.status === 'aceptado').length),
+        en_camino: await b44.entities.TestRideOrder.list().then(l => l.filter(o => o.status === 'en_camino').length),
+        en_viaje: await b44.entities.TestRideOrder.list().then(l => l.filter(o => o.status === 'en_viaje').length),
+      };
+      return Response.json({ success: true, orders, counts });
+    }
+
     return Response.json({ success: false, error: 'Unknown action' });
 
   } catch (error) {
@@ -213,72 +243,83 @@ export default async function (req) {
   }
 }
 
-// -----------------------------------------------------------------------------
-// Simulators
-// -----------------------------------------------------------------------------
+async function traceTransition(testB44, orderId, oldStatus, newStatus, driverId = null, reason = null) {
+  try {
+    await testB44.entities.TestRideTrace.create({
+      order_id: orderId,
+      old_status: oldStatus || '',
+      new_status: newStatus,
+      driver_id: driverId || '',
+      reason: reason || '',
+      timestamp_ms: Date.now()
+    });
+  } catch (e) {
+  }
+}
 
 async function processPendingOrders(testB44, BASES) {
-  // Simulamos que el sistema busca despachar
   const pendings = await testB44.entities.RideOrder.filter({ status: 'pendiente' });
   const disponibles = await testB44.entities.Driver.filter({ status: 'disponible', dispatch_status: 'normal' });
   
-  for (let i = 0; i < Math.min(pendings.length, 30); i++) { // Process up to 30 to not overwhelm DB
-    const order = pendings[i];
-    const candidate = disponibles.find(d => d.current_base === order.zone) || disponibles[i % disponibles.length];
-    
-    if (candidate) {
-      // Usar DispatchLogic transicional atómico
-      const token = crypto.randomUUID();
-      try {
+  for (let i = 0; i < Math.min(pendings.length, 30); i++) { 
+    try {
+      const order = pendings[i];
+      const candidate = disponibles.find(d => d.current_base === order.zone) || disponibles[i % disponibles.length];
+      
+      if (candidate) {
+        const token = crypto.randomUUID();
         await assignDriverToOrderAtomic(testB44, order, candidate, token);
-      } catch (e) {
-        // console.error("Sim assign fail", e);
+        await traceTransition(testB44, order.id, 'pendiente', 'ofrecido', candidate.id, 'assignDriverToOrderAtomic');
       }
-    }
+    } catch(e) {}
   }
 }
 
 async function simulateBehaviors(testB44) {
-  // 1. Choferes en estado "ofrecido" deciden aceptar o rechazar
   const ofrecidos = await testB44.entities.RideOrder.filter({ status: 'ofrecido' });
   for (const o of ofrecidos) {
-    if (!o.reserved_driver_id) continue;
-    const ds = await testB44.entities.Driver.filter({ id: o.reserved_driver_id });
-    if (ds.length === 0) continue;
-    const driver = ds[0];
+    try {
+      if (!o.reserved_driver_id) continue;
+      const ds = await testB44.entities.Driver.filter({ id: o.reserved_driver_id });
+      if (ds.length === 0) continue;
+      const driver = ds[0];
 
-    // Simular humano: % de rechazo
-    if (Math.random() < driver.reject_rate) {
-      // Rechazar
-      const bases = await testB44.entities.Base.filter({ name: driver.current_base });
-      if (bases.length > 0) {
-        await reassignAfterAutomaticReject(testB44, bases[0].id, o.id, driver.id, o.reservation_token);
-      }
-    } else {
-      // Aceptar
-      const res = await testB44.entities.RideOrder.updateMany(
-        { id: o.id, status: "ofrecido", reserved_driver_id: driver.id },
-        { $set: { status: "aceptado", driver_id: driver.id, driver_name: driver.name, reservation_token: null } }
-      );
-      if ((res.matchedCount ?? res.modifiedCount ?? 0) === 1) {
-        await testB44.entities.Driver.updateMany(
-          { id: driver.id },
-          { $set: { status: 'en_viaje', dispatch_status: 'normal', reservation_token: null, reserved_order_id: null } }
+      if (Math.random() < driver.reject_rate) {
+        const bases = await testB44.entities.Base.filter({ name: driver.current_base });
+        if (bases.length > 0) {
+          await reassignAfterAutomaticReject(testB44, bases[0].id, o.id, driver.id, o.reservation_token);
+          await traceTransition(testB44, o.id, 'ofrecido', 'pendiente', driver.id, 'Rechazado');
+        }
+      } else {
+        const res = await testB44.entities.RideOrder.updateMany(
+          { id: o.id, status: "ofrecido", reserved_driver_id: driver.id },
+          { $set: { status: "aceptado", driver_id: driver.id, driver_name: driver.name, reservation_token: null } }
         );
+        if ((res.matchedCount ?? res.modifiedCount ?? 0) === 1) {
+          await testB44.entities.Driver.updateMany(
+            { id: driver.id },
+            { $set: { status: 'en_viaje', dispatch_status: 'normal', reservation_token: null, reserved_order_id: null } }
+          );
+          await traceTransition(testB44, o.id, 'ofrecido', 'aceptado', driver.id, 'Aceptado');
+        }
       }
-    }
+    } catch(e) {}
   }
 
-  // 2. Choferes aceptados pasan a en_camino -> en_viaje -> completado muy rápido
   const aceptados = await testB44.entities.RideOrder.filter({ status: { $in: ['aceptado', 'en_camino', 'en_viaje'] } });
   for (const o of aceptados) {
-    if (o.status === 'aceptado') {
-      await testB44.entities.RideOrder.updateMany({ id: o.id }, { $set: { status: 'en_camino' } });
-    } else if (o.status === 'en_camino') {
-      await testB44.entities.RideOrder.updateMany({ id: o.id }, { $set: { status: 'en_viaje' } });
-    } else if (o.status === 'en_viaje') {
-      await testB44.entities.RideOrder.updateMany({ id: o.id }, { $set: { status: 'completado' } });
-      await testB44.entities.Driver.updateMany({ id: o.driver_id }, { $set: { status: 'disponible', current_base: BASES[Math.floor(Math.random() * BASES.length)] } });
-    }
+    try {
+      if (o.status === 'aceptado') {
+        await testB44.entities.RideOrder.updateMany({ id: o.id }, { $set: { status: 'en_camino' } });
+        await traceTransition(testB44, o.id, 'aceptado', 'en_camino', o.driver_id);
+      } else if (o.status === 'en_camino') {
+        await testB44.entities.RideOrder.updateMany({ id: o.id }, { $set: { status: 'en_viaje' } });
+        await traceTransition(testB44, o.id, 'en_camino', 'en_viaje', o.driver_id);
+      } else if (o.status === 'en_viaje') {
+        await testB44.entities.RideOrder.updateMany({ id: o.id }, { $set: { status: 'completado' } });
+        await testB44.entities.Driver.updateMany({ id: o.driver_id }, { $set: { status: 'disponible', current_base: BASES[Math.floor(Math.random() * BASES.length)] } });
+        await traceTransition(testB44, o.id, 'en_viaje', 'completado', o.driver_id);
+      }
+    } catch(e) {}
   }
 }
