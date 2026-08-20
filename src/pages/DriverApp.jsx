@@ -1084,6 +1084,7 @@ export default function DriverApp() {
   const localOverrideRef = useRef(localOverride);
   useEffect(() => { localOverrideRef.current = localOverride; }, [localOverride]);
   const clearOverrideTimerRef = useRef(null);
+  const checkedGhostRef = useRef(null);
 
   const safeDrivers = Array.isArray(drivers) ? drivers : [];
   const safeOrders = Array.isArray(orders) ? orders : [];
@@ -1514,27 +1515,59 @@ export default function DriverApp() {
        Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: 'useEffect_appLoading_occupied' }).catch(()=>{});
     }
 
-    // Auto-destrabar: Si el móvil quedó colgado con status 'automatic_pending' o un 'reserved_order_id'
-    // pero no tiene ni viaje ofrecido ni viaje activo real en el sistema.
-    if (myDriver && (myDriver.dispatch_status === 'automatic_pending' || myDriver.reserved_order_id)) {
-      const offeredLocal = safeOrders.find(o => 
-        (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId) && 
-        o.status === "ofrecido"
-      );
-      if (!offeredLocal && !activeOrderLocal && myDriver.status === "disponible") {
-        updateDriver.mutate({
-          id: myDriverId,
-          data: {
-            dispatch_status: "normal",
-            reserved_order_id: null,
-            active_ride_id: null,
-            reservation_token: null,
-            driver_reservation_key: null
-          }
-        });
+    // Auto-destrabar: Si el móvil quedó colgado con una reserva a un viaje muerto
+    if (myDriver && (myDriver.dispatch_status === 'automatic_pending' || myDriver.reserved_order_id || myDriver.active_ride_id)) {
+      const ghostOrderId = myDriver.reserved_order_id || myDriver.active_ride_id;
+      
+      // Evitar spam de API si ya lo chequeamos
+      if (ghostOrderId && checkedGhostRef.current !== ghostOrderId) {
+         checkedGhostRef.current = ghostOrderId;
+         base44.entities.RideOrder.get(ghostOrderId).then(order => {
+            if (!order || !["ofrecido", "aceptado", "en_camino", "en_viaje"].includes(order.status)) {
+               updateDriver.mutate({
+                 id: myDriverId,
+                 data: {
+                   status: "disponible",
+                   dispatch_status: "normal",
+                   reserved_order_id: null,
+                   active_ride_id: null,
+                   reservation_token: null,
+                   manual_reservation_token: null,
+                   driver_reservation_key: null
+                 }
+               });
+            }
+         }).catch(() => {
+            updateDriver.mutate({
+              id: myDriverId,
+              data: { status: "disponible", dispatch_status: "normal", reserved_order_id: null, active_ride_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null }
+            });
+         });
+      } else if (!ghostOrderId) {
+         // Si solo tenia dispatch_status = 'automatic_pending'
+         const offeredLocal = safeOrders.find(o => 
+           (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId) && 
+           o.status === "ofrecido"
+         );
+         if (!offeredLocal && !activeOrderLocal) {
+            updateDriver.mutate({
+              id: myDriverId,
+              data: {
+                status: "disponible",
+                dispatch_status: "normal",
+                reserved_order_id: null,
+                active_ride_id: null,
+                reservation_token: null,
+                manual_reservation_token: null,
+                driver_reservation_key: null
+              }
+            });
+         }
       }
+    } else {
+      checkedGhostRef.current = null;
     }
-  }, [safeOrders, myDriver?.status, myDriver?.current_base, myDriver?.dispatch_status, myDriver?.reserved_order_id, dismissedBroadcasts, evaluateAlerts, myDriverId]);
+  }, [safeOrders, myDriver?.status, myDriver?.current_base, myDriver?.dispatch_status, myDriver?.reserved_order_id, myDriver?.active_ride_id, dismissedBroadcasts, evaluateAlerts, myDriverId]);
 
   // Retries agresivos: reintenta hasta 15 veces, con backoff para sobrevivir a la reconexión de red al despertar
   const updateOrder = useMutation({

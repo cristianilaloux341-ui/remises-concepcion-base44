@@ -38,6 +38,38 @@ Deno.serve(async (req) => {
 
     let count = 0;
     
+    // Limpieza de red de seguridad: choferes colgados con reservas a viajes muertos
+    const allDrivers = await b44.entities.Driver.list();
+    const stuckDrivers = allDrivers.filter(d => d.reserved_order_id || d.active_ride_id || d.dispatch_status === 'automatic_pending');
+    for (const driver of stuckDrivers) {
+      const ghostOrderId = driver.reserved_order_id || driver.active_ride_id;
+      let isDead = false;
+      if (ghostOrderId) {
+         try {
+            const order = await b44.entities.RideOrder.get(ghostOrderId);
+            if (!order || !["ofrecido", "aceptado", "en_camino", "en_viaje"].includes(order.status)) {
+               isDead = true;
+            }
+         } catch(e) { isDead = true; } // Si no se encuentra
+      } else {
+         // Si solo tenia dispatch_status colgado y no tiene viaje activo (ni reserved ni active_ride_id)
+         isDead = true;
+      }
+
+      if (isDead) {
+         await b44.entities.Driver.update(driver.id, {
+            status: "disponible", 
+            dispatch_status: "normal", 
+            reserved_order_id: null, 
+            reservation_token: null,
+            manual_reservation_token: null,
+            driver_reservation_key: null,
+            active_ride_id: null
+         }).catch(()=>{});
+         count++;
+      }
+    }
+
     // Procesar todos los trabados (los que superaron el tiempo de auto-reasignación o las 2 horas manuales)
     // + los abandonados que quedaron en aceptado/en_camino/en_viaje por más de 2 horas.
     const allToReset = [...stuckOrders, ...abandonedOrders];
