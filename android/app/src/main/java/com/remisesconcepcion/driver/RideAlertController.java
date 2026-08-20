@@ -22,8 +22,6 @@ public class RideAlertController {
     private static final String TAG = "RideAlertController";
     
     private static RideAlertController instance;
-    private MediaPlayer mediaPlayer;
-    private Vibrator vibrator;
     private String currentOrderId;
     private Handler timeoutHandler = new Handler(Looper.getMainLooper());
     private Runnable timeoutRunnable;
@@ -130,102 +128,8 @@ public class RideAlertController {
         notification.flags |= android.app.Notification.FLAG_INSISTENT;
         notificationManager.notify(reqCode, notification);
 
-        // --- MANEJO DE AUDIO ROBUSTO (Híbrido Cliente + Delay) ---
-        try {
-            final Uri finalSoundUri = soundUri;
-            android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            if (audioManager != null) {
-                try {
-                    int maxAlarmVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
-                    audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxAlarmVol, 0);
-                    // Adquirir AudioFocus
-                    audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
-                } catch (Exception e) {
-                    Log.e(TAG, "Error configurando AudioManager", e);
-                }
-            }
-
-            try {
-                Log.d(TAG, "1. INICIO FLUJO AUDIO - Hilo: " + Thread.currentThread().getName());
-                if (mediaPlayer != null) {
-                    try { 
-                        Log.d(TAG, "1a. Liberando mediaPlayer anterior. Hilo: " + Thread.currentThread().getName());
-                        if (mediaPlayer.isPlaying()) mediaPlayer.stop(); 
-                        mediaPlayer.release(); 
-                    } catch(Exception e){
-                        Log.e(TAG, "Error liberando mediaPlayer anterior", e);
-                    }
-                }
-                
-                Log.d(TAG, "2. new MediaPlayer(). Hilo: " + Thread.currentThread().getName());
-                mediaPlayer = new MediaPlayer();
-                mediaPlayer.setWakeMode(context, android.os.PowerManager.PARTIAL_WAKE_LOCK);
-                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build());
-                
-                Log.d(TAG, "3. setDataSource(). Hilo: " + Thread.currentThread().getName());
-                mediaPlayer.setDataSource(context, finalSoundUri);
-                mediaPlayer.setLooping(true);
-                mediaPlayer.setVolume(1.0f, 1.0f);
-                
-                Log.d(TAG, "4. prepare(). Hilo: " + Thread.currentThread().getName());
-                mediaPlayer.prepare();
-                Log.d(TAG, "5. prepare() EXITOSO. Hilo: " + Thread.currentThread().getName());
-                
-                final MediaPlayer pendingPlayer = mediaPlayer;
-                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        // CRÍTICO: Evitar condición de carrera con executeStop
-                        synchronized (RideAlertController.this) {
-                            Log.d(TAG, "6. Ejecutando delay (200ms). Hilo: " + Thread.currentThread().getName());
-                            if (mediaPlayer == pendingPlayer && mediaPlayer != null) {
-                                try {
-                                    Log.d(TAG, "7. start(). Hilo: " + Thread.currentThread().getName());
-                                    mediaPlayer.start();
-                                    Log.d(TAG, "8. start() EXITOSO.");
-                                } catch (IllegalStateException e) {
-                                    Log.e(TAG, "9. FALLO CRÍTICO: IllegalStateException en start().", e);
-                                } catch (Exception e) {
-                                    Log.e(TAG, "9. FALLO: Excepción general en start().", e);
-                                }
-                            } else {
-                                Log.w(TAG, "7. Cancelando start(). Motivo: mediaPlayer cambió o es null.");
-                            }
-                        }
-                    }
-                }, 200);
-            } catch (Exception ex) {
-                Log.e(TAG, "FALLO en flujo principal de audio, usando Ringtone fallback", ex);
-                try {
-                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                    if (r != null) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            r.setAudioAttributes(new AudioAttributes.Builder()
-                                    .setUsage(AudioAttributes.USAGE_ALARM)
-                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                    .build());
-                        }
-                        r.play();
-                    }
-                } catch(Exception e3) {
-                    Log.e(TAG, "Error en Ringtone fallback", e3);
-                }
-            }
-            
-            // Vibración explícita (Estaba en cliente, faltaba en chofer)
-            vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
-            if (vibrator != null) {
-                long[] pattern = {0, 500, 200, 500, 200, 1000};
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator.vibrate(android.os.VibrationEffect.createWaveform(pattern, 0));
-                } else {
-                    vibrator.vibrate(pattern, 0);
-                }
-            }
-        } catch (Exception e) {}
+        // --- MANEJO DE AUDIO ROBUSTO: REMOVIDO POR INCOMPATIBILIDAD CON ANDROID 14+ ---
+        // Se confía enteramente en NotificationCompat y FLAG_INSISTENT
 
         timeoutRunnable = new Runnable() {
             @Override
@@ -271,27 +175,6 @@ public class RideAlertController {
         if (timeoutRunnable != null) {
             timeoutHandler.removeCallbacks(timeoutRunnable);
             timeoutRunnable = null;
-        }
-
-        if (mediaPlayer != null) {
-            try {
-                Log.d(TAG, "executeStop: Deteniendo mediaPlayer. Hilo: " + Thread.currentThread().getName());
-                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
-                Log.d(TAG, "executeStop: Liberando mediaPlayer.");
-                mediaPlayer.release();
-                Log.d(TAG, "executeStop: mediaPlayer liberado exitosamente.");
-            } catch (Exception e) {
-                Log.e(TAG, "executeStop: Error al detener/liberar mediaPlayer.", e);
-            } finally {
-                mediaPlayer = null;
-            }
-        }
-
-        if (vibrator != null) {
-            try { vibrator.cancel(); } catch (Exception e) {
-                Log.e(TAG, "executeStop: Error al cancelar vibración.", e);
-            }
-            vibrator = null;
         }
 
         if (orderId != null) {

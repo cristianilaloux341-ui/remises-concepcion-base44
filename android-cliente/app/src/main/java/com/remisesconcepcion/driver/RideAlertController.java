@@ -22,8 +22,6 @@ public class RideAlertController {
     private static final String TAG = "RideAlertController";
     
     private static RideAlertController instance;
-    private MediaPlayer mediaPlayer;
-    private Vibrator vibrator;
     private String currentOrderId;
     private Handler timeoutHandler = new Handler(Looper.getMainLooper());
     private Runnable timeoutRunnable;
@@ -135,74 +133,8 @@ public class RideAlertController {
         notificationManager.notify(reqCode, notification);
         Log.e(TAG, "FCM_NOTIFICATION_CREATED - ID " + reqCode + " WITH FLAG_INSISTENT");
 
-        // --- SOLUCIÓN CRÍTICA DE SONIDO EN MAIN THREAD ---
-        try {
-            int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
-            Uri soundUri;
-            if (soundResId != 0) {
-                soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId);
-            } else {
-                soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-            }
-            
-            final Uri finalSoundUri = soundUri;
-
-            // --- FORZAR FOCO DE AUDIO Y VOLUMEN AL MÁXIMO ---
-            android.media.AudioManager audioManager = (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            if (audioManager != null) {
-                try {
-                    int maxAlarmVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
-                    audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxAlarmVol, 0);
-                    audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
-                } catch (Exception e) {
-                    Log.e(TAG, "No se pudo forzar volumen de audio", e);
-                }
-            }
-
-            try {
-                if (mediaPlayer != null) {
-                    try { mediaPlayer.stop(); mediaPlayer.release(); } catch(Exception ignored){}
-                }
-                mediaPlayer = new MediaPlayer();
-                mediaPlayer.setWakeMode(context, android.os.PowerManager.PARTIAL_WAKE_LOCK);
-                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build());
-                mediaPlayer.setDataSource(context, finalSoundUri);
-                mediaPlayer.setLooping(true);
-                mediaPlayer.setVolume(1.0f, 1.0f);
-                mediaPlayer.prepare();
-                mediaPlayer.start();
-                Log.e(TAG, "ÉXITO: MediaPlayer INICIADO correctamente, de forma directa y síncrona");
-            } catch (Exception ex) {
-                Log.e(TAG, "Fallo MediaPlayer, usando Ringtone fallback", ex);
-                try {
-                    android.media.Ringtone r = RingtoneManager.getRingtone(context, finalSoundUri);
-                    if (r != null) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            r.setAudioAttributes(new AudioAttributes.Builder()
-                                    .setUsage(AudioAttributes.USAGE_ALARM)
-                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                    .build());
-                        }
-                        r.play();
-                    }
-                } catch(Exception e3) {}
-            }
-            
-            vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
-            if (vibrator != null) {
-                long[] pattern = {0, 500, 200, 500, 200, 1000};
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0));
-                } else {
-                    vibrator.vibrate(pattern, 0);
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error reproduciendo sonido nativo", e);
-        }
+        // --- SOLUCIÓN CRÍTICA DE SONIDO EN MAIN THREAD REMOVIDA ---
+        // Se confía enteramente en NotificationCompat y FLAG_INSISTENT por incompatibilidad de MediaPlayer con Android 14+
 
         // Temporizador de vencimiento (60s)
         timeoutRunnable = new Runnable() {
@@ -237,22 +169,6 @@ public class RideAlertController {
             logDebug("executeStop: Temporizador cancelado");
         }
 
-        if (mediaPlayer != null) {
-            try {
-                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
-                mediaPlayer.release();
-                logDebug("executeStop: MediaPlayer detenido y liberado");
-            } catch (Exception e) {
-                Log.e(TAG, "Error liberando MediaPlayer", e);
-            }
-            mediaPlayer = null;
-        }
-
-        if (vibrator != null) {
-            try { vibrator.cancel(); logDebug("executeStop: Vibración cancelada"); } catch (Exception e) {}
-            vibrator = null;
-        }
-
         if (orderId != null) {
             NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             notificationManager.cancel(orderId.hashCode());
@@ -263,7 +179,7 @@ public class RideAlertController {
     }
 
     public synchronized boolean isAlertActive(String orderId) {
-        return orderId != null && orderId.equals(currentOrderId) && mediaPlayer != null;
+        return orderId != null && orderId.equals(currentOrderId);
     }
 
     public synchronized void playOneShotSound(Context context, String type) {
