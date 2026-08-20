@@ -5,7 +5,8 @@ Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
   const payload = await req.json();
-  const { orderId, driverId, importeFinal } = payload;
+  const { orderId, driverId, importeFinal, operationKey } = payload;
+  const opKey = operationKey || `FINISH_${orderId}_${driverId}`;
 
   await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_REQUESTED', user_type: 'sistema', user_name: 'finishRide', details: `Requested finish for ${orderId}`, metadata: { orderId, driverId } });
 
@@ -61,13 +62,13 @@ Deno.serve(async (req) => {
     return await checkAndRepairDriver(driver);
   }
 
-  if (!['aceptado', 'en_viaje'].includes(order.status)) {
+  if (!['aceptado', 'en_camino', 'en_viaje'].includes(order.status)) {
     await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: 'Invalid order status', metadata: { orderId, status: order.status } });
     return Response.json({ success: false, reason: 'invalid_order_status' });
   }
 
   const uOrder = await b44.entities.RideOrder.updateMany(
-    { id: orderId, status: { $in: ['aceptado', 'en_viaje'] }, driver_id: driverId },
+    { id: orderId, status: { $in: ['aceptado', 'en_camino', 'en_viaje'] }, driver_id: driverId },
     { $set: { 
         status: 'completado',
         taximetro_iniciado: false,
@@ -78,7 +79,9 @@ Deno.serve(async (req) => {
         manual_reservation_token: null,
         processingOwnerId: null,
         processingPhase: null,
-        processingOperationKey: null
+        processingOperationKey: null,
+        lastCompletedOperationKey: opKey,
+        lastCompletedAction: "FINISH"
       } 
     }
   );

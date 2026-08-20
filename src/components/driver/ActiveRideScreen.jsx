@@ -176,8 +176,42 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   };
 
   const [isFinishing, setIsFinishing] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+
+  const handleStartRide = async (targetStatus) => {
+    if (isStarting || isFinishing) return;
+    setIsStarting(true);
+    
+    const sessionToken = localStorage.getItem("session_token");
+    let confirmed = false;
+    for (let attempt = 0; attempt < 4 && !confirmed; attempt++) {
+      try {
+        const res = await base44.functions.invoke("startRide", {
+          orderId: order.id,
+          driverId: driver.id,
+          targetStatus,
+          sessionToken
+        });
+        if (res.data?.success) {
+           confirmed = true;
+        } else if (res.data?.reason === "OPERATION_IN_PROGRESS") {
+           // will retry
+        } else {
+           break;
+        }
+      } catch (err) {}
+      if (!confirmed) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+    }
+    
+    if (!confirmed) {
+      window.alert("No se pudo actualizar el estado del viaje. Revisá tu conexión.");
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+    }
+    setIsStarting(false);
+  };
+
   const handleCompletar = async () => {
-    if (isFinishing) return; 
+    if (isFinishing || isStarting) return; 
     setIsFinishing(true);
     const finalFare = Math.round(importeRef.current);
     if (onFinishRide) {
@@ -197,7 +231,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
         orderId: order.id
       }).catch(() => {});
     }
-    onStatusChange("en_camino");
+    await handleStartRide("en_camino");
   };
 
   return (
@@ -314,31 +348,31 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
         {order.status === "aceptado" && (
           <div className="space-y-2">
             {!order.dropoff_address ? (
-              <button className="w-full h-14 rounded-2xl gap-2 bg-cyan-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_viaje")}>
-                <Car className="w-5 h-5" /> Iniciar Viaje (Sin Destino)
+              <button className="w-full h-14 rounded-2xl gap-2 bg-cyan-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg disabled:opacity-50" onClick={() => handleStartRide("en_viaje")} disabled={isStarting || isFinishing}>
+                <Car className="w-5 h-5" /> {isStarting ? "Iniciando..." : "Iniciar Viaje (Sin Destino)"}
               </button>
             ) : (
-              <button className="w-full h-14 rounded-2xl gap-2 bg-amber-500 text-gray-900 text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={handleLlegue}>
-                <AlertCircle className="w-5 h-5" /> Llegué a la Puerta (Avisar)
+              <button className="w-full h-14 rounded-2xl gap-2 bg-amber-500 text-gray-900 text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg disabled:opacity-50" onClick={handleLlegue} disabled={isStarting || isFinishing}>
+                <AlertCircle className="w-5 h-5" /> {isStarting ? "Avisando..." : "Llegué a la Puerta (Avisar)"}
               </button>
             )}
-            <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all" onClick={onCancelRide}>
+            <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all disabled:opacity-50" onClick={onCancelRide} disabled={isStarting || isFinishing}>
               <XCircle className="w-4 h-4" /> Anular — volver a mi base
             </button>
           </div>
         )}
         {order.status === "en_camino" && (
           <div className="space-y-2">
-            <button className="w-full h-14 rounded-2xl gap-2 bg-cyan-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg" onClick={() => onStatusChange("en_viaje")}>
-              <Car className="w-5 h-5" /> Pasajero a Bordo
+            <button className="w-full h-14 rounded-2xl gap-2 bg-cyan-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg disabled:opacity-50" onClick={() => handleStartRide("en_viaje")} disabled={isStarting || isFinishing}>
+              <Car className="w-5 h-5" /> {isStarting ? "Iniciando..." : "Pasajero a Bordo"}
             </button>
-            <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all" onClick={onCancelRide}>
+            <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all disabled:opacity-50" onClick={onCancelRide} disabled={isStarting || isFinishing}>
               <XCircle className="w-4 h-4" /> Anular — no salió / cancelar
             </button>
           </div>
         )}
         {order.status === "en_viaje" && (
-          <button className="w-full h-14 rounded-2xl gap-2 bg-green-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg disabled:opacity-50" onClick={handleCompletar} disabled={isFinishing}>
+          <button className="w-full h-14 rounded-2xl gap-2 bg-green-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg disabled:opacity-50" onClick={handleCompletar} disabled={isFinishing || isStarting}>
             <CheckCircle2 className="w-5 h-5" /> {isFinishing ? "Terminando..." : `Terminar Viaje · $${importeActual.toLocaleString()}`}
           </button>
         )}
