@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw, Timer, UserCog, HardDriveDownload, Settings, Eye, ShoppingBag, Shield, LogOut } from "lucide-react";
+import { LayoutDashboard, MapPin, Car, Users, Plus, X, Smartphone, CalendarClock, UserCheck, MessageSquare, Map, DollarSign, UserCircle, RefreshCw, Timer, UserCog, HardDriveDownload, Settings, Eye, ShoppingBag, Shield, LogOut, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
@@ -24,6 +24,7 @@ const NAV_BY_ROLE = {
     { label: "Zonas",         path: "/zone-settings", icon: Map },
     { label: "Tarifas",       path: "/tarifas",       icon: DollarSign },
     { label: "Backup",        path: "/backup",        icon: HardDriveDownload },
+    { label: "Simulación",    path: "/simulacion-dia", icon: Play },
     { label: "Auditoría",     path: "/audit",         icon: Eye },
     { label: "Conectados",    path: "/active-users",  icon: Users },
   ],

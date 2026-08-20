@@ -2,17 +2,70 @@
   "name": "TestRideOrder",
   "type": "object",
   "properties": {
+    "client_name": {
+      "type": "string"
+    },
+    "pickup_address": {
+      "type": "string"
+    },
+    "dropoff_address": {
+      "type": "string"
+    },
     "status": {
+      "type": "string",
+      "enum": [
+        "pendiente",
+        "procesando_despacho",
+        "esperando_confirmacion_manual",
+        "ofrecido",
+        "aceptado",
+        "en_camino",
+        "en_viaje",
+        "completado",
+        "cancelado",
+        "rechazado"
+      ],
+      "default": "pendiente"
+    },
+    "reservation_token": {
+      "type": "string"
+    },
+    "manual_reservation_token": {
+      "type": "string"
+    },
+    "reserved_driver_id": {
       "type": "string"
     },
     "driver_id": {
       "type": "string"
     },
+    "driver_name": {
+      "type": "string"
+    },
+    "offered_driver_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "assignment_attempt": {
-      "type": "number"
+      "type": "number",
+      "default": 1
     },
     "offerExpiresAt": {
       "type": "number"
+    },
+    "fare": {
+      "type": "number"
+    },
+    "zone": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "scheduled_for": {
+      "type": "string"
     },
     "processingOwnerId": {
       "type": "string"

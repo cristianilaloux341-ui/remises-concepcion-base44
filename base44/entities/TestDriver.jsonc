@@ -2,16 +2,46 @@
   "name": "TestDriver",
   "type": "object",
   "properties": {
-    "status": {
+    "name": {
       "type": "string"
     },
+    "phone": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "disponible",
+        "en_viaje",
+        "no_disponible"
+      ],
+      "default": "disponible"
+    },
     "dispatch_status": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "automatic_pending",
+        "manual_pending"
+      ],
+      "default": "normal"
+    },
+    "current_base": {
+      "type": "string"
+    },
+    "queue_entered_at": {
+      "type": "string"
+    },
+    "reserved_order_id": {
       "type": "string"
     },
     "active_ride_id": {
       "type": "string"
     },
-    "reserved_order_id": {
+    "reservation_token": {
+      "type": "string"
+    },
+    "manual_reservation_token": {
       "type": "string"
     },
     "driver_reservation_key": {
@@ -20,6 +50,25 @@
     "driver_reservation_version": {
       "type": "number",
       "default": 0
+    },
+    "pace_ms": {
+      "type": "number",
+      "default": 3000
+    },
+    "reject_rate": {
+      "type": "number",
+      "default": 0.1
+    },
+    "off_rate": {
+      "type": "number",
+      "default": 0.05
+    },
+    "base_affinity": {
+      "type": "string"
+    },
+    "connectivity_reliable": {
+      "type": "boolean",
+      "default": true
     }
   },
   "rls": {
