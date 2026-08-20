@@ -198,7 +198,7 @@ const AuthenticatedApp = () => {
     );
   }
 
-  if (authError) {
+  if (authError && !hasLocalOperator) {
     if (authError.type === 'user_not_registered' && !isLoginCentral && !isDriverApp) {
       return <UserNotRegisteredError />;
     }
