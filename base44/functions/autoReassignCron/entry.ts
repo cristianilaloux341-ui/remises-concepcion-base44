@@ -12,17 +12,10 @@ Deno.serve(async (req) => {
     const twoHoursAgoStr = new Date(twoHoursAgoTime).toISOString();
 
     // 1. Buscar viajes automáticos trabados en "ofrecido"
-    const allStuckOrders = await b44.entities.RideOrder.filter({ 
+    // Los viajes en estado "ofrecido" son asignaciones automáticas y deben vencer a los 60s, sin importar su origen.
+    const stuckOrders = await b44.entities.RideOrder.filter({ 
       status: "ofrecido",
       updated_date: { $lt: thresholdDate.toISOString() }
-    });
-    
-    // Filtrar: los manuales ("operador") solo se limpian si pasaron > 2 horas. Los automáticos a los 60s.
-    const stuckOrders = allStuckOrders.filter(o => {
-       if (o.source === 'operador') {
-          return new Date(o.updated_date || 0).getTime() < twoHoursAgoTime;
-       }
-       return true;
     });
 
     // 1.5 Buscar viajes asignados (aceptado, en_camino, en_viaje) abandonados por más de 2 horas
