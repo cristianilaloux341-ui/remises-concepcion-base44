@@ -294,7 +294,7 @@ export default function Messages() {
               <SelectItem value="todos">📡 Todos los móviles</SelectItem>
               {drivers.map(d => (
                 <SelectItem key={d.id} value={d.id}>
-                  🚗 {d.vehicle_model ? `Móvil ${d.vehicle_model} - ` : ''}{d.name}
+                  🚗 {d.name}
                 </SelectItem>
               ))}
             </SelectContent>
