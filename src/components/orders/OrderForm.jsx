@@ -577,7 +577,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
                       className={`cursor-pointer px-2 py-1 text-xs transition-colors ${form.driver_id === d.id ? 'bg-green-500 text-white border-green-600 hover:bg-green-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'}`}
                       onClick={() => handleDriverChange(d.id)}
                     >
-                      {i + 1}. {d.name.split(" ")[0]} {d.vehicle_model ? `#${d.vehicle_model}` : ''}
+                      {i + 1}. {d.name}
                     </Badge>
                   ))}
                   {getBaseQueue(availableDrivers, form.zone).length === 0 && (
