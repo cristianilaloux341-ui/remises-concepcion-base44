@@ -383,7 +383,11 @@ Deno.serve(async (req) => {
                })
              });
              if (!fcmRes.ok) {
-               console.error("FCM Cancel Error:", await fcmRes.text());
+               const errText = await fcmRes.text();
+               console.error("FCM Cancel Error:", errText);
+               if (errText.includes("UNREGISTERED") || errText.includes("NOT_FOUND") || fcmRes.status === 404) {
+                 await base44.asServiceRole.entities.Driver.update(driver.id, { fcm_token: null });
+               }
              } else {
                console.log("FCM Cancel Success sent to", driver.id);
              }
@@ -450,11 +454,18 @@ Deno.serve(async (req) => {
                android: { priority: "HIGH" }
              }
            };
-           await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+           const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
              method: 'POST', headers: { 'Authorization': `Bearer ${cachedAccessToken}`, 'Content-Type': 'application/json' },
              body: JSON.stringify(fcmPayload)
            });
-           fcmSuccess = true;
+           if (!fcmRes.ok) {
+             const errText = await fcmRes.text();
+             if (errText.includes("UNREGISTERED") || errText.includes("NOT_FOUND") || fcmRes.status === 404) {
+               await base44.asServiceRole.entities.User.update(user.id, { fcm_token: null });
+             }
+           } else {
+             fcmSuccess = true;
+           }
          }
       }
       return Response.json({ ok: fcmSuccess });
@@ -559,6 +570,13 @@ Deno.serve(async (req) => {
                if (!fcmRes.ok) {
                  const errText = await fcmRes.text();
                  console.error("FCM Send Error HTTP " + fcmRes.status + ":", errText);
+                 
+                 // If the token is no longer valid, clear it so we don't keep trying and failing silently
+                 if (errText.includes("UNREGISTERED") || errText.includes("NOT_FOUND") || fcmRes.status === 404) {
+                   await base44.asServiceRole.entities.Driver.update(driverId, { fcm_token: null });
+                   console.log("FCM Token cleared for driver", driverId, "due to UNREGISTERED/NOT_FOUND");
+                 }
+                 
                  // No retornamos error aquí, permitimos que intente el fallback de WebPush
                  fcmSuccess = false;
                } else {
