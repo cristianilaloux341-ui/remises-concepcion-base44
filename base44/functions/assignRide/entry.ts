@@ -30,73 +30,11 @@ Deno.serve(async (req) => {
     details: `Request to assign ride ${orderId} to driver ${forceManual ? manualDriverName : driverId}`
   }).catch(() => {});
 
-  // Las asignaciones forzadas y los choferes ficticios quedan deshabilitados.
-  // Toda asignación debe pasar por la validación y la reserva atómica de abajo.
-  if (forceManual || payload.operatorOverride) {
-    return Response.json({
-      success: false,
-      reason: 'La asignación forzada está deshabilitada. Seleccione un móvil real y disponible.'
-    });
-  }
-
   if (!driverId) return Response.json({ success: false, reason: 'Missing driverId' });
   const driverReq = await b44.entities.Driver.get(driverId);
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
 
-  const mobileId = String(payload.mobileId || "");
-  if (mobileId) {
-    const mobile = await b44.entities.Movil.get(mobileId).catch(() => null);
-    if (!mobile) {
-      return Response.json({ success: false, reason: 'El móvil seleccionado ya no existe. El pasaje no fue enviado.' });
-    }
-    if (mobile.activo === false || mobile.fuera_de_servicio || mobile.suspension_motivo) {
-      return Response.json({ success: false, reason: `El móvil ${mobile.numero_movil} está inhabilitado o suspendido.` });
-    }
-
-    const configuredIds = Array.isArray(mobile.driver_ids) ? mobile.driver_ids.filter(Boolean) : [];
-    if (mobile.driver_id && !configuredIds.includes(mobile.driver_id)) configuredIds.push(mobile.driver_id);
-    const normalizedPlate = String(mobile.dominio || '').replace(/\s+/g, '').toUpperCase();
-    const allDrivers = await b44.entities.Driver.list();
-    const linkedDrivers = allDrivers.filter((candidate: any) => {
-      if (configuredIds.includes(candidate.id)) return true;
-      const model = String(candidate.vehicle_model || '');
-      if (model === String(mobile.id) || model === String(mobile.numero_movil)) return true;
-      const candidatePlate = String(candidate.vehicle_plate || '').replace(/\s+/g, '').toUpperCase();
-      return normalizedPlate && candidatePlate === normalizedPlate;
-    });
-    const availableLinked = linkedDrivers.filter((candidate: any) => candidate.status === 'disponible');
-
-    if (!linkedDrivers.some((candidate: any) => candidate.id === driverId)) {
-      return Response.json({ success: false, reason: `El chofer seleccionado no está vinculado al móvil ${mobile.numero_movil}.` });
-    }
-    if (availableLinked.length === 0) {
-      return Response.json({ success: false, reason: `El móvil ${mobile.numero_movil} no tiene ningún chofer en servicio.` });
-    }
-    if (availableLinked.length > 1) {
-      return Response.json({
-        success: false,
-        reason: `El móvil ${mobile.numero_movil} tiene más de un chofer en servicio (${availableLinked.map((d: any) => d.name).join(', ')}). Primero dejá solamente uno activo.`
-      });
-    }
-    if (availableLinked[0].id !== driverId) {
-      return Response.json({ success: false, reason: `Cambió el chofer activo del móvil ${mobile.numero_movil}. Volvé a intentar la asignación.` });
-    }
-  }
-  // 1.5 Bloqueo estricto: la asignación manual nunca puede despertar
-  // ni reservar un móvil fuera de servicio, ocupado o con otro viaje activo.
-  if (driverReq.status !== 'disponible') {
-    return Response.json({
-      success: false,
-      reason: 'El móvil está fuera de servicio u ocupado. El pasaje no fue enviado.'
-    });
-  }
-  if ((driverReq.dispatch_status && driverReq.dispatch_status !== 'normal') || driverReq.reserved_order_id) {
-    return Response.json({
-      success: false,
-      reason: 'El móvil ya tiene una asignación pendiente o un viaje activo. El pasaje no fue enviado.'
-    });
-  }
-
+  // 1. Verificar si el móvil está ocupado con OTRO viaje real activo (seguridad para no robar viajes)
   const [assignedOrders, reservedOrders] = await Promise.all([
     b44.entities.RideOrder.filter({ driver_id: driverId }),
     b44.entities.RideOrder.filter({ reserved_driver_id: driverId })
@@ -105,11 +43,25 @@ Deno.serve(async (req) => {
   const conflictingOrder = [...assignedOrders, ...reservedOrders].find(
     (existing: any) => existing.id !== orderId && activeStatuses.has(existing.status)
   );
+  
   if (conflictingOrder) {
     return Response.json({
       success: false,
       reason: 'El móvil ya tiene otro pasaje activo. Este pasaje quedó pendiente y no fue enviado.'
     });
+  }
+
+  // 2. Darle autoridad absoluta a la asignación manual:
+  // Si no tiene otro viaje, forzamos que esté disponible y limpio para que la reserva atómica no rebote.
+  if (driverReq.status !== 'disponible' || driverReq.dispatch_status !== 'normal' || driverReq.reserved_order_id || driverReq.reservation_token) {
+    await b44.entities.Driver.updateMany(
+      { id: driverId },
+      { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, active_ride_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null } }
+    );
+    driverReq.status = 'disponible';
+    driverReq.dispatch_status = 'normal';
+    driverReq.reserved_order_id = null;
+    driverReq.reservation_token = null;
   }
 
   try {
