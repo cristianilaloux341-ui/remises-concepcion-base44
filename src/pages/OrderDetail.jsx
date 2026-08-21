@@ -56,16 +56,32 @@ export default function OrderDetail() {
   const cancelOrder = async () => {
     await base44.entities.RideOrder.update(order.id, { status: "cancelado" });
     if (["aceptado", "en_camino", "en_viaje", "ofrecido", "procesando_despacho"].includes(order.status)) {
-      if (order.driver_id) {
-        // Set queue_entered_at far in the past so driver appears first
-        await base44.entities.Driver.update(order.driver_id, {
-          status: "disponible",
-          queue_entered_at: new Date(Date.now() - 31536000000).toISOString(),
-        });
-      }
-      
       const toCancel = [...new Set([order.driver_id, order.reserved_driver_id, ...(order.offered_driver_ids || [])])].filter(Boolean);
+      
       if (toCancel.length > 0) {
+        // Limpieza profunda de los estados internos ("fantasmas") de todos los involucrados
+        await base44.entities.Driver.updateMany(
+          { id: { $in: toCancel } },
+          {
+            $set: {
+              status: "disponible",
+              dispatch_status: "normal",
+              active_ride_id: null,
+              reserved_order_id: null,
+              reservation_token: null,
+              manual_reservation_token: null,
+              driver_reservation_key: null
+            }
+          }
+        );
+
+        if (order.driver_id) {
+          // Set queue_entered_at far in the past so driver appears first
+          await base44.entities.Driver.update(order.driver_id, {
+            queue_entered_at: new Date(Date.now() - 31536000000).toISOString(),
+          });
+        }
+        
         const sessionToken = sessionStorage.getItem("local_operator_token");
         base44.functions.invoke("sendPushNotification", {
           action: "cancel_multiple",
