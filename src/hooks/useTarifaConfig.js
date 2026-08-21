@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 
 export const METROS_POR_FICHA = 85;
 export const VALOR_FICHA = 100;
-export const SEGUNDOS_POR_FICHA_ESPERA = 30;
+export const SEGUNDOS_POR_FICHA_ESPERA = 45;
 
 export const TARIFA_DEFAULTS = {
   bajada_bandera: 1700,
@@ -12,7 +12,7 @@ export const TARIFA_DEFAULTS = {
   metros_por_ficha: METROS_POR_FICHA,
   valor_ficha_espera: VALOR_FICHA,
   segundos_por_ficha_espera: SEGUNDOS_POR_FICHA_ESPERA,
-  tolerancia_espera_segundos: 120,
+  tolerancia_espera_segundos: 240,
   nocturna_hora_inicio: 22,
   nocturna_hora_fin: 6,
 };
