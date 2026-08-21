@@ -62,9 +62,17 @@ export default function Messages() {
           // Toast + sonido solo para mensajes de móviles entrantes — UNA sola vez, sin loop
           if (event.data?.from_type === "movil") {
             playMsgSound();
-            setToast({ from_name: event.data.from_name, content: event.data.content, id: event.id });
+            const isAudio = event.data.content?.startsWith("[AUDIO]");
+            const audioUrl = isAudio ? event.data.content.replace("[AUDIO]", "") : null;
+            setToast({ 
+              from_name: event.data.from_name, 
+              content: event.data.content, 
+              id: event.id,
+              isAudio,
+              audioUrl
+            });
             clearTimeout(toastTimerRef.current);
-            toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+            toastTimerRef.current = setTimeout(() => setToast(null), 7000);
             // Enviar push real a todos los operadores (bloqueante para asegurar salida)
             const sessionToken = sessionStorage.getItem("local_operator_token");
             await base44.functions.invoke("sendPushNotification", {
@@ -143,7 +151,14 @@ export default function Messages() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-blue-300 mb-0.5">{toast.from_name}</p>
-              <p className="text-sm leading-snug truncate">{toast.content}</p>
+              {toast.isAudio ? (
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm leading-snug font-medium text-blue-100">🎤 Mensaje de voz</p>
+                  <audio controls src={toast.audioUrl} className="h-8 w-full max-w-[200px]" />
+                </div>
+              ) : (
+                <p className="text-sm leading-snug truncate">{toast.content}</p>
+              )}
             </div>
             <button
               className="text-gray-400 hover:text-white shrink-0 mt-0.5"
