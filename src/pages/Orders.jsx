@@ -28,7 +28,29 @@ export default function Orders() {
   const { orders, isLoading } = useRealtimeOrders({ limit: 100 });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.RideOrder.delete(id),
+    mutationFn: async (id) => {
+      const orderToDelete = orders.find(o => o.id === id);
+      if (orderToDelete) {
+        const toCancel = [...new Set([orderToDelete.driver_id, orderToDelete.reserved_driver_id, ...(orderToDelete.offered_driver_ids || [])])].filter(Boolean);
+        if (toCancel.length > 0) {
+          await base44.entities.Driver.updateMany(
+            { id: { $in: toCancel } },
+            {
+              $set: {
+                status: "disponible",
+                dispatch_status: "normal",
+                active_ride_id: null,
+                reserved_order_id: null,
+                reservation_token: null,
+                manual_reservation_token: null,
+                driver_reservation_key: null
+              }
+            }
+          ).catch(() => {});
+        }
+      }
+      return base44.entities.RideOrder.delete(id);
+    },
     onSuccess: (_, id) => {
       base44.entities.AuditLog.create({
         action: "eliminar_viaje",
@@ -36,6 +58,7 @@ export default function Orders() {
         user_name: localOperator?.name || "Admin",
         details: `Eliminó la orden de viaje ID ${id}`
       }).catch(()=>{});
+      queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
     }
   });
 

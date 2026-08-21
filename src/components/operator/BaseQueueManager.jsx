@@ -66,6 +66,8 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
   const removeMutation = useMutation({
     mutationFn: (driver) => base44.entities.Driver.update(driver.id, {
       current_base: null, status: "no_disponible", queue_entered_at: null,
+      dispatch_status: "normal", active_ride_id: null, reserved_order_id: null,
+      reservation_token: null, manual_reservation_token: null, driver_reservation_key: null
     }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["drivers"] }),
   });
@@ -113,7 +115,13 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
       return base44.entities.Driver.update(driver.id, {
         current_base: baseName,
         status: "disponible",
+        dispatch_status: "normal",
         queue_entered_at: new Date(Date.now() + existingCount * 1000).toISOString(),
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
       });
     },
     onSuccess: () => {
@@ -287,14 +295,18 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
 
     // Salida de servicio rápida con .00 o .0
     if (baseNumStr === "00" || baseNumStr === "0") {
-      try {
-        await base44.entities.Driver.update(driver.id, {
-          current_base: null,
-          status: "no_disponible",
-          dispatch_status: "normal",
-          reserved_order_id: null,
-          queue_entered_at: null,
-        });
+    try {
+      await base44.entities.Driver.update(driver.id, {
+        current_base: null,
+        status: "no_disponible",
+        dispatch_status: "normal",
+        reserved_order_id: null,
+        queue_entered_at: null,
+        active_ride_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
+      });
         window.dispatchEvent(new Event("force-driver-refresh"));
       } catch (err) {
       }

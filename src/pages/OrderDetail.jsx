@@ -55,49 +55,71 @@ export default function OrderDetail() {
   // When cancelling an active order, put the assigned driver first in queue
   const cancelOrder = async () => {
     await base44.entities.RideOrder.update(order.id, { status: "cancelado" });
-    if (["aceptado", "en_camino", "en_viaje", "ofrecido", "procesando_despacho"].includes(order.status)) {
-      const toCancel = [...new Set([order.driver_id, order.reserved_driver_id, ...(order.offered_driver_ids || [])])].filter(Boolean);
-      
-      if (toCancel.length > 0) {
-        // Limpieza profunda de los estados internos ("fantasmas") de todos los involucrados
-        await base44.entities.Driver.updateMany(
-          { id: { $in: toCancel } },
-          {
-            $set: {
-              status: "disponible",
-              dispatch_status: "normal",
-              active_ride_id: null,
-              reserved_order_id: null,
-              reservation_token: null,
-              manual_reservation_token: null,
-              driver_reservation_key: null
-            }
+    
+    const toCancel = [...new Set([order.driver_id, order.reserved_driver_id, ...(order.offered_driver_ids || [])])].filter(Boolean);
+    
+    if (toCancel.length > 0) {
+      // Limpieza profunda de los estados internos ("fantasmas") de todos los involucrados
+      await base44.entities.Driver.updateMany(
+        { id: { $in: toCancel } },
+        {
+          $set: {
+            status: "disponible",
+            dispatch_status: "normal",
+            active_ride_id: null,
+            reserved_order_id: null,
+            reservation_token: null,
+            manual_reservation_token: null,
+            driver_reservation_key: null
           }
-        );
-
-        if (order.driver_id) {
-          // Set queue_entered_at far in the past so driver appears first
-          await base44.entities.Driver.update(order.driver_id, {
-            queue_entered_at: new Date(Date.now() - 31536000000).toISOString(),
-          });
         }
-        
-        const sessionToken = sessionStorage.getItem("local_operator_token");
-        base44.functions.invoke("sendPushNotification", {
-          action: "cancel_multiple",
-          driversToCancel: toCancel,
-          orderId: order.id,
-          sessionToken
-        }).catch(e => console.error("Cancel push error:", e));
+      );
+
+      if (order.driver_id) {
+        // Set queue_entered_at far in the past so driver appears first
+        await base44.entities.Driver.update(order.driver_id, {
+          queue_entered_at: new Date(Date.now() - 31536000000).toISOString(),
+        });
       }
+      
+      const sessionToken = sessionStorage.getItem("local_operator_token");
+      base44.functions.invoke("sendPushNotification", {
+        action: "cancel_multiple",
+        driversToCancel: toCancel,
+        orderId: order.id,
+        sessionToken
+      }).catch(e => console.error("Cancel push error:", e));
     }
+    
     queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
   };
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.RideOrder.delete(id),
+    mutationFn: async (id) => {
+      const orderToDelete = orders.find(o => o.id === id);
+      if (orderToDelete) {
+        const toCancel = [...new Set([orderToDelete.driver_id, orderToDelete.reserved_driver_id, ...(orderToDelete.offered_driver_ids || [])])].filter(Boolean);
+        if (toCancel.length > 0) {
+          await base44.entities.Driver.updateMany(
+            { id: { $in: toCancel } },
+            {
+              $set: {
+                status: "disponible",
+                dispatch_status: "normal",
+                active_ride_id: null,
+                reserved_order_id: null,
+                reservation_token: null,
+                manual_reservation_token: null,
+                driver_reservation_key: null
+              }
+            }
+          ).catch(() => {});
+        }
+      }
+      return base44.entities.RideOrder.delete(id);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
       navigate("/orders");
     },
   });
@@ -130,18 +152,26 @@ export default function OrderDetail() {
   };
 
   const returnToPending = async () => {
-    // Si había un conductor asignado, liberarlo
-    if (order.driver_id || order.reserved_driver_id) {
-      const driverToRelease = order.driver_id || order.reserved_driver_id;
+    // Si había un conductor asignado o pre-reservado, liberarlo completamente
+    const toCancel = [...new Set([order.driver_id, order.reserved_driver_id, ...(order.offered_driver_ids || [])])].filter(Boolean);
+    if (toCancel.length > 0) {
       try {
-        await base44.entities.Driver.update(driverToRelease, {
-          status: "disponible",
-          dispatch_status: "normal",
-          reserved_order_id: null,
-          reservation_token: null
-        });
+        await base44.entities.Driver.updateMany(
+          { id: { $in: toCancel } },
+          {
+            $set: {
+              status: "disponible",
+              dispatch_status: "normal",
+              active_ride_id: null,
+              reserved_order_id: null,
+              reservation_token: null,
+              manual_reservation_token: null,
+              driver_reservation_key: null
+            }
+          }
+        );
       } catch (e) {
-        console.error("Error liberando conductor", e);
+        console.error("Error liberando conductores", e);
       }
     }
     

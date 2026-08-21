@@ -872,7 +872,19 @@ export default function DriverApp() {
         stopNativeRideAlert(autoRejectOrderId, "autoRejectFromURL");
       }
       setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
-      updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
+      updateDriver.mutate({ 
+        id: myDriverId, 
+        data: { 
+          status: "disponible", 
+          dispatch_status: "normal",
+          queue_entered_at: new Date().toISOString(),
+          active_ride_id: null,
+          reserved_order_id: null,
+          reservation_token: null,
+          manual_reservation_token: null,
+          driver_reservation_key: null
+        } 
+      });
       Promise.all([
         base44.entities.RideOrder.get(autoRejectOrderId),
         base44.entities.Driver.list()
@@ -975,7 +987,19 @@ export default function DriverApp() {
           }
           notifySW({ type: "ACK_REJECT_ORDER", orderId }); // Send ACK
           setLocalOverride({ status: "disponible" });
-          updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
+          updateDriver.mutate({ 
+            id: myDriverId, 
+            data: { 
+              status: "disponible", 
+              dispatch_status: "normal",
+              queue_entered_at: new Date().toISOString(),
+              active_ride_id: null,
+              reserved_order_id: null,
+              reservation_token: null,
+              manual_reservation_token: null,
+              driver_reservation_key: null
+            } 
+          });
           Promise.all([
             base44.entities.RideOrder.get(orderId),
             base44.entities.Driver.list()
@@ -1689,7 +1713,19 @@ export default function DriverApp() {
     
     // Regresamos al chofer a "disponible" ya que rechazó el viaje
     setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
-    updateDriver.mutate({ id: myDriverId, data: { status: "disponible", queue_entered_at: new Date().toISOString() } });
+    updateDriver.mutate({ 
+      id: myDriverId, 
+      data: { 
+        status: "disponible", 
+        dispatch_status: "normal",
+        queue_entered_at: new Date().toISOString(),
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
+      } 
+    });
 
     // Apagar sonido nativo en Android
     base44.functions.invoke("sendPushNotification", {
@@ -1792,7 +1828,17 @@ export default function DriverApp() {
     setLocalOverride({ current_base: selectedBase, status: "disponible", queue_entered_at: ts });
     updateDriver.mutate({
       id: myDriverId,
-      data: { current_base: selectedBase, status: "disponible", queue_entered_at: ts },
+      data: { 
+        current_base: selectedBase, 
+        status: "disponible", 
+        dispatch_status: "normal",
+        queue_entered_at: ts,
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
+      },
     });
   };
   const handleChangeBase = (newBase) => {
@@ -1800,7 +1846,17 @@ export default function DriverApp() {
     setLocalOverride({ current_base: newBase, status: "disponible", queue_entered_at: ts });
     updateDriver.mutate({
       id: myDriverId,
-      data: { current_base: newBase, status: "disponible", queue_entered_at: ts },
+      data: { 
+        current_base: newBase, 
+        status: "disponible", 
+        dispatch_status: "normal",
+        queue_entered_at: ts,
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
+      },
     });
   };
   const handleTakeOrder = async (order) => {
@@ -1838,7 +1894,19 @@ export default function DriverApp() {
   const handleGoOffService = () => {
     if (libreBlockedSegs > 0) return; // bloqueado
     setLocalOverride({ status: "no_disponible", current_base: null });
-    updateDriver.mutate({ id: myDriverId, data: { status: "no_disponible", current_base: null } });
+    updateDriver.mutate({ 
+      id: myDriverId, 
+      data: { 
+        status: "no_disponible", 
+        dispatch_status: "normal",
+        current_base: null,
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
+      } 
+    });
   };
 
   // Anular viaje aceptado: vuelve al principio de la base asignada y el viaje pasa al siguiente
@@ -1890,7 +1958,20 @@ export default function DriverApp() {
 
   const handleGoOnService = () => {
     setLocalOverride({ status: "disponible", current_base: null });
-    updateDriver.mutate({ id: myDriverId, data: { status: "disponible", current_base: null, queue_entered_at: null } });
+    updateDriver.mutate({ 
+      id: myDriverId, 
+      data: { 
+        status: "disponible", 
+        dispatch_status: "normal",
+        current_base: null, 
+        queue_entered_at: null,
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
+      } 
+    });
   };
 
   const handleBroadcastAccept = async (order) => {
