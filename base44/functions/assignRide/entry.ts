@@ -51,8 +51,15 @@ Deno.serve(async (req) => {
     });
   }
 
+  if (driverReq.status === 'no_disponible') {
+    return Response.json({
+      success: false,
+      reason: 'El móvil está fuera de turno. No puede recibir viajes hasta que inicie servicio.'
+    });
+  }
+
   // 2. Darle autoridad absoluta a la asignación manual:
-  // Si no tiene otro viaje, forzamos que esté disponible y limpio para que la reserva atómica no rebote.
+  // Si no tiene otro viaje y está en servicio, forzamos que esté disponible y limpio para que la reserva atómica no rebote.
   if (driverReq.status !== 'disponible' || driverReq.dispatch_status !== 'normal' || driverReq.reserved_order_id || driverReq.reservation_token) {
     await b44.entities.Driver.updateMany(
       { id: driverId },
