@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     
     // Limpieza de red de seguridad: choferes colgados con reservas a viajes muertos atómicamente
     const allDrivers = await b44.entities.Driver.list();
-    const stuckDrivers = allDrivers.filter(d => d.reserved_order_id || d.active_ride_id || d.dispatch_status === 'automatic_pending' || d.dispatch_status === 'manual_pending' || d.driver_reservation_key);
+    const stuckDrivers = allDrivers.filter(d => d.reserved_order_id || d.active_ride_id || d.dispatch_status === 'automatic_pending' || d.dispatch_status === 'manual_pending' || d.driver_reservation_key || d.reservation_token || d.manual_reservation_token);
     for (const driver of stuckDrivers) {
       const ghostOrderId = driver.reserved_order_id || driver.active_ride_id;
       let isDead = false;
