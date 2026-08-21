@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 
-export const METROS_POR_FICHA = 85;
+export const METROS_POR_FICHA = 82;
 export const VALOR_FICHA = 100;
 export const SEGUNDOS_POR_FICHA_ESPERA = 45;
 

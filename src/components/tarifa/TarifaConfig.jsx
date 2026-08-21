@@ -11,7 +11,7 @@ import { DollarSign, Save, Loader2, Lock, Moon, Sun, KeyRound, Timer } from "luc
 const DEFAULTS = {
   bajada_bandera: 1700,
   valor_ficha: 100,
-  metros_por_ficha: 85,
+  metros_por_ficha: 82,
   valor_ficha_espera: 100,
   segundos_por_ficha_espera: 45,
   tolerancia_espera_segundos: 240,
