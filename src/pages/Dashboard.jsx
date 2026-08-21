@@ -167,6 +167,56 @@ export default function Dashboard() {
   });
   const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
 
+  const handleDownloadReport = async () => {
+    const start = new Date('2026-08-21T09:00:00Z'); 
+    const end = new Date('2026-08-21T16:00:00Z');   
+
+    const rides = await base44.entities.RideOrder.list('-created_date', 1000);
+    const filtered = rides.filter(r => {
+      const d = new Date(r.created_date);
+      return d >= start && d <= end && r.driver_name;
+    });
+
+    filtered.sort((a, b) => new Date(a.created_date) - new Date(b.created_date));
+
+    let csv = "\uFEFFHora,Cliente,Origen,Destino,Chofer,Estado,Importe\n"; 
+    let totalImporte = 0;
+    let asignados = 0;
+
+    filtered.forEach(r => {
+      const d = new Date(r.created_date);
+      d.setHours(d.getHours() - 3); 
+      const timeStr = d.toISOString().substr(11, 5);
+      
+      const cliente = (r.client_name || '-').replace(/,/g, '');
+      const origen = (r.pickup_address || '-').replace(/,/g, '');
+      const destino = (r.dropoff_address || '-').replace(/,/g, '');
+      const chofer = (r.driver_name || '-').replace(/,/g, '');
+      const estado = r.status;
+      const importe = r.importe_real_actual || r.fare || 0;
+      
+      if(estado !== 'cancelado' && estado !== 'rechazado') {
+          totalImporte += Number(importe) || 0;
+          asignados++;
+      }
+
+      csv += `${timeStr},${cliente},${origen},${destino},${chofer},${estado},$${importe}\n`;
+    });
+
+    csv += `\nRESUMEN,,,,,\n`;
+    csv += `Viajes asignados (sin cancelar): ${asignados},,,,,\n`;
+    csv += `Recaudacion aprox: $${totalImporte},,,,,\n`;
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "reporte-viajes-06a13.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const stats = [
     { title: "Activos", value: activeOrders.length, icon: Car, color: "bg-blue-500" },
     { title: "Pendientes", value: pendingOrders.length, icon: Clock, color: "bg-amber-500" },
@@ -180,12 +230,17 @@ export default function Dashboard() {
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Central de Despacho</h1>
           <p className="text-muted-foreground mt-1">Gestión en tiempo real</p>
         </div>
-        <Link to="/orders/new">
-          <Button className="rounded-xl gap-2">
-            <Car className="w-4 h-4" />
-            Nuevo Pedido
+        <div className="flex items-center gap-2">
+          <Button onClick={handleDownloadReport} variant="outline" className="rounded-xl border-green-200 text-green-700 bg-green-50">
+            Descargar Reporte 06-13hs
           </Button>
-        </Link>
+          <Link to="/orders/new">
+            <Button className="rounded-xl gap-2">
+              <Car className="w-4 h-4" />
+              Nuevo Pedido
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
