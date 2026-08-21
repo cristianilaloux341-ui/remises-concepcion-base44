@@ -1486,7 +1486,7 @@ export default function DriverApp() {
          const isOccupied = myDriverRef.current?.status && myDriverRef.current.status !== "disponible";
          const isOptimistic = localOverrideRef.current?.status && localOverrideRef.current.status !== "disponible";
          
-         if (((ignoredAttemptsRef.current[pushedOrderId] || 0) >= 999) /* approx */ || isOccupied || isOptimistic) {
+         if (((ignoredAttemptsRef.current[pushedOrderId] || 0) >= (e.detail?.assignmentAttempt || 1)) || isOccupied || isOptimistic) {
              if (Capacitor.isNativePlatform()) {
                 setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: 'latePushHandler_400' }).catch(()=>{}), 400);
                 setTimeout(() => Capacitor.Plugins.ForegroundService?.stopRideAlert({ orderId: 'all', reason: 'latePushHandler_1500' }).catch(()=>{}), 1500);
