@@ -6,9 +6,9 @@ import { DollarSign, Timer, Navigation, CheckCircle2, XCircle, Zap, Clock } from
 
 /**
  * Taxímetro GPS en tiempo real, igual al reloj físico.
- * - $100 por cada ficha completa de 85 metros.
- * - Una única tolerancia acumulada de 120 segundos detenido.
- * - Después, $100 por cada 30 segundos acumulados de espera.
+ * - Valor de ficha configurable por metros.
+ * - Tolerancia inicial que descuenta por cada segundo de viaje (en movimiento o no).
+ * - Después de consumir la tolerancia, valor de ficha por segundos de espera/detenido.
  */
 export default function OcasionalMeter({ onClose, driver }) {
   const [phase, setPhase] = useState("idle"); // 'idle' | 'running' | 'done'
@@ -26,7 +26,7 @@ export default function OcasionalMeter({ onClose, driver }) {
   const metrosRef = useRef(0);
   const segundosMovimientoRef = useRef(0);
   const segundosEsperaRef = useRef(0);
-  const contadorParadoRef = useRef(0);
+  const toleranciaRestanteRef = useRef(0);
   const enEsperaRef = useRef(false);
   const gpsFilterRef = useRef(null);
   const gpsEventHandlerRef = useRef(null);
@@ -70,7 +70,7 @@ export default function OcasionalMeter({ onClose, driver }) {
     metrosRef.current = 0;
     segundosMovimientoRef.current = 0;
     segundosEsperaRef.current = 0;
-    contadorParadoRef.current = 0;
+    toleranciaRestanteRef.current = tarifa.current.tolerancia_espera_segundos;
     enEsperaRef.current = false;
     setMetrosRecorridos(0);
     setSegundosTotales(0);
@@ -100,14 +100,16 @@ export default function OcasionalMeter({ onClose, driver }) {
     // Timer: cada segundo suma tiempo y recalcula
     timerRef.current = setInterval(() => {
       const gpsSilencioso = lastGpsAtRef.current > 0 && Date.now() - lastGpsAtRef.current > 15_000;
-      if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
-        if (contadorParadoRef.current < tarifa.current.tolerancia_espera_segundos) {
-          contadorParadoRef.current += 1;
-        } else {
-          segundosEsperaRef.current += 1;
-        }
+      
+      if (toleranciaRestanteRef.current > 0) {
+        toleranciaRestanteRef.current -= 1;
+        segundosMovimientoRef.current += 1; // Durante la tolerancia, sumamos a tiempo de viaje sin cobrar espera
       } else {
-        segundosMovimientoRef.current += 1;
+        if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
+          segundosEsperaRef.current += 1;
+        } else {
+          segundosMovimientoRef.current += 1;
+        }
       }
       
       setSegundosTotales(segundosMovimientoRef.current + segundosEsperaRef.current);
@@ -164,7 +166,7 @@ export default function OcasionalMeter({ onClose, driver }) {
     metrosRef.current = 0;
     segundosMovimientoRef.current = 0;
     segundosEsperaRef.current = 0;
-    contadorParadoRef.current = 0;
+    toleranciaRestanteRef.current = 0;
     enEsperaRef.current = false;
     lastGpsAtRef.current = 0;
   };
