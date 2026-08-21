@@ -2366,6 +2366,46 @@ export default function DriverApp() {
 }
 
 function DriverSettings({ driver, onClose, onLogout, onOpenBatteryGuide }) {
+  const handleRepairApp = async () => {
+    if (window.confirm("¿Querés Reparar la App? Esto borrará la caché, arreglará viajes trabados y sincronizará las notificaciones sin perder tu sesión.")) {
+      try {
+        // 1. Unregister Service Workers
+        if ("serviceWorker" in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (let reg of regs) await reg.unregister();
+        }
+        
+        // 2. Clear browser caches
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          for (const key of keys) await caches.delete(key);
+        }
+
+        // 3. Clear sessions and local states (keeping my_driver_id so they don't have to login again if we can help it, but clear tokens)
+        localStorage.removeItem("session_token");
+        sessionStorage.clear();
+
+        // 4. Force backend state cleanup for this driver
+        await base44.entities.Driver.update(driver.id, {
+           status: "disponible",
+           dispatch_status: "normal",
+           active_ride_id: null,
+           reserved_order_id: null,
+           reservation_token: null,
+           manual_reservation_token: null,
+           driver_reservation_key: null,
+           fcm_token: null,
+           push_subscription: null
+        });
+
+      } catch (e) {
+        console.error("Repair error", e);
+      } finally {
+        window.location.reload(true);
+      }
+    }
+  };
+
   const handleDeleteAccount = async () => {
     if (window.confirm("¿Estás seguro que querés eliminar tu cuenta? Vas a perder el acceso y el operador tendrá que registrarte nuevamente.")) {
       try {
@@ -2385,6 +2425,9 @@ function DriverSettings({ driver, onClose, onLogout, onOpenBatteryGuide }) {
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Chofer: {driver.name}</p>
         </div>
         <div className="space-y-3">
+          <Button variant="secondary" className="w-full h-12 rounded-xl bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-200 border border-orange-200 font-bold" onClick={handleRepairApp}>
+            <Zap className="w-5 h-5 mr-2" /> Reparar App / Borrar Caché
+          </Button>
           <Button variant="secondary" className="w-full h-12 rounded-xl bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-200" onClick={onOpenBatteryGuide}>
             Permisos y Batería (Si no suena)
           </Button>
