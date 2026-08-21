@@ -141,6 +141,9 @@ Deno.serve(async (req) => {
     // 3. Dispatch Logic Atomic Run (handles the lock, Push, and Audit)
     const token = crypto.randomUUID();
     let success = false;
+    const oldDriverId = orderReq.reserved_driver_id;
+    const oldToken = orderReq.reservation_token;
+
     try {
         success = await assignDriverToOrderAtomic(b44, orderReq, driverReq, token);
     } catch (e) {
@@ -149,6 +152,14 @@ Deno.serve(async (req) => {
     }
 
     if (success) {
+      // 3.5 Liberar al chofer anterior si la orden estaba ofrecida a otro y se reasignó manualmente
+      if (oldDriverId && oldDriverId !== driverId) {
+         await b44.entities.Driver.updateMany(
+           { id: oldDriverId, reservation_token: oldToken },
+           { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } }
+         ).catch(e => console.error("Error liberando chofer anterior", e));
+      }
+
       // 4. Update statuses cleanly to mirror legacy UI behavior
       if (targetDriverStatus === "en_viaje") {
         await b44.entities.Driver.update(driverId, { status: "en_viaje" });

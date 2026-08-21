@@ -323,7 +323,8 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   };
   const reserveDriverUpdate = { 
       $set: { 
-        status: "en_viaje", 
+        status: "en_viaje",
+        dispatch_status: "normal", 
         active_ride_id: rideOrderId, 
         reserved_order_id: rideOrderId, 
         driver_reservation_key: reservationKey, 
