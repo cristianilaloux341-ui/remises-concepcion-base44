@@ -31,9 +31,9 @@ Deno.serve(async (req) => {
 
     let count = 0;
     
-    // Limpieza de red de seguridad: choferes colgados con reservas a viajes muertos
+    // Limpieza de red de seguridad: choferes colgados con reservas a viajes muertos atómicamente
     const allDrivers = await b44.entities.Driver.list();
-    const stuckDrivers = allDrivers.filter(d => d.reserved_order_id || d.active_ride_id || d.dispatch_status === 'automatic_pending');
+    const stuckDrivers = allDrivers.filter(d => d.reserved_order_id || d.active_ride_id || d.dispatch_status === 'automatic_pending' || d.dispatch_status === 'manual_pending' || d.driver_reservation_key);
     for (const driver of stuckDrivers) {
       const ghostOrderId = driver.reserved_order_id || driver.active_ride_id;
       let isDead = false;
@@ -45,21 +45,33 @@ Deno.serve(async (req) => {
             }
          } catch(e) { isDead = true; } // Si no se encuentra
       } else {
-         // Si solo tenia dispatch_status colgado y no tiene viaje activo (ni reserved ni active_ride_id)
+         // Si solo tenia dispatch_status colgado o key, y no tiene viaje activo
          isDead = true;
       }
 
       if (isDead) {
-         await b44.entities.Driver.update(driver.id, {
-            status: "disponible", 
-            dispatch_status: "normal", 
-            reserved_order_id: null, 
-            reservation_token: null,
-            manual_reservation_token: null,
-            driver_reservation_key: null,
-            active_ride_id: null
-         }).catch(()=>{});
-         count++;
+         const newStatus = driver.status === "no_disponible" ? "no_disponible" : "disponible";
+         const query = { id: driver.id };
+         if (driver.reservation_token) query.reservation_token = driver.reservation_token;
+         if (driver.manual_reservation_token) query.manual_reservation_token = driver.manual_reservation_token;
+         if (driver.reserved_order_id) query.reserved_order_id = driver.reserved_order_id;
+         if (driver.active_ride_id) query.active_ride_id = driver.active_ride_id;
+         
+         const res = await b44.entities.Driver.updateMany(query, {
+            $set: {
+               status: newStatus,
+               dispatch_status: "normal", 
+               reserved_order_id: null, 
+               reservation_token: null,
+               manual_reservation_token: null,
+               driver_reservation_key: null,
+               active_ride_id: null
+            }
+         }).catch(()=>{ return { matchedCount: 0, updated: 0 }; });
+         
+         if (res && (res.matchedCount > 0 || res.updated > 0)) {
+             count++;
+         }
       }
     }
 
@@ -98,7 +110,14 @@ Deno.serve(async (req) => {
             driver_id: null, 
             driver_name: null, 
             reserved_driver_id: null, 
-            reservation_token: null 
+            reservation_token: null,
+            manual_reservation_token: null,
+            processingPhase: null,
+            processingOwnerId: null,
+            processingOperationKey: null,
+            lastCompletedOperationKey: null,
+            pendingEffectKey: null,
+            pendingEffectStatus: null
           } 
         }
       );

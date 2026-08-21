@@ -7,6 +7,7 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const b44 = base44.asServiceRole;
     const payload = await req.json().catch(() => ({}));
+    payload.internalKey = payload.internalKey || Deno.env.get("INTERNAL_SERVICE_KEY");
     
     // Requiere Internal Service Key verificada
     if (!(await verifyRequestAuth(b44, payload))) {
