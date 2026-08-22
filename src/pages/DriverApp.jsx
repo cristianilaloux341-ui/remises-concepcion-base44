@@ -969,9 +969,25 @@ export default function DriverApp() {
              stopNativeRideAlert(orderId, "swAcceptOrder");
           }
           notifySW({ type: "ACK_ACCEPT_ORDER", orderId }); // Send ACK immediately so SW doesn't spawn a new tab
-          setLocalOverride({ status: "en_viaje", optimisticOrderId: orderId });
-          // acceptRide es la única autoridad que confirma el viaje y ocupa al chofer.
-          window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+          
+          base44.functions.invoke("acceptRide", {
+            orderId: orderId,
+            driverId: myDriverId,
+            assignmentAttempt: 1,
+            sessionToken: getSessionToken()
+          }).then((res) => {
+            if (res.data?.accepted) {
+              setLocalOverride({ status: "en_viaje", optimisticOrderId: orderId });
+              base44.functions.invoke("sendPushNotification", { action: "cancel_ride", orderId, driverId: myDriverId }).catch(()=>{});
+            } else {
+              alert("El viaje ya expiró o fue tomado por otro móvil.");
+              setLocalOverride({ status: "disponible", _ignoredOrderId: orderId });
+            }
+            window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+          }).catch(() => {
+            alert("Error de conexión al intentar aceptar el viaje desde la notificación.");
+            window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+          });
         }
       }
 
@@ -1678,11 +1694,22 @@ export default function DriverApp() {
           user_name: myDriver?.name || 'Chofer',
           details: `Rechazado por backend: ${res.data.reason || 'Desconocido'}`
         }).catch(() => {});
+        
+        const reason = res.data.reason || "";
+        if (reason.includes("STALE") || reason.includes("EXPIRED") || reason.includes("LOST") || reason.includes("OTHER_DRIVER")) {
+          alert("El viaje ya expiró o fue tomado por otro móvil.");
+        } else if (reason.includes("ORDER_CANCELLED")) {
+          alert("El cliente canceló el viaje.");
+        } else {
+          alert("No se pudo aceptar el viaje (" + reason + ").");
+        }
+
         if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
         setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       }
     } catch (error) {
+      alert("Sin conexión: no se pudo contactar al servidor. Revisá tu internet y reintentá.");
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } finally {
       setIsAccepting(false);
@@ -1872,6 +1899,7 @@ export default function DriverApp() {
         sessionToken: getSessionToken()
       });
       if (!res.data?.accepted) {
+        alert("El viaje ya no está disponible.");
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         return;
       }
@@ -1885,6 +1913,7 @@ export default function DriverApp() {
       setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
     } catch (error) {
       console.error("No se pudo aceptar el viaje", error);
+      alert("Sin conexión: no se pudo contactar al servidor.");
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } finally {
       setIsAccepting(false);
