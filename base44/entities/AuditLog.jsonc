@@ -3,11 +3,7 @@
   "type": "object",
   "rls": {
     "create": null,
-    "read": {
-      "user_condition": {
-        "role": "admin"
-      }
-    },
+    "read": null,
     "update": {
       "user_condition": {
         "role": "admin"
