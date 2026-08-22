@@ -54,9 +54,10 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   }, []);
 
   const lastSaveAtRef = useRef(0);
-  const saveImporte = (nuevoImporte, segundosEspera, metros, segundosTolerancia) => {
+  const saveImporte = (nuevoImporte, segundosEspera, metros, segundosTolerancia, force = false) => {
     const ahora = Date.now();
-    if (ahora - lastSaveAtRef.current < 3000) return;
+    // Guardar si es forzado (cambió la tarifa) o cada 15 segundos (para no saturar la red y evitar que se cuelgue)
+    if (!force && ahora - lastSaveAtRef.current < 15000) return;
     lastSaveAtRef.current = ahora;
 
     base44.entities.RideOrder.update(order.id, {
@@ -128,9 +129,10 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
           segundosEspera,
           tarifaRef.current
         );
+        const cambioImporte = nuevo !== importeRef.current;
         importeRef.current = nuevo;
-        setImporteActual(nuevo);
-        saveImporte(nuevo, segundosEspera, metrosRef.current, contadorParadoRef.current);
+        if (cambioImporte) setImporteActual(nuevo);
+        saveImporte(nuevo, segundosEspera, metrosRef.current, contadorParadoRef.current, cambioImporte);
       }
 
       const esperando = result.speedKmh < 5 || esperaManualRef.current;
@@ -162,9 +164,10 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
           segundosEspera,
           tarifaRef.current
         );
+        const cambioImporte = nuevo !== importeRef.current;
         importeRef.current = nuevo;
-        setImporteActual(nuevo);
-        saveImporte(nuevo, segundosEspera, metrosRef.current, contadorParadoRef.current);
+        if (cambioImporte) setImporteActual(nuevo);
+        saveImporte(nuevo, segundosEspera, metrosRef.current, contadorParadoRef.current, cambioImporte);
       }
     }, 1000);
 
