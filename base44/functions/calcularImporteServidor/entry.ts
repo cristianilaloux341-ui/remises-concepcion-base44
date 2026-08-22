@@ -61,9 +61,9 @@ Deno.serve(async (req) => {
     const dist = haversineMetros(prev.lat, prev.lng, curr.lat, curr.lng);
     const dt = (new Date(curr.timestamp).getTime() - new Date(prev.timestamp).getTime()) / 1000;
     
-    if (dist < 500) {
+    if (dist < 10000) {
       total_metros += dist;
-      const vKmh = (dist / dt) * 3.6;
+      const vKmh = dt > 0 ? (dist / dt) * 3.6 : 0;
       if (vKmh >= 5) {
         segundos_movimiento += dt;
       }
