@@ -18,10 +18,15 @@ Deno.serve(async (req) => {
       updated_date: { $lt: thresholdDate.toISOString() }
     });
 
-    // 1.5 Buscar viajes asignados (aceptado, en_camino, en_viaje) abandonados por más de 2 horas
+    // 1.5 Buscar viajes asignados abandonados por más de 2 horas O cancelados/rechazados que tengan choferes colgados
     const abandonedOrders = await b44.entities.RideOrder.filter({
       status: { $in: ["aceptado", "en_camino", "en_viaje"] },
       updated_date: { $lt: twoHoursAgoStr }
+    });
+
+    const recentlyCancelledOrders = await b44.entities.RideOrder.filter({
+      status: { $in: ["cancelado", "rechazado"] },
+      updated_date: { $gte: twoHoursAgoStr } // solo recientes para no barrer el histórico entero
     });
 
     // La falta de heartbeat no cambia el estado operativo del chofer.
@@ -76,56 +81,78 @@ Deno.serve(async (req) => {
     }
 
     // Procesar todos los trabados (los que superaron el tiempo de auto-reasignación o las 2 horas manuales)
-    // + los abandonados que quedaron en aceptado/en_camino/en_viaje por más de 2 horas.
-    const allToReset = [...stuckOrders, ...abandonedOrders];
+    // + los abandonados que quedaron en aceptado/en_camino/en_viaje por más de 2 horas
+    // + los cancelados/rechazados recientes que pudieran haber dejado al chofer colgado.
+    const allToReset = [...stuckOrders, ...abandonedOrders, ...recentlyCancelledOrders];
     
     for (const order of allToReset) {
-      if (order.status === 'completado' || order.status === 'cancelado') continue;
+      if (order.status === 'completado') continue;
       
-      if (order.driver_id || order.reserved_driver_id) {
-        const dId = order.driver_id || order.reserved_driver_id;
-        try {
-          // Si era un abandono > 2 horas (aceptado/en_viaje), además lo sacamos de servicio para que no estorbe
-          const isAbandonment = ['aceptado', 'en_camino', 'en_viaje'].includes(order.status);
-          const newDriverStatus = isAbandonment ? "no_disponible" : "disponible";
-          
-          await b44.entities.Driver.updateMany(
-            { id: dId },
-            { $set: { 
-                status: newDriverStatus, 
-                dispatch_status: "normal", 
-                reserved_order_id: null, 
-                reservation_token: null,
-                ...(isAbandonment ? { current_base: null, queue_entered_at: null } : {})
-            } }
-          );
-        } catch(e) {}
-      }
+      const isCancelled = order.status === 'cancelado' || order.status === 'rechazado';
+      
+      if (order.driver_id || order.reserved_driver_id || (isCancelled && order.offered_driver_ids?.length > 0)) {
+        const driversToFree = [...new Set([
+          order.driver_id,
+          order.reserved_driver_id,
+          ...(isCancelled ? (order.offered_driver_ids || []) : [])
+        ].filter(Boolean))];
 
-      await b44.entities.RideOrder.updateMany(
-        { id: order.id },
-        { 
-          $set: { 
-            status: "pendiente", 
-            driver_id: null, 
-            driver_name: null, 
-            reserved_driver_id: null, 
-            reservation_token: null,
-            manual_reservation_token: null,
-            processingPhase: null,
-            processingOwnerId: null,
-            processingOperationKey: null,
-            lastCompletedOperationKey: null,
-            pendingEffectKey: null,
-            pendingEffectStatus: null
-          } 
+        for (const dId of driversToFree) {
+          try {
+            // Si era un abandono > 2 horas (aceptado/en_viaje), además lo sacamos de servicio para que no estorbe
+            const isAbandonment = ['aceptado', 'en_camino', 'en_viaje'].includes(order.status);
+            const newDriverStatus = isAbandonment ? "no_disponible" : "disponible";
+            
+            await b44.entities.Driver.updateMany(
+              { id: dId },
+              { $set: { 
+                  status: newDriverStatus, 
+                  dispatch_status: "normal", 
+                  reserved_order_id: null,
+                  active_ride_id: null,
+                  reservation_token: null,
+                  manual_reservation_token: null,
+                  driver_reservation_key: null,
+                  ...(isAbandonment ? { current_base: null, queue_entered_at: null } : {})
+              } }
+            );
+            count++;
+          } catch(e) {
+            console.error("Error liberando driver", dId, e);
+          }
         }
-      );
-      count++;
+        
+        // Re-marcar la orden a pendiente y eliminar driver (solo si no estaba ya cancelada o rechazada)
+        if (!isCancelled) {
+          try {
+            const query = { id: order.id };
+            if (order.reservation_token) query.reservation_token = order.reservation_token;
+            await b44.entities.RideOrder.updateMany(query, {
+              $set: { 
+                 status: 'pendiente', 
+                 driver_id: null,
+                 reserved_driver_id: null, 
+                 reservation_token: null
+              }
+            });
+          } catch(e) {
+            console.error("Error reseteando viaje atascado", order.id, e);
+          }
+        }
+      }
     }
 
-    return Response.json({ success: true, fixedCount: count, ghostsDisconnected });
-  } catch(e) {
-    return Response.json({ success: false, error: e.message }, { status: 500 });
+    if (count > 0 || ghostsDisconnected > 0) {
+      console.log(`AutoReassignCron liberó: ${count} viajes/choferes trabados y ${ghostsDisconnected} choferes desconectados.`);
+    }
+
+    return Response.json({ 
+      success: true, 
+      resetCount: count,
+      ghostsDisconnected
+    });
+  } catch (error) {
+    console.error("Error en autoReassignCron:", error);
+    return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 });
