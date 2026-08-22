@@ -7,7 +7,7 @@ import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Phone, CheckCircle2, XCircle, Car, Clock, List, ArrowRightLeft, MessageCircle, PowerOff, Wifi, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2, Zap, Settings } from "lucide-react";
+import { MapPin, Phone, CheckCircle2, XCircle, Car, Clock, List, ArrowRightLeft, MessageCircle, PowerOff, Wifi, WifiOff, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2, Zap, Settings } from "lucide-react";
 import { withRetry } from "@/lib/retryFetch";
 import { createGpsStabilityFilter, GPS_LOCATION_EVENT } from "@/lib/gpsStability";
 import { Capacitor, registerPlugin } from '@capacitor/core';
@@ -46,6 +46,26 @@ const debugArray = (arr, name) => {
 };
 
 // ── Audio & Notifications ─────────────────────────────────────────────────────
+
+function OfflineBanner() {
+  const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' && !navigator.onLine);
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+  if (!isOffline) return null;
+  return (
+    <div className="bg-red-600 text-white text-center py-2 px-4 font-bold text-sm flex items-center justify-center gap-2 shrink-0 shadow-md z-[9999] relative">
+      <WifiOff className="w-5 h-5 animate-pulse" /> Sin señal (Revisá tu 4G o WiFi)
+    </div>
+  );
+}
 
 let isKeepingAlive = false;
 let audioCtx = null;
@@ -2122,6 +2142,7 @@ export default function DriverApp() {
     }
     return (
       <div className="flex flex-col h-[100dvh] bg-gray-950" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}>
+        <OfflineBanner />
         <InstallBanner />
         <div className="flex-1 overflow-y-auto">
           <LoginScreen
@@ -2198,6 +2219,7 @@ export default function DriverApp() {
 
   return (
     <div className="h-[100dvh] bg-gray-950 flex flex-col max-w-md mx-auto relative overflow-hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }} onTouchStart={unlockAudio} onClick={unlockAudio}>
+      <OfflineBanner />
       <InstallBanner />
 
       {/* Header */}
