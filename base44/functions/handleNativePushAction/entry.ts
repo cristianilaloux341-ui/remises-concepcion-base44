@@ -21,7 +21,17 @@ Deno.serve(async (req) => {
 
     const realOrderId = orderId.includes('_att_') ? orderId.split('_att_')[0] : orderId;
 
-    if (action === "native_accept") {
+    if (action === "native_ack") {
+      const driver = await b44.entities.Driver.get(driverId);
+      await b44.entities.AuditLog.create({
+        action: "push_ack_recibido",
+        user_type: "sistema",
+        user_name: driver?.name || "Chofer",
+        details: `El teléfono confirmó recepción del push en SEGUNDO PLANO (Nativo Android).`,
+        metadata: { orderId: realOrderId, driverId }
+      }).catch(() => {});
+      return Response.json({ success: true });
+    } else if (action === "native_accept") {
       const order = await b44.entities.RideOrder.get(realOrderId);
       if (!order) return Response.json({ success: false, reason: "order_not_found" });
       

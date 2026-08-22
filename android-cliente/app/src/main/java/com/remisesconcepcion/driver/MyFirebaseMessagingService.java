@@ -85,6 +85,14 @@ public class MyFirebaseMessagingService extends MessagingService {
             
             Log.e(TAG, "Construyendo notificación interactiva nativa para viaje...");
             showInteractiveNotification(data);
+            
+            // 3. Enviar ACK de recepción (Fire-and-forget) al servidor de forma nativa
+            String apiUrl = data.get("apiUrl");
+            String driverId = data.get("driverId");
+            if (apiUrl != null && orderId != null && driverId != null) {
+                String payload = String.format("{\"action\":\"native_ack\", \"orderId\":\"%s\", \"driverId\":\"%s\"}", orderId, driverId);
+                sendAckToServer(apiUrl, payload);
+            }
         }
 
         if ("mensaje".equals(type) || "chat".equals(type)) {
@@ -98,6 +106,28 @@ public class MyFirebaseMessagingService extends MessagingService {
 
         // Llamamos al super de Capacitor para no alterar la lógica en la UI de React
         super.onMessageReceived(remoteMessage);
+    }
+
+    private void sendAckToServer(String apiUrl, String jsonPayload) {
+        new Thread(() -> {
+            try {
+                java.net.URL url = new java.net.URL(apiUrl);
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                try (java.io.OutputStream os = conn.getOutputStream()) {
+                    byte[] input = jsonPayload.getBytes("utf-8");
+                    os.write(input, 0, input.length);
+                }
+                int code = conn.getResponseCode();
+                Log.e(TAG, "ACK de Push enviado nativamente. HTTP " + code);
+            } catch (Exception e) {
+                Log.e(TAG, "Error enviando ACK nativo", e);
+            }
+        }).start();
     }
 
     private void showInteractiveNotification(Map<String, String> data) {
