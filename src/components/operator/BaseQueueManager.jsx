@@ -16,6 +16,39 @@ import { getDriverDisplay } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 
+export function ConnectivityIndicator({ lastActive }) {
+  const [dot, setDot] = useState({ color: 'bg-gray-400', label: '' });
+
+  useEffect(() => {
+    const update = () => {
+      if (!lastActive) {
+        setDot({ color: 'bg-red-500', label: '' });
+        return;
+      }
+      const diffSecs = Math.floor((Date.now() - new Date(lastActive).getTime()) / 1000);
+      if (diffSecs < 20) {
+        setDot({ color: 'bg-green-500', label: '' });
+      } else if (diffSecs <= 60) {
+        setDot({ color: 'bg-yellow-500', label: `${diffSecs}s` });
+      } else {
+        const mins = Math.floor(diffSecs / 60);
+        const secs = diffSecs % 60;
+        setDot({ color: 'bg-red-500', label: `${mins}m ${secs}s` });
+      }
+    };
+    update();
+    const int = setInterval(update, 5000); // Actualiza cada 5s para ahorrar CPU
+    return () => clearInterval(int);
+  }, [lastActive]);
+
+  return (
+    <div className="flex items-center gap-1 shrink-0 ml-1" title={`Última vez activo: ${lastActive ? new Date(lastActive).toLocaleTimeString() : 'Desconocido'}`}>
+      <span className={`w-2 h-2 rounded-full ${dot.color} shadow-sm border border-black/10`}></span>
+      {dot.label && <span className="text-[10px] text-muted-foreground whitespace-nowrap">{dot.label}</span>}
+    </div>
+  );
+}
+
 const BASE_COLORS = {
   "1-Puerto": "bg-blue-500", "2-Plaza": "bg-green-500", "3-Columna": "bg-purple-500",
   "4-Base": "bg-yellow-500", "5-Cementerio": "bg-gray-500", "6-Díaz Vélez": "bg-pink-500",
@@ -163,10 +196,11 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
                         <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
                           {idx + 1}
                         </span>
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 flex items-center">
                           <p className="text-sm font-medium truncate text-slate-900">
                             {getDriverDisplay(nroMovil || driver.vehicle_model || driver.vehicle_plate, driver.name)}
                           </p>
+                          <ConnectivityIndicator lastActive={driver.last_active} />
                         </div>
                         {driver.queue_entered_at && (
                           <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -389,10 +423,11 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                       <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
                         {idx + 1}
                       </span>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 flex items-center">
                         <p className="text-xs font-medium truncate text-primary font-bold">
                           {getDriverDisplay(nroMovil || driver.vehicle_model || driver.vehicle_plate, driver.name)}
                         </p>
+                        <ConnectivityIndicator lastActive={driver.last_active} />
                       </div>
                     </div>
                   );

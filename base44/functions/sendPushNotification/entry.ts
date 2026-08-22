@@ -583,6 +583,16 @@ Deno.serve(async (req) => {
                  const successBody = await fcmRes.text();
                  console.log("FCM Send Success:", successBody);
                  fcmSuccess = true;
+                 
+                 if (fcmPayload.message.data.type === "ofrecido") {
+                   base44.asServiceRole.entities.AuditLog.create({
+                     action: "push_enviado",
+                     user_type: "sistema",
+                     user_name: "Sistema",
+                     details: `FCM push enviado a la cola nativa de Google para ${driver.name || driverId}`,
+                     metadata: { orderId: orderId.toString().split('_att_')[0], driverId }
+                   }).catch(() => {});
+                 }
                }
              } else {
                console.error("FCM Send Error: No se pudo obtener cachedAccessToken");
@@ -614,6 +624,16 @@ Deno.serve(async (req) => {
             await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: null });
           }
           webPushSuccess = webPushStatus >= 200 && webPushStatus < 300;
+          
+          if (webPushSuccess && title === '🚖 ¡NUEVO VIAJE!') {
+            base44.asServiceRole.entities.AuditLog.create({
+              action: "push_enviado",
+              user_type: "sistema",
+              user_name: "Sistema",
+              details: `Web Push alternativo enviado para ${driver.name || driverId}`,
+              metadata: { orderId: orderId.toString().split('_att_')[0], driverId }
+            }).catch(() => {});
+          }
         } catch (_) {}
       }
 

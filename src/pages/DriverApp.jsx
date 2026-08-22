@@ -916,18 +916,21 @@ export default function DriverApp() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep-alive: envía un ping al SW cada 25s para mantenerlo activo
-  // y recibe PONG para confirmar que el SW sigue vivo. También actualiza presencia online.
+  // Keep-alive: envía un ping al SW cada 15s para mantenerlo activo
+  // y recibe PONG para confirmar que el SW sigue vivo. También actualiza presencia online si está en servicio.
   useEffect(() => {
     if (!myDriverId) return;
     const updatePresence = () => {
-      base44.entities.Driver.update(myDriverId, { last_active: new Date().toISOString() }).catch(() => {});
+      // SOLO si no está fuera de servicio
+      if (myDriverRef.current && myDriverRef.current.status !== "no_disponible") {
+        base44.entities.Driver.update(myDriverId, { last_active: new Date().toISOString() }).catch(() => {});
+      }
     };
-    updatePresence();
+    updatePresence(); // Primera vez
     const interval = setInterval(() => {
       notifySW({ type: "SW_PING" });
       updatePresence();
-    }, 60000);
+    }, 15000); // 15 segundos
     return () => clearInterval(interval);
   }, [myDriverId]);
 
@@ -1112,6 +1115,7 @@ export default function DriverApp() {
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
     };
     window.addEventListener("radiocab_reconnect", handleSync);
+    window.addEventListener("online", handleSync); // Refrescar al recuperar internet
     
     const onVis = () => {
       if (document.visibilityState === "visible") {
@@ -1122,6 +1126,7 @@ export default function DriverApp() {
     
     return () => {
       window.removeEventListener("radiocab_reconnect", handleSync);
+      window.removeEventListener("online", handleSync);
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [queryClient]);
@@ -1414,6 +1419,19 @@ export default function DriverApp() {
         console.log("[FCM] Push recibido:", notification);
         const data = notification.data || notification.notification?.data || {};
         
+        // Fire-and-forget ACK nativo
+        if (data.orderId && data.type === "ofrecido" && myDriverIdRef.current) {
+          try {
+            base44.entities.AuditLog.create({
+              action: "push_ack_recibido",
+              user_type: "sistema",
+              user_name: myDriverRef.current?.name || "Chofer",
+              details: `El teléfono del chofer confirmó la recepción del push de asignación en Android.`,
+              metadata: { orderId: getRealOrderId(data.orderId), driverId: myDriverIdRef.current }
+            }).catch(() => {});
+          } catch(e) {}
+        }
+
         if (data.type === "cancelar") {
             const canceledOrderId = getRealOrderId(data.orderId);
             if (canceledOrderId) {
