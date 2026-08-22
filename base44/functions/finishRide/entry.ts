@@ -67,12 +67,43 @@ Deno.serve(async (req) => {
     return Response.json({ success: false, reason: 'invalid_order_status' });
   }
 
+  const importeTelefono = importeFinal || order.importe_real_actual || 0;
+  let finalImporte = importeTelefono;
+  let importeServidor = null;
+  let origenCalculo = null;
+
+  try {
+    const calcRes = await b44.functions.invoke('calcularImporteServidor', { orderId: orderId });
+    if (calcRes.data && calcRes.data.success) {
+      importeServidor = calcRes.data.importe_servidor;
+      const origen = calcRes.data.origen;
+      
+      if (origen === 'calculo_servidor' && importeTelefono > 0) {
+         const diff = Math.abs(importeServidor - importeTelefono) / importeTelefono;
+         if (diff > 0.10) {
+            finalImporte = importeServidor;
+            origenCalculo = 'servidor';
+         } else {
+            finalImporte = importeTelefono;
+            origenCalculo = 'telefono';
+         }
+      } else {
+         finalImporte = importeTelefono;
+         origenCalculo = origen;
+      }
+    }
+  } catch(e) {
+     origenCalculo = 'telefono_fallback_error';
+  }
+
   const uOrder = await b44.entities.RideOrder.updateMany(
     { id: orderId, status: { $in: ['aceptado', 'en_camino', 'en_viaje'] }, driver_id: driverId },
     { $set: { 
         status: 'completado',
         taximetro_iniciado: false,
-        importe_real_actual: importeFinal, 
+        importe_real_actual: finalImporte, 
+        importe_calculo_servidor: importeServidor,
+        origen_calculo: origenCalculo,
         updated_date: new Date().toISOString(),
         reserved_driver_id: null,
         reservation_token: null,

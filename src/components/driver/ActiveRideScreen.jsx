@@ -262,8 +262,7 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
               </div>
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-500">Tarifa actual</p>
-              <p className="text-2xl font-black text-green-400">${importeActual.toLocaleString()}</p>
+              <p className="text-sm font-bold text-gray-300">Viaje en curso</p>
             </div>
           </div>
         )}

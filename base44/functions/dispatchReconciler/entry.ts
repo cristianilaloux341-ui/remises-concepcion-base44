@@ -36,6 +36,10 @@ Deno.serve(async (req) => {
       { $set: { notes: now.toString() } }
     );
 
+    // 1.5 Limpiar trazas de GPS viejas (> 24hs)
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    await b44.entities.RideGpsTrace.deleteMany({ timestamp: { $lt: yesterday } });
+
     // 2. Ejecutar reconciliación con período de gracia (default 60s)
     const graceMs = payload.graceMs ?? 60000;
     

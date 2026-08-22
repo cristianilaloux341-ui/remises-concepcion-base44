@@ -1,0 +1,58 @@
+{
+  "name": "RideGpsTrace",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string"
+    },
+    "driver_id": {
+      "type": "string"
+    },
+    "lat": {
+      "type": "number"
+    },
+    "lng": {
+      "type": "number"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metros_acumulados": {
+      "type": "number"
+    },
+    "velocidad_kmh": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "order_id",
+    "driver_id",
+    "lat",
+    "lng",
+    "timestamp",
+    "metros_acumulados"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
