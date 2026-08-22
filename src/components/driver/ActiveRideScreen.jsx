@@ -141,17 +141,22 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     window.addEventListener(GPS_LOCATION_EVENT, onGpsLocation);
 
     timerRef.current = setInterval(() => {
-      // Respaldo: si después de una lectura válida dejan de llegar puntos por 15 s,
-      // se considera detenido. No se acredita el período dudoso anterior para evitar cobrar de más.
+      // Respaldo: si después de una lectura válida dejan de llegar puntos por 15 s, se considera detenido.
       const gpsSilencioso = lastGpsAtRef.current > 0 && Date.now() - lastGpsAtRef.current > 15_000;
-      if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
-        // La tolerancia de 120 s se consume una sola vez y nunca se reinicia.
-        if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
-          contadorParadoRef.current += 1;
-        } else {
-          segundosEspera += 1;
-        }
+      
+      let stateChanged = false;
 
+      // La tolerancia corre desde el minuto cero del viaje (independiente de si se mueve o está detenido)
+      if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
+        contadorParadoRef.current += 1;
+        stateChanged = true;
+      } else if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
+        // Una vez consumida la tolerancia, se suma espera SOLO cuando está detenido
+        segundosEspera += 1;
+        stateChanged = true;
+      }
+
+      if (stateChanged) {
         const nuevo = calcularImportePorFichas(
           metrosRef.current,
           segundosEspera,
