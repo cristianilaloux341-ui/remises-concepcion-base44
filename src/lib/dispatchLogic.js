@@ -35,7 +35,7 @@ export function getBaseQueue(drivers, baseName) {
 // Find best driver for an order: strictly by zone (FIFO)
 export async function findBestDriver(order, drivers, bases) {
   if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in findBestDriver!", drivers); return null; }
-  const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
+  const availableDrivers = drivers.filter(d => d.status === "disponible");
   if (!availableDrivers.length) return null;
 
   // 1) Asignar a los de la zona correspondiente (FIFO)
@@ -109,43 +109,49 @@ export async function broadcastOrder(order, drivers = []) {
 // Retorna: "assigned" | "broadcast" | "no_drivers"
 export async function autoDispatch(order, drivers, bases) {
   const offeredIds = order.offered_driver_ids || [];
-  const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base && !offeredIds.includes(d.id));
+  const availableDrivers = drivers.filter(d => d.status === "disponible" && !offeredIds.includes(d.id));
 
   if (!availableDrivers.length) return "no_drivers";
 
   // 1) Buscar primero en la zona del pedido (FIFO)
   if (order.zone) {
     const zoneQueue = getBaseQueue(availableDrivers, order.zone);
-    if (zoneQueue.length > 0) {
-      await assignDriverToOrder(order, zoneQueue[0]);
-      return "assigned";
+    for (const driver of zoneQueue) {
+      try {
+        await assignDriverToOrder(order, driver);
+        return "assigned";
+      } catch (e) {
+        console.warn("Fallo asignando a", driver.name, e);
+      }
     }
   }
 
   // 2) Si la zona está vacía o el pedido no tiene zona, asignamos al móvil más cercano
   if (order.pickup_lat && order.pickup_lng) {
-    let closestDriver = null;
-    let minDistance = Infinity;
-    for (const d of availableDrivers) {
-      if (d.current_lat && d.current_lng) {
-        const dist = getDistance(order.pickup_lat, order.pickup_lng, d.current_lat, d.current_lng);
-        if (dist < minDistance) {
-          minDistance = dist;
-          closestDriver = d;
-        }
+    let driversWithDist = availableDrivers
+      .filter(d => d.current_lat && d.current_lng)
+      .map(d => ({ d, dist: getDistance(order.pickup_lat, order.pickup_lng, d.current_lat, d.current_lng) }))
+      .sort((a, b) => a.dist - b.dist);
+      
+    for (const item of driversWithDist) {
+      try {
+        await assignDriverToOrder(order, item.d);
+        return "assigned";
+      } catch (e) {
+        console.warn("Fallo asignando a", item.d.name, e);
       }
-    }
-    if (closestDriver) {
-      await assignDriverToOrder(order, closestDriver);
-      return "assigned";
     }
   }
 
   // 3) Fallback al móvil libre de cualquier zona (el de mayor espera)
   const globalQueue = sortQueue(availableDrivers);
-  if (globalQueue.length > 0) {
-    await assignDriverToOrder(order, globalQueue[0]);
-    return "assigned";
+  for (const driver of globalQueue) {
+    try {
+      await assignDriverToOrder(order, driver);
+      return "assigned";
+    } catch (e) {
+      console.warn("Fallo asignando a", driver.name, e);
+    }
   }
 
   // Fallback: se deja pendiente (Broadcast fue deshabilitado por requerimiento del cliente)
@@ -164,7 +170,7 @@ export async function reassignAfterReject(order, drivers, bases) {
   if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in reassignAfterReject!", drivers); return null; }
   if (!Array.isArray(bases)) { console.error("[CRITICAL ERROR] bases is not array in reassignAfterReject!", bases); bases = BASES; }
   const offeredIds = order.offered_driver_ids || [];
-  const available = drivers.filter(d => d.status === "disponible" && d.current_base && !offeredIds.includes(d.id));
+  const available = drivers.filter(d => d.status === "disponible" && !offeredIds.includes(d.id));
 
   const tarifaConfigs = await base44.entities.TarifaConfig.list();
   const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
@@ -187,35 +193,41 @@ export async function reassignAfterReject(order, drivers, bases) {
   const lastBase = order.assigned_base || order.zone;
   const sameBaseQueue = sortQueue(available.filter(d => d.current_base === lastBase));
 
-  if (sameBaseQueue.length > 0) {
-    await assignDriverToOrder(order, sameBaseQueue[0]);
-    return "next_in_queue";
+  for (const driver of sameBaseQueue) {
+    try {
+      await assignDriverToOrder(order, driver);
+      return "next_in_queue";
+    } catch (e) {
+      console.warn("Fallo asignando a", driver.name, e);
+    }
   }
 
   // No one in same zone → closest driver!
   if (order.pickup_lat && order.pickup_lng) {
-    let closestDriver = null;
-    let minDistance = Infinity;
-    for (const d of available) {
-      if (d.current_lat && d.current_lng) {
-        const dist = getDistance(order.pickup_lat, order.pickup_lng, d.current_lat, d.current_lng);
-        if (dist < minDistance) {
-          minDistance = dist;
-          closestDriver = d;
-        }
+    let driversWithDist = available
+      .filter(d => d.current_lat && d.current_lng)
+      .map(d => ({ d, dist: getDistance(order.pickup_lat, order.pickup_lng, d.current_lat, d.current_lng) }))
+      .sort((a, b) => a.dist - b.dist);
+
+    for (const item of driversWithDist) {
+      try {
+        await assignDriverToOrder(order, item.d);
+        return "closest";
+      } catch (e) {
+        console.warn("Fallo asignando a", item.d.name, e);
       }
-    }
-    if (closestDriver) {
-      await assignDriverToOrder(order, closestDriver);
-      return "closest";
     }
   }
 
   // Fallback global
   const globalQueue = sortQueue(available);
-  if (globalQueue.length > 0) {
-    await assignDriverToOrder(order, globalQueue[0]);
-    return "next_in_queue";
+  for (const driver of globalQueue) {
+    try {
+      await assignDriverToOrder(order, driver);
+      return "next_in_queue";
+    } catch (e) {
+      console.warn("Fallo asignando a", driver.name, e);
+    }
   }
 
   // No one at all -> se pasa a pendiente

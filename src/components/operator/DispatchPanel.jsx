@@ -12,7 +12,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   const [dispatching, setDispatching] = useState(false);
   const [selectedDriverId, setSelectedDriverId] = useState("");
 
-  const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
+  const availableDrivers = drivers.filter(d => d.status === "disponible");
   const isBroadcast = (order.notes || "").startsWith("[BROADCAST]");
 
   // Zona del pedido → primera en cola
