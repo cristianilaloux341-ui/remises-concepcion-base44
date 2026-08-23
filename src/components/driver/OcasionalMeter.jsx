@@ -118,21 +118,25 @@ export default function OcasionalMeter({ onClose, driver }) {
       
       const estaEsperando = enEsperaRef.current || esperaManualRef.current || gpsSilencioso;
 
-      if (estaEsperando) {
-        // Solo consume tolerancia cuando el auto está efectivamente detenido (acumulativo)
-        if (toleranciaRestanteRef.current > 0) {
-          if (deltaSecs <= toleranciaRestanteRef.current) {
-            toleranciaRestanteRef.current -= deltaSecs;
-          } else {
-            const excedente = deltaSecs - toleranciaRestanteRef.current;
-            toleranciaRestanteRef.current = 0;
-            segundosEsperaRef.current += excedente;
-          }
+      if (toleranciaRestanteRef.current > 0) {
+        if (deltaSecs <= toleranciaRestanteRef.current) {
+          toleranciaRestanteRef.current -= deltaSecs;
+          segundosMovimientoRef.current += deltaSecs;
         } else {
-          segundosEsperaRef.current += deltaSecs;
+          const excedente = deltaSecs - toleranciaRestanteRef.current;
+          toleranciaRestanteRef.current = 0;
+          if (estaEsperando) {
+            segundosEsperaRef.current += excedente;
+          } else {
+            segundosMovimientoRef.current += excedente;
+          }
         }
       } else {
-        segundosMovimientoRef.current += deltaSecs;
+        if (estaEsperando) {
+          segundosEsperaRef.current += deltaSecs;
+        } else {
+          segundosMovimientoRef.current += deltaSecs;
+        }
       }
       
       setImporteActual(recalcular(metrosRef.current, segundosMovimientoRef.current, segundosEsperaRef.current));

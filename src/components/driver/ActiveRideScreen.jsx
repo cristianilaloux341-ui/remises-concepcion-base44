@@ -172,19 +172,20 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
 
       const estaEsperando = enEsperaRef.current || esperaManualRef.current || gpsSilencioso;
 
-      if (estaEsperando) {
-        // Solo consume tolerancia cuando el auto está efectivamente detenido (acumulativo)
-        if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
-          const faltaTolerancia = tarifaRef.current.tolerancia_espera_segundos - contadorParadoRef.current;
-          if (dt <= faltaTolerancia) {
-            contadorParadoRef.current += dt;
-          } else {
-            contadorParadoRef.current += faltaTolerancia;
-            segundosEspera += (dt - faltaTolerancia);
-          }
+      if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
+        const faltaTolerancia = tarifaRef.current.tolerancia_espera_segundos - contadorParadoRef.current;
+        if (dt <= faltaTolerancia) {
+          contadorParadoRef.current += dt;
         } else {
-          segundosEspera += dt;
+          contadorParadoRef.current += faltaTolerancia;
+          const excedente = dt - faltaTolerancia;
+          if (estaEsperando) {
+            segundosEspera += excedente;
+          }
         }
+        stateChanged = true;
+      } else if (estaEsperando) {
+        segundosEspera += dt;
         stateChanged = true;
       }
 
