@@ -165,7 +165,18 @@ export default function Dashboard() {
     if (o.status !== "completado") return false;
     return new Date(o.updated_date).toDateString() === new Date().toDateString();
   });
-  const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
+
+  const isDriverWorking = (d) => {
+    if (d.status !== "disponible") return false;
+    const mobileId = String(d.vehicle_model || "");
+    const mobileNumber = parseInt(mobileId, 10);
+    const movil = moviles?.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
+    if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
+      return false;
+    }
+    return true;
+  };
+  const availableDrivers = drivers.filter(d => isDriverWorking(d) && d.current_base);
 
   const handleDownloadReport = async () => {
     const start = new Date('2026-08-21T09:00:00Z'); 
@@ -269,7 +280,7 @@ export default function Dashboard() {
           </div>
           <div className="hidden xl:flex items-center gap-2 overflow-x-auto">
             {bases.map(b => {
-              const q = drivers.filter(d => d.current_base === b.name && d.status === "disponible");
+              const q = drivers.filter(d => d.current_base === b.name && isDriverWorking(d));
               return (
                 <div key={b.name} className="flex flex-col items-center justify-center bg-slate-800 rounded-lg px-2 py-1 min-w-[3rem]">
                   <span className="text-[10px] text-slate-400 truncate w-full text-center max-w-[4rem]">{b.name.split("-")[1]}</span>

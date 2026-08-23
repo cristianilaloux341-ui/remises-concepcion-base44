@@ -390,11 +390,23 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
   const movilByPlate = Object.fromEntries(moviles.map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
   const [editingBase, setEditingBase] = useState(null);
 
+  const isDriverWorking = (d) => {
+    if (d.status !== "disponible") return false;
+    const mobileId = String(d.vehicle_model || "");
+    const mobileNumber = parseInt(mobileId, 10);
+    const movil = moviles?.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
+    if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
+      return false;
+    }
+    return true;
+  };
+  const workingDrivers = drivers.filter(isDriverWorking);
+
   return (
     <>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         {BASES.map(baseName => {
-          const queue = getBaseQueue(drivers, baseName);
+          const queue = getBaseQueue(workingDrivers, baseName);
           const color = BASE_COLORS[baseName] || "bg-primary";
           return (
             <Card key={baseName} className="overflow-hidden">
@@ -449,8 +461,8 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
         {editingBase && (
           <QueueEditor
             baseName={editingBase}
-            queue={getBaseQueue(drivers, editingBase)}
-            drivers={drivers}
+            queue={getBaseQueue(workingDrivers, editingBase)}
+            drivers={workingDrivers}
             onClose={() => setEditingBase(null)}
             movilByPlate={movilByPlate}
           />
