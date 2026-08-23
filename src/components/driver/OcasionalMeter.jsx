@@ -116,27 +116,22 @@ export default function OcasionalMeter({ onClose, driver }) {
 
       const gpsSilencioso = lastGpsAtRef.current > 0 && now - lastGpsAtRef.current > 15_000;
       
-      if (toleranciaRestanteRef.current > 0) {
-        if (deltaSecs <= toleranciaRestanteRef.current) {
-          toleranciaRestanteRef.current -= deltaSecs;
-          segundosMovimientoRef.current += deltaSecs;
-        } else {
-          const excedente = deltaSecs - toleranciaRestanteRef.current;
-          segundosMovimientoRef.current += toleranciaRestanteRef.current;
-          toleranciaRestanteRef.current = 0;
-          
-          if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
-            segundosEsperaRef.current += excedente;
+      const estaEsperando = enEsperaRef.current || esperaManualRef.current || gpsSilencioso;
+
+      if (estaEsperando) {
+        if (toleranciaRestanteRef.current > 0) {
+          if (deltaSecs <= toleranciaRestanteRef.current) {
+            toleranciaRestanteRef.current -= deltaSecs;
           } else {
-            segundosMovimientoRef.current += excedente;
+            const excedente = deltaSecs - toleranciaRestanteRef.current;
+            toleranciaRestanteRef.current = 0;
+            segundosEsperaRef.current += excedente;
           }
+        } else {
+          segundosEsperaRef.current += deltaSecs;
         }
       } else {
-        if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
-          segundosEsperaRef.current += deltaSecs;
-        } else {
-          segundosMovimientoRef.current += deltaSecs;
-        }
+        segundosMovimientoRef.current += deltaSecs;
       }
       
       setImporteActual(recalcular(metrosRef.current, segundosMovimientoRef.current, segundosEsperaRef.current));

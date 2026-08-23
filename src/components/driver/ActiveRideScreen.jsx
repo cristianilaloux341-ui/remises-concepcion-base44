@@ -169,22 +169,20 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
       
       let stateChanged = false;
 
-      // Consumir tolerancia primero (corre independiente de si se mueve o no)
-      if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
-        const faltaTolerancia = tarifaRef.current.tolerancia_espera_segundos - contadorParadoRef.current;
-        if (dt <= faltaTolerancia) {
-          contadorParadoRef.current += dt;
-        } else {
-          contadorParadoRef.current += faltaTolerancia;
-          const excedente = dt - faltaTolerancia;
-          if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
-            segundosEspera += excedente;
+      const estaEsperando = enEsperaRef.current || esperaManualRef.current || gpsSilencioso;
+
+      if (estaEsperando) {
+        if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
+          const faltaTolerancia = tarifaRef.current.tolerancia_espera_segundos - contadorParadoRef.current;
+          if (dt <= faltaTolerancia) {
+            contadorParadoRef.current += dt;
+          } else {
+            contadorParadoRef.current += faltaTolerancia;
+            segundosEspera += (dt - faltaTolerancia);
           }
+        } else {
+          segundosEspera += dt;
         }
-        stateChanged = true;
-      } else if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
-        // Una vez consumida la tolerancia, se suma espera SOLO cuando está detenido
-        segundosEspera += dt;
         stateChanged = true;
       }
 
