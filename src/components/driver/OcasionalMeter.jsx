@@ -97,26 +97,26 @@ export default function OcasionalMeter({ onClose, driver }) {
     gpsEventHandlerRef.current = onGpsLocation;
     window.addEventListener(GPS_LOCATION_EVENT, onGpsLocation);
 
-    // Timer: matemáticamente exacto para que no haya atrasos por micro-cortes
-    let lastTick = Date.now();
-    let msAcumulados = 0;
+    // En vez de pelear contra el event loop de React, usamos el timestamp real
+    const startTime = Date.now();
+    let ultimaLectura = startTime;
+
     timerRef.current = setInterval(() => {
       const now = Date.now();
-      msAcumulados += (now - lastTick);
-      lastTick = now;
-
-      const dt = Math.floor(msAcumulados / 1000);
-      if (dt < 1) return;
-      msAcumulados -= dt * 1000; // Guarda los ms restantes para el siguiente ciclo
+      const deltaSecs = Math.floor((now - ultimaLectura) / 1000);
+      if (deltaSecs < 1) return;
+      
+      // Actualizamos ultimaLectura restando el sobrante, para no perder milisegundos
+      ultimaLectura += deltaSecs * 1000;
 
       const gpsSilencioso = lastGpsAtRef.current > 0 && now - lastGpsAtRef.current > 15_000;
       
       if (toleranciaRestanteRef.current > 0) {
-        if (dt <= toleranciaRestanteRef.current) {
-          toleranciaRestanteRef.current -= dt;
-          segundosMovimientoRef.current += dt; // Durante la tolerancia no cobra espera
+        if (deltaSecs <= toleranciaRestanteRef.current) {
+          toleranciaRestanteRef.current -= deltaSecs;
+          segundosMovimientoRef.current += deltaSecs;
         } else {
-          const excedente = dt - toleranciaRestanteRef.current;
+          const excedente = deltaSecs - toleranciaRestanteRef.current;
           segundosMovimientoRef.current += toleranciaRestanteRef.current;
           toleranciaRestanteRef.current = 0;
           
@@ -128,13 +128,15 @@ export default function OcasionalMeter({ onClose, driver }) {
         }
       } else {
         if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
-          segundosEsperaRef.current += dt;
+          segundosEsperaRef.current += deltaSecs;
         } else {
-          segundosMovimientoRef.current += dt;
+          segundosMovimientoRef.current += deltaSecs;
         }
       }
       
-      setSegundosTotales(segundosMovimientoRef.current + segundosEsperaRef.current);
+      // Usamos el total de tiempo real transcurrido para forzar exactitud en pantalla
+      const realTotalSeconds = Math.floor((now - startTime) / 1000);
+      setSegundosTotales(realTotalSeconds);
       setImporteActual(recalcular(metrosRef.current, segundosMovimientoRef.current, segundosEsperaRef.current));
     }, 1000);
   };

@@ -142,16 +142,14 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
 
     window.addEventListener(GPS_LOCATION_EVENT, onGpsLocation);
 
-    let lastTick = Date.now();
-    let msAcumulados = 0;
+    let ultimaLectura = Date.now();
     timerRef.current = setInterval(() => {
       const now = Date.now();
-      msAcumulados += (now - lastTick);
-      lastTick = now;
-
-      const dt = Math.floor(msAcumulados / 1000);
+      const dt = Math.floor((now - ultimaLectura) / 1000);
       if (dt < 1) return;
-      msAcumulados -= dt * 1000; // Guarda los milisegundos sobrantes para no atrasar el reloj
+      
+      // Ajustamos ultimaLectura para no perder los milisegundos de resto (drift)
+      ultimaLectura += dt * 1000;
 
       // Respaldo: si después de una lectura válida dejan de llegar puntos por 15 s, se considera detenido.
       const gpsSilencioso = lastGpsAtRef.current > 0 && now - lastGpsAtRef.current > 15_000;
