@@ -103,6 +103,11 @@ export default function OcasionalMeter({ onClose, driver }) {
 
     timerRef.current = setInterval(() => {
       const now = Date.now();
+      
+      // SIEMPRE actualizamos la pantalla para que nunca se congele, incluso si el intervalo corrió a los 990ms
+      const realTotalSeconds = Math.floor((now - startTime) / 1000);
+      setSegundosTotales(realTotalSeconds);
+
       const deltaSecs = Math.floor((now - ultimaLectura) / 1000);
       if (deltaSecs < 1) return;
       
@@ -134,11 +139,8 @@ export default function OcasionalMeter({ onClose, driver }) {
         }
       }
       
-      // Usamos el total de tiempo real transcurrido para forzar exactitud en pantalla
-      const realTotalSeconds = Math.floor((now - startTime) / 1000);
-      setSegundosTotales(realTotalSeconds);
       setImporteActual(recalcular(metrosRef.current, segundosMovimientoRef.current, segundosEsperaRef.current));
-    }, 1000);
+    }, 250); // Corremos cada 250ms para que visualmente NUNCA salte ni se trabe un segundo
   };
 
   const terminarViaje = async () => {
