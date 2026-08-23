@@ -97,18 +97,36 @@ export default function OcasionalMeter({ onClose, driver }) {
     gpsEventHandlerRef.current = onGpsLocation;
     window.addEventListener(GPS_LOCATION_EVENT, onGpsLocation);
 
-    // Timer: cada segundo suma tiempo y recalcula
+    // Timer: recupera tiempo si la app se suspendió (dt)
+    let lastTick = Date.now();
     timerRef.current = setInterval(() => {
-      const gpsSilencioso = lastGpsAtRef.current > 0 && Date.now() - lastGpsAtRef.current > 15_000;
+      const now = Date.now();
+      const dt = Math.round((now - lastTick) / 1000);
+      if (dt < 1) return;
+      lastTick = now;
+
+      const gpsSilencioso = lastGpsAtRef.current > 0 && now - lastGpsAtRef.current > 15_000;
       
       if (toleranciaRestanteRef.current > 0) {
-        toleranciaRestanteRef.current -= 1;
-        segundosMovimientoRef.current += 1; // Durante la tolerancia, sumamos a tiempo de viaje sin cobrar espera
+        if (dt <= toleranciaRestanteRef.current) {
+          toleranciaRestanteRef.current -= dt;
+          segundosMovimientoRef.current += dt; // Durante la tolerancia no cobra espera
+        } else {
+          const excedente = dt - toleranciaRestanteRef.current;
+          segundosMovimientoRef.current += toleranciaRestanteRef.current;
+          toleranciaRestanteRef.current = 0;
+          
+          if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
+            segundosEsperaRef.current += excedente;
+          } else {
+            segundosMovimientoRef.current += excedente;
+          }
+        }
       } else {
         if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
-          segundosEsperaRef.current += 1;
+          segundosEsperaRef.current += dt;
         } else {
-          segundosMovimientoRef.current += 1;
+          segundosMovimientoRef.current += dt;
         }
       }
       
