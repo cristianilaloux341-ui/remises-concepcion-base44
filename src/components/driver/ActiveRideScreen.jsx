@@ -172,22 +172,19 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
 
       const estaEsperando = enEsperaRef.current || esperaManualRef.current || gpsSilencioso;
 
-      // La tolerancia de espera se consume SIEMPRE de fondo durante el viaje (en movimiento o no)
-      if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
-        const faltaTolerancia = tarifaRef.current.tolerancia_espera_segundos - contadorParadoRef.current;
-        if (dt <= faltaTolerancia) {
-          contadorParadoRef.current += dt;
-        } else {
-          contadorParadoRef.current += faltaTolerancia;
-          const excedente = dt - faltaTolerancia;
-          if (estaEsperando) {
-            segundosEspera += excedente;
+      if (estaEsperando) {
+        // Solo consume tolerancia cuando el auto está efectivamente detenido (acumulativo)
+        if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
+          const faltaTolerancia = tarifaRef.current.tolerancia_espera_segundos - contadorParadoRef.current;
+          if (dt <= faltaTolerancia) {
+            contadorParadoRef.current += dt;
+          } else {
+            contadorParadoRef.current += faltaTolerancia;
+            segundosEspera += (dt - faltaTolerancia);
           }
+        } else {
+          segundosEspera += dt;
         }
-        stateChanged = true;
-      } else if (estaEsperando) {
-        // Una vez consumida la tolerancia, si está parado/esperando acumula tiempo facturable
-        segundosEspera += dt;
         stateChanged = true;
       }
 
