@@ -40,15 +40,19 @@ Deno.serve(async (req) => {
     b44.entities.RideOrder.filter({ reserved_driver_id: driverId })
   ]);
   const activeStatuses = new Set(['ofrecido', 'aceptado', 'en_camino', 'en_viaje']);
-  const conflictingOrder = [...assignedOrders, ...reservedOrders].find(
+  const conflictingOrders = [...assignedOrders, ...reservedOrders].filter(
     (existing: any) => existing.id !== orderId && activeStatuses.has(existing.status)
   );
   
-  if (conflictingOrder) {
-    return Response.json({
-      success: false,
-      reason: 'El móvil ya tiene otro pasaje activo. Este pasaje quedó pendiente y no fue enviado.'
-    });
+  if (conflictingOrders.length > 0) {
+    // Si el operador o el sistema intenta asignarlo estando en servicio, asumimos que los viajes previos son fantasmas colgados.
+    // Los cancelamos para destrabar al chofer automáticamente.
+    for (const ghost of conflictingOrders) {
+      await b44.entities.RideOrder.update(ghost.id, {
+        status: "cancelado",
+        notes: (ghost.notes || "") + " [Cancelado automáticamente para destrabar nuevo viaje]"
+      }).catch(() => {});
+    }
   }
 
   if (driverReq.status === 'no_disponible') {

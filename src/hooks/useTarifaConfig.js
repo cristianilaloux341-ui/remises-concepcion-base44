@@ -105,10 +105,8 @@ export function calcularImportePorFichas(metros, segundosEspera, tarifaOBase) {
   const segundosPorFicha = Math.max(1, Number(tarifa.segundos_por_ficha_espera));
   const fichasDistancia = Math.floor(Math.max(0, metros) / metrosPorFicha);
   
-  // La primera ficha de espera cae apenas se vence la tolerancia (segundosEspera > 0)
-  // Las siguientes caen cada 'segundosPorFicha' (ej. 45s) adicionales.
   const sEspera = Math.max(0, segundosEspera);
-  const fichasEspera = sEspera > 0 ? 1 + Math.floor((sEspera - 1) / segundosPorFicha) : 0;
+  const fichasEspera = Math.floor(sEspera / segundosPorFicha);
 
   return Math.round(
     Number(tarifa.bajada_bandera)

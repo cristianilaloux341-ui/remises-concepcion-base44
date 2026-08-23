@@ -13,7 +13,7 @@ export function calcularImportePorFichas(metros: number, segundosEspera: number,
   const fichasDistancia = Math.floor(Math.max(0, metros) / metrosPorFicha);
   
   const sEspera = Math.max(0, segundosEspera);
-  const fichasEspera = sEspera > 0 ? 1 + Math.floor((sEspera - 1) / segundosPorFicha) : 0;
+  const fichasEspera = Math.floor(sEspera / segundosPorFicha);
 
   return Math.round(
     Number(tarifa.bajada_bandera)
