@@ -78,19 +78,10 @@ Deno.serve(async (req) => {
       importeServidor = calcRes.data.importe_servidor;
       const origen = calcRes.data.origen;
       
-      if (origen === 'calculo_servidor' && importeTelefono > 0) {
-         const diff = Math.abs(importeServidor - importeTelefono) / importeTelefono;
-         if (diff > 0.10) {
-            finalImporte = importeServidor;
-            origenCalculo = 'servidor';
-         } else {
-            finalImporte = importeTelefono;
-            origenCalculo = 'telefono';
-         }
-      } else {
-         finalImporte = importeTelefono;
-         origenCalculo = origen;
-      }
+      // Con la nueva versión del taxímetro del cliente (que resiste suspensiones),
+      // el teléfono es la fuente de verdad. El servidor solo audita.
+      finalImporte = importeTelefono > 0 ? importeTelefono : importeServidor;
+      origenCalculo = importeTelefono > 0 ? 'telefono_auditado' : origen;
     }
   } catch(e) {
      origenCalculo = 'telefono_fallback_error';

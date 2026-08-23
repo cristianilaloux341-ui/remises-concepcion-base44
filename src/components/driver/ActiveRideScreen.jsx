@@ -142,19 +142,34 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
 
     window.addEventListener(GPS_LOCATION_EVENT, onGpsLocation);
 
+    let lastTick = Date.now();
     timerRef.current = setInterval(() => {
+      const now = Date.now();
+      const dt = Math.round((now - lastTick) / 1000);
+      if (dt < 1) return;
+      lastTick = now;
+
       // Respaldo: si después de una lectura válida dejan de llegar puntos por 15 s, se considera detenido.
-      const gpsSilencioso = lastGpsAtRef.current > 0 && Date.now() - lastGpsAtRef.current > 15_000;
+      const gpsSilencioso = lastGpsAtRef.current > 0 && now - lastGpsAtRef.current > 15_000;
       
       let stateChanged = false;
 
-      // La tolerancia corre desde el minuto cero del viaje (independiente de si se mueve o está detenido)
+      // Consumir tolerancia primero (corre independiente de si se mueve o no)
       if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
-        contadorParadoRef.current += 1;
+        const faltaTolerancia = tarifaRef.current.tolerancia_espera_segundos - contadorParadoRef.current;
+        if (dt <= faltaTolerancia) {
+          contadorParadoRef.current += dt;
+        } else {
+          contadorParadoRef.current += faltaTolerancia;
+          const excedente = dt - faltaTolerancia;
+          if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
+            segundosEspera += excedente;
+          }
+        }
         stateChanged = true;
       } else if (enEsperaRef.current || esperaManualRef.current || gpsSilencioso) {
         // Una vez consumida la tolerancia, se suma espera SOLO cuando está detenido
-        segundosEspera += 1;
+        segundosEspera += dt;
         stateChanged = true;
       }
 
