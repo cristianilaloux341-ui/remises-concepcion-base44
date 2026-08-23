@@ -141,7 +141,18 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     staleTime: 30_000,
   });
 
-  const availableDrivers = drivers.filter(d => d.status === "disponible" && d.current_base);
+  const isDriverWorking = (d) => {
+    if (d.status !== "disponible") return false;
+    const mobileId = String(d.vehicle_model || "");
+    const mobileNumber = parseInt(mobileId, 10);
+    const movil = moviles?.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
+    if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
+      return false;
+    }
+    return true;
+  };
+
+  const availableDrivers = drivers.filter(d => isDriverWorking(d) && d.current_base);
 
   // Auto-detect zone when pickup address changes
   useEffect(() => {

@@ -36,6 +36,12 @@ export default function OrderDetail() {
     staleTime: 60000,
   });
 
+  const { data: moviles = [] } = useQuery({
+    queryKey: ["moviles"],
+    queryFn: () => base44.entities.Movil.list(),
+    staleTime: 60000,
+  });
+
   const order = orders.find(o => o.id === orderId);
 
   const updateMutation = useMutation({
@@ -151,6 +157,17 @@ export default function OrderDetail() {
     }
   };
 
+  const isDriverWorking = (d) => {
+    if (d.status !== "disponible") return false;
+    const mobileId = String(d.vehicle_model || "");
+    const mobileNumber = parseInt(mobileId, 10);
+    const movil = moviles.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
+    if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
+      return false;
+    }
+    return true;
+  };
+
   const returnToPending = async () => {
     // Si había un conductor asignado o pre-reservado, liberarlo completamente
     const toCancel = [...new Set([order.driver_id, order.reserved_driver_id, ...(order.offered_driver_ids || [])])].filter(Boolean);
@@ -189,7 +206,7 @@ export default function OrderDetail() {
     });
   };
 
-  const availableDrivers = drivers.filter(d => d.status === "disponible" || d.id === order?.driver_id);
+  const availableDrivers = drivers.filter(d => isDriverWorking(d) || d.id === order?.driver_id);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

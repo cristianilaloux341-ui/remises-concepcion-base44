@@ -72,9 +72,21 @@ Deno.serve(async (req) => {
       const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
       const currentDriver = drivers[0];
 
+      const allMoviles = await base44.asServiceRole.entities.Movil.list();
+      const isDriverWorking = (d) => {
+        if (d.status !== 'disponible') return false;
+        const mobileId = String(d.vehicle_model || '');
+        const mobileNumber = parseInt(mobileId, 10);
+        const movil = allMoviles.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
+        if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
+          return false;
+        }
+        return true;
+      };
+
       const allDrivers = await base44.asServiceRole.entities.Driver.list();
       const offeredIds = order.offered_driver_ids || [];
-      const available = allDrivers.filter(d => d.status === 'disponible' && d.current_base && !offeredIds.includes(d.id));
+      const available = allDrivers.filter(d => isDriverWorking(d) && d.current_base && !offeredIds.includes(d.id));
 
       let nextDriver = null;
       if (available.length > 0) {

@@ -12,7 +12,18 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   const [dispatching, setDispatching] = useState(false);
   const [selectedDriverId, setSelectedDriverId] = useState("");
 
-  const availableDrivers = drivers.filter(d => d.status === "disponible");
+  const isDriverWorking = (d) => {
+    if (d.status !== "disponible") return false;
+    const mobileId = String(d.vehicle_model || "");
+    const mobileNumber = parseInt(mobileId, 10);
+    const movil = moviles?.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
+    if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
+      return false;
+    }
+    return true;
+  };
+
+  const availableDrivers = drivers.filter(d => isDriverWorking(d));
   const isBroadcast = (order.notes || "").startsWith("[BROADCAST]");
 
   // Zona del pedido → primera en cola
@@ -21,7 +32,8 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
 
   const handleAutoAssign = async () => {
     setDispatching(true);
-    await autoDispatch(order, drivers, bases);
+    // Pasamos ONLY los drivers verdaderamente disponibles (para evitar móviles suspendidos)
+    await autoDispatch(order, availableDrivers, bases);
     
     const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
     base44.entities.AuditLog.create({
@@ -169,8 +181,21 @@ export default function DispatchPanel({ orders, drivers, bases, moviles, onOrder
 
   const handleDispatchAll = async () => {
     setDispatchingAll(true);
+    
+    const isDriverWorking = (d) => {
+      if (d.status !== "disponible") return false;
+      const mobileId = String(d.vehicle_model || "");
+      const mobileNumber = parseInt(mobileId, 10);
+      const movil = moviles?.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
+      if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
+        return false;
+      }
+      return true;
+    };
+    const actuallyAvailable = drivers.filter(d => isDriverWorking(d));
+
     await Promise.all(
-      pending.map(order => autoDispatch(order, drivers, bases))
+      pending.map(order => autoDispatch(order, actuallyAvailable, bases))
     );
     setDispatchingAll(false);
   };

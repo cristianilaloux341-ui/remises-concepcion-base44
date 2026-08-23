@@ -34,6 +34,19 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   const [tarifaCargada, setTarifaCargada] = useState(false);
   const esperaManualRef = useRef(false);
 
+  // Cronómetro visual puro
+  const [cronometroVisual, setCronometroVisual] = useState(0);
+  useEffect(() => {
+    if (order.status !== "en_viaje") return;
+    const inicio = order.assigned_at ? new Date(order.assigned_at).getTime() : Date.now();
+    const timer = setInterval(() => {
+      setCronometroVisual(Math.floor((Date.now() - inicio) / 1000));
+    }, 500);
+    return () => clearInterval(timer);
+  }, [order.status, order.assigned_at]);
+
+  const fmtTiempo = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
   const metrosRef = useRef(0);
   const importeRef = useRef(importeActual);
   const contadorParadoRef = useRef(0);
@@ -273,9 +286,10 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
               {enEspera ? <Timer className="w-5 h-5 text-amber-400" /> : <Navigation className="w-5 h-5 text-green-400" />}
               <div>
                 <p className="text-xs font-semibold text-gray-400">{enEspera ? "EN ESPERA" : "EN MOVIMIENTO"}</p>
-                {metrosRecorridos > 0 && (
-                  <p className="text-xs text-gray-500">{(metrosRecorridos / 1000).toFixed(2)} km</p>
-                )}
+                <p className="text-xs text-gray-500">
+                  {metrosRecorridos > 0 ? `${(metrosRecorridos / 1000).toFixed(2)} km · ` : ""}
+                  ⏱ {fmtTiempo(cronometroVisual)}
+                </p>
               </div>
             </div>
             <div className="text-right">
