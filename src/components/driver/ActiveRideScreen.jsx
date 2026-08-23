@@ -34,16 +34,17 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
   const [tarifaCargada, setTarifaCargada] = useState(false);
   const esperaManualRef = useRef(false);
 
-  // Cronómetro visual puro
+  // Cronómetro visual puro (inmune a re-renders para que no se reinicie)
+  const inicioRef = useRef(Date.now());
   const [cronometroVisual, setCronometroVisual] = useState(0);
+
   useEffect(() => {
     if (order.status !== "en_viaje") return;
-    const inicio = order.assigned_at ? new Date(order.assigned_at).getTime() : Date.now();
     const timer = setInterval(() => {
-      setCronometroVisual(Math.floor((Date.now() - inicio) / 1000));
+      setCronometroVisual(Math.floor((Date.now() - inicioRef.current) / 1000));
     }, 500);
     return () => clearInterval(timer);
-  }, [order.status, order.assigned_at]);
+  }, [order.status]);
 
   const fmtTiempo = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
@@ -171,18 +172,22 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
 
       const estaEsperando = enEsperaRef.current || esperaManualRef.current || gpsSilencioso;
 
-      if (estaEsperando) {
-        if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
-          const faltaTolerancia = tarifaRef.current.tolerancia_espera_segundos - contadorParadoRef.current;
-          if (dt <= faltaTolerancia) {
-            contadorParadoRef.current += dt;
-          } else {
-            contadorParadoRef.current += faltaTolerancia;
-            segundosEspera += (dt - faltaTolerancia);
-          }
+      // La tolerancia de espera se consume SIEMPRE de fondo durante el viaje (en movimiento o no)
+      if (contadorParadoRef.current < tarifaRef.current.tolerancia_espera_segundos) {
+        const faltaTolerancia = tarifaRef.current.tolerancia_espera_segundos - contadorParadoRef.current;
+        if (dt <= faltaTolerancia) {
+          contadorParadoRef.current += dt;
         } else {
-          segundosEspera += dt;
+          contadorParadoRef.current += faltaTolerancia;
+          const excedente = dt - faltaTolerancia;
+          if (estaEsperando) {
+            segundosEspera += excedente;
+          }
         }
+        stateChanged = true;
+      } else if (estaEsperando) {
+        // Una vez consumida la tolerancia, si está parado/esperando acumula tiempo facturable
+        segundosEspera += dt;
         stateChanged = true;
       }
 
