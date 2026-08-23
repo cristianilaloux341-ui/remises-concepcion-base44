@@ -97,13 +97,17 @@ export default function OcasionalMeter({ onClose, driver }) {
     gpsEventHandlerRef.current = onGpsLocation;
     window.addEventListener(GPS_LOCATION_EVENT, onGpsLocation);
 
-    // Timer: recupera tiempo si la app se suspendió (dt)
+    // Timer: matemáticamente exacto para que no haya atrasos por micro-cortes
     let lastTick = Date.now();
+    let msAcumulados = 0;
     timerRef.current = setInterval(() => {
       const now = Date.now();
-      const dt = Math.round((now - lastTick) / 1000);
-      if (dt < 1) return;
+      msAcumulados += (now - lastTick);
       lastTick = now;
+
+      const dt = Math.floor(msAcumulados / 1000);
+      if (dt < 1) return;
+      msAcumulados -= dt * 1000; // Guarda los ms restantes para el siguiente ciclo
 
       const gpsSilencioso = lastGpsAtRef.current > 0 && now - lastGpsAtRef.current > 15_000;
       
