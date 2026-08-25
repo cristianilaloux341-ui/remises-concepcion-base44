@@ -18,6 +18,15 @@ export async function startRideCAS(b44: any, rideOrderId: string, driverId: stri
   if (!["aceptado", "en_camino", "en_viaje"].includes(order.status) || order.driver_id !== driverId) {
      return { status: "INVALID_STATE" };
   }
+
+  // Flujo V2 estricto: Aceptado -> Llegué/En Puerta -> Pasajero a bordo/Con Pasaje.
+  // El destino nunca interviene en estas transiciones.
+  const allowedTransition =
+    (order.status === "aceptado" && targetStatus === "en_camino") ||
+    (order.status === "en_camino" && targetStatus === "en_viaje");
+  if (!allowedTransition) {
+    return { status: "INVALID_TRANSITION" };
+  }
   
   // ACQUIRE LEASE
   const expectedLeaseVersion = order.processingLeaseVersion ?? 0;
