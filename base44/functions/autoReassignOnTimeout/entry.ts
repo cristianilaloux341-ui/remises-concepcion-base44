@@ -85,8 +85,13 @@ Deno.serve(async (req) => {
       };
 
       const allDrivers = await base44.asServiceRole.entities.Driver.list();
-      const offeredIds = order.offered_driver_ids || [];
-      const available = allDrivers.filter(d => isDriverWorking(d) && d.current_base && !offeredIds.includes(d.id));
+      // offered_driver_ids queda como historial/auditoría, no como lista negra.
+      // Un móvil que rechazó o recibió antes este pasaje puede volver a ser candidato
+      // apenas esté disponible. Para evitar rebote inmediato, priorizamos primero a
+      // cualquier otro móvil disponible y sólo reutilizamos el actual si no hay otro.
+      const workingDrivers = allDrivers.filter(d => isDriverWorking(d) && d.current_base);
+      const otherAvailable = workingDrivers.filter(d => d.id !== driverId);
+      const available = otherAvailable.length > 0 ? otherAvailable : workingDrivers;
 
       let nextDriver = null;
       if (available.length > 0) {
