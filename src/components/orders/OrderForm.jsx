@@ -106,7 +106,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
           fare: importe,
           distancia_teorica_metros: metros,
           importe_estimado: importe,
-          importe_real_actual: importe,
+          importe_real_actual: 0,
         }));
       } else {
         setDistanciaCalculada(-1);
@@ -289,7 +289,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     if (data.fare && String(data.fare).trim() !== "") {
       data.fare = Number(data.fare);
       data.importe_estimado = data.fare;
-      data.importe_real_actual = data.fare;
+      // La cotización no es el taxímetro real. El importe real comienza al iniciar el viaje.
+      data.importe_real_actual = 0;
     } else {
       delete data.fare;
       data.importe_estimado = undefined;
@@ -299,9 +300,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     if (distanciaCalculada && distanciaCalculada > 0) {
       data.distancia_teorica_metros = distanciaCalculada;
     } else if (data.dropoff_address && !data.distancia_teorica_metros && data.fare) {
-      // Si hay un destino y el operador puso un precio manual fijo, ponemos una distancia alta 
-      // para que el taxímetro no cobre doble (solo sumará espera).
-      data.distancia_teorica_metros = 999999; 
+      // Precio/cotización manual no debe falsificar la distancia del viaje.
+      data.distancia_teorica_metros = 0;
     } else if (!data.distancia_teorica_metros) {
       data.distancia_teorica_metros = 0; // Si no hay precio fijo ni distancia, que el taxímetro cuente desde cero.
     }
