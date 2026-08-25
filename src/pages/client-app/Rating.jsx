@@ -26,7 +26,7 @@ export default function Rating() {
      importe_real_actual: 0,
   };
 
-  const finalAmount = order ? (order.importe_real_actual || order.fare || 0) : 0;
+  const finalAmount = order ? Math.max(0, Number(order.importe_real_actual ?? 0)) : 0;
 
   return (
     <div className="h-[100dvh] bg-white flex flex-col justify-between p-6 pt-20 text-center animate-in fade-in duration-500" style={{ paddingBottom: 'env(safe-area-bottom)' }}>
