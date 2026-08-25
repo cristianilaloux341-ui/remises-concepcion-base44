@@ -163,8 +163,9 @@ export default function FareEstimate() {
         source: "cliente",
         fare: estimatedPrice,
         importe_estimado: estimatedPrice,
-        importe_real_actual: estimatedPrice,
-        distancia_teorica_metros: distance ? Math.round(distance) : 999999,
+        // Estimación y cobro real son conceptos distintos. El real arranca con el snapshot del viaje.
+        importe_real_actual: 0,
+        distancia_teorica_metros: distance ? Math.round(distance) : 0,
         segundos_espera_acumulados: 0
       };
       
