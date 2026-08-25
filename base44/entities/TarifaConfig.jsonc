@@ -26,47 +26,47 @@
     },
     "bajada_bandera": {
       "type": "number",
-      "default": 1700,
+      "default": 0,
       "description": "Importe fijo al iniciar un viaje (diurno)"
     },
     "valor_ficha": {
       "type": "number",
-      "default": 100,
+      "default": 0,
       "description": "Importe que suma cada ficha de distancia"
     },
     "metros_por_ficha": {
       "type": "number",
-      "default": 82,
+      "default": 0,
       "description": "Distancia necesaria para sumar una ficha"
     },
     "valor_ficha_espera": {
       "type": "number",
-      "default": 100,
+      "default": 0,
       "description": "Importe que suma cada ficha mientras est\u00e1 detenido"
     },
     "segundos_por_ficha_espera": {
       "type": "number",
-      "default": 45,
+      "default": 0,
       "description": "Tiempo completo detenido para sumar una ficha"
     },
     "tolerancia_espera_segundos": {
       "type": "number",
-      "default": 240,
+      "default": 0,
       "description": "Segundos de gracia antes de cobrar espera"
     },
     "nocturna_bajada_bandera": {
       "type": "number",
-      "default": 1900,
+      "default": 0,
       "description": "Bajada de bandera nocturna"
     },
     "nocturna_hora_inicio": {
       "type": "number",
-      "default": 22,
+      "default": 0,
       "description": "Hora de inicio de tarifa nocturna (0-23)"
     },
     "nocturna_hora_fin": {
       "type": "number",
-      "default": 6,
+      "default": 0,
       "description": "Hora de fin de tarifa nocturna (0-23)"
     },
     "minutos_libre_post_viaje": {
@@ -91,32 +91,32 @@
     },
     "precio_por_metro": {
       "type": "number",
-      "default": 2,
+      "default": 0,
       "description": "Legacy"
     },
     "precio_por_minuto_corrido": {
       "type": "number",
-      "default": 30,
+      "default": 0,
       "description": "Legacy"
     },
     "precio_por_minuto_espera": {
       "type": "number",
-      "default": 50,
+      "default": 0,
       "description": "Legacy"
     },
     "nocturna_precio_por_metro": {
       "type": "number",
-      "default": 2.8,
+      "default": 0,
       "description": "Legacy"
     },
     "nocturna_precio_por_minuto_corrido": {
       "type": "number",
-      "default": 45,
+      "default": 0,
       "description": "Legacy"
     },
     "nocturna_precio_por_minuto_espera": {
       "type": "number",
-      "default": 70,
+      "default": 0,
       "description": "Legacy"
     }
   },
