@@ -10,40 +10,19 @@ Deno.serve(async (req) => {
   const order = orders[0];
   if (!order) return Response.json({ error: 'Order not found' }, { status: 404 });
 
-  let tarifa = {
-    bajada_bandera: order.tarifa_bajada_bandera,
-    valor_ficha: order.tarifa_valor_ficha,
-    metros_por_ficha: order.tarifa_metros_por_ficha,
-    valor_ficha_espera: order.tarifa_valor_ficha_espera,
-    segundos_por_ficha_espera: order.tarifa_segundos_por_ficha_espera,
-    tolerancia_espera_segundos: order.tarifa_tolerancia_espera_segundos
+  // Un viaje iniciado se calcula únicamente con su snapshot congelado.
+  // Central, chofer, cliente y auditoría deben compartir exactamente estos valores.
+  const tarifa = {
+    bajada_bandera: Number(order.tarifa_bajada_snapshot ?? 0),
+    valor_ficha: Number(order.tarifa_valor_ficha_snapshot ?? 0),
+    metros_por_ficha: Number(order.tarifa_metros_por_ficha_snapshot ?? 0),
+    valor_ficha_espera: Number(order.tarifa_valor_ficha_espera_snapshot ?? 0),
+    segundos_por_ficha_espera: Number(order.tarifa_segundos_por_ficha_espera_snapshot ?? 0),
+    tolerancia_espera_segundos: Number(order.tarifa_tolerancia_espera_segundos_snapshot ?? 0)
   };
 
-  if (!tarifa.bajada_bandera) {
-    const configs = await b44.entities.TarifaConfig.list();
-    const raw = configs[0] || {};
-    
-    const TARIFA_DEFAULTS = { bajada_bandera: 1700, nocturna_bajada_bandera: 1900, valor_ficha: 100, metros_por_ficha: 82, valor_ficha_espera: 100, segundos_por_ficha_espera: 45, tolerancia_espera_segundos: 240, nocturna_hora_inicio: 22, nocturna_hora_fin: 6 };
-    
-    const horaInicio = Number(raw.nocturna_hora_inicio ?? TARIFA_DEFAULTS.nocturna_hora_inicio);
-    const horaFin = Number(raw.nocturna_hora_fin ?? TARIFA_DEFAULTS.nocturna_hora_fin);
-    const fecha = new Date(order.created_date || Date.now());
-    const hora = fecha.getHours();
-    let nocturna = false;
-    if (horaInicio > horaFin) {
-      nocturna = hora >= horaInicio || hora < horaFin;
-    } else {
-      nocturna = hora >= horaInicio && hora < horaFin;
-    }
-
-    tarifa = {
-      bajada_bandera: Number(nocturna ? (raw.nocturna_bajada_bandera ?? TARIFA_DEFAULTS.nocturna_bajada_bandera) : (raw.bajada_bandera ?? TARIFA_DEFAULTS.bajada_bandera)),
-      valor_ficha: Number(raw.valor_ficha ?? TARIFA_DEFAULTS.valor_ficha),
-      metros_por_ficha: Number(raw.metros_por_ficha ?? TARIFA_DEFAULTS.metros_por_ficha),
-      valor_ficha_espera: Number(raw.valor_ficha_espera ?? raw.valor_ficha ?? TARIFA_DEFAULTS.valor_ficha_espera),
-      segundos_por_ficha_espera: Number(raw.segundos_por_ficha_espera ?? TARIFA_DEFAULTS.segundos_por_ficha_espera),
-      tolerancia_espera_segundos: Number(raw.tolerancia_espera_segundos ?? TARIFA_DEFAULTS.tolerancia_espera_segundos)
-    };
+  if (!order.tarifa_snapshot_at) {
+    return Response.json({ success: false, reason: 'tarifa_snapshot_missing' }, { status: 409 });
   }
 
   const traces = await b44.entities.RideGpsTrace.filter({ order_id: orderId }, 'timestamp');
@@ -74,7 +53,7 @@ Deno.serve(async (req) => {
   const durationSegundos = (new Date(traces[traces.length - 1].timestamp).getTime() - new Date(traces[0].timestamp).getTime()) / 1000;
   let segundosEspera = durationSegundos - segundos_movimiento;
   
-  const tolerancia = Number(tarifa.tolerancia_espera_segundos || 240);
+  const tolerancia = Math.max(0, Number(tarifa.tolerancia_espera_segundos ?? 0));
   segundosEspera = Math.max(0, segundosEspera - tolerancia);
 
   const importe_servidor = calcularImportePorFichas(total_metros, segundosEspera, tarifa);
