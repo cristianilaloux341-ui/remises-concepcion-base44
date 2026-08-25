@@ -67,25 +67,13 @@ Deno.serve(async (req) => {
     return Response.json({ success: false, reason: 'invalid_order_status' });
   }
 
-  const importeTelefono = importeFinal || order.importe_real_actual || 0;
-  let finalImporte = importeTelefono;
-  let importeServidor = null;
-  let origenCalculo = null;
-
-  try {
-    const calcRes = await b44.functions.invoke('calcularImporteServidor', { orderId: orderId });
-    if (calcRes.data && calcRes.data.success) {
-      importeServidor = calcRes.data.importe_servidor;
-      const origen = calcRes.data.origen;
-      
-      // Con la nueva versión del taxímetro del cliente (que resiste suspensiones),
-      // el teléfono es la fuente de verdad. El servidor solo audita.
-      finalImporte = importeTelefono > 0 ? importeTelefono : importeServidor;
-      origenCalculo = importeTelefono > 0 ? 'telefono_auditado' : origen;
-    }
-  } catch(e) {
-     origenCalculo = 'telefono_fallback_error';
-  }
+  // El cierre usa exclusivamente el acumulado del taxímetro nuevo, calculado con
+  // el snapshot congelado al iniciar el viaje. No se consulta TarifaConfig ni el
+  // calculador legacy al finalizar: un cambio de tarifa nunca puede alterar un viaje activo.
+  const importeTelefono = Math.max(0, Number(importeFinal ?? order.importe_real_actual ?? 0));
+  const finalImporte = importeTelefono;
+  const importeServidor = null;
+  const origenCalculo = 'taximetro_snapshot_telefono';
 
   const uOrder = await b44.entities.RideOrder.updateMany(
     { id: orderId, status: { $in: ['aceptado', 'en_camino', 'en_viaje'] }, driver_id: driverId },
