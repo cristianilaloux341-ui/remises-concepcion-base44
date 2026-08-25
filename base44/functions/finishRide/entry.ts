@@ -74,6 +74,11 @@ Deno.serve(async (req) => {
   const finalImporte = importeTelefono;
   const importeServidor = null;
   const origenCalculo = 'taximetro_snapshot_telefono';
+  const finishedAt = new Date();
+  const startedAtMs = Date.parse(order.ride_started_at || '');
+  const rideDurationSeconds = Number.isFinite(startedAtMs)
+    ? Math.max(0, Math.floor((finishedAt.getTime() - startedAtMs) / 1000))
+    : 0;
 
   const uOrder = await b44.entities.RideOrder.updateMany(
     { id: orderId, status: { $in: ['aceptado', 'en_camino', 'en_viaje'] }, driver_id: driverId },
@@ -83,7 +88,12 @@ Deno.serve(async (req) => {
         importe_real_actual: finalImporte, 
         importe_calculo_servidor: importeServidor,
         origen_calculo: origenCalculo,
-        updated_date: new Date().toISOString(),
+        ride_finished_at: finishedAt.toISOString(),
+        ride_duration_seconds: rideDurationSeconds,
+        driver_name: order.driver_name || driver.name || '',
+        driver_mobile: order.driver_mobile || String(driver.vehicle_model || driver.mobile_number || ''),
+        driver_vehicle_plate: order.driver_vehicle_plate || driver.vehicle_plate || '',
+        updated_date: finishedAt.toISOString(),
         reserved_driver_id: null,
         reservation_token: null,
         manual_reservation_token: null,
