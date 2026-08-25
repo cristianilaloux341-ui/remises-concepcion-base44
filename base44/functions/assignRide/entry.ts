@@ -45,14 +45,13 @@ Deno.serve(async (req) => {
   );
   
   if (conflictingOrders.length > 0) {
-    // Si el operador o el sistema intenta asignarlo estando en servicio, asumimos que los viajes previos son fantasmas colgados.
-    // Los cancelamos para destrabar al chofer automáticamente.
-    for (const ghost of conflictingOrders) {
-      await b44.entities.RideOrder.update(ghost.id, {
-        status: "cancelado",
-        notes: (ghost.notes || "") + " [Cancelado automáticamente para destrabar nuevo viaje]"
-      }).catch(() => {});
-    }
+    // Nunca cancelar automáticamente otro pasaje para destrabar un móvil.
+    // Mientras tenga un viaje activo, este móvil simplemente no es candidato.
+    // El pasaje que intentamos asignar conserva su estado y el despacho automático seguirá buscando.
+    return Response.json({
+      success: false,
+      reason: 'DRIVER_ALREADY_BUSY'
+    });
   }
 
   if (driverReq.status === 'no_disponible') {
