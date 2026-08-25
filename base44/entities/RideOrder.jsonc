@@ -144,6 +144,56 @@
       "type": "number",
       "default": 0
     },
+    "ride_started_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ride_finished_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ride_duration_seconds": {
+      "type": "number",
+      "default": 0
+    },
+    "max_speed_kmh": {
+      "type": "number",
+      "default": 0
+    },
+    "tarifa_bajada_snapshot": {
+      "type": "number",
+      "default": 0
+    },
+    "tarifa_valor_ficha_snapshot": {
+      "type": "number",
+      "default": 0
+    },
+    "tarifa_metros_por_ficha_snapshot": {
+      "type": "number",
+      "default": 0
+    },
+    "tarifa_tolerancia_espera_segundos_snapshot": {
+      "type": "number",
+      "default": 0
+    },
+    "tarifa_segundos_por_ficha_espera_snapshot": {
+      "type": "number",
+      "default": 0
+    },
+    "tarifa_valor_ficha_espera_snapshot": {
+      "type": "number",
+      "default": 0
+    },
+    "tarifa_snapshot_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "assignment_attempt": {
       "type": "number",
       "default": 1
