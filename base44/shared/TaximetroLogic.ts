@@ -8,16 +8,21 @@ export function haversineMetros(lat1: number, lng1: number, lat2: number, lng2: 
 }
 
 export function calcularImportePorFichas(metros: number, segundosEspera: number, tarifa: any) {
-  const metrosPorFicha = Math.max(1, Number(tarifa.metros_por_ficha));
-  const segundosPorFicha = Math.max(1, Number(tarifa.segundos_por_ficha_espera));
-  const fichasDistancia = Math.floor(Math.max(0, metros) / metrosPorFicha);
-  
-  const sEspera = Math.max(0, segundosEspera);
-  const fichasEspera = sEspera > 0 ? 1 + Math.floor((sEspera - 1) / segundosPorFicha) : 0;
+  const bajada = Math.max(0, Number(tarifa.bajada_bandera ?? 0));
+  const metrosPorFicha = Math.max(0, Number(tarifa.metros_por_ficha ?? 0));
+  const valorFicha = Math.max(0, Number(tarifa.valor_ficha ?? 0));
+  const segundosPorFicha = Math.max(0, Number(tarifa.segundos_por_ficha_espera ?? 0));
+  const valorFichaEspera = Math.max(0, Number(tarifa.valor_ficha_espera ?? 0));
 
-  return Math.round(
-    Number(tarifa.bajada_bandera)
-    + fichasDistancia * Number(tarifa.valor_ficha)
-    + fichasEspera * Number(tarifa.valor_ficha_espera)
-  );
+  // Cero significa "modalidad no configurada": nunca se reemplaza por un valor oculto.
+  const fichasDistancia = metrosPorFicha > 0 && valorFicha > 0
+    ? Math.floor(Math.max(0, metros) / metrosPorFicha)
+    : 0;
+
+  const sEspera = Math.max(0, segundosEspera);
+  const fichasEspera = segundosPorFicha > 0 && valorFichaEspera > 0
+    ? Math.floor(sEspera / segundosPorFicha)
+    : 0;
+
+  return Math.round(bajada + fichasDistancia * valorFicha + fichasEspera * valorFichaEspera);
 }
