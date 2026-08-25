@@ -1,24 +1,22 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Receipt, Printer } from "lucide-react";
+import { Receipt, Download } from "lucide-react";
 import { formatTimeBA } from "@/lib/utils";
 
 export default function RideTicket({ order }) {
-  const handlePrint = () => {
-    const content = document.getElementById('ticket-content').innerHTML;
-    const printWindow = window.open('', '', 'height=600,width=400');
-    printWindow.document.write('<html><head><title>Ticket</title>');
-    printWindow.document.write('<style>body { font-family: monospace; font-size: 14px; padding: 20px; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .border-b { border-bottom: 1px dashed #000; margin: 10px 0; } .flex { display: flex; justify-content: space-between; } .text-xl { font-size: 20px; }</style>');
-    printWindow.document.write('</head><body>');
-    printWindow.document.write(content);
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-    }, 500);
+  const handleDownload = () => {
+    const content = document.getElementById('ticket-content')?.innerHTML || '';
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Comprobante de viaje</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111827}.text-center{text-align:center}.font-bold{font-weight:700}.border-b{border-bottom:1px dashed #94a3b8;margin:10px 0}.flex{display:flex;justify-content:space-between;gap:16px}.text-xl{font-size:20px}.space-y-2>div,.space-y-3>div{margin:8px 0}</style></head><body>${content}</body></html>`;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `comprobante-viaje-${order.id?.slice(-8) || 'remises'}.html`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   if (!order) return null;
@@ -45,6 +43,8 @@ export default function RideTicket({ order }) {
           <div className="space-y-2 text-sm text-slate-700 py-2">
             <div className="flex"><span className="font-bold">Fecha:</span> <span>{order.created_date ? formatTimeBA(order.created_date, "full") : "-"}</span></div>
             <div className="flex"><span className="font-bold">Viaje N°:</span> <span>{order.id?.slice(-6).toUpperCase() || "-"}</span></div>
+            <div className="flex"><span className="font-bold">Móvil:</span> <span>{order.driver_mobile || "-"}</span></div>
+            <div className="flex"><span className="font-bold">Patente:</span> <span>{order.driver_vehicle_plate || "-"}</span></div>
             <div className="flex"><span className="font-bold">Chofer:</span> <span>{order.driver_name || "-"}</span></div>
             <div className="flex"><span className="font-bold">Pasajero:</span> <span>{order.client_name || "-"}</span></div>
           </div>
@@ -63,6 +63,15 @@ export default function RideTicket({ order }) {
           </div>
           
           <div className="border-b" />
+
+          <div className="space-y-2 text-sm text-slate-700 py-2">
+            <div className="flex"><span className="font-bold">Inicio:</span> <span>{order.ride_started_at ? formatTimeBA(order.ride_started_at, "full") : "-"}</span></div>
+            <div className="flex"><span className="font-bold">Finalización:</span> <span>{order.ride_finished_at ? formatTimeBA(order.ride_finished_at, "full") : "-"}</span></div>
+            <div className="flex"><span className="font-bold">Duración:</span> <span>{Math.floor(Number(order.ride_duration_seconds || 0) / 60)} min {Math.floor(Number(order.ride_duration_seconds || 0) % 60)} s</span></div>
+            <div className="flex"><span className="font-bold">Velocidad máxima:</span> <span>{Number(order.max_speed_kmh || 0).toFixed(1)} km/h</span></div>
+          </div>
+
+          <div className="border-b" />
           
           <div className="flex items-center justify-between py-2">
             <span className="font-bold text-slate-900 text-lg">TOTAL ABONADO</span>
@@ -74,8 +83,8 @@ export default function RideTicket({ order }) {
           <p className="text-center text-xs text-slate-500 mt-4">Gracias por viajar con nosotros</p>
         </div>
         <div className="p-4 bg-slate-50 flex justify-end">
-          <Button onClick={handlePrint} className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 rounded-xl">
-            <Printer className="w-5 h-5" /> Descargar / Imprimir
+          <Button onClick={handleDownload} className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 rounded-xl">
+            <Download className="w-5 h-5" /> Descargar comprobante
           </Button>
         </div>
       </DialogContent>
