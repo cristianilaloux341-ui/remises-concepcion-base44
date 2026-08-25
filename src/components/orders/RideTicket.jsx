@@ -66,7 +66,7 @@ export default function RideTicket({ order }) {
           
           <div className="flex items-center justify-between py-2">
             <span className="font-bold text-slate-900 text-lg">TOTAL ABONADO</span>
-            <span className="font-bold text-green-600 text-xl">${(order.importe_real_actual || order.fare || order.importe_estimado || 0).toLocaleString()}</span>
+            <span className="font-bold text-green-600 text-xl">${Math.max(0, Number(order.importe_real_actual ?? 0)).toLocaleString()}</span>
           </div>
           
           <div className="border-b" />
