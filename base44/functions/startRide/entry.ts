@@ -53,9 +53,17 @@ export async function startRideCAS(b44: any, rideOrderId: string, driverId: stri
   if (targetStatus === "en_viaje" && !order.tarifa_snapshot_at) {
     const configs = await b44.entities.TarifaConfig.list();
     const tarifa = configs?.[0] || {};
+    const drivers = await b44.entities.Driver.filter({ id: driverId });
+    const driver = drivers?.[0] || {};
     const startedAt = new Date().toISOString();
     rideStartFields = {
       ride_started_at: order.ride_started_at || startedAt,
+      ride_finished_at: null,
+      ride_duration_seconds: 0,
+      max_speed_kmh: Number(order.max_speed_kmh || 0),
+      driver_name: order.driver_name || driver.name || '',
+      driver_mobile: order.driver_mobile || String(driver.vehicle_model || driver.mobile_number || ''),
+      driver_vehicle_plate: order.driver_vehicle_plate || driver.vehicle_plate || '',
       taximetro_iniciado: true,
       tarifa_bajada_snapshot: Number(tarifa.bajada_bandera || 0),
       tarifa_valor_ficha_snapshot: Number(tarifa.valor_ficha || 0),
