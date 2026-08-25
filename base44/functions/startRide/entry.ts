@@ -47,6 +47,29 @@ export async function startRideCAS(b44: any, rideOrderId: string, driverId: stri
     return { status: "OPERATION_IN_PROGRESS" };
   }
   
+  // Snapshot tarifario: se congela una sola vez al entrar a en_viaje.
+  // Cambios posteriores en TarifaConfig solo afectan viajes futuros.
+  let rideStartFields: Record<string, any> = {};
+  if (targetStatus === "en_viaje" && !order.tarifa_snapshot_at) {
+    const configs = await b44.entities.TarifaConfig.list();
+    const tarifa = configs?.[0] || {};
+    const startedAt = new Date().toISOString();
+    rideStartFields = {
+      ride_started_at: order.ride_started_at || startedAt,
+      taximetro_iniciado: true,
+      tarifa_bajada_snapshot: Number(tarifa.bajada_bandera || 0),
+      tarifa_valor_ficha_snapshot: Number(tarifa.valor_ficha || 0),
+      tarifa_metros_por_ficha_snapshot: Number(tarifa.metros_por_ficha || 0),
+      tarifa_tolerancia_espera_segundos_snapshot: Number(tarifa.tolerancia_espera_segundos || 0),
+      tarifa_segundos_por_ficha_espera_snapshot: Number(tarifa.segundos_por_ficha_espera || 0),
+      tarifa_valor_ficha_espera_snapshot: Number(tarifa.valor_ficha_espera || 0),
+      tarifa_snapshot_at: startedAt,
+      importe_real_actual: Number(tarifa.bajada_bandera || 0),
+      metros_taximetro: Number(order.metros_taximetro || 0),
+      segundos_espera_acumulados: Number(order.segundos_espera_acumulados || 0)
+    };
+  }
+
   // COMMIT
   const commitFilter = {
       id: rideOrderId,
@@ -59,6 +82,7 @@ export async function startRideCAS(b44: any, rideOrderId: string, driverId: stri
       $set: {
         status: targetStatus,
         updated_date: new Date().toISOString(),
+        ...rideStartFields,
         processingOwnerId: null,
         processingPhase: null,
         processingAction: null,
