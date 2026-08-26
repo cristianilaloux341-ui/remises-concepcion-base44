@@ -62,12 +62,14 @@ export default function OrderDetail() {
   const cancelOrder = async () => {
     await base44.entities.RideOrder.update(order.id, { status: "cancelado" });
     
-    const toCancel = [...new Set([order.driver_id, order.reserved_driver_id, ...(order.offered_driver_ids || [])])].filter(Boolean);
+    // offered_driver_ids es historial: no se debe liberar a esos móviles porque
+    // pueden estar trabajando en otro pasaje. Solo tocar vínculos actuales.
+    const toCancel = [...new Set([order.driver_id, order.reserved_driver_id])].filter(Boolean);
     
     if (toCancel.length > 0) {
-      // Limpieza profunda de los estados internos ("fantasmas") de todos los involucrados
+      // Liberar únicamente móviles que todavía sigan vinculados a ESTA orden.
       await base44.entities.Driver.updateMany(
-        { id: { $in: toCancel } },
+        { id: { $in: toCancel }, $or: [{ active_order_id: order.id }, { active_ride_id: order.id }, { reserved_order_id: order.id }] },
         {
           $set: {
             status: "disponible",
