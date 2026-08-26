@@ -316,9 +316,10 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
       id: driverId,
       status: "disponible",
       driver_reservation_version: expectedDriverVersion,
-      $or: [
-        { active_ride_id: null },
-        { active_ride_id: { $exists: false } }
+      $and: [
+        { $or: [{ active_ride_id: null }, { active_ride_id: { $exists: false } }] },
+        { $or: [{ active_order_id: null }, { active_order_id: { $exists: false } }, { active_order_id: rideOrderId }] },
+        { $or: [{ reserved_order_id: null }, { reserved_order_id: { $exists: false } }, { reserved_order_id: rideOrderId }] }
       ]
   };
   const reserveDriverUpdate = { 
