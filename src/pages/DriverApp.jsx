@@ -892,19 +892,22 @@ export default function DriverApp() {
         stopNativeRideAlert(autoRejectOrderId, "autoRejectFromURL");
       }
       setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
-      updateDriver.mutate({ 
-        id: myDriverId, 
-        data: { 
-          status: "disponible", 
+      // El rechazo puede llegar tarde desde una notificación vieja.
+      // Liberar solo si el móvil todavía está vinculado a ESTA oferta.
+      base44.entities.Driver.updateMany(
+        { id: myDriverId, $or: [{ reserved_order_id: autoRejectOrderId }, { active_order_id: autoRejectOrderId }, { active_ride_id: autoRejectOrderId }] },
+        { $set: {
+          status: "disponible",
           dispatch_status: "normal",
           queue_entered_at: new Date().toISOString(),
+          active_order_id: null,
           active_ride_id: null,
           reserved_order_id: null,
           reservation_token: null,
           manual_reservation_token: null,
           driver_reservation_key: null
-        } 
-      });
+        } }
+      ).catch(()=>{});
       Promise.all([
         base44.entities.RideOrder.get(autoRejectOrderId),
         base44.entities.Driver.list()
@@ -1027,20 +1030,23 @@ export default function DriverApp() {
             stopNativeRideAlert(orderId, "swRejectOrder");
           }
           notifySW({ type: "ACK_REJECT_ORDER", orderId }); // Send ACK
-          setLocalOverride({ status: "disponible" });
-          updateDriver.mutate({ 
-            id: myDriverId, 
-            data: { 
-              status: "disponible", 
+          setLocalOverride({ status: "disponible", _ignoredOrderId: orderId });
+          // Igual que el rechazo por URL: una acción atrasada no puede borrar
+          // la reserva/viaje nuevo que el móvil haya recibido entretanto.
+          base44.entities.Driver.updateMany(
+            { id: myDriverId, $or: [{ reserved_order_id: orderId }, { active_order_id: orderId }, { active_ride_id: orderId }] },
+            { $set: {
+              status: "disponible",
               dispatch_status: "normal",
               queue_entered_at: new Date().toISOString(),
+              active_order_id: null,
               active_ride_id: null,
               reserved_order_id: null,
               reservation_token: null,
               manual_reservation_token: null,
               driver_reservation_key: null
-            } 
-          });
+            } }
+          ).catch(()=>{});
           Promise.all([
             base44.entities.RideOrder.get(orderId),
             base44.entities.Driver.list()
