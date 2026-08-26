@@ -91,10 +91,12 @@ Deno.serve(async (req) => {
       const isCancelled = order.status === 'cancelado' || order.status === 'rechazado';
       
       if (order.driver_id || order.reserved_driver_id || (isCancelled && order.offered_driver_ids?.length > 0)) {
+        // offered_driver_ids es historial, NO propiedad del viaje actual.
+        // Un rechazo anterior no autoriza a liberar ese móvil: podría estar ya
+        // reservado/ocupado con otro pasaje. Solo se liberan los vínculos actuales.
         const driversToFree = [...new Set([
           order.driver_id,
-          order.reserved_driver_id,
-          ...(isCancelled ? (order.offered_driver_ids || []) : [])
+          order.reserved_driver_id
         ].filter(Boolean))];
 
         for (const dId of driversToFree) {
@@ -103,8 +105,14 @@ Deno.serve(async (req) => {
             const isAbandonment = ['aceptado', 'en_camino', 'en_viaje'].includes(order.status);
             const newDriverStatus = isAbandonment ? "no_disponible" : "disponible";
             
+            // CAS: liberar únicamente si el móvil todavía apunta a ESTA orden.
+            // Evita que el cron borre una reserva nueva creada por otro operador.
             await b44.entities.Driver.updateMany(
-              { id: dId },
+              { id: dId, $or: [
+                { reserved_order_id: order.id },
+                { active_order_id: order.id },
+                { active_ride_id: order.id }
+              ] },
               { $set: { 
                   status: newDriverStatus, 
                   dispatch_status: "normal", 
