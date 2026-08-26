@@ -1614,24 +1614,25 @@ export default function DriverApp() {
          checkedGhostRef.current = ghostOrderId;
          base44.entities.RideOrder.get(ghostOrderId).then(order => {
             if (!order || !["ofrecido", "aceptado", "en_camino", "en_viaje"].includes(order.status)) {
-               updateDriver.mutate({
-                 id: myDriverId,
-                 data: {
+               // CAS: solo destrabar si el móvil TODAVÍA apunta al viaje fantasma chequeado.
+               base44.entities.Driver.updateMany(
+                 { id: myDriverId, $or: [{ reserved_order_id: ghostOrderId }, { active_order_id: ghostOrderId }, { active_ride_id: ghostOrderId }] },
+                 { $set: {
                    status: "disponible",
                    dispatch_status: "normal",
+                   active_order_id: null,
                    reserved_order_id: null,
                    active_ride_id: null,
                    reservation_token: null,
                    manual_reservation_token: null,
                    driver_reservation_key: null
-                 }
-               });
+                 } }
+               ).catch(()=>{});
             }
          }).catch(() => {
-            updateDriver.mutate({
-              id: myDriverId,
-              data: { status: "disponible", dispatch_status: "normal", reserved_order_id: null, active_ride_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null }
-            });
+            // Un error de red NO demuestra que el viaje sea fantasma.
+            // No liberar nada: se reintentará en la próxima reconciliación.
+            checkedGhostRef.current = null;
          });
       } else if (!ghostOrderId) {
          // Si solo tenia dispatch_status = 'automatic_pending'
