@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Remises Concepción Cliente</string>
-    <string name="title_activity_main">Remises Concepción Cliente</string>
-    <string name="package_name">com.remisesconcepcion.cliente</string>
-    <string name="custom_url_scheme">com.remisesconcepcion.cliente</string>
+    <string name="app_name">Remises Concepción Chofer</string>
+    <string name="title_activity_main">Remises Concepción Chofer</string>
+    <string name="package_name">com.remisesconcepcion.driver</string>
+    <string name="custom_url_scheme">com.remisesconcepcion.driver</string>
 </resources>
