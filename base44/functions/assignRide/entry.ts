@@ -139,7 +139,12 @@ Deno.serve(async (req) => {
 
       // 4. Update statuses cleanly to mirror legacy UI behavior
       if (targetDriverStatus === "en_viaje") {
-        await b44.entities.Driver.update(driverId, { status: "en_viaje" });
+        // No pisar a ciegas el móvil después de la reserva atómica.
+        // Solo cambia de estado si todavía conserva la reserva de ESTA orden/token.
+        await b44.entities.Driver.updateMany(
+          { id: driverId, reserved_order_id: orderId, reservation_token: token },
+          { $set: { status: "en_viaje" } }
+        );
       }
       
       // Escribir los datos de asignación solo después del éxito atómico
