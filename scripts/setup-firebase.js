@@ -19,12 +19,16 @@ const destFile = path.join(__dirname, '..', destFolder, 'app', 'google-services.
 
 console.log(`Configurando Firebase para: ${target.toUpperCase()}`);
 
+// Aceptar cualquiera de las dos formas de trabajo:
+// 1) archivo maestro en secrets/android/<target>/ (se copia al proyecto Android)
+// 2) archivo ya colocado directamente en <android>/app/google-services.json
 if (fs.existsSync(sourceFile)) {
   fs.copyFileSync(sourceFile, destFile);
   console.log(`✅ Archivo google-services.json copiado exitosamente a ${destFolder}/app/`);
+} else if (fs.existsSync(destFile)) {
+  console.log(`✅ google-services.json ya está presente en ${destFolder}/app/; se conserva sin copiar.`);
 } else {
-  console.log(`⚠️ Advertencia: No se encontró el archivo ${sourceFile}`);
-  console.log(`Por favor, asegúrate de colocar el google-services.json en: /secrets/android/${target}/`);
-  // Creamos los directorios para que el usuario sepa donde van
+  console.log(`⚠️ Advertencia: No se encontró google-services.json para ${target}.`);
+  console.log(`Podés colocarlo en ${sourceFile} o directamente en ${destFile}.`);
   fs.mkdirSync(path.dirname(sourceFile), { recursive: true });
 }
