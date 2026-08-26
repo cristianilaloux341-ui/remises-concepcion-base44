@@ -32,7 +32,7 @@ export async function tryManualCandidate(b44: any, baseId: string, order: any, d
     await validatePilotDriver(b44, order.zone || '1-Puerto', driver.id);
     // 1. Reservar Driver
     const driverRes = await b44.entities.Driver.updateMany(
-      { id: driver.id, status: 'disponible', dispatch_status: 'normal', reserved_order_id: null },
+      { id: driver.id, status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, active_order_id: null, active_ride_id: null },
       { $set: { dispatch_status: 'manual_pending', reserved_order_id: order.id, manual_reservation_token: token } }
     );
     if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? driverRes.updated ?? 0) !== 1) return false;
@@ -87,7 +87,7 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
   try {
     await validatePilotDriver(b44, order.zone || '1-Puerto', driver.id);
     const driverRes = await b44.entities.Driver.updateMany(
-      { id: driver.id, status: 'disponible', dispatch_status: 'normal', reserved_order_id: null },
+      { id: driver.id, status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, active_order_id: null, active_ride_id: null },
       { $set: { dispatch_status: 'automatic_pending', reserved_order_id: order.id, reservation_token: token } }
     );
     if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? driverRes.updated ?? 0) !== 1) return false;
