@@ -61,17 +61,32 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 2. Darle autoridad absoluta a la asignación manual:
-  // Si no tiene otro viaje y está en servicio, forzamos que esté disponible y limpio para que la reserva atómica no rebote.
-  if (driverReq.status !== 'disponible' || driverReq.dispatch_status !== 'normal' || driverReq.reserved_order_id || driverReq.reservation_token) {
-    await b44.entities.Driver.updateMany(
-      { id: driverId },
-      { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, active_ride_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null } }
+  // 2. Recuperación segura de referencias huérfanas.
+  // NUNCA limpiar una reserva vigente solo para que una asignación manual entre:
+  // otro operador puede haber reservado este móvil milisegundos antes.
+  const linkedOrderId = driverReq.reserved_order_id || driverReq.active_order_id || driverReq.active_ride_id;
+  if (linkedOrderId && linkedOrderId !== orderId) {
+    const linkedOrder = await b44.entities.RideOrder.get(linkedOrderId).catch(() => null);
+    const linkedIsActive = linkedOrder && activeStatuses.has(linkedOrder.status) &&
+      (linkedOrder.driver_id === driverId || linkedOrder.reserved_driver_id === driverId);
+    if (linkedIsActive) {
+      return Response.json({ success:false, reason:'DRIVER_ALREADY_BUSY', conflictingOrderId: linkedOrder.id });
+    }
+    // Solo limpiamos si comprobamos que la referencia es huérfana/muerta.
+    const cleaned = await b44.entities.Driver.updateMany(
+      { id: driverId, reserved_order_id: driverReq.reserved_order_id ?? null, active_order_id: driverReq.active_order_id ?? null, active_ride_id: driverReq.active_ride_id ?? null },
+      { $set: { status:'disponible', dispatch_status:'normal', reserved_order_id:null, active_order_id:null, active_ride_id:null, reservation_token:null, manual_reservation_token:null, driver_reservation_key:null } }
     );
+    if (cleaned.updated !== 1) return Response.json({ success:false, reason:'DRIVER_STATE_CHANGED_RETRY' });
     driverReq.status = 'disponible';
     driverReq.dispatch_status = 'normal';
     driverReq.reserved_order_id = null;
+    driverReq.active_order_id = null;
+    driverReq.active_ride_id = null;
     driverReq.reservation_token = null;
+  } else if (driverReq.status !== 'disponible' || (driverReq.dispatch_status != null && driverReq.dispatch_status !== 'normal')) {
+    // Sin referencia a viaje no pisamos el estado a ciegas: el CAS atómico decide.
+    return Response.json({ success:false, reason:'DRIVER_NOT_AVAILABLE' });
   }
 
   try {
