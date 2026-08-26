@@ -1789,21 +1789,25 @@ export default function DriverApp() {
     if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
     const currentOrder = { ...offeredOrder, offered_driver_ids: [...(offeredOrder.offered_driver_ids || []), myDriverId] };
     
-    // Regresamos al chofer a "disponible" ya que rechazó el viaje
+    // Regresamos al chofer a disponible SOLO si todavía está vinculado
+    // a la oferta que acaba de rechazar. Un rechazo atrasado no toca otro viaje.
     setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
-    updateDriver.mutate({ 
-      id: myDriverId, 
-      data: { 
-        status: "disponible", 
-        dispatch_status: "normal",
-        queue_entered_at: new Date().toISOString(),
-        active_ride_id: null,
-        reserved_order_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null
-      } 
-    });
+    if (realId) {
+      base44.entities.Driver.updateMany(
+        { id: myDriverId, $or: [{ reserved_order_id: realId }, { active_order_id: realId }, { active_ride_id: realId }] },
+        { $set: {
+          status: "disponible",
+          dispatch_status: "normal",
+          queue_entered_at: new Date().toISOString(),
+          active_order_id: null,
+          active_ride_id: null,
+          reserved_order_id: null,
+          reservation_token: null,
+          manual_reservation_token: null,
+          driver_reservation_key: null
+        } }
+      ).catch(()=>{});
+    }
 
     // Apagar sonido nativo en Android
     base44.functions.invoke("sendPushNotification", {
