@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, idempotent: true, reason: 'ALREADY_PROCESSED' });
     } else {
       const fixRes = await b44.entities.Driver.updateMany(
-        { $or: [{ id: driverId }, { reserved_order_id: orderId }, { active_ride_id: orderId }] },
+        { id: driverId, $or: [{ reserved_order_id: orderId }, { active_order_id: orderId }, { active_ride_id: orderId }] },
         { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null, active_ride_id: null } }
       );
       if (fixRes.updated >= 1) {
@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
   }
 
   const uDriver = await b44.entities.Driver.updateMany(
-    { $or: [{ id: driverId }, { reserved_order_id: orderId }, { active_ride_id: orderId }] },
+    { id: driverId, $or: [{ reserved_order_id: orderId }, { active_order_id: orderId }, { active_ride_id: orderId }] },
     { $set: { status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null, active_ride_id: null } }
   );
 
