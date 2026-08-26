@@ -31,10 +31,11 @@ export default function Orders() {
     mutationFn: async (id) => {
       const orderToDelete = orders.find(o => o.id === id);
       if (orderToDelete) {
-        const toCancel = [...new Set([orderToDelete.driver_id, orderToDelete.reserved_driver_id, ...(orderToDelete.offered_driver_ids || [])])].filter(Boolean);
+        // El historial de ofertas no autoriza a liberar móviles: podrían estar ya en otro viaje.
+        const toCancel = [...new Set([orderToDelete.driver_id, orderToDelete.reserved_driver_id])].filter(Boolean);
         if (toCancel.length > 0) {
           await base44.entities.Driver.updateMany(
-            { id: { $in: toCancel } },
+            { id: { $in: toCancel }, $or: [{ active_order_id: orderToDelete.id }, { active_ride_id: orderToDelete.id }, { reserved_order_id: orderToDelete.id }] },
             {
               $set: {
                 status: "disponible",
