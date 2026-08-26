@@ -1987,8 +1987,9 @@ export default function DriverApp() {
     if (!activeOrder) return;
     const base = activeOrder.assigned_base || myDriver?.current_base || null;
     
-    // Lo marcamos como pendiente y agregamos al chofer a los ofrecidos para que no se le asigne de nuevo
-    const updatedOfferedIds = [...(activeOrder.offered_driver_ids || []), myDriverId];
+    // Lo marcamos pendiente y conservamos quiénes ya lo vieron SOLO como historial.
+    // Ese historial no bloquea que el mismo móvil pueda recibirlo otra vez si vuelve a corresponderle.
+    const updatedOfferedIds = [...new Set([...(activeOrder.offered_driver_ids || []), myDriverId])];
     await updateOrder.mutateAsync({ 
       id: activeOrder.id, 
       data: { 
