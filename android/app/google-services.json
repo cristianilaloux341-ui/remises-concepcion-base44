@@ -1,0 +1,43 @@
+{
+  "project_info": {
+    "project_number": "71675861263",
+    "project_id": "remises-concepcion-cdelu",
+    "storage_bucket": "remises-concepcion-cdelu.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:71675861263:android:f04acb31eeca6a6269067a",
+        "android_client_info": {
+          "package_name": "com.remisesconcepcion.cliente"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [{"current_key": "AIzaSyCM3OP-FuZqCYZrVQ8uKShdTP-XAUYIx-Q"}],
+      "services": {"appinvite_service": {"other_platform_oauth_client": []}}
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:71675861263:android:727d96da8707e38069067a",
+        "android_client_info": {
+          "package_name": "com.remisesconcepcion.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [{"current_key": "AIzaSyCM3OP-FuZqCYZrVQ8uKShdTP-XAUYIx-Q"}],
+      "services": {"appinvite_service": {"other_platform_oauth_client": []}}
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:71675861263:android:883dad1b2981784a69067a",
+        "android_client_info": {
+          "package_name": "com.remisesconcepcion.driver.test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [{"current_key": "AIzaSyCM3OP-FuZqCYZrVQ8uKShdTP-XAUYIx-Q"}],
+      "services": {"appinvite_service": {"other_platform_oauth_client": []}}
+    }
+  ],
+  "configuration_version": "1"
+}
