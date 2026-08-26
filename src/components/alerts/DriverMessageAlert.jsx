@@ -169,16 +169,25 @@ export default function DriverMessageAlert() {
                   <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">
                     {msg.from_name}
                   </p>
-                  {msg.audio_url ? (
-                    <audio controls preload="metadata" className="w-full max-w-sm">
-                      <source src={msg.audio_url} />
-                    </audio>
-                  ) : null}
-                  {msg.content ? (
-                    <p className="text-gray-800 text-base font-semibold leading-snug">
-                      {msg.content}
-                    </p>
-                  ) : null}
+                  {(() => {
+                    const legacyAudio = typeof msg.content === "string" && msg.content.startsWith("[AUDIO]")
+                      ? msg.content.slice(7)
+                      : null;
+                    const audioUrl = msg.audio_url || legacyAudio;
+                    const textContent = legacyAudio ? "" : msg.content;
+                    return <>
+                      {audioUrl ? (
+                        <audio controls preload="metadata" className="w-full max-w-sm">
+                          <source src={audioUrl} />
+                        </audio>
+                      ) : null}
+                      {textContent ? (
+                        <p className="text-gray-800 text-base font-semibold leading-snug">
+                          {textContent}
+                        </p>
+                      ) : null}
+                    </>;
+                  })()}
                 </div>
               </div>
 
