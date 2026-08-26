@@ -106,10 +106,10 @@ export default function OrderDetail() {
     mutationFn: async (id) => {
       const orderToDelete = orders.find(o => o.id === id);
       if (orderToDelete) {
-        const toCancel = [...new Set([orderToDelete.driver_id, orderToDelete.reserved_driver_id, ...(orderToDelete.offered_driver_ids || [])])].filter(Boolean);
+        const toCancel = [...new Set([orderToDelete.driver_id, orderToDelete.reserved_driver_id])].filter(Boolean);
         if (toCancel.length > 0) {
           await base44.entities.Driver.updateMany(
-            { id: { $in: toCancel } },
+            { id: { $in: toCancel }, $or: [{ active_order_id: orderToDelete.id }, { active_ride_id: orderToDelete.id }, { reserved_order_id: orderToDelete.id }] },
             {
               $set: {
                 status: "disponible",
@@ -172,11 +172,11 @@ export default function OrderDetail() {
 
   const returnToPending = async () => {
     // Si había un conductor asignado o pre-reservado, liberarlo completamente
-    const toCancel = [...new Set([order.driver_id, order.reserved_driver_id, ...(order.offered_driver_ids || [])])].filter(Boolean);
+    const toCancel = [...new Set([order.driver_id, order.reserved_driver_id])].filter(Boolean);
     if (toCancel.length > 0) {
       try {
         await base44.entities.Driver.updateMany(
-          { id: { $in: toCancel } },
+          { id: { $in: toCancel }, $or: [{ active_order_id: order.id }, { active_ride_id: order.id }, { reserved_order_id: order.id }] },
           {
             $set: {
               status: "disponible",
