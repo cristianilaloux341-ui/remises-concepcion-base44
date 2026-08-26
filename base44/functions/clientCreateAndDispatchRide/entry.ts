@@ -12,7 +12,13 @@ Deno.serve(async (req) => {
     const order = await b44.entities.RideOrder.create(orderData);
     
     // 2. Ejecutar la lógica de despacho de forma síncrona en el servidor
-    const drivers = await b44.entities.Driver.filter({ status: "disponible" });
+    const allAvailable = await b44.entities.Driver.filter({ status: "disponible" });
+    // Misma regla que Central: estar en servicio/libre alcanza; la cola/base solo
+    // ordena prioridad y nunca es requisito. Excluir cualquier vínculo activo.
+    const drivers = allAvailable.filter(d =>
+      !d.active_order_id && !d.active_ride_id && !d.reserved_order_id &&
+      (d.dispatch_status == null || d.dispatch_status === "normal")
+    );
     let assigned = false;
     
     // Función auxiliar para ordenar choferes por tiempo de espera
@@ -25,24 +31,24 @@ Deno.serve(async (req) => {
     if (order.zone) {
       const zoneDrivers = sortByQueue(drivers.filter(d => d.current_base === order.zone));
       if (zoneDrivers.length > 0) {
-        await b44.functions.invoke("assignRide", {
-           orderId: order.id, 
-           driverId: zoneDrivers[0].id, 
+        const res = await b44.functions.invoke("assignRide", {
+           orderId: order.id,
+           driverId: zoneDrivers[0].id,
            sessionToken: sessionToken || 'client_demo_token'
         });
-        assigned = true;
+        assigned = res?.data?.success === true;
       }
     }
     
     // Si no se asignó en zona (o no tenía zona), buscar al móvil más antiguo de CUALQUIER zona (global)
     if (!assigned && drivers.length > 0) {
       const globalDrivers = sortByQueue(drivers);
-      await b44.functions.invoke("assignRide", {
-         orderId: order.id, 
-         driverId: globalDrivers[0].id, 
+      const res = await b44.functions.invoke("assignRide", {
+         orderId: order.id,
+         driverId: globalDrivers[0].id,
          sessionToken: sessionToken || 'client_demo_token'
       });
-      assigned = true;
+      assigned = res?.data?.success === true;
     }
 
     // Si no hay móviles no hacemos broadcast, lo dejamos en pendiente para que el operador lo gestione
