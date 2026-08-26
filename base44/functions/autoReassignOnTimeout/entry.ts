@@ -89,7 +89,9 @@ Deno.serve(async (req) => {
       // Un móvil que rechazó o recibió antes este pasaje puede volver a ser candidato
       // apenas esté disponible. Para evitar rebote inmediato, priorizamos primero a
       // cualquier otro móvil disponible y sólo reutilizamos el actual si no hay otro.
-      const workingDrivers = allDrivers.filter(d => isDriverWorking(d) && d.current_base);
+      // Estar en una base/cola NO es requisito para recibir pasajes.
+      // Todo móvil en servicio + libre sigue siendo ofertable aunque current_base sea null.
+      const workingDrivers = allDrivers.filter(d => isDriverWorking(d) && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === 'normal'));
       const otherAvailable = workingDrivers.filter(d => d.id !== driverId);
       const available = otherAvailable.length > 0 ? otherAvailable : workingDrivers;
 
