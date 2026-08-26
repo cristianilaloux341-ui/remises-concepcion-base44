@@ -959,7 +959,9 @@ export default function DriverApp() {
     const unsub = base44.entities.RideOrder.subscribe((e) => {
       if (e.type === "update" && e.data?.status === "cancelado") {
         const o = e.data;
-        if (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId || (o.offered_driver_ids || []).includes(myDriverId)) {
+        // offered_driver_ids es solo historial. Una cancelación vieja no debe
+        // interrumpir el viaje actual del móvil si ya está trabajando otra orden.
+        if (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId) {
           if (!ignoredOrdersRef.current.has(o.id)) {
             ignoredOrdersRef.current.add(o.id);
             setLocalOverride({ status: "disponible", _ignoredOrderId: o.id });
