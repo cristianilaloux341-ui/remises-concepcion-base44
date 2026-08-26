@@ -179,13 +179,18 @@ Deno.serve(async (req) => {
       // 2. Transacción Exitosa -> Solo aquí actualizamos Driver Status / Notificamos
       if (currentDriver) {
          try { 
-           await base44.asServiceRole.entities.Driver.update(currentDriver.id, { 
-             status: 'disponible',
-             dispatch_status: 'normal',
-             reserved_order_id: null,
-             reservation_token: null,
-             queue_entered_at: new Date().toISOString()
-           }); 
+           // Liberar SOLO si el móvil todavía pertenece a esta misma oferta.
+           // Si otro operador ya lo reservó para otro pasaje, este timeout viejo no lo toca.
+           await base44.asServiceRole.entities.Driver.updateMany(
+             { id: currentDriver.id, reserved_order_id: order.id },
+             { $set: {
+               status: 'disponible',
+               dispatch_status: 'normal',
+               reserved_order_id: null,
+               reservation_token: null,
+               queue_entered_at: new Date().toISOString()
+             } }
+           ); 
          } catch(e){}
          
          // Enviar cancelación explícita al chofer anterior
