@@ -26,7 +26,12 @@ Deno.serve(async (req) => {
 
     // Obtener disponibles para broadcast
     const availableDrivers = await b44.entities.Driver.filter({ status: "disponible" });
-    const targetDriverIds = availableDrivers.filter(d => d.fcm_token || d.push_subscription).map(d => d.id);
+    // Broadcast tampoco puede ofrecer a un móvil que ya quedó reservado/ocupado
+    // por otra operación concurrente. La cola/base no es requisito para recibir.
+    const targetDriverIds = availableDrivers
+      .filter(d => !d.reserved_order_id && !d.active_order_id && !d.active_ride_id && (d.dispatch_status == null || d.dispatch_status === "normal"))
+      .filter(d => d.fcm_token || d.push_subscription)
+      .map(d => d.id);
 
     // Update order
     await b44.entities.RideOrder.update(orderId, {
@@ -41,11 +46,6 @@ Deno.serve(async (req) => {
     
     if (targetDriverIds.length > 0) {
       try {
-        await b44.functions.invoke("sendPushNotification", {
-          action: "cancel_multiple", // Usamos cancel_multiple adaptado o un loop. 
-          // Mejor usamos send a uno por uno, pero fire-and-forget
-        });
-        
         // Ejecutar envío en paralelo fire-and-forget
         Promise.all(targetDriverIds.map(dId => 
           b44.functions.invoke("sendPushNotification", {
