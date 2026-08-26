@@ -7,7 +7,7 @@ import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Phone, CheckCircle2, XCircle, Car, Clock, List, ArrowRightLeft, MessageCircle, PowerOff, Wifi, WifiOff, DollarSign, Timer, HelpCircle, AlertCircle, BarChart2, Zap, Settings } from "lucide-react";
+import { MapPin, Phone, CheckCircle2, XCircle, Car, Clock, List, ArrowRightLeft, MessageCircle, PowerOff, Wifi, WifiOff, DollarSign, Timer, AlertCircle, BarChart2, Zap, Settings } from "lucide-react";
 import { withRetry } from "@/lib/retryFetch";
 import { createGpsStabilityFilter, GPS_LOCATION_EVENT } from "@/lib/gpsStability";
 import { Capacitor, registerPlugin } from '@capacitor/core';
@@ -28,7 +28,6 @@ import InstallBanner from "@/components/driver/InstallBanner";
 import DriverMessages from "@/components/driver/DriverMessages";
 import DriverMessageModal from "@/components/driver/DriverMessageModal";
 import { useDriverMessageAlert } from "@/hooks/useDriverMessageAlert";
-import DriverSetupGuide from "@/components/driver/DriverSetupGuide";
 import DriverStats from "@/components/driver/DriverStats";
 import DailyStats from "@/components/driver/DailyStats";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
@@ -718,7 +717,7 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
         <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center mx-auto mb-3">
           <Car className="w-8 h-8 text-gray-400" />
         </div>
-        <p className="text-xl font-bold text-gray-800 dark:text-white">¿En qué base estás?</p>
+        <p className="text-xl font-bold text-gray-800 dark:text-white">Elegí tu base</p>
         <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Tocá tu base para quedar en posición</p>
       </div>
       <div className="space-y-2 flex-1">
@@ -728,7 +727,10 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
             <button
               key={b}
               className={`w-full text-left px-4 py-4 rounded-2xl font-semibold text-base border-2 transition-all flex justify-between items-center ${selectedBase === b ? "bg-blue-600 border-blue-600 text-white" : "bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-800 dark:text-white active:bg-gray-100 dark:active:bg-slate-800"}`}
-              onClick={() => onBaseChange(b)}
+              onClick={() => {
+                onBaseChange(b);
+                onEnter(b);
+              }}
             >
               <span>{b}</span>
               <div className="flex items-center gap-2">
@@ -740,15 +742,6 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
             </button>
           );
         })}
-      </div>
-      <div className="mt-4 shrink-0">
-        <Button
-          className="w-full h-14 rounded-2xl text-base font-bold"
-          disabled={!selectedBase}
-          onClick={onEnter}
-        >
-          Entrar a la Cola
-        </Button>
       </div>
     </div>
   );
@@ -797,7 +790,6 @@ export default function DriverApp() {
   });
   const [selectedBase, setSelectedBase] = useState("");
   const [showMessages, setShowMessages] = useState(false);
-  const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showBatteryGuide, setShowBatteryGuide] = useState(false);
   const [showOcasional, setShowOcasional] = useState(false);
@@ -807,10 +799,10 @@ export default function DriverApp() {
   const [receiptOrder, setReceiptOrder] = useState(null);
   const [cancelledOrder, setCancelledOrder] = useState(null);
 
-  const overlays = useRef({ showMessages, showSetupGuide, showStats, showOcasional, showBatteryGuide, showSettings });
+  const overlays = useRef({ showMessages, showStats, showOcasional, showBatteryGuide, showSettings });
   useEffect(() => {
-    overlays.current = { showMessages, showSetupGuide, showStats, showOcasional, showBatteryGuide, showSettings };
-  }, [showMessages, showSetupGuide, showStats, showOcasional, showBatteryGuide, showSettings]);
+    overlays.current = { showMessages, showStats, showOcasional, showBatteryGuide, showSettings };
+  }, [showMessages, showStats, showOcasional, showBatteryGuide, showSettings]);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -818,7 +810,6 @@ export default function DriverApp() {
        const o = overlays.current;
        if (o.showBatteryGuide) setShowBatteryGuide(false);
        else if (o.showSettings) setShowSettings(false);
-       else if (o.showSetupGuide) setShowSetupGuide(false);
        else if (o.showStats) setShowStats(false);
        else if (o.showOcasional) setShowOcasional(false);
        else if (o.showMessages) setShowMessages(false);
@@ -1908,13 +1899,15 @@ export default function DriverApp() {
   const handleStatusChange = (newStatus) => {
     updateOrder.mutate({ id: activeOrder.id, data: { status: newStatus } });
   };
-  const handleEnterBase = () => {
+  const handleEnterBase = (base = selectedBase) => {
+    if (!base) return;
     const ts = new Date().toISOString();
-    setLocalOverride({ current_base: selectedBase, status: "disponible", queue_entered_at: ts });
+    setSelectedBase(base);
+    setLocalOverride({ current_base: base, status: "disponible", queue_entered_at: ts });
     updateDriver.mutate({
       id: myDriverId,
       data: { 
-        current_base: selectedBase, 
+        current_base: base, 
         status: "disponible", 
         dispatch_status: "normal",
         queue_entered_at: ts,
@@ -2308,13 +2301,6 @@ export default function DriverApp() {
           >
             <MessageCircle className="w-4 h-4" />
           </button>
-          <button
-            className="p-2 rounded-xl bg-gray-700/50 text-gray-400"
-            onClick={() => setShowSetupGuide(true)}
-            title="Ayuda de configuración"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </button>
           {myDriver.status !== "en_viaje" && (
             myDriver.status === "no_disponible" ? (
               <button
@@ -2401,10 +2387,6 @@ export default function DriverApp() {
 
       {showMessages && myDriver && (
         <DriverMessages driver={myDriver} onClose={() => setShowMessages(false)} />
-      )}
-
-      {showSetupGuide && (
-        <DriverSetupGuide onClose={() => setShowSetupGuide(false)} />
       )}
 
       {showStats && myDriver && (
