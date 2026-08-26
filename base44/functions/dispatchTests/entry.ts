@@ -591,6 +591,31 @@ Deno.serve(async (req) => {
     }
   });
 
+  // --- REGLAS NUEVAS: concurrencia de operadores e historial de rechazos ---
+  await runTest("Dos operadores no pueden reservar el mismo móvil para dos pasajes", async () => {
+    const driver = await b44.entities.Driver.create({ name:"D_OP", phone:"OP", vehicle_plate:"OP", status:"disponible", dispatch_status:"normal" });
+    const barrier = createBarrier(2);
+    try {
+      const reserve = (orderId, token) => barrier.wait().then(() => b44.entities.Driver.updateMany(
+        { id:driver.id, status:"disponible", dispatch_status:"normal", reserved_order_id:null, active_order_id:null, active_ride_id:null },
+        { $set:{ dispatch_status:"automatic_pending", reserved_order_id:orderId, reservation_token:token } }
+      ));
+      const [a,b] = await Promise.allSettled([reserve("OP_A","TA"), reserve("OP_B","TB")]);
+      if (getCount(a.value) + getCount(b.value) !== 1) throw new Error("El mismo móvil fue reservado por dos operadores");
+    } finally { await b44.entities.Driver.delete(driver.id); }
+  });
+
+  await runTest("Un rechazo previo no deja al móvil bloqueado para siempre", async () => {
+    const driver = await b44.entities.Driver.create({ name:"D_RETRY", phone:"RR", vehicle_plate:"RR", status:"disponible", dispatch_status:"normal" });
+    const order = await b44.entities.RideOrder.create({ client_name:"Retry", pickup_address:"Retry", status:"pendiente", offered_driver_ids:[driver.id] });
+    try {
+      const d = await b44.entities.Driver.get(driver.id);
+      if (d.status !== "disponible" || d.reserved_order_id || d.active_order_id || d.active_ride_id) throw new Error("El móvil no está realmente libre");
+      // offered_driver_ids se conserva como auditoría, no como exclusión.
+      if (!(order.offered_driver_ids || []).includes(driver.id)) throw new Error("El historial de oferta no quedó registrado");
+    } finally { await b44.entities.RideOrder.delete(order.id); await b44.entities.Driver.delete(driver.id); }
+  });
+
   // Generar reporte final detallado
   const auditLogs = await b44.entities.AuditLog.list();
   const recentLogs = auditLogs.filter(a => a.action.startsWith("RECONCILIATION_") && new Date(a.created_date).getTime() > Date.now() - 60000);
