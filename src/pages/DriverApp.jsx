@@ -1486,8 +1486,12 @@ export default function DriverApp() {
 
     const ignoredOrderId = driver?._ignoredOrderId || null;
 
-    // ELIMINADO BLOQUEO isLocallyBusy: Si el servidor manda un viaje, SIEMPRE DEBE SONAR.
-    const offered = safeOrds.find(o => (o.driver_id === dId || o.reserved_driver_id === dId) && o.status === "ofrecido" && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId);
+    // Una oferta dirigida solo puede sonar si el móvil sigue realmente libre.
+    // El backend ya evita doble reserva; este segundo escudo impide que un evento realtime/push
+    // atrasado muestre un segundo pasaje mientras el chofer ya está trabajando otro.
+    const offered = !isLocallyBusy
+      ? safeOrds.find(o => (o.driver_id === dId || o.reserved_driver_id === dId) && o.status === "ofrecido" && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId)
+      : null;
     const broadcast = (!isLocallyBusy && driver?.status === "disponible" && driver?.current_base && !offered)
       ? safeOrds.find(o => o.status === "pendiente" && !o.driver_id && o.notes?.includes("[BROADCAST]") && !ignoredOrdersRef.current.has(o.id) && o.id !== ignoredOrderId && (!dismissed || !dismissed.includes(o.id)))
       : null;
