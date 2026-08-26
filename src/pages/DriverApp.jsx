@@ -1886,19 +1886,22 @@ export default function DriverApp() {
 
     const queueEnteredAt = new Date().toISOString();
     setLocalOverride({ status: "disponible", current_base: null, _ignoredOrderId: currentOrderId });
-    updateDriver.mutate({
-      id: myDriverId,
-      data: {
+    // La finalización ya fue confirmada por backend. Liberar únicamente si el
+    // móvil todavía sigue vinculado a ESTE viaje; una respuesta tardía no pisa otro.
+    await base44.entities.Driver.updateMany(
+      { id: myDriverId, $or: [{ active_order_id: currentOrderId }, { active_ride_id: currentOrderId }, { reserved_order_id: currentOrderId }] },
+      { $set: {
         status: "disponible",
         dispatch_status: "normal",
+        active_order_id: null,
         active_ride_id: null,
         reserved_order_id: null,
         reservation_token: null,
         manual_reservation_token: null,
         driver_reservation_key: null,
         queue_entered_at: queueEnteredAt
-      }
-    });
+      } }
+    );
     return true;
   };
 
