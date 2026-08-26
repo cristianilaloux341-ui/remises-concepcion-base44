@@ -207,10 +207,10 @@ Deno.serve(async (req) => {
       body.action = "cancel_multiple";
       body.orderId = body.data.id;
       
+      // offered_driver_ids es historial: no mandar CANCEL a todos los móviles
+      // que alguna vez vieron esta orden, porque alguno puede estar ya en otro viaje.
+      // Solo se cancela la alerta del destinatario que tenía la oferta inmediatamente antes.
       let toCancel = [];
-      if (Array.isArray(body.data.offered_driver_ids)) {
-        toCancel.push(...body.data.offered_driver_ids);
-      }
       if (oldTargetDriverId) toCancel.push(oldTargetDriverId);
       
       if (body.data.status === "aceptado" && targetDriverId) {
