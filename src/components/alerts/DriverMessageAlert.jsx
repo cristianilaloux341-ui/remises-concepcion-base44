@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { motion } from "framer-motion";
-import { MessageCircle, X, Car } from "lucide-react";
+import { MessageCircle, X, Car, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 
@@ -46,6 +46,8 @@ function playAlert() {
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function DriverMessageAlert() {
   const [alerts, setAlerts] = useState([]);
+  const [replies, setReplies] = useState({});
+  const [sendingId, setSendingId] = useState(null);
   const seenIds = useRef(new Set());
   const location = useLocation();
   const onMessagesPage = location.pathname === "/messages";
@@ -101,6 +103,27 @@ export default function DriverMessageAlert() {
   };
   const dismissAll = () => { setAlerts([]); };
 
+  const replyToDriver = async (msg) => {
+    const content = (replies[msg.id] || "").trim();
+    if (!content || sendingId) return;
+    setSendingId(msg.id);
+    try {
+      await base44.entities.Message.create({
+        from_type: "operador",
+        from_name: "Central",
+        to_driver_id: msg.from_driver_id || msg.driver_id || msg.from_id,
+        content,
+        read: false,
+      });
+      setReplies(prev => ({ ...prev, [msg.id]: "" }));
+      dismiss(msg.id);
+    } catch (e) {
+      console.error("No se pudo responder al móvil desde el aviso", e);
+    } finally {
+      setSendingId(null);
+    }
+  };
+
   if (alerts.length === 0) return null;
 
   return (
@@ -146,20 +169,39 @@ export default function DriverMessageAlert() {
                   <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">
                     {msg.from_name}
                   </p>
-                  <p className="text-gray-800 text-base font-semibold leading-snug">
-                    {msg.content}
-                  </p>
+                  {msg.audio_url ? (
+                    <audio controls preload="metadata" className="w-full max-w-sm">
+                      <source src={msg.audio_url} />
+                    </audio>
+                  ) : null}
+                  {msg.content ? (
+                    <p className="text-gray-800 text-base font-semibold leading-snug">
+                      {msg.content}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
               <div className="flex gap-2 pt-1">
+                <input
+                  value={replies[msg.id] || ""}
+                  onChange={(e) => setReplies(prev => ({ ...prev, [msg.id]: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Enter") replyToDriver(msg); }}
+                  placeholder="Responder al móvil..."
+                  className="flex-1 h-11 rounded-xl border border-gray-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
                 <Button
-                  className="flex-1 h-11 rounded-xl gap-2 bg-blue-600 hover:bg-blue-700 font-bold"
-                  onClick={() => dismiss(msg.id)}
+                  className="h-11 rounded-xl gap-2 bg-blue-600 hover:bg-blue-700 font-bold"
+                  disabled={!String(replies[msg.id] || "").trim() || sendingId === msg.id}
+                  onClick={() => replyToDriver(msg)}
                 >
-                  Entendido
+                  <Send className="w-4 h-4" />
+                  {sendingId === msg.id ? "Enviando" : "Responder"}
                 </Button>
               </div>
+              <Button variant="outline" className="w-full h-10 rounded-xl" onClick={() => dismiss(msg.id)}>
+                Cerrar
+              </Button>
             </div>
           </motion.div>
         ))}
