@@ -35,7 +35,7 @@ export function getBaseQueue(drivers, baseName) {
 // Find best driver for an order: strictly by zone (FIFO)
 export async function findBestDriver(order, drivers, bases) {
   if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in findBestDriver!", drivers); return null; }
-  const availableDrivers = drivers.filter(d => d.status === "disponible");
+  const availableDrivers = drivers.filter(d => d.status === "disponible" && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === "normal"));
   if (!availableDrivers.length) return null;
 
   // 1) Asignar a los de la zona correspondiente (FIFO)
@@ -108,8 +108,8 @@ export async function broadcastOrder(order, drivers = []) {
 // Auto-dispatch: intenta asignar por zona; si no hay nadie → asigna global
 // Retorna: "assigned" | "broadcast" | "no_drivers"
 export async function autoDispatch(order, drivers, bases) {
-  const offeredIds = order.offered_driver_ids || [];
-  const availableDrivers = drivers.filter(d => d.status === "disponible" && !offeredIds.includes(d.id));
+  // offered_driver_ids es historial, nunca lista negra permanente.
+  const availableDrivers = drivers.filter(d => d.status === "disponible" && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === "normal"));
 
   if (!availableDrivers.length) return "no_drivers";
 
@@ -169,8 +169,8 @@ export async function autoDispatch(order, drivers, bases) {
 export async function reassignAfterReject(order, drivers, bases) {
   if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in reassignAfterReject!", drivers); return null; }
   if (!Array.isArray(bases)) { console.error("[CRITICAL ERROR] bases is not array in reassignAfterReject!", bases); bases = BASES; }
-  const offeredIds = order.offered_driver_ids || [];
-  const available = drivers.filter(d => d.status === "disponible" && !offeredIds.includes(d.id));
+  // Un rechazo previo no excluye al móvil de futuras rondas de esta orden.
+  const available = drivers.filter(d => d.status === "disponible" && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === "normal"));
 
   const tarifaConfigs = await base44.entities.TarifaConfig.list();
   const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
