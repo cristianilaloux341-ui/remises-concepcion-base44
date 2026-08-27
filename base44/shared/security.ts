@@ -22,12 +22,10 @@ function decodeBase64Url(b64url: string): Uint8Array {
 export async function createJWT(payload: any): Promise<string> {
   const secret = Deno.env.get("JWT_SECRET");
   if (!secret) throw new Error("SECURITY_BLOCK: JWT_SECRET no configurada.");
-  
   const header = { alg: "HS256", typ: "JWT" };
   const encHeader = encodeBase64Url(JSON.stringify(header));
   const encPayload = encodeBase64Url(JSON.stringify(payload));
   const dataToSign = `${encHeader}.${encPayload}`;
-  
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(dataToSign));
   return `${dataToSign}.${encodeBase64Url(new Uint8Array(sig))}`;
@@ -36,29 +34,21 @@ export async function createJWT(payload: any): Promise<string> {
 export async function verifyJWT(token: string): Promise<any> {
   const secret = Deno.env.get("JWT_SECRET");
   if (!secret) return null;
-  
   const parts = token.split('.');
   if (parts.length !== 3) {
-    // Fallback temporal para sesiones legacy (payload base64) para no desconectar a todos
     try {
       const decoded = JSON.parse(new TextDecoder().decode(decodeBase64Url(token)));
       if (decoded && decoded.id) {
-        // Extendemos la expiración de los tokens legacy para no forzar deslogueo inmediato
-        if (decoded.exp && decoded.exp < Date.now()) {
-          decoded.exp = Date.now() + 86400000; // +24hs
-        }
+        if (decoded.exp && decoded.exp < Date.now()) decoded.exp = Date.now() + 86400000;
         return decoded;
       }
     } catch(e) {}
     return null;
   }
-  
   const [header, payload, signature] = parts;
   const dataToSign = `${header}.${payload}`;
-  
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
   const isValid = await crypto.subtle.verify("HMAC", key, decodeBase64Url(signature), new TextEncoder().encode(dataToSign));
-  
   if (!isValid) return null;
   return JSON.parse(new TextDecoder().decode(decodeBase64Url(payload)));
 }
@@ -76,19 +66,13 @@ export async function verifyOperatorSession(b44: any, sessionToken?: string): Pr
   if (!sessionToken) return false;
   try {
     const tokenData = await verifyJWT(sessionToken);
-
-    if (!tokenData || !tokenData.id || !tokenData.exp || Date.now() > tokenData.exp) {
-      return false;
-    }
-
+    if (!tokenData || !tokenData.id || !tokenData.exp || Date.now() > tokenData.exp) return false;
     const ops = await b44.entities.UsuariosSistema.filter({ id: tokenData.id });
-    if (ops && ops.length > 0 && ops[0].activo) {
-      return true;
-    }
+    return !!(ops && ops.length > 0 && ops[0].activo);
   } catch (err) {
     console.error("SECURITY BLOCK: Invalid token format.");
+    return false;
   }
-  return false;
 }
 
 export async function hashPin(pinText: string): Promise<string> {
@@ -100,37 +84,32 @@ export async function hashPin(pinText: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export async function verifyRequestAuth(b44: any, payload: any, options: { allowOperator?: boolean, allowDriverId?: string, allowClient?: boolean } = {}): Promise<boolean> {
+export async function verifyRequestAuth(b44: any, payload: any, options: { allowOperator?: boolean, allowDriverId?: string, allowClient?: boolean, allowClientId?: string } = {}): Promise<boolean> {
   const { internalKey, sessionToken } = payload || {};
-  
-  // 1. Siempre permitimos el acceso si la clave de servicio interna coincide
   if (validateInternalKey(internalKey)) return true;
-  
-  // 2. Si se permite a un operador, validamos su sesión (JWT o legacy base64)
-  if (options.allowOperator && sessionToken) {
-    if (await verifyOperatorSession(b44, sessionToken)) return true;
-  }
-  
-  // 3. Si se restringe a un driver específico, verificamos que su token coincida
+
+  if (options.allowOperator && sessionToken && await verifyOperatorSession(b44, sessionToken)) return true;
+
   if (options.allowDriverId && sessionToken) {
     const drivers = await b44.entities.Driver.filter({ id: options.allowDriverId });
     if (drivers.length > 0) {
-      // Autocorrección total: si el token no coincide (ej. desinstalaron y volvieron a instalar la app),
-      // lo actualizamos silenciosamente para no bloquearles el trabajo.
-      if (drivers[0].current_session_token !== sessionToken) {
-        await b44.entities.Driver.update(options.allowDriverId, { current_session_token: sessionToken });
-      }
+      if (drivers[0].current_session_token !== sessionToken) await b44.entities.Driver.update(options.allowDriverId, { current_session_token: sessionToken });
       return true;
     }
   }
 
-  // 4. Si se permite desde la app cliente, verificamos el token cliente
-  if (options.allowClient && sessionToken) {
-    // Por ahora la app cliente usa un token fijo de demo
-    if (sessionToken === 'client_demo_token') return true;
-    // Si tuvieran login de cliente, aquí verificaríamos el JWT del cliente
+  if ((options.allowClient || options.allowClientId) && sessionToken) {
+    try {
+      const tokenData = await verifyJWT(sessionToken);
+      if (!tokenData || tokenData.role !== 'client' || !tokenData.id || !tokenData.exp || Date.now() > tokenData.exp) return false;
+      if (options.allowClientId && tokenData.id !== options.allowClientId) return false;
+      const clients = await b44.entities.Client.filter({ id: tokenData.id });
+      return !!(clients && clients.length > 0);
+    } catch (err) {
+      console.error('SECURITY BLOCK: Invalid client token.');
+      return false;
+    }
   }
-  
-  // Denegado por defecto
+
   return false;
 }
