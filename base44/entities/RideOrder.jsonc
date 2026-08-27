@@ -5,352 +5,81 @@
     "create": null,
     "read": null,
     "update": null,
-    "delete": {
-      "user_condition": {
-        "role": "admin"
-      }
-    }
+    "delete": { "user_condition": { "role": "admin" } }
   },
   "properties": {
-    "client_name": {
-      "type": "string",
-      "description": "Nombre del cliente"
-    },
-    "client_phone": {
-      "type": "string",
-      "description": "Tel\u00e9fono del cliente"
-    },
-    "client_id": {
-      "type": "string",
-      "description": "ID del cliente en la base de datos"
-    },
-    "pickup_address": {
-      "type": "string",
-      "description": "Direcci\u00f3n de recogida"
-    },
-    "pickup_lat": {
-      "type": "number"
-    },
-    "pickup_lng": {
-      "type": "number"
-    },
-    "dropoff_address": {
-      "type": "string",
-      "description": "Direcci\u00f3n de destino principal"
-    },
-    "dropoff_addresses": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "Lista de destinos adicionales"
-    },
-    "dropoff_lat": {
-      "type": "number"
-    },
-    "dropoff_lng": {
-      "type": "number"
-    },
-    "zone": {
-      "type": "string",
-      "description": "Zona del viaje"
-    },
-    "status": {
-      "type": "string",
-      "enum": [
-        "pendiente",
-        "procesando_despacho",
-        "esperando_confirmacion_manual",
-        "ofrecido",
-        "aceptado",
-        "en_camino",
-        "en_viaje",
-        "completado",
-        "cancelado",
-        "rechazado"
-      ],
-      "default": "pendiente"
-    },
-    "payment_method": {
-      "type": "string",
-      "enum": [
-        "Efectivo",
-        "Transferencia"
-      ],
-      "default": "Efectivo"
-    },
-    "reservation_token": {
-      "type": "string"
-    },
-    "manual_reservation_token": {
-      "type": "string"
-    },
-    "reserved_driver_id": {
-      "type": "string"
-    },
-    "assigned_base": {
-      "type": "string",
-      "description": "Base desde donde sale el chofer"
-    },
-    "driver_id": {
-      "type": "string"
-    },
-    "driver_name": {
-      "type": "string"
-    },
-    "offered_driver_ids": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "IDs de choferes a quienes se ofreci\u00f3 el viaje"
-    },
-    "fare": {
-      "type": "number"
-    },
-    "notes": {
-      "type": "string"
-    },
-    "source": {
-      "type": "string",
-      "enum": [
-        "operador",
-        "cliente"
-      ],
-      "default": "operador"
-    },
-    "distancia_teorica_metros": {
-      "type": "number"
-    },
-    "importe_estimado": {
-      "type": "number"
-    },
-    "importe_real_actual": {
-      "type": "number"
-    },
-    "segundos_espera_acumulados": {
-      "type": "number",
-      "default": 0
-    },
-    "taximetro_iniciado": {
-      "type": "boolean",
-      "default": false
-    },
-    "metros_taximetro": {
-      "type": "number",
-      "default": 0
-    },
-    "segundos_tolerancia_espera_usados": {
-      "type": "number",
-      "default": 0
-    },
-    "ride_started_at": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "ride_finished_at": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "ride_duration_seconds": {
-      "type": "number",
-      "default": 0
-    },
-    "max_speed_kmh": {
-      "type": "number",
-      "default": 0
-    },
-    "tarifa_bajada_snapshot": {
-      "type": "number",
-      "default": 0
-    },
-    "tarifa_valor_ficha_snapshot": {
-      "type": "number",
-      "default": 0
-    },
-    "tarifa_metros_por_ficha_snapshot": {
-      "type": "number",
-      "default": 0
-    },
-    "tarifa_tolerancia_espera_segundos_snapshot": {
-      "type": "number",
-      "default": 0
-    },
-    "tarifa_segundos_por_ficha_espera_snapshot": {
-      "type": "number",
-      "default": 0
-    },
-    "tarifa_valor_ficha_espera_snapshot": {
-      "type": "number",
-      "default": 0
-    },
-    "tarifa_snapshot_at": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "assignment_attempt": {
-      "type": "number",
-      "default": 1
-    },
-    "offerExpiresAt": {
-      "type": [
-        "number",
-        "null"
-      ]
-    },
-    "processingOwnerId": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "processingLeaseVersion": {
-      "type": "number",
-      "default": 0
-    },
-    "processingLeaseExpiresAt": {
-      "type": [
-        "number",
-        "null"
-      ]
-    },
-    "processingAction": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "processingPhase": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "enum": [
-        "ACQUIRED",
-        "VALIDATED",
-        "DRIVER_RESERVED",
-        "COMMITTED",
-        "TRANSITION_COMMITTED",
-        "AUDIT_PENDING",
-        "EFFECT_PENDING",
-        "COMPLETED",
-        null
-      ]
-    },
-    "processingOperationKey": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "lastCompletedOperationKey": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "lastCompletedAction": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "lastCompletedResult": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "lastCompletedAt": {
-      "type": [
-        "number",
-        "null"
-      ]
-    },
-    "lastCompletedOfferVersion": {
-      "type": [
-        "number",
-        "null"
-      ]
-    },
-    "pendingEffectKey": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "pendingEffectType": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "pendingEffectStatus": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "enum": [
-        "PENDING",
-        "IN_PROGRESS",
-        "COMPLETED",
-        "FAILED",
-        null
-      ]
-    },
-    "pendingEffectVersion": {
-      "type": "number",
-      "default": 0
-    },
-    "pendingEffectCorrelationId": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "effectOwnerId": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "effectLeaseExpiresAt": {
-      "type": [
-        "number",
-        "null"
-      ]
-    },
-    "effectAttemptCount": {
-      "type": "number",
-      "default": 0
-    },
-    "lastCompletedEffectKey": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "lastEffectError": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "lastEffectAttemptAt": {
-      "type": [
-        "number",
-        "null"
-      ]
-    }
+    "client_name": { "type": "string", "description": "Nombre del cliente" },
+    "client_phone": { "type": "string", "description": "Teléfono del cliente" },
+    "client_id": { "type": "string", "description": "ID del cliente en la base de datos" },
+    "pickup_address": { "type": "string", "description": "Dirección de recogida" },
+    "pickup_lat": { "type": "number" },
+    "pickup_lng": { "type": "number" },
+    "dropoff_address": { "type": "string", "description": "Dirección de destino principal" },
+    "dropoff_addresses": { "type": "array", "items": { "type": "string" }, "description": "Lista de destinos adicionales" },
+    "dropoff_lat": { "type": "number" },
+    "dropoff_lng": { "type": "number" },
+    "zone": { "type": "string", "description": "Zona del viaje" },
+    "status": { "type": "string", "enum": ["pendiente","procesando_despacho","esperando_confirmacion_manual","ofrecido","aceptado","en_camino","en_viaje","completado","cancelado","rechazado"], "default": "pendiente" },
+    "payment_method": { "type": "string", "enum": ["Efectivo","Transferencia"], "default": "Efectivo" },
+    "reservation_token": { "type": "string" },
+    "manual_reservation_token": { "type": "string" },
+    "reserved_driver_id": { "type": "string" },
+    "assigned_base": { "type": "string", "description": "Base desde donde sale el chofer" },
+    "driver_id": { "type": "string" },
+    "driver_name": { "type": "string" },
+    "offered_driver_ids": { "type": "array", "items": { "type": "string" }, "description": "IDs de choferes a quienes se ofreció el viaje" },
+    "fare": { "type": "number" },
+    "notes": { "type": "string" },
+    "source": { "type": "string", "enum": ["operador","cliente"], "default": "operador" },
+    "client_arrival_notice_count": { "type": "number", "default": 0, "description": "Cantidad de avisos de llegada enviados al cliente" },
+    "client_arrival_first_notice_at": { "type": ["string","null"], "description": "Fecha/hora del primer aviso de móvil afuera" },
+    "client_arrival_second_notice_at": { "type": ["string","null"], "description": "Fecha/hora del segundo aviso de móvil afuera" },
+    "client_arrival_acknowledged": { "type": "boolean", "default": false, "description": "El cliente confirmó YA VOY" },
+    "client_arrival_acknowledged_at": { "type": ["string","null"], "description": "Fecha/hora de confirmación YA VOY" },
+    "client_arrival_expires_at": { "type": ["string","null"], "description": "Vencimiento final luego del segundo aviso" },
+    "client_arrival_cancel_reason": { "type": ["string","null"], "description": "Motivo de cancelación automática del flujo de llegada" },
+    "distancia_teorica_metros": { "type": "number" },
+    "importe_estimado": { "type": "number" },
+    "importe_real_actual": { "type": "number" },
+    "segundos_espera_acumulados": { "type": "number", "default": 0 },
+    "taximetro_iniciado": { "type": "boolean", "default": false },
+    "metros_taximetro": { "type": "number", "default": 0 },
+    "segundos_tolerancia_espera_usados": { "type": "number", "default": 0 },
+    "ride_started_at": { "type": ["string","null"] },
+    "ride_finished_at": { "type": ["string","null"] },
+    "ride_duration_seconds": { "type": "number", "default": 0 },
+    "max_speed_kmh": { "type": "number", "default": 0 },
+    "tarifa_bajada_snapshot": { "type": "number", "default": 0 },
+    "tarifa_valor_ficha_snapshot": { "type": "number", "default": 0 },
+    "tarifa_metros_por_ficha_snapshot": { "type": "number", "default": 0 },
+    "tarifa_tolerancia_espera_segundos_snapshot": { "type": "number", "default": 0 },
+    "tarifa_segundos_por_ficha_espera_snapshot": { "type": "number", "default": 0 },
+    "tarifa_valor_ficha_espera_snapshot": { "type": "number", "default": 0 },
+    "tarifa_snapshot_at": { "type": ["string","null"] },
+    "assignment_attempt": { "type": "number", "default": 1 },
+    "offerExpiresAt": { "type": ["number","null"] },
+    "processingOwnerId": { "type": ["string","null"] },
+    "processingLeaseVersion": { "type": "number", "default": 0 },
+    "processingLeaseExpiresAt": { "type": ["number","null"] },
+    "processingAction": { "type": ["string","null"] },
+    "processingPhase": { "type": ["string","null"], "enum": ["ACQUIRED","VALIDATED","DRIVER_RESERVED","COMMITTED","TRANSITION_COMMITTED","AUDIT_PENDING","EFFECT_PENDING","COMPLETED",null] },
+    "processingOperationKey": { "type": ["string","null"] },
+    "lastCompletedOperationKey": { "type": ["string","null"] },
+    "lastCompletedAction": { "type": ["string","null"] },
+    "lastCompletedResult": { "type": ["string","null"] },
+    "lastCompletedAt": { "type": ["number","null"] },
+    "lastCompletedOfferVersion": { "type": ["number","null"] },
+    "pendingEffectKey": { "type": ["string","null"] },
+    "pendingEffectType": { "type": ["string","null"] },
+    "pendingEffectStatus": { "type": ["string","null"], "enum": ["PENDING","IN_PROGRESS","COMPLETED","FAILED",null] },
+    "pendingEffectVersion": { "type": "number", "default": 0 },
+    "pendingEffectCorrelationId": { "type": ["string","null"] },
+    "effectOwnerId": { "type": ["string","null"] },
+    "effectLeaseExpiresAt": { "type": ["number","null"] },
+    "effectAttemptCount": { "type": "number", "default": 0 },
+    "lastCompletedEffectKey": { "type": ["string","null"] },
+    "lastEffectError": { "type": ["string","null"] },
+    "lastEffectAttemptAt": { "type": ["number","null"] }
   },
-  "required": [
-    "client_name",
-    "pickup_address"
-  ]
+  "required": ["client_name","pickup_address"]
 }
