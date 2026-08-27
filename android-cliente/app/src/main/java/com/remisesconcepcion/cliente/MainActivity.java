@@ -3,6 +3,8 @@ package com.remisesconcepcion.cliente;
 import com.getcapacitor.BridgeActivity;
 import android.os.Bundle;
 import android.content.Intent;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends BridgeActivity {
     private String pendingOrderId = null;
@@ -38,8 +40,8 @@ public class MainActivity extends BridgeActivity {
 
     private void openPendingClientRide() {
         if (pendingOrderId == null || bridge == null || bridge.getWebView() == null) return;
-        final String safeOrderId = pendingOrderId.replace("'", "");
-        final String js = "window.location.href='/client-app?orderId=" + safeOrderId + "';";
+        final String encodedOrderId = URLEncoder.encode(pendingOrderId, StandardCharsets.UTF_8);
+        final String js = "window.location.href='/app-cliente/active-ride?orderId=" + encodedOrderId + "';";
         bridge.getWebView().post(() -> bridge.getWebView().evaluateJavascript(js, null));
         pendingOrderId = null;
     }
