@@ -6,168 +6,110 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.media.AudioAttributes;
-import android.media.MediaPlayer;
-import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
+
 import androidx.annotation.NonNull;
+import androidx.core.app.NotificationCompat;
+
 import com.capacitorjs.plugins.pushnotifications.MessagingService;
 import com.google.firebase.messaging.RemoteMessage;
+
 import java.util.Map;
 
 public class MyFirebaseMessagingService extends MessagingService {
-    private static final String TAG = "PushDiagnostic";
+    private static final String TAG = "ClientPush";
+    private static final String CHANNEL_ID = "client_arrival";
 
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
-        Log.e(TAG, "==== LLEGO EL PUSH A ANDROID NATIVO ====");
-        Log.e(TAG, "FCM_MESSAGE_RECEIVED");
-        Log.e(TAG, "Timestamp recepción local: " + System.currentTimeMillis());
-        Log.e(TAG, "Message ID: " + remoteMessage.getMessageId());
-        Log.e(TAG, "From: " + remoteMessage.getFrom());
-        Log.e(TAG, "Collapse Key: " + remoteMessage.getCollapseKey());
-        Log.e(TAG, "Priority: " + remoteMessage.getPriority());
-        Log.e(TAG, "Original Priority: " + remoteMessage.getOriginalPriority());
-        Log.e(TAG, "Sent Time: " + remoteMessage.getSentTime());
-        Log.e(TAG, "TTL: " + remoteMessage.getTtl());
-
-        if (remoteMessage.getNotification() != null) {
-            Log.e(TAG, "Notification Title: " + remoteMessage.getNotification().getTitle());
-            Log.e(TAG, "Notification Body: " + remoteMessage.getNotification().getBody());
-        } else {
-            Log.e(TAG, "Notification object is NULL (Data-only push)");
-        }
-
         Map<String, String> data = remoteMessage.getData();
-        if (data.size() > 0) {
-            Log.e(TAG, "Data Completa:");
-            for (Map.Entry<String, String> entry : data.entrySet()) {
-                Log.e(TAG, "   " + entry.getKey() + " = " + entry.getValue());
-            }
-        }
-        
         String type = data.get("type");
         String orderId = data.get("orderId");
 
-        if ("cancelar".equals(type) || "ride_cancelled".equals(type) || "ride_reassigned".equals(type)) {
-            Log.e(TAG, "=> RECIBIDA ORDEN REMOTA DE CIERRE: " + type);
-            if (orderId != null) {
-                // Registrar resolución para evitar que un push 'ofrecido' demorado suene
-                RideStateManager.markResolved(getApplicationContext(), orderId, 999, "CANCELLED");
-                RideAlertController.getInstance().stopAlert(getApplicationContext(), orderId, "Comando remoto: " + type);
-            }
-            RideAlertController.getInstance().playOneShotSound(getApplicationContext(), "cancel");
+        if ("bocina".equals(type) || "client_arrival".equals(type)) {
+            showArrivalNotification(data);
+            super.onMessageReceived(remoteMessage);
             return;
         }
 
-        // Parsear assignmentAttempt con try/catch (default 1)
-        int incomingAttempt = 1;
-        try {
-            String attemptStr = data.get("assignmentAttempt");
-            if (attemptStr != null && !attemptStr.isEmpty()) {
-                incomingAttempt = Integer.parseInt(attemptStr);
-            }
-        } catch (NumberFormatException e) {
-            Log.e(TAG, "assignmentAttempt inválido, usando default 1.");
-        }
-
-        boolean isOfferPush = "ofrecido".equals(type) || "broadcast".equals(type);
-        
-        if (isOfferPush) {
-            // 1. La validación de antigüedad por sentAt se removió debido a desincronizaciones de reloj en Android.
-
-            // 2. Validar contra el Gatekeeper de resoluciones locales
-            if (orderId != null && RideStateManager.isResolved(getApplicationContext(), orderId, incomingAttempt)) {
-                Log.e(TAG, "=> PUSH DE OFERTA DESCARTADO: viaje ya resuelto (intento " + incomingAttempt + ").");
-                return;
-            }
-            
-            Log.e(TAG, "Construyendo notificación interactiva nativa para viaje...");
-            showInteractiveNotification(data);
-            
-            // 3. Enviar ACK de recepción (Fire-and-forget) al servidor de forma nativa
-            String apiUrl = data.get("apiUrl");
-            String driverId = data.get("driverId");
-            if (apiUrl != null && orderId != null && driverId != null) {
-                String payload = String.format("{\"action\":\"native_ack\", \"orderId\":\"%s\", \"driverId\":\"%s\"}", orderId, driverId);
-                sendAckToServer(apiUrl, payload);
-            }
-        }
-
-        if ("mensaje".equals(type) || "chat".equals(type)) {
-            RideAlertController.getInstance().playOneShotSound(getApplicationContext(), "message");
-        } else if ("bocina".equals(type) || "viaje_iniciado".equals(type)) {
-            RideAlertController.getInstance().playOneShotSound(getApplicationContext(), type);
-        }
-
-        Log.e(TAG, "Pasando mensaje al comportamiento original de Capacitor...");
-        Log.e(TAG, "==========================================");
-
-        // Llamamos al super de Capacitor para no alterar la lógica en la UI de React
+        // El resto de mensajes conserva el manejo normal de Capacitor/FCM.
         super.onMessageReceived(remoteMessage);
     }
 
-    private void sendAckToServer(String apiUrl, String jsonPayload) {
-        new Thread(() -> {
-            try {
-                java.net.URL url = new java.net.URL(apiUrl);
-                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
-                try (java.io.OutputStream os = conn.getOutputStream()) {
-                    byte[] input = jsonPayload.getBytes("utf-8");
-                    os.write(input, 0, input.length);
-                }
-                int code = conn.getResponseCode();
-                Log.e(TAG, "ACK de Push enviado nativamente. HTTP " + code);
-            } catch (Exception e) {
-                Log.e(TAG, "Error enviando ACK nativo", e);
-            }
-        }).start();
-    }
-
-    private void showInteractiveNotification(Map<String, String> data) {
+    private void showArrivalNotification(Map<String, String> data) {
+        Context context = getApplicationContext();
         String orderId = data.get("orderId");
-        String driverId = data.get("driverId");
-        String driverName = data.get("driverName");
-        String base = data.get("base");
+        String clientId = data.get("clientId");
+        String sessionToken = data.get("sessionToken");
         String apiUrl = data.get("apiUrl");
         String title = data.get("title");
         String body = data.get("body");
 
-        if (title == null) title = "🚖 ¡NUEVO VIAJE!";
-        if (body == null) body = "Tienes un viaje asignado";
+        if (title == null || title.isEmpty()) title = "Tu móvil llegó";
+        if (body == null || body.isEmpty()) body = "El remis está afuera. Tocá YA VOY para avisarle al chofer.";
 
-        Context context = getApplicationContext();
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        Uri sound = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION);
 
-        Intent acceptIntent = new Intent(context, NotificationActionReceiver.class);
-        acceptIntent.setAction("ACTION_ACCEPT");
-        acceptIntent.putExtra("orderId", orderId);
-        acceptIntent.putExtra("driverId", driverId);
-        acceptIntent.putExtra("driverName", driverName);
-        acceptIntent.putExtra("base", base);
-        acceptIntent.putExtra("apiUrl", apiUrl);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Avisos de llegada", NotificationManager.IMPORTANCE_HIGH);
+            channel.setDescription("Avisos cuando el móvil está afuera");
+            AudioAttributes attrs = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build();
+            channel.setSound(sound, attrs);
+            channel.enableVibration(true);
+            manager.createNotificationChannel(channel);
+        }
 
-        Intent rejectIntent = new Intent(context, NotificationActionReceiver.class);
-        rejectIntent.setAction("ACTION_REJECT");
-        rejectIntent.putExtra("orderId", orderId);
-        rejectIntent.putExtra("driverId", driverId);
-        rejectIntent.putExtra("apiUrl", apiUrl);
+        Intent ackIntent = new Intent(context, NotificationActionReceiver.class);
+        ackIntent.setAction("ACTION_CLIENT_YA_VOY");
+        ackIntent.putExtra("orderId", orderId);
+        ackIntent.putExtra("clientId", clientId);
+        ackIntent.putExtra("sessionToken", sessionToken);
+        ackIntent.putExtra("apiUrl", apiUrl);
+        PendingIntent ackPending = PendingIntent.getBroadcast(
+                context,
+                orderId != null ? orderId.hashCode() : 1,
+                ackIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
 
-        Intent openAppIntent = new Intent(context, MainActivity.class);
-        openAppIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        Intent openIntent = new Intent(context, MainActivity.class);
+        openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        openIntent.putExtra("orderId", orderId);
+        PendingIntent openPending = PendingIntent.getActivity(
+                context,
+                orderId != null ? orderId.hashCode() + 1 : 2,
+                openIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
 
-        // Delegar la alerta al controlador centralizado
-        RideAlertController.getInstance().startAlert(context, orderId, title, body, acceptIntent, rejectIntent, openAppIntent);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(context.getApplicationInfo().icon)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setSound(sound)
+                .setVibrate(new long[]{0, 250, 150, 250})
+                .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
+                .setContentIntent(openPending)
+                .addAction(0, "YA VOY", ackPending);
+
+        int notificationId = orderId != null ? orderId.hashCode() : 7001;
+        manager.notify(notificationId, builder.build());
+        Log.i(TAG, "Aviso de llegada mostrado una sola vez para " + orderId);
     }
 
     @Override
-    public void onNewToken(@NonNull String s) {
-        Log.e(TAG, "==== NUEVO FCM TOKEN ==== " + s);
-        super.onNewToken(s);
+    public void onNewToken(@NonNull String token) {
+        Log.i(TAG, "Nuevo token FCM de cliente");
+        super.onNewToken(token);
     }
 }
