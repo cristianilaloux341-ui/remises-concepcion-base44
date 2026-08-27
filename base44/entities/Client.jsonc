@@ -20,11 +20,11 @@
     },
     "password_hash": {
       "type": "string",
-      "description": "Hash de la contrase\u00f1a de acceso"
+      "description": "Hash de la contraseña de acceso"
     },
     "pickup_address": {
       "type": "string",
-      "description": "Direcci\u00f3n habitual de recogida"
+      "description": "Dirección habitual de recogida"
     },
     "total_trips": {
       "type": "number",
@@ -41,11 +41,11 @@
     "score": {
       "type": "number",
       "default": 5,
-      "description": "Puntuaci\u00f3n del 1 al 10"
+      "description": "Puntuación del 1 al 10"
     },
     "preferred_driver_id": {
       "type": "string",
-      "description": "ID del m\u00f3vil preferido"
+      "description": "ID del móvil preferido"
     },
     "preferred_driver_name": {
       "type": "string"
@@ -59,6 +59,10 @@
     },
     "photo_url": {
       "type": "string"
+    },
+    "fcm_token": {
+      "type": "string",
+      "description": "Token FCM del dispositivo del cliente para notificaciones nativas"
     }
   },
   "required": [
