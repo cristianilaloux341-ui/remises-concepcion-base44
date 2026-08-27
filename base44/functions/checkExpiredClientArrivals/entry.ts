@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { validateInternalKey } from '../../shared/security.ts';
 
 const MAX_BATCH = 100;
 
@@ -7,6 +8,12 @@ Deno.serve(async (req) => {
   const b44 = base44.asServiceRole;
 
   try {
+    const payload = await req.json().catch(() => ({}));
+    const { internalKey } = payload || {};
+    if (!validateInternalKey(internalKey)) {
+      return Response.json({ success:false, reason:'unauthorized' }, { status:401 });
+    }
+
     const now = Date.now();
     const candidates = await b44.entities.RideOrder.filter({ status:'en_camino' }).catch(() => []);
     const expired = (candidates || [])
@@ -21,7 +28,7 @@ Deno.serve(async (req) => {
     const results:any[] = [];
     for (const order of expired) {
       try {
-        const res = await base44.functions.invoke('cancelExpiredClientArrival', { orderId:order.id });
+        const res = await base44.functions.invoke('cancelExpiredClientArrival', { orderId:order.id, internalKey });
         results.push({ orderId:order.id, success:res?.data?.success === true, reason:res?.data?.reason || null });
       } catch (e:any) {
         results.push({ orderId:order.id, success:false, reason:e?.message || 'invoke_failed' });
