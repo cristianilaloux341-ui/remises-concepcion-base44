@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
   const b44 = base44.asServiceRole;
   try {
     const payload = await req.json();
-    const { clientId, orderId, driverId, sessionToken, noticeNumber = 1, type = 'arrival' } = payload || {};
+    const { clientId, orderId, driverId, sessionToken, noticeNumber = 1, type = 'client_arrival' } = payload || {};
     if (!clientId || !orderId) return Response.json({success:false,reason:'missing_fields'},{status:400});
 
     const internalOk = payload.internalKey && payload.internalKey === Deno.env.get('INTERNAL_SERVICE_KEY');
@@ -48,14 +48,15 @@ Deno.serve(async (req) => {
     const sa = JSON.parse(saRaw);
     const accessToken = await getFirebaseAccessToken(sa);
 
-    const isArrival = type === 'arrival';
+    const isArrival = type === 'client_arrival' || type === 'arrival' || type === 'bocina';
+    const pushType = isArrival ? 'client_arrival' : String(type);
     const title = isArrival ? 'Tu móvil está afuera' : 'Remises Concepción';
-    const body = isArrival ? (Number(noticeNumber) >= 2 ? 'Segundo aviso: tu móvil te está esperando.' : 'Tu móvil llegó. Tocá para abrir el viaje.') : 'Tenés una actualización de tu viaje.';
+    const body = isArrival ? (Number(noticeNumber) >= 2 ? 'Segundo aviso: tu móvil te está esperando.' : 'Tu móvil llegó. Tocá YA VOY para avisarle al chofer.') : 'Tenés una actualización de tu viaje.';
     const message = {
       message: {
         token: client.fcm_token,
         notification: { title, body },
-        data: { type:String(type), orderId:String(orderId), clientId:String(clientId), noticeNumber:String(noticeNumber) },
+        data: { type:pushType, orderId:String(orderId), clientId:String(clientId), noticeNumber:String(noticeNumber) },
         android: { priority:'high', notification:{ channel_id:'client_arrival', sound:'default', default_vibrate_timings:true, visibility:'PUBLIC' } }
       }
     };
