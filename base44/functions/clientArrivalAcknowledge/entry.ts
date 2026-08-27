@@ -1,12 +1,16 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { verifyRequestAuth } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
   try {
     const payload = await req.json();
-    const { orderId, clientId } = payload || {};
-    if (!orderId || !clientId) return Response.json({ success:false, reason:'missing_fields' }, { status:400 });
+    const { orderId, clientId, sessionToken } = payload || {};
+    if (!orderId || !clientId || !sessionToken) return Response.json({ success:false, reason:'missing_fields' }, { status:400 });
+    if (!(await verifyRequestAuth(b44, payload, { allowClient:true }))) {
+      return Response.json({ success:false, reason:'unauthorized' }, { status:401 });
+    }
 
     const order = await b44.entities.RideOrder.get(orderId).catch(() => null);
     if (!order) return Response.json({ success:false, reason:'order_not_found' }, { status:404 });
@@ -27,9 +31,7 @@ Deno.serve(async (req) => {
     });
 
     await b44.entities.AuditLog.create({
-      action:'CLIENT_ARRIVAL_ACKNOWLEDGED',
-      user_type:'cliente',
-      user_name:order.client_name || clientId,
+      action:'CLIENT_ARRIVAL_ACKNOWLEDGED', user_type:'cliente', user_name:order.client_name || clientId,
       details:`Cliente confirmó YA VOY para viaje ${orderId}`,
       metadata:{ orderId, clientId, driverId:order.driver_id || null, acknowledgedAt }
     }).catch(() => {});
