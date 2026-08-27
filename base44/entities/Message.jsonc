@@ -19,18 +19,26 @@
         "movil",
         "cliente"
       ],
-      "description": "Qui\u00e9n env\u00eda"
+      "description": "Quién envía"
     },
     "from_name": {
       "type": "string"
     },
     "driver_id": {
       "type": "string",
-      "description": "ID del m\u00f3vil (si es movil) o del cliente"
+      "description": "ID del móvil. Se conserva por compatibilidad con la mensajería actual de choferes."
     },
     "to_driver_id": {
       "type": "string",
-      "description": "Si el operador escribe a un m\u00f3vil espec\u00edfico, si vac\u00edo es broadcast"
+      "description": "ID del móvil destinatario cuando el operador escribe a un móvil específico; vacío para broadcast."
+    },
+    "client_id": {
+      "type": "string",
+      "description": "ID exclusivo del cliente cuando el mensaje pertenece a la app de clientes."
+    },
+    "to_client_id": {
+      "type": "string",
+      "description": "ID exclusivo del cliente destinatario cuando operador/base responde a un cliente."
     },
     "content": {
       "type": "string"
