@@ -29,18 +29,33 @@ function playPanicSound() {
   } catch (_) {}
 }
 
+function parseNotes(notes = "") {
+  const result = {};
+  String(notes).split("|").forEach(part => {
+    const index = part.indexOf("=");
+    if (index < 1) return;
+    const key = part.slice(0, index).trim().toUpperCase();
+    const value = part.slice(index + 1).trim();
+    if (key) result[key] = value;
+  });
+  return result;
+}
+
 function isClientPanic(panic) {
-  const type = String(panic?.type || panic?.tipo || panic?.source || panic?.origin || panic?.origen || "").toLowerCase();
-  return type === "cliente" || type === "client" || type === "customer" || !!(panic?.client_name || panic?.customer_name || panic?.client_phone || panic?.customer_phone);
+  const note = parseNotes(panic?.notes);
+  const type = String(panic?.type || panic?.tipo || panic?.source || panic?.origin || panic?.origen || note.TIPO || "").toLowerCase();
+  return type === "cliente" || type === "client" || type === "customer" || String(panic?.driver_name || "").startsWith("CLIENTE:") || !!(panic?.client_name || panic?.client_phone);
 }
 
 function clientData(panic) {
+  const note = parseNotes(panic?.notes);
+  const legacyName = String(panic?.driver_name || "").replace(/^CLIENTE:\s*/i, "").trim();
   return {
-    name: panic.client_name || panic.customer_name || panic.passenger_name || panic.nombre_cliente || "Cliente sin nombre",
-    phone: panic.client_phone || panic.customer_phone || panic.passenger_phone || panic.telefono_cliente || "Sin teléfono",
-    mobile: panic.mobile_number || panic.vehicle_number || panic.driver_number || panic.movil || "Sin móvil",
-    driver: panic.driver_name || panic.chofer_name || panic.driver || "Sin chofer",
-    ride: panic.ride_id || panic.trip_id || panic.ride_number || panic.trip_number || panic.pasaje_id || "Sin dato",
+    name: panic.client_name || panic.customer_name || panic.passenger_name || panic.nombre_cliente || note.NOMBRE || legacyName || "Cliente sin nombre",
+    phone: panic.client_phone || panic.customer_phone || panic.passenger_phone || panic.telefono_cliente || note.TELEFONO || "Sin teléfono",
+    mobile: panic.mobile_number || panic.vehicle_number || panic.driver_number || panic.movil || note.MOVIL || panic.vehicle_plate || "Sin móvil",
+    driver: panic.chofer_name || panic.driver || note.CHOFER || "Sin chofer",
+    ride: panic.ride_id || panic.trip_id || panic.ride_number || panic.trip_number || panic.pasaje_id || note.ORDER_ID || "Sin dato",
   };
 }
 
