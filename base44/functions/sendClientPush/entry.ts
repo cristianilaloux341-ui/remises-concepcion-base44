@@ -52,12 +52,18 @@ Deno.serve(async (req) => {
     const pushType = isArrival ? 'client_arrival' : String(type);
     const title = isArrival ? 'Tu móvil está afuera' : 'Remises Concepción';
     const body = isArrival ? (Number(noticeNumber) >= 2 ? 'Segundo aviso: tu móvil te está esperando.' : 'Tu móvil llegó. Tocá YA VOY para avisarle al chofer.') : 'Tenés una actualización de tu viaje.';
+    const arrivalTag = `client_arrival_${String(orderId)}_${String(noticeNumber)}`;
     const message = {
       message: {
         token: client.fcm_token,
         notification: { title, body },
-        data: { type:pushType, orderId:String(orderId), clientId:String(clientId), noticeNumber:String(noticeNumber) },
-        android: { priority:'high', notification:{ channel_id:'client_arrival', sound:'default', default_vibrate_timings:true, visibility:'PUBLIC' } }
+        data: { type:pushType, orderId:String(orderId), clientId:String(clientId), noticeNumber:String(noticeNumber), title, body },
+        android: {
+          priority:'high',
+          notification: isArrival
+            ? { channel_id:'client_arrival_v2', sound:'horn', tag:arrivalTag, default_vibrate_timings:true, visibility:'PUBLIC' }
+            : { sound:'default', default_vibrate_timings:true, visibility:'PUBLIC' }
+        }
       }
     };
     const response = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {method:'POST',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify(message)});
