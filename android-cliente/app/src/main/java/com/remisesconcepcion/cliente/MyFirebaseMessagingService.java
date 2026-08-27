@@ -17,14 +17,14 @@ import java.util.Map;
 
 public class MyFirebaseMessagingService extends MessagingService {
     private static final String TAG = "ClientPush";
-    private static final String CHANNEL_ID = "client_arrival";
+    // v2 evita que Android conserve la configuracion anterior del canal.
+    private static final String CHANNEL_ID = "client_arrival_v2";
 
     @Override public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         Map<String,String> data = remoteMessage.getData();
         String type = data.get("type");
         if ("bocina".equals(type) || "client_arrival".equals(type)) {
             showArrivalNotification(data);
-            super.onMessageReceived(remoteMessage);
             return;
         }
         super.onMessageReceived(remoteMessage);
@@ -32,27 +32,70 @@ public class MyFirebaseMessagingService extends MessagingService {
 
     private void showArrivalNotification(Map<String,String> data) {
         Context context = getApplicationContext();
-        String orderId=data.get("orderId"), clientId=data.get("clientId"), sessionToken=data.get("sessionToken"), apiUrl=data.get("apiUrl");
-        String title=data.get("title"), body=data.get("body");
-        if(title==null||title.isEmpty()) title="Tu móvil llegó";
-        if(body==null||body.isEmpty()) body="El remis está afuera. Tocá YA VOY para avisarle al chofer.";
-        NotificationManager manager=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
-        Uri sound=android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION);
-        if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O){
-            NotificationChannel channel=new NotificationChannel(CHANNEL_ID,"Avisos de llegada",NotificationManager.IMPORTANCE_HIGH);
-            channel.setDescription("Avisos cuando el móvil está afuera");
-            AudioAttributes attrs=new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
-            channel.setSound(sound,attrs); channel.enableVibration(true); manager.createNotificationChannel(channel);
+        String orderId = data.get("orderId");
+        String noticeNumberRaw = data.get("noticeNumber");
+        int noticeNumber = 1;
+        try { noticeNumber = Math.max(1, Integer.parseInt(noticeNumberRaw)); } catch (Exception ignored) {}
+
+        String title = data.get("title");
+        String body = data.get("body");
+        if (title == null || title.isEmpty()) title = "Tu móvil está afuera";
+        if (body == null || body.isEmpty()) {
+            body = noticeNumber >= 2
+                    ? "Segundo aviso: tu móvil te está esperando. Tocá para abrir el viaje."
+                    : "Tu móvil llegó. Tocá YA VOY para avisarle al chofer.";
         }
-        Intent ackIntent=new Intent(context,NotificationActionReceiver.class);
-        ackIntent.setAction("ACTION_CLIENT_YA_VOY"); ackIntent.putExtra("orderId",orderId); ackIntent.putExtra("clientId",clientId); ackIntent.putExtra("sessionToken",sessionToken); ackIntent.putExtra("apiUrl",apiUrl);
-        PendingIntent ackPending=PendingIntent.getBroadcast(context,orderId!=null?orderId.hashCode():1,ackIntent,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-        Intent openIntent=new Intent(context,MainActivity.class); openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP); openIntent.putExtra("orderId",orderId);
-        PendingIntent openPending=PendingIntent.getActivity(context,orderId!=null?orderId.hashCode()+1:2,openIntent,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-        NotificationCompat.Builder builder=new NotificationCompat.Builder(context,CHANNEL_ID).setSmallIcon(context.getApplicationInfo().icon).setContentTitle(title).setContentText(body).setStyle(new NotificationCompat.BigTextStyle().bigText(body)).setPriority(NotificationCompat.PRIORITY_HIGH).setCategory(NotificationCompat.CATEGORY_MESSAGE).setSound(sound).setVibrate(new long[]{0,250,150,250}).setAutoCancel(true).setOnlyAlertOnce(true).setContentIntent(openPending).addAction(0,"YA VOY",ackPending);
-        manager.notify(orderId!=null?orderId.hashCode():7001,builder.build());
-        Log.i(TAG,"Aviso de llegada mostrado una sola vez para "+orderId);
+
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+
+        // Mientras horn.mp3 no este incorporado, conserva un fallback compilable.
+        // Al agregar android-cliente/app/src/main/res/raw/horn.mp3, este lookup lo usa automaticamente.
+        int hornResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
+        Uri sound = hornResId != 0
+                ? Uri.parse("android.resource://" + context.getPackageName() + "/" + hornResId)
+                : android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Avisos de llegada", NotificationManager.IMPORTANCE_HIGH);
+            channel.setDescription("Bocina cuando el móvil está afuera");
+            AudioAttributes attrs = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build();
+            channel.setSound(sound, attrs);
+            channel.enableVibration(true);
+            manager.createNotificationChannel(channel);
+        }
+
+        // El boton YA VOY abre el viaje. La sesion queda solo dentro de la app y no viaja por FCM.
+        Intent openIntent = new Intent(context, MainActivity.class);
+        openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        openIntent.putExtra("orderId", orderId);
+        int requestCode = ((orderId != null ? orderId.hashCode() : 7001) * 31) + noticeNumber;
+        PendingIntent openPending = PendingIntent.getActivity(context, requestCode, openIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(context.getApplicationInfo().icon)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setSound(sound)
+                .setVibrate(new long[]{0, 250, 150, 250})
+                .setAutoCancel(true)
+                .setOnlyAlertOnce(false)
+                .setContentIntent(openPending)
+                .addAction(0, "YA VOY", openPending);
+
+        // Aviso 1 y aviso 2 usan IDs diferentes: ambos pueden sonar una vez sin entrar en loop.
+        int notificationId = ((orderId != null ? orderId.hashCode() : 7001) * 31) + noticeNumber;
+        manager.notify(notificationId, builder.build());
+        Log.i(TAG, "Aviso de llegada " + noticeNumber + " mostrado para " + orderId + (hornResId != 0 ? " con horn.mp3" : " con sonido fallback"));
     }
 
-    @Override public void onNewToken(@NonNull String token){ Log.i(TAG,"Nuevo token FCM de cliente"); super.onNewToken(token); }
+    @Override public void onNewToken(@NonNull String token) {
+        Log.i(TAG, "Nuevo token FCM de cliente");
+        super.onNewToken(token);
+    }
 }
