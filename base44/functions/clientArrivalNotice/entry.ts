@@ -47,21 +47,31 @@ Deno.serve(async (req) => {
     }
     await b44.entities.RideOrder.update(orderId, patch);
 
+    let pushResult:any = null;
     if (order.client_id) {
-      await base44.functions.invoke('sendPushNotification', {
-        action:'send_client_push', payloadType:'bocina', userId:order.client_id,
-        orderId:order.id, arrivalNoticeNumber:count + 1, sessionToken
-      }).catch(() => {});
+      try {
+        const response = await base44.functions.invoke('sendClientPush', {
+          clientId:order.client_id,
+          orderId:order.id,
+          driverId,
+          sessionToken,
+          noticeNumber:count + 1,
+          type:'arrival'
+        });
+        pushResult = response?.data || response;
+      } catch (e:any) {
+        pushResult = { success:false, reason:e?.message || 'push_error' };
+      }
     }
 
     await b44.entities.AuditLog.create({
       action:count === 0 ? 'CLIENT_ARRIVAL_NOTICE_1' : 'CLIENT_ARRIVAL_NOTICE_2',
       user_type:'chofer', user_name:order.driver_name || driverId,
       details:`Aviso ${count + 1} de móvil afuera para viaje ${orderId}`,
-      metadata:{ orderId, driverId, noticeNumber:count + 1, sentAt }
+      metadata:{ orderId, driverId, noticeNumber:count + 1, sentAt, pushSuccess:pushResult?.success === true, pushReason:pushResult?.reason || null }
     }).catch(() => {});
 
-    return Response.json({ success:true, noticeNumber:count + 1, sentAt, expiresAt:patch.client_arrival_expires_at || null });
+    return Response.json({ success:true, noticeNumber:count + 1, sentAt, expiresAt:patch.client_arrival_expires_at || null, pushSent:pushResult?.success === true, pushReason:pushResult?.reason || null });
   } catch (e:any) {
     return Response.json({ success:false, reason:e?.message || 'error' }, { status:500 });
   }
