@@ -5,85 +5,36 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
-import androidx.core.app.NotificationCompat;
+
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class NotificationActionReceiver extends BroadcastReceiver {
-    private static final String TAG = "PushDiagnostic";
+    private static final String TAG = "ClientPush";
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        String action = intent.getAction();
-        Log.e(TAG, "BroadcastReceiver onReceive: " + action);
+        if (intent == null || !"ACTION_CLIENT_YA_VOY".equals(intent.getAction())) return;
 
-        if ("ACTION_DISMISS".equals(action)) {
-            String orderId = intent.getStringExtra("orderId");
-            RideAlertController.getInstance().stopAlert(context, orderId, "Notificación deslizada por el usuario");
+        final PendingResult pendingResult = goAsync();
+        final String orderId = intent.getStringExtra("orderId");
+        final String clientId = intent.getStringExtra("clientId");
+        final String sessionToken = intent.getStringExtra("sessionToken");
+        final String apiUrl = intent.getStringExtra("apiUrl");
+
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) manager.cancel(orderId != null ? orderId.hashCode() : 7001);
+
+        if (orderId == null || clientId == null || sessionToken == null || apiUrl == null || apiUrl.isEmpty()) {
+            Log.w(TAG, "YA VOY incompleto; se abre la app para confirmar desde Cliente");
+            openClientApp(context, orderId);
+            pendingResult.finish();
             return;
         }
 
-        if ("ACTION_ACCEPT".equals(action) || "ACTION_REJECT".equals(action)) {
-            final PendingResult pendingResult = goAsync();
-            String orderId = intent.getStringExtra("orderId");
-            
-            // Detener sonido a través del controlador central inmediatamente
-            RideAlertController.getInstance().stopAlert(context, orderId, "Acción local en Android: " + action);
-
-            String driverId = intent.getStringExtra("driverId");
-            String driverName = intent.getStringExtra("driverName");
-            String base = intent.getStringExtra("base");
-            String apiUrl = intent.getStringExtra("apiUrl");
-            
-            NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-            int notificationId = orderId != null ? orderId.hashCode() : 0;
-
-            if ("ACTION_ACCEPT".equals(action)) {
-                Log.e(TAG, "Acción Aceptar recibida.");
-                // Cerrar la notificación automáticamente para que no quede pendiente en la barra de estado
-                notificationManager.cancel(notificationId);
-                
-                // Enviar al servidor invocando la misma función que usa la aplicación web
-                String dName = driverName != null ? driverName.replace("\"", "\\\"") : "";
-                String bName = base != null ? base.replace("\"", "\\\"") : "";
-                String payload = String.format("{\"action\":\"native_accept\", \"orderId\":\"%s\", \"driverId\":\"%s\", \"driverName\":\"%s\", \"base\":\"%s\"}", 
-                        orderId, driverId, dName, bName);
-                sendToServer(apiUrl, payload, pendingResult);
-
-                // Abrir la app y pasar el parámetro para que React también se entere
-                Intent launchIntent = new Intent(context, MainActivity.class);
-                launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                launchIntent.putExtra("radiocab_action", "accept");
-                launchIntent.putExtra("orderId", orderId);
-                context.startActivity(launchIntent);
-                
-            } else if ("ACTION_REJECT".equals(action)) {
-                Log.e(TAG, "Acción Rechazar recibida.");
-                // Cerrar la notificación
-                notificationManager.cancel(notificationId);
-                
-                // Enviar al servidor
-                String payload = String.format("{\"action\":\"native_reject\", \"orderId\":\"%s\", \"driverId\":\"%s\"}", orderId, driverId);
-                sendToServer(apiUrl, payload, pendingResult);
-
-                // Abrir la app y pasar el parámetro de rechazo
-                Intent launchIntent = new Intent(context, MainActivity.class);
-                launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                launchIntent.putExtra("radiocab_action", "reject");
-                launchIntent.putExtra("orderId", orderId);
-                context.startActivity(launchIntent);
-            }
-        }
-    }
-
-    private void sendToServer(String apiUrl, String jsonPayload, PendingResult pendingResult) {
-        if (apiUrl == null || apiUrl.isEmpty()) {
-            Log.e(TAG, "Error: apiUrl es null o vacío");
-            if (pendingResult != null) pendingResult.finish();
-            return;
-        }
         new Thread(() -> {
+            boolean ok = false;
             try {
                 URL url = new URL(apiUrl);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -92,21 +43,35 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                 conn.setDoOutput(true);
                 conn.setConnectTimeout(8000);
                 conn.setReadTimeout(8000);
-                
-                try(OutputStream os = conn.getOutputStream()) {
-                    byte[] input = jsonPayload.getBytes("utf-8");
-                    os.write(input, 0, input.length);
+
+                String safeOrder = escape(orderId);
+                String safeClient = escape(clientId);
+                String safeToken = escape(sessionToken);
+                String payload = "{\"orderId\":\"" + safeOrder + "\",\"clientId\":\"" + safeClient + "\",\"sessionToken\":\"" + safeToken + "\"}";
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(payload.getBytes("UTF-8"));
                 }
-                
                 int code = conn.getResponseCode();
-                Log.e(TAG, "Respuesta del servidor para acción nativa: " + code);
+                ok = code >= 200 && code < 300;
+                Log.i(TAG, "YA VOY HTTP " + code);
+                conn.disconnect();
             } catch (Exception e) {
-                Log.e(TAG, "Error enviando acción al servidor", e);
+                Log.e(TAG, "No se pudo confirmar YA VOY desde la notificación", e);
             } finally {
-                if (pendingResult != null) {
-                    pendingResult.finish();
-                }
+                if (!ok) openClientApp(context, orderId);
+                pendingResult.finish();
             }
         }).start();
+    }
+
+    private static void openClientApp(Context context, String orderId) {
+        Intent launch = new Intent(context, MainActivity.class);
+        launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        if (orderId != null) launch.putExtra("orderId", orderId);
+        context.startActivity(launch);
+    }
+
+    private static String escape(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }
