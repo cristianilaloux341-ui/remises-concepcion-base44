@@ -49,8 +49,16 @@ public class MainActivity extends BridgeActivity {
         if (intent != null) {
             String incomingRide = intent.getStringExtra("radiocab_incoming_ride");
             if (incomingRide != null) {
-                // El intent fue lanzado porque hay un nuevo viaje, forzar audio desde la actividad Foreground
+                // Full-screen de viaje: además de despertar, llevar la WebApp a la pantalla
+                // del chofer conservando el intento actual. NO auto-aceptar: solo mostrar oferta.
                 RideAlertController.getInstance().playAudioFallback(this);
+                String incomingAttempt = intent.getStringExtra("assignmentAttempt");
+                if (bridge != null && bridge.getWebView() != null) {
+                    String attemptQuery = incomingAttempt != null ? "&attempt=" + incomingAttempt : "";
+                    final String jsIncoming = String.format(
+                        "window.location.href='/driver-app?incoming=%s%s';", incomingRide, attemptQuery);
+                    bridge.getWebView().post(() -> bridge.getWebView().evaluateJavascript(jsIncoming, null));
+                }
                 intent.removeExtra("radiocab_incoming_ride");
             }
             
