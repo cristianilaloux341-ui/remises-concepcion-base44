@@ -30,7 +30,6 @@ Deno.serve(async (req) => {
 
     const toCancel = [...new Set([order.driver_id, order.reserved_driver_id])].filter(Boolean);
 
-    // CAS: no pisa una aceptación/inicio/completado que haya ocurrido mientras se cancelaba.
     const changed = await b44.entities.RideOrder.updateMany(
       { id: orderId, status: order.status },
       { $set: {
@@ -49,8 +48,6 @@ Deno.serve(async (req) => {
     }
 
     if (toCancel.length > 0) {
-      // Misma regla del botón Cancelar del Operador: sólo libera móviles que TODAVÍA
-      // apuntan a esta orden. No toca current_base, por lo que conserva su zona.
       await b44.entities.Driver.updateMany(
         {
           id: { $in: toCancel },
@@ -72,8 +69,6 @@ Deno.serve(async (req) => {
         }}
       ).catch(() => {});
 
-      // Cancelación desde central devuelve primero a la cola. Conservamos esa semántica
-      // también para el cliente, pero sólo sobre el móvil realmente asignado.
       if (order.driver_id) {
         await b44.entities.Driver.updateMany(
           {
@@ -88,12 +83,18 @@ Deno.serve(async (req) => {
         ).catch(() => {});
       }
 
-      base44.functions.invoke('sendPushNotification', {
-        action:'cancel_multiple',
-        driversToCancel:toCancel,
-        orderId,
-        sessionToken
-      }).catch(() => {});
+      // El JWT del cliente autoriza la cancelación del viaje, pero sendPushNotification
+      // reserva las notificaciones operativas para operador/servicio interno. Reenviamos
+      // únicamente la orden ya validada usando la clave interna; nunca exponemos esa clave al cliente.
+      const internalKey = Deno.env.get('INTERNAL_SERVICE_KEY');
+      if (internalKey) {
+        base44.functions.invoke('sendPushNotification', {
+          action:'cancel_multiple',
+          driversToCancel:toCancel,
+          orderId,
+          internalKey
+        }).catch(() => {});
+      }
     }
 
     await b44.entities.AuditLog.create({
