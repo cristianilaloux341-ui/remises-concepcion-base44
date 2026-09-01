@@ -58,7 +58,7 @@ export function findDriverInZone(zone, drivers) {
   if (inZone) return inZone;
   
   // Prioridad 2: Si no hay nadie en la zona, retorna el libre de mayor tiempo de espera globalmente
-  const allAvailable = drivers.filter(d => d.status === "disponible");
+  const allAvailable = drivers.filter(d => d.status === "disponible" && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === "normal"));
   if (allAvailable.length > 0) {
       return sortQueue(allAvailable)[0];
   }
