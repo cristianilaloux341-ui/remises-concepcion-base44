@@ -1982,8 +1982,11 @@ export default function DriverApp() {
     }
   };
   const handleTakeOrder = async (order) => {
-    if (isAccepting || !order?.id) return;
+    if (!order?.id) return;
     const realId = getRealOrderId(order.id);
+    const acceptKey = `${realId || ''}:${order.assignment_attempt || 1}`;
+    if (!realId || acceptInFlightRef.current === acceptKey) return;
+    acceptInFlightRef.current = acceptKey;
     await stopNativeRideAlert(realId, "handleTakeOrder");
     setIsAccepting(true);
     try {
@@ -2011,6 +2014,7 @@ export default function DriverApp() {
       alert("Sin conexión: no se pudo contactar al servidor.");
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } finally {
+      if (acceptInFlightRef.current === acceptKey) acceptInFlightRef.current = null;
       setIsAccepting(false);
     }
   };
@@ -2113,6 +2117,9 @@ export default function DriverApp() {
 
   const handleBroadcastAccept = async (order) => {
     const realId = getRealOrderId(order?.id);
+    const acceptKey = `${realId || ''}:${order?.assignment_attempt || 1}`;
+    if (!realId || acceptInFlightRef.current === acceptKey) return;
+    acceptInFlightRef.current = acceptKey;
     await stopNativeRideAlert(realId, "handleBroadcastAccept");
     stopAlert();
     clearInterval(broadcastIntervalRef.current);
@@ -2171,6 +2178,7 @@ export default function DriverApp() {
     } catch (error) {
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } finally {
+      if (acceptInFlightRef.current === acceptKey) acceptInFlightRef.current = null;
       setIsAccepting(false);
       stopAlert();
       clearInterval(broadcastIntervalRef.current);
