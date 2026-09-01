@@ -882,9 +882,8 @@ export default function DriverApp() {
         Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId: autoRejectOrderId, assignmentAttempt: 1, resolutionType: "REJECTED" }).catch(()=>{});
         stopNativeRideAlert(autoRejectOrderId, "autoRejectFromURL");
       }
-      setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
       // El rechazo puede llegar tarde desde una notificación vieja.
-      // Liberar solo si el móvil todavía está vinculado a ESTA oferta.
+      // Primero confirmar la liberación en servidor y recién después reasignar.
       base44.entities.Driver.updateMany(
         { id: myDriverId, $or: [{ reserved_order_id: autoRejectOrderId }, { active_order_id: autoRejectOrderId }, { active_ride_id: autoRejectOrderId }] },
         { $set: {
@@ -898,13 +897,17 @@ export default function DriverApp() {
           manual_reservation_token: null,
           driver_reservation_key: null
         } }
-      ).catch(()=>{});
-      Promise.all([
-        base44.entities.RideOrder.get(autoRejectOrderId),
-        base44.entities.Driver.list()
-      ]).then(([order, allDrivers]) => {
-         const currentOrder = { ...order, offered_driver_ids: [...(order.offered_driver_ids || []), myDriverId] };
-         reassignAfterReject(currentOrder, allDrivers, []).catch(()=>{});
+      ).then(async () => {
+        setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
+        const [order, allDrivers] = await Promise.all([
+          base44.entities.RideOrder.get(autoRejectOrderId),
+          base44.entities.Driver.list()
+        ]);
+        const currentOrder = { ...order, offered_driver_ids: [...(order.offered_driver_ids || []), myDriverId] };
+        await reassignAfterReject(currentOrder, allDrivers, []);
+      }).catch((e) => {
+        console.error("No se pudo confirmar el rechazo por URL", e);
+        window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       });
       window.history.replaceState({}, "", "/driver-app");
     }
@@ -1021,9 +1024,8 @@ export default function DriverApp() {
             stopNativeRideAlert(orderId, "swRejectOrder");
           }
           notifySW({ type: "ACK_REJECT_ORDER", orderId }); // Send ACK
-          setLocalOverride({ status: "disponible", _ignoredOrderId: orderId });
-          // Igual que el rechazo por URL: una acción atrasada no puede borrar
-          // la reserva/viaje nuevo que el móvil haya recibido entretanto.
+          // Igual que el rechazo por URL: confirmar primero la liberación real
+          // del móvil y sólo entonces buscar el siguiente candidato.
           base44.entities.Driver.updateMany(
             { id: myDriverId, $or: [{ reserved_order_id: orderId }, { active_order_id: orderId }, { active_ride_id: orderId }] },
             { $set: {
@@ -1037,13 +1039,17 @@ export default function DriverApp() {
               manual_reservation_token: null,
               driver_reservation_key: null
             } }
-          ).catch(()=>{});
-          Promise.all([
-            base44.entities.RideOrder.get(orderId),
-            base44.entities.Driver.list()
-          ]).then(([order, allDrivers]) => {
-             const currentOrder = { ...order, offered_driver_ids: [...(order.offered_driver_ids || []), myDriverId] };
-             reassignAfterReject(currentOrder, allDrivers, []).catch(()=>{});
+          ).then(async () => {
+            setLocalOverride({ status: "disponible", _ignoredOrderId: orderId });
+            const [order, allDrivers] = await Promise.all([
+              base44.entities.RideOrder.get(orderId),
+              base44.entities.Driver.list()
+            ]);
+            const currentOrder = { ...order, offered_driver_ids: [...(order.offered_driver_ids || []), myDriverId] };
+            await reassignAfterReject(currentOrder, allDrivers, []);
+          }).catch((e) => {
+            console.error("No se pudo confirmar el rechazo desde notificación", e);
+            window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
           });
           window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
