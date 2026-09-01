@@ -52,6 +52,10 @@ export function useDriverMessageAlert(driverId) {
 
     const connect = () => {
       unsubscribe?.();
+      unsubscribe = null;
+      // En segundo plano no mantener otro WebSocket sólo por mensajes.
+      // Los viajes siguen entrando por FCM nativo.
+      if (document.visibilityState !== "visible") return;
       unsubscribe = base44.entities.Message.subscribe((event) => {
         if (event.type !== "create") return;
         const msg = event.data;
@@ -70,9 +74,12 @@ export function useDriverMessageAlert(driverId) {
     };
 
     connect();
+    document.addEventListener("visibilitychange", connect);
 
     return () => {
+      document.removeEventListener("visibilitychange", connect);
       unsubscribe?.();
+      unsubscribe = null;
     };
   }, [driverId]);
 
