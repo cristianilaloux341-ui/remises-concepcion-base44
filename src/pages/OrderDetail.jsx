@@ -60,7 +60,15 @@ export default function OrderDetail() {
 
   // When cancelling an active order, put the assigned driver first in queue
   const cancelOrder = async () => {
-    await base44.entities.RideOrder.update(order.id, { status: "cancelado" });
+    await base44.entities.RideOrder.update(order.id, {
+      status: "cancelado",
+      offerExpiresAt: null,
+      processingAction: null,
+      processingOperationKey: null,
+      processingOwnerId: null,
+      processingLeaseExpiresAt: null,
+      processingPhase: null
+    });
     
     // offered_driver_ids es historial: no se debe liberar a esos móviles porque
     // pueden estar trabajando en otro pasaje. Solo tocar vínculos actuales.
@@ -74,6 +82,7 @@ export default function OrderDetail() {
           $set: {
             status: "disponible",
             dispatch_status: "normal",
+            active_order_id: null,
             active_ride_id: null,
             reserved_order_id: null,
             reservation_token: null,
