@@ -8,16 +8,18 @@ import { toast } from 'sonner';
 export default function DriverAssigned() {
   const navigate = useNavigate();
   const location = useLocation();
-  const orderId = location.state?.orderId;
+  const orderId = location.state?.orderId || localStorage.getItem('client_active_order_id');
   const [order, setOrder] = useState(null);
   const [driver, setDriver] = useState(null);
   const [ackLoading, setAckLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   useEffect(() => {
     if (!orderId) {
       navigate('/app-cliente/home');
       return;
     }
+    localStorage.setItem('client_active_order_id', orderId);
 
     let isMounted = true;
     const applyOrder = async (o) => {
@@ -26,8 +28,10 @@ export default function DriverAssigned() {
       if (o.status === 'en_viaje') {
         navigate('/app-cliente/active-ride', { state: { orderId }, replace: true });
       } else if (o.status === 'completado') {
+        localStorage.removeItem('client_active_order_id');
         navigate('/app-cliente/rating', { state: { orderId }, replace: true });
       } else if (o.status === 'cancelado' || o.status === 'rechazado') {
+        localStorage.removeItem('client_active_order_id');
         toast.error('El viaje fue cancelado');
         navigate('/app-cliente/home', { replace: true });
       } else if (o.driver_id && (!driver || driver.id !== o.driver_id)) {
@@ -96,13 +100,26 @@ export default function DriverAssigned() {
   };
 
   const handleCancel = async () => {
-    if (!orderId) return;
+    if (!orderId || cancelLoading) return;
+    const clientId = localStorage.getItem('client_id');
+    const sessionToken = localStorage.getItem('client_session_token');
+    if (!clientId || !sessionToken) {
+      toast.error('No se pudo validar tu sesión. Volvé a ingresar.');
+      return;
+    }
+    setCancelLoading(true);
     try {
-      await base44.entities.RideOrder.update(orderId, { status: 'cancelado' });
+      const response = await base44.functions.invoke('clientCancelRide', { orderId, clientId, sessionToken });
+      const result = response?.data || response;
+      if (result?.success !== true) throw new Error(result?.reason || 'cancel_failed');
+      localStorage.removeItem('client_active_order_id');
       toast.info('Viaje cancelado correctamente');
       navigate('/app-cliente/home', { replace: true });
     } catch (error) {
-      toast.error('Error al cancelar el viaje');
+      console.error(error);
+      toast.error('No se pudo cancelar el viaje. Intentá nuevamente.');
+    } finally {
+      setCancelLoading(false);
     }
   };
 
@@ -149,7 +166,7 @@ export default function DriverAssigned() {
 
         <div className="flex gap-4">
           <a href="tel:3442667570" className="flex-1 bg-slate-100 hover:bg-slate-200 h-14 rounded-2xl flex items-center justify-center gap-2 font-bold text-slate-700 transition-colors"><Phone className="w-5 h-5" /> Llamar</a>
-          <button onClick={handleCancel} className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 h-14 rounded-2xl flex items-center justify-center gap-2 font-bold transition-colors"><X className="w-5 h-5" /> Rechazar</button>
+          <button onClick={handleCancel} disabled={cancelLoading} className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 h-14 rounded-2xl flex items-center justify-center gap-2 font-bold transition-colors disabled:opacity-60"><X className="w-5 h-5" /> {cancelLoading ? 'Cancelando...' : 'Cancelar'}</button>
         </div>
       </div>
     </div>
