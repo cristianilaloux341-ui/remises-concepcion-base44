@@ -929,26 +929,38 @@ export default function DriverApp() {
     setDismissedBroadcasts(dismissed);
   }, [myDriverId]);
 
-  // Listen for real-time cancellations
+  // Cancelaciones realtime sólo con la app visible. En background Android/FCM
+  // se ocupa de despertar/notificar sin mantener otro WebSocket abierto.
   useEffect(() => {
     if (!myDriverId) return;
-    const unsub = base44.entities.RideOrder.subscribe((e) => {
-      if (e.type === "update" && e.data?.status === "cancelado") {
-        const o = e.data;
-        // offered_driver_ids es solo historial. Una cancelación vieja no debe
-        // interrumpir el viaje actual del móvil si ya está trabajando otra orden.
-        if (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId) {
-          if (!ignoredOrdersRef.current.has(o.id)) {
-            ignoredOrdersRef.current.add(o.id);
-            setLocalOverride({ status: "disponible", _ignoredOrderId: o.id });
-            setCancelledOrder(o);
-            try { navigator.vibrate?.([300, 100, 300, 100, 300]); } catch (_) {}
-            window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+    let unsub = null;
+
+    const connectCancellationListener = () => {
+      unsub?.();
+      unsub = null;
+      if (document.visibilityState !== "visible") return;
+      unsub = base44.entities.RideOrder.subscribe((e) => {
+        if (e.type === "update" && e.data?.status === "cancelado") {
+          const o = e.data;
+          if (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId) {
+            if (!ignoredOrdersRef.current.has(o.id)) {
+              ignoredOrdersRef.current.add(o.id);
+              setLocalOverride({ status: "disponible", _ignoredOrderId: o.id });
+              setCancelledOrder(o);
+              try { navigator.vibrate?.([300, 100, 300, 100, 300]); } catch (_) {}
+              window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+            }
           }
         }
-      }
-    });
-    return unsub;
+      });
+    };
+
+    connectCancellationListener();
+    document.addEventListener("visibilitychange", connectCancellationListener);
+    return () => {
+      document.removeEventListener("visibilitychange", connectCancellationListener);
+      unsub?.();
+    };
   }, [myDriverId]);
 
   // Escuchar mensajes del SW
