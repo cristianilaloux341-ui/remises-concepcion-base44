@@ -8,7 +8,9 @@ import { toast } from 'sonner';
 export default function ActiveRide() {
   const navigate = useNavigate();
   const location = useLocation();
-  const queryOrderId = new URLSearchParams(location.search).get('orderId');
+  const searchParams = new URLSearchParams(location.search);
+  const queryOrderId = searchParams.get('orderId');
+  const queryClientAction = searchParams.get('clientAction');
   const orderId = location.state?.orderId || queryOrderId || localStorage.getItem('client_active_order_id');
   const [showChat,setShowChat]=useState(false), [showPanic,setShowPanic]=useState(false), [ackLoading,setAckLoading]=useState(false);
   const [order,setOrder]=useState(null), [driver,setDriver]=useState(null), [chatMessage,setChatMessage]=useState(''), [messages,setMessages]=useState([]);
@@ -35,6 +37,14 @@ export default function ActiveRide() {
     catch(e){console.error(e);toast.error('No pudimos avisarle al chofer. Intentá nuevamente.');}
     finally{setAckLoading(false);}
   };
+
+  useEffect(()=>{
+    if(queryClientAction!=='YA_VOY'||!orderId||!order||order.status!=='en_camino'||Number(order.client_arrival_notice_count||0)<1||order.client_arrival_acknowledged===true)return;
+    handleYaVoy().finally(()=>{
+      const cleanUrl=`/app-cliente/active-ride?orderId=${encodeURIComponent(orderId)}`;
+      window.history.replaceState({},'',cleanUrl);
+    });
+  },[queryClientAction,orderId,order?.status,order?.client_arrival_notice_count,order?.client_arrival_acknowledged]);
 
   const handleShare=()=>{const text=`Viajo en un remis. Chofer: ${driver?.name||order?.driver_name||'No definido'}, Patente: ${driver?.vehicle_plate||''}. Destino: ${order?.dropoff_address||'No definido'} - Sigue mi viaje: ${window.location.href}`;window.open(`https://wa.me/?text=${encodeURIComponent(text)}`,'_blank');};
   const handleSendPanic=async()=>{try{navigator.geolocation.getCurrentPosition(async pos=>{await base44.entities.PanicAlert.create({driver_id:localStorage.getItem('client_id')||'cliente-desconocido',driver_name:`CLIENTE: ${order?.client_name||'Desconocido'}`,vehicle_plate:driver?.vehicle_plate||'N/A',current_lat:pos.coords.latitude,current_lng:pos.coords.longitude,notes:`ALERTA DE CLIENTE EN VIAJE (Orden: ${orderId})`});setShowPanic(false);toast.success('Alerta enviada a la central con tu ubicación actual');},async err=>{await base44.entities.PanicAlert.create({driver_id:localStorage.getItem('client_id')||'cliente-desconocido',driver_name:`CLIENTE: ${order?.client_name||'Desconocido'}`,vehicle_plate:driver?.vehicle_plate||'N/A',current_lat:order?.pickup_lat||0,current_lng:order?.pickup_lng||0,notes:`ALERTA DE CLIENTE EN VIAJE (Orden: ${orderId}) - SIN GPS: ${err.message}`});setShowPanic(false);toast.success('Alerta enviada a la central');},{enableHighAccuracy:true,timeout:5000});}catch(e){toast.error('Error al enviar la alerta');}};
