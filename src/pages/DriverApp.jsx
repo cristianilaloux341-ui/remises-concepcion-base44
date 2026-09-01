@@ -1923,6 +1923,7 @@ export default function DriverApp() {
           status: "disponible",
           dispatch_status: "normal",
           queue_entered_at: ts,
+          active_order_id: null,
           active_ride_id: null,
           reserved_order_id: null,
           reservation_token: null,
@@ -1937,23 +1938,29 @@ export default function DriverApp() {
       window.alert("No se pudo entrar en posición. Revisá Internet e intentá nuevamente.");
     }
   };
-  const handleChangeBase = (newBase) => {
+  const handleChangeBase = async (newBase) => {
     const ts = new Date().toISOString();
-    setLocalOverride({ current_base: newBase, status: "disponible", queue_entered_at: ts });
-    updateDriver.mutate({
-      id: myDriverId,
-      data: { 
-        current_base: newBase, 
-        status: "disponible", 
-        dispatch_status: "normal",
-        queue_entered_at: ts,
-        active_ride_id: null,
-        reserved_order_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null
-      },
-    });
+    try {
+      await updateDriver.mutateAsync({
+        id: myDriverId,
+        data: { 
+          current_base: newBase, 
+          status: "disponible", 
+          dispatch_status: "normal",
+          queue_entered_at: ts,
+          active_order_id: null,
+          active_ride_id: null,
+          reserved_order_id: null,
+          reservation_token: null,
+          manual_reservation_token: null,
+          driver_reservation_key: null
+        },
+      });
+      setLocalOverride({ current_base: newBase, status: "disponible", queue_entered_at: ts });
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+    } catch (error) {
+      window.alert("No se pudo cambiar de base. Revisá Internet e intentá nuevamente.");
+    }
   };
   const handleTakeOrder = async (order) => {
     if (isAccepting || !order?.id) return;
