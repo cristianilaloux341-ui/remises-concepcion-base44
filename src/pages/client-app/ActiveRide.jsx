@@ -9,14 +9,15 @@ export default function ActiveRide() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryOrderId = new URLSearchParams(location.search).get('orderId');
-  const orderId = location.state?.orderId || queryOrderId;
+  const orderId = location.state?.orderId || queryOrderId || localStorage.getItem('client_active_order_id');
   const [showChat,setShowChat]=useState(false), [showPanic,setShowPanic]=useState(false), [ackLoading,setAckLoading]=useState(false);
   const [order,setOrder]=useState(null), [driver,setDriver]=useState(null), [chatMessage,setChatMessage]=useState(''), [messages,setMessages]=useState([]);
 
   useEffect(()=>{
     if(!orderId){ navigate('/app-cliente/home',{replace:true}); return; }
+    localStorage.setItem('client_active_order_id',orderId);
     let mounted=true;
-    const applyOrder=(o)=>{ if(!mounted)return; setOrder(o); if(o.status==='completado')navigate('/app-cliente/rating',{state:{orderId},replace:true}); else if(o.status==='cancelado'){toast.error('El viaje fue cancelado');navigate('/app-cliente/home',{replace:true});} if(o.driver_id&&!driver)base44.entities.Driver.get(o.driver_id).then(d=>mounted&&setDriver(d)).catch(()=>{}); };
+    const applyOrder=(o)=>{ if(!mounted)return; setOrder(o); if(o.status==='completado'){localStorage.removeItem('client_active_order_id');navigate('/app-cliente/rating',{state:{orderId},replace:true});} else if(o.status==='cancelado'||o.status==='rechazado'){localStorage.removeItem('client_active_order_id');toast.error('El viaje fue cancelado');navigate('/app-cliente/home',{replace:true});} if(o.driver_id&&!driver)base44.entities.Driver.get(o.driver_id).then(d=>mounted&&setDriver(d)).catch(()=>{}); };
     base44.entities.RideOrder.get(orderId).then(applyOrder).catch(()=>navigate('/app-cliente/home',{replace:true}));
     const interval=setInterval(()=>base44.entities.RideOrder.get(orderId).then(applyOrder).catch(()=>{}),5000);
     const unsubscribe=base44.entities.RideOrder.subscribe(ev=>{if(ev.data?.id===orderId)applyOrder(ev.data);});
