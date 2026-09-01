@@ -67,6 +67,7 @@ Deno.serve(async (req) => {
                reservation_token: null,
                manual_reservation_token: null,
                driver_reservation_key: null,
+               active_order_id: null,
                active_ride_id: null
             }
          }).catch(()=>{ return { matchedCount: 0, updated: 0 }; });
@@ -143,6 +144,7 @@ Deno.serve(async (req) => {
                     status: "disponible", 
                     dispatch_status: "normal", 
                     reserved_order_id: null,
+                    active_order_id: null,
                     active_ride_id: null,
                     reservation_token: null,
                     manual_reservation_token: null,
@@ -197,6 +199,7 @@ Deno.serve(async (req) => {
                   status: newDriverStatus, 
                   dispatch_status: "normal", 
                   reserved_order_id: null,
+                  active_order_id: null,
                   active_ride_id: null,
                   reservation_token: null,
                   manual_reservation_token: null,
