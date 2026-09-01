@@ -1699,6 +1699,9 @@ export default function DriverApp() {
 
   const handleAccept = async () => {
     const realId = getRealOrderId(offeredOrder?.id);
+    const acceptKey = `${realId || ''}:${offeredOrder?.assignment_attempt || 1}`;
+    if (!realId || acceptInFlightRef.current === acceptKey) return;
+    acceptInFlightRef.current = acceptKey;
     await stopNativeRideAlert(realId, "handleAccept");
     stopAlert();
     clearInterval(alertIntervalRef.current);
@@ -1775,6 +1778,7 @@ export default function DriverApp() {
       alert("Sin conexión: no se pudo contactar al servidor. Revisá tu internet y reintentá.");
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } finally {
+      if (acceptInFlightRef.current === acceptKey) acceptInFlightRef.current = null;
       setIsAccepting(false);
       stopAlert();
       clearInterval(alertIntervalRef.current);
