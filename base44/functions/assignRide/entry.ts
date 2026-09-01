@@ -109,11 +109,18 @@ Deno.serve(async (req) => {
     const offeredIds = [...(orderReq.offered_driver_ids || [])];
     if (!offeredIds.includes(driverId)) offeredIds.push(driverId);
 
+    // Cada asignación crea una ventana propia de respuesta. acceptRide usa
+    // offerExpiresAt como autoridad para decidir si la oferta sigue vigente.
+    const assignedAt = new Date().toISOString();
+    const offerExpiresAt = Date.now() + (timeoutSeconds * 1000);
+
     // Update memory object for Push payload
     orderReq.assignment_attempt = newAttempt;
     orderReq.offered_driver_ids = offeredIds;
     orderReq.assigned_base = driverReq.current_base;
     orderReq.driver_name = driverReq.name;
+    orderReq.assigned_at = assignedAt;
+    orderReq.offerExpiresAt = offerExpiresAt;
 
     // 3. Dispatch Logic Atomic Run (handles the lock, Push, and Audit)
     const token = crypto.randomUUID();
@@ -155,7 +162,8 @@ Deno.serve(async (req) => {
         assignment_attempt: newAttempt,
         assigned_base: driverReq.current_base,
         driver_name: driverReq.name,
-        assigned_at: new Date().toISOString()
+        assigned_at: assignedAt,
+        offerExpiresAt: offerExpiresAt
       });
 
       // 5. Trigger Reassignment if needed
