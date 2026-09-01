@@ -160,7 +160,15 @@ export async function autoDispatch(order, drivers, bases) {
     driver_id: null,
     reserved_driver_id: null,
     driver_name: null,
-    reservation_token: null
+    assigned_base: null,
+    reservation_token: null,
+    manual_reservation_token: null,
+    offerExpiresAt: null,
+    processingAction: null,
+    processingOperationKey: null,
+    processingOwnerId: null,
+    processingLeaseExpiresAt: null,
+    processingPhase: null
   });
   return "no_drivers";
 }
@@ -239,7 +247,15 @@ export async function reassignAfterReject(order, drivers, bases) {
     driver_id: null,
     reserved_driver_id: null,
     driver_name: null,
-    reservation_token: null
+    assigned_base: null,
+    reservation_token: null,
+    manual_reservation_token: null,
+    offerExpiresAt: null,
+    processingAction: null,
+    processingOperationKey: null,
+    processingOwnerId: null,
+    processingLeaseExpiresAt: null,
+    processingPhase: null
   });
   return "sin_moviles";
 }
