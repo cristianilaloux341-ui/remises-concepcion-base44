@@ -240,8 +240,17 @@ function IncomingAlert({ order, onAccept, onReject, isAccepting }) {
       setTotalTime(timeoutSecs);
       
       const updateTimer = () => {
-        const elapsed = Math.floor((Date.now() - new Date(order.updated_date || Date.now()).getTime()) / 1000);
-        const remaining = Math.max(0, timeoutSecs - elapsed);
+        // Usar la misma autoridad temporal que acceptRide. updated_date puede cambiar
+        // por otros procesos y no representa el inicio real de esta oferta.
+        let remaining;
+        if (order.offerExpiresAt != null) {
+          remaining = Math.max(0, Math.ceil((Number(order.offerExpiresAt) - Date.now()) / 1000));
+        } else {
+          const offerStartedAt = order.assigned_at || order.updated_date;
+          const startedMs = offerStartedAt ? new Date(offerStartedAt).getTime() : Date.now();
+          const elapsed = Math.floor((Date.now() - startedMs) / 1000);
+          remaining = Math.max(0, timeoutSecs - elapsed);
+        }
         setTimeLeft(remaining);
         if (remaining <= 0) clearInterval(timer);
       };
