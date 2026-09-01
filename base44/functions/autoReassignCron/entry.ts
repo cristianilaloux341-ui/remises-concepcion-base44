@@ -114,8 +114,17 @@ Deno.serve(async (req) => {
           $set: { 
              status: 'pendiente', 
              driver_id: null,
-             reserved_driver_id: null, 
-             reservation_token: null
+             driver_name: null,
+             reserved_driver_id: null,
+             assigned_base: null,
+             reservation_token: null,
+             manual_reservation_token: null,
+             offerExpiresAt: null,
+             processingAction: null,
+             processingOperationKey: null,
+             processingOwnerId: null,
+             processingLeaseExpiresAt: null,
+             processingPhase: null
           }
         });
 
@@ -210,8 +219,17 @@ Deno.serve(async (req) => {
               $set: { 
                  status: 'pendiente', 
                  driver_id: null,
-                 reserved_driver_id: null, 
-                 reservation_token: null
+                 driver_name: null,
+                 reserved_driver_id: null,
+                 assigned_base: null,
+                 reservation_token: null,
+                 manual_reservation_token: null,
+                 offerExpiresAt: null,
+                 processingAction: null,
+                 processingOperationKey: null,
+                 processingOwnerId: null,
+                 processingLeaseExpiresAt: null,
+                 processingPhase: null
               }
             });
           } catch(e) {
