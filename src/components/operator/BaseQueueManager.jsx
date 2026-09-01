@@ -150,6 +150,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
         status: "disponible",
         dispatch_status: "normal",
         queue_entered_at: new Date(Date.now() + existingCount * 1000).toISOString(),
+        active_order_id: null,
         active_ride_id: null,
         reserved_order_id: null,
         reservation_token: null,
@@ -305,11 +306,12 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       return;
     }
 
+    // Un móvil marcado fuera de servicio no puede reactivarse de forma silenciosa
+    // por escribir una posición. Debe volver a servicio explícitamente primero.
     if (!movil.activo || movil.fuera_de_servicio) {
-      // Forzar activación (mantenemos esto por si el operador lo saca de servicio y luego lo ingresa con un comando)
-      try {
-        await base44.entities.Movil.update(movil.id, { activo: true, fuera_de_servicio: false });
-      } catch (err) {}
+      alert(`El móvil ${movilNum} está fuera de servicio. Reactivalo primero antes de ponerlo en una base.`);
+      setIsProcessing(false);
+      return;
     }
 
     // Finalizar cualquier viaje activo al ponerlo en posición o sacarlo de servicio
@@ -336,6 +338,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
         dispatch_status: "normal",
         reserved_order_id: null,
         queue_entered_at: null,
+        active_order_id: null,
         active_ride_id: null,
         reservation_token: null,
         manual_reservation_token: null,
@@ -361,7 +364,14 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       await base44.entities.Driver.update(driver.id, {
         current_base: baseName,
         status: "disponible",
+        dispatch_status: "normal",
         queue_entered_at: new Date(Date.now() + queue.length * 1000).toISOString(),
+        active_order_id: null,
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
       });
       
       // Forzar recarga rápida de la UI, ya que mutation invalidaría react-query pero acá no estamos usando el useMutation de BaseQueueManager sino update directo
