@@ -69,30 +69,10 @@ export function useDriverMessageAlert(driverId) {
       });
     };
 
-    const fetchMissed = async () => {
-      try {
-        const data = await base44.entities.Message.filter({ from_type: "operador", read: false });
-        const safeData = Array.isArray(data) ? data : [];
-        const unread = safeData.filter(msg => {
-          const isForMe = !msg.to_driver_id || msg.to_driver_id === driverId;
-          return isForMe && !seenIds.current.has(msg.id);
-        });
-        if (unread.length > 0) {
-          unread.forEach(msg => seenIds.current.add(msg.id));
-          setPendingMessages(prev => [...prev, ...unread]);
-          playAlertOnce();
-        }
-      } catch (err) {}
-    };
-
     connect();
-    
-    // Polling de respaldo sin destruir el websocket
-    const pollInterval = setInterval(fetchMissed, 15000);
 
     return () => {
       unsubscribe?.();
-      clearInterval(pollInterval);
     };
   }, [driverId]);
 
