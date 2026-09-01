@@ -1211,9 +1211,10 @@ export default function DriverApp() {
     ? { ...myDriverRaw, ...(localOverride ?? {}) }
     : null;
 
-  // Un solo proveedor GPS compartido. Se apaga por completo fuera de servicio.
-  const gpsTrackingEnabled = !!myDriverId && !!myDriver && myDriver.status !== "no_disponible";
+  // GPS nativo SOLO cuando hace falta para un viaje/taxímetro.
+  // En espera FCM mantiene la recepción de viajes sin tener el GPS encendido.
   const preciseGpsTracking = myDriver?.status === "en_viaje" || showOcasional;
+  const gpsTrackingEnabled = !!myDriverId && !!myDriver && preciseGpsTracking;
   const gpsIdRef = useRef(null);
 
   // La pantalla solo se mantiene despierta mientras se usa el taxímetro.
