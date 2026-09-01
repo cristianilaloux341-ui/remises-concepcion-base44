@@ -171,7 +171,9 @@ export default function OrderDetail() {
   };
 
   const returnToPending = async () => {
-    // Si había un conductor asignado o pre-reservado, liberarlo completamente
+    // Si había un conductor asignado o pre-reservado, liberarlo completamente.
+    // Primero se limpia el chofer y recién después se reactiva la orden para que
+    // nunca vuelva a circular con una reserva/lease de una asignación anterior.
     const toCancel = [...new Set([order.driver_id, order.reserved_driver_id])].filter(Boolean);
     if (toCancel.length > 0) {
       try {
@@ -181,6 +183,7 @@ export default function OrderDetail() {
             $set: {
               status: "disponible",
               dispatch_status: "normal",
+              active_order_id: null,
               active_ride_id: null,
               reserved_order_id: null,
               reservation_token: null,
@@ -191,21 +194,36 @@ export default function OrderDetail() {
         );
       } catch (e) {
         console.error("Error liberando conductores", e);
+        alert("No se pudo liberar el móvil anterior. El pasaje no fue reactivado.");
+        return;
       }
     }
-    
-    // Mover la orden a pendiente
-    updateMutation.mutate({ 
-      id: order.id, 
-      data: { 
-        status: "pendiente", 
-        driver_id: null, 
-        driver_name: null, 
+
+    await updateMutation.mutateAsync({
+      id: order.id,
+      data: {
+        status: "pendiente",
+        driver_id: null,
+        driver_name: null,
         assigned_base: null,
-        reserved_driver_id: null, 
-        reservation_token: null 
-      } 
+        reserved_driver_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        offerExpiresAt: null,
+        processingAction: null,
+        processingOperationKey: null,
+        processingOwnerId: null,
+        processingLeaseExpiresAt: null,
+        processingPhase: null,
+        pendingEffectType: null,
+        pendingEffectKey: null,
+        pendingEffectStatus: null,
+        pendingEffectCorrelationId: null,
+        effectOwnerId: null,
+        effectLeaseExpiresAt: null
+      }
     });
+    queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
   };
 
   const availableDrivers = drivers.filter(d => isDriverWorking(d) || d.id === order?.driver_id);
@@ -222,7 +240,7 @@ export default function OrderDetail() {
             <Button
               size="sm"
               className="gap-2 bg-green-600 hover:bg-green-700"
-              onClick={() => updateMutation.mutate({ id: order.id, data: { status: "pendiente", driver_id: null, driver_name: null } })}
+              onClick={returnToPending}
             >
               <RefreshCw className="w-4 h-4" /> Reactivar
             </Button>
