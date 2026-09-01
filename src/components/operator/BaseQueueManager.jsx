@@ -130,19 +130,11 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
          throw new Error(`No se encontró un chofer válido con el número/nombre: ${inputTrimmed}`);
       }
 
-      // Finalizar cualquier viaje activo al ponerlo en posición
-      if (["en_viaje", "aceptado", "en_camino"].includes(driver.status)) {
-        try {
-          const activeOrders = await base44.entities.RideOrder.filter({
-            driver_id: driver.id,
-            status: { $in: ["aceptado", "en_camino", "en_viaje"] }
-          });
-          for (const o of activeOrders) {
-            await base44.entities.RideOrder.update(o.id, { status: "completado" });
-          }
-        } catch (e) {
-          console.error("Error completando orden activa", e);
-        }
+      // Nunca completar un viaje por el solo hecho de mover el móvil de base.
+      // Si tiene un viaje activo, bloquear la operación: el viaje debe finalizarse
+      // por su circuito normal antes de volver a posicionar el móvil.
+      if (["en_viaje", "aceptado", "en_camino"].includes(driver.status) || driver.active_order_id || driver.active_ride_id) {
+        throw new Error(`El móvil tiene un viaje activo. Finalizalo antes de ponerlo en ${baseName}.`);
       }
 
       return base44.entities.Driver.update(driver.id, {
@@ -314,19 +306,12 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       return;
     }
 
-    // Finalizar cualquier viaje activo al ponerlo en posición o sacarlo de servicio
-    if (["en_viaje", "aceptado", "en_camino"].includes(driver.status)) {
-      try {
-        const activeOrders = await base44.entities.RideOrder.filter({
-          driver_id: driver.id,
-          status: { $in: ["aceptado", "en_camino", "en_viaje"] }
-        });
-        for (const o of activeOrders) {
-          await base44.entities.RideOrder.update(o.id, { status: "completado" });
-        }
-      } catch (e) {
-        console.error("Error completando orden activa", e);
-      }
+    // Nunca completar automáticamente un viaje por escribir móvil.base o móvil.0.
+    // Si hay un viaje activo, bloquear la orden para no hacer desaparecer el pasaje.
+    if (["en_viaje", "aceptado", "en_camino"].includes(driver.status) || driver.active_order_id || driver.active_ride_id) {
+      alert(`El móvil ${movilNum} tiene un viaje activo. Finalizalo antes de cambiarlo de base o sacarlo de servicio.`);
+      setIsProcessing(false);
+      return;
     }
 
     // Salida de servicio rápida con .00 o .0
