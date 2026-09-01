@@ -805,6 +805,9 @@ export default function DriverApp() {
   const [showSettings, setShowSettings] = useState(false);
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
   const [isAccepting, setIsAccepting] = useState(false);
+  // Guardia sincrónica: React state no alcanza para dos eventos que entran en el mismo tick
+  // (pantalla + notificación/SW). La clave incluye viaje e intento.
+  const acceptInFlightRef = useRef(null);
   const [receiptOrder, setReceiptOrder] = useState(null);
   const [cancelledOrder, setCancelledOrder] = useState(null);
 
