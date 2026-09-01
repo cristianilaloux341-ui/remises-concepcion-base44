@@ -1782,23 +1782,30 @@ export default function DriverApp() {
     
     // Regresamos al chofer a disponible SOLO si todavía está vinculado
     // a la oferta que acaba de rechazar. Un rechazo atrasado no toca otro viaje.
-    setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
     if (realId) {
-      base44.entities.Driver.updateMany(
-        { id: myDriverId, $or: [{ reserved_order_id: realId }, { active_order_id: realId }, { active_ride_id: realId }] },
-        { $set: {
-          status: "disponible",
-          dispatch_status: "normal",
-          queue_entered_at: new Date().toISOString(),
-          active_order_id: null,
-          active_ride_id: null,
-          reserved_order_id: null,
-          reservation_token: null,
-          manual_reservation_token: null,
-          driver_reservation_key: null
-        } }
-      ).catch(()=>{});
+      try {
+        await base44.entities.Driver.updateMany(
+          { id: myDriverId, $or: [{ reserved_order_id: realId }, { active_order_id: realId }, { active_ride_id: realId }] },
+          { $set: {
+            status: "disponible",
+            dispatch_status: "normal",
+            queue_entered_at: new Date().toISOString(),
+            active_order_id: null,
+            active_ride_id: null,
+            reserved_order_id: null,
+            reservation_token: null,
+            manual_reservation_token: null,
+            driver_reservation_key: null
+          } }
+        );
+      } catch (e) {
+        console.error("No se pudo liberar el chofer antes de reasignar", e);
+        alert("No se pudo confirmar el rechazo con el servidor. Revisá la conexión y reintentá.");
+        window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+        return;
+      }
     }
+    setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
 
     // Apagar sonido nativo en Android
     base44.functions.invoke("sendPushNotification", {
