@@ -92,11 +92,28 @@ export function useRealtimeDrivers() {
 
   useEffect(() => {
     mountedRef.current = true;
-    connect();
+
+    const startVisible = () => {
+      if (!mountedRef.current || document.visibilityState !== "visible") return;
+      connect();
+    };
+    const stopHidden = () => {
+      if (document.visibilityState === "hidden") {
+        unsubRef.current?.();
+        unsubRef.current = null;
+      } else {
+        startVisible();
+      }
+    };
+
+    startVisible();
+    document.addEventListener("visibilitychange", stopHidden);
 
     return () => {
       mountedRef.current = false;
+      document.removeEventListener("visibilitychange", stopHidden);
       unsubRef.current?.();
+      unsubRef.current = null;
     };
   }, [connect]);
 
