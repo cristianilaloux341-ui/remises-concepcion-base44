@@ -850,6 +850,14 @@ export default function DriverApp() {
     const autoAcceptOrderId = getRealOrderId(urlParams.get("accept"));
     const autoAcceptAttempt = parseInt(urlParams.get("attempt") || "1", 10);
     if (autoAcceptOrderId && myDriverId) {
+      const acceptKey = `${autoAcceptOrderId}:${autoAcceptAttempt}`;
+      // La apertura por URL/notificación comparte el mismo candado que los botones.
+      // Evita dos acceptRide simultáneos para el mismo viaje/intento.
+      if (acceptInFlightRef.current === acceptKey) {
+        window.history.replaceState({}, "", "/driver-app");
+        return;
+      }
+      acceptInFlightRef.current = acceptKey;
       stopAlert();
       if (Capacitor.isNativePlatform()) { 
         PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
@@ -882,6 +890,8 @@ export default function DriverApp() {
         }
       }).catch(() => {
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+      }).finally(() => {
+        if (acceptInFlightRef.current === acceptKey) acceptInFlightRef.current = null;
       });
       window.history.replaceState({}, "", "/driver-app");
     }
