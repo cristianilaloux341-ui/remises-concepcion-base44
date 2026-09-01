@@ -13,10 +13,7 @@ Deno.serve(async (req) => {
 
     // 1. Buscar viajes automáticos trabados en "ofrecido"
     // Los viajes en estado "ofrecido" son asignaciones automáticas y deben vencer a los 60s, sin importar su origen.
-    const stuckOrders = await b44.entities.RideOrder.filter({ 
-      status: "ofrecido",
-      updated_date: { $lt: thresholdDate.toISOString() }
-    });
+    const offerOrders = await b44.entities.RideOrder.filter({ status: "ofrecido" });
 
     // 1.5 Buscar viajes asignados abandonados por más de 2 horas O cancelados/rechazados que tengan choferes colgados
     const abandonedOrders = await b44.entities.RideOrder.filter({
@@ -80,10 +77,84 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Procesar todos los trabados (los que superaron el tiempo de auto-reasignación o las 2 horas manuales)
-    // + los abandonados que quedaron en aceptado/en_camino/en_viaje por más de 2 horas
+    // --- NUEVO BLOQUE A: Vencimiento estricto de ofertas ---
+    for (const order of offerOrders) {
+      if (!order.assigned_at) continue; // Si no tiene assigned_at, ignorar (legacy o procesado por autoReassignOnTimeout)
+      
+      const elapsedMs = Date.now() - new Date(order.assigned_at).getTime();
+      if (elapsedMs < (tiempoMaximo * 1000)) continue; // Aún no venció desde la última reasignación real
+
+      // Re-lectura estricta para evitar carreras
+      const freshOrder = await b44.entities.RideOrder.get(order.id).catch(() => null);
+      if (!freshOrder) continue;
+      
+      if (
+        freshOrder.status !== "ofrecido" ||
+        freshOrder.assignment_attempt !== order.assignment_attempt ||
+        freshOrder.reserved_driver_id !== order.reserved_driver_id ||
+        freshOrder.driver_id !== order.driver_id ||
+        freshOrder.assigned_at !== order.assigned_at
+      ) {
+        continue;
+      }
+
+      // CAS Fuerte sobre RideOrder
+      const casQuery: any = {
+        id: freshOrder.id,
+        status: "ofrecido",
+        assignment_attempt: freshOrder.assignment_attempt,
+        reserved_driver_id: freshOrder.reserved_driver_id,
+        driver_id: freshOrder.driver_id,
+        assigned_at: freshOrder.assigned_at
+      };
+      if (freshOrder.reservation_token) casQuery.reservation_token = freshOrder.reservation_token;
+
+      try {
+        const updateRes = await b44.entities.RideOrder.updateMany(casQuery, {
+          $set: { 
+             status: 'pendiente', 
+             driver_id: null,
+             reserved_driver_id: null, 
+             reservation_token: null
+          }
+        });
+
+        // SOLO si el CAS actualizó exactamente la oferta vigente se libera al chofer
+        if (updateRes && updateRes.updated > 0) {
+          const driverToFree = freshOrder.reserved_driver_id || freshOrder.driver_id;
+          if (driverToFree) {
+            try {
+              await b44.entities.Driver.updateMany(
+                { id: driverToFree, $or: [
+                  { reserved_order_id: freshOrder.id },
+                  { active_order_id: freshOrder.id },
+                  { active_ride_id: freshOrder.id }
+                ] },
+                { $set: { 
+                    status: "disponible", 
+                    dispatch_status: "normal", 
+                    reserved_order_id: null,
+                    active_ride_id: null,
+                    reservation_token: null,
+                    manual_reservation_token: null,
+                    driver_reservation_key: null
+                } }
+              );
+            } catch(e) {
+              console.error("Error liberando driver", driverToFree, e);
+            }
+          }
+          count++;
+        }
+      } catch(e) {
+        console.error("Error CAS reseteando viaje", freshOrder.id, e);
+      }
+    }
+
+    // --- BLOQUE B (Existente): Abandonos y Cancelados ---
+    // Procesar los abandonados que quedaron en aceptado/en_camino/en_viaje por más de 2 horas
     // + los cancelados/rechazados recientes que pudieran haber dejado al chofer colgado.
-    const allToReset = [...stuckOrders, ...abandonedOrders, ...recentlyCancelledOrders];
+    const allToReset = [...abandonedOrders, ...recentlyCancelledOrders];
     
     for (const order of allToReset) {
       if (order.status === 'completado') continue;
