@@ -130,10 +130,13 @@ public class MyFirebaseMessagingService extends MessagingService {
         rejectIntent.putExtra("orderId", orderId);
         rejectIntent.putExtra("driverId", driverId);
         rejectIntent.putExtra("apiUrl", apiUrl);
+        rejectIntent.putExtra("assignmentAttempt", data.get("assignmentAttempt"));
 
         Intent openAppIntent = new Intent(context, MainActivity.class);
         openAppIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         openAppIntent.putExtra("radiocab_incoming_ride", orderId);
+        openAppIntent.putExtra("orderId", orderId);
+        openAppIntent.putExtra("assignmentAttempt", data.get("assignmentAttempt"));
 
         // Delegar la alerta al controlador centralizado
         RideAlertController.getInstance().startAlert(context, orderId, title, body, acceptIntent, rejectIntent, openAppIntent);
