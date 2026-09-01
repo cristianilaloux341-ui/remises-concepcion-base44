@@ -67,25 +67,8 @@ export function useWakeLock(enabled = true) {
     const onVisible = () => { if (document.visibilityState === "visible") acquire(); };
     document.addEventListener("visibilitychange", onVisible);
 
-    // Mantener audio context activo en background (evita que iOS suspenda el JS)
-    let keepAliveInterval = null;
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      keepAliveInterval = setInterval(() => {
-        if (ctx.state === "suspended") ctx.resume().catch(() => {});
-        // Generar 1ms de silencio para mantener el contexto vivo
-        const buf = ctx.createBuffer(1, 1, 22050);
-        const src = ctx.createBufferSource();
-        src.buffer = buf;
-        src.connect(ctx.destination);
-        src.start();
-        src.stop(ctx.currentTime + 0.001);
-      }, 20000); // cada 20s
-    } catch (_) {}
-
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
-      clearInterval(keepAliveInterval);
       release();
     };
   }, [enabled, acquire, release]);
