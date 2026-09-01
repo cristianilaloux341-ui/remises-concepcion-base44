@@ -65,7 +65,7 @@ function showRideNotification(order) {
     renotify: true,
     requireInteraction: true,
     vibrate: [500, 200, 500, 200, 1000],
-    data: { orderId: order.id, driverId: currentDriverId },
+    data: { orderId: order.id, driverId: currentDriverId, assignmentAttempt: order.assignment_attempt || order.assignmentAttempt || 1 },
     actions: [
       { action: "accept", title: "✅ Aceptar" },
       { action: "reject", title: "❌ Rechazar" },
@@ -79,7 +79,7 @@ function showRideNotification(order) {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const { action, notification } = event;
-  const { orderId, driverId } = notification.data || {};
+  const { orderId, driverId, assignmentAttempt = 1 } = notification.data || {};
 
   if (action === "accept" && orderId) {
     event.waitUntil(
@@ -87,13 +87,13 @@ self.addEventListener("notificationclick", (event) => {
         const appClient = clients.find(c => c.url.includes("/driver-app"));
         if (appClient) {
           // Send message and set a timeout for fallback
-          appClient.postMessage({ type: "SW_ACCEPT_ORDER", orderId });
+          appClient.postMessage({ type: "SW_ACCEPT_ORDER", orderId, assignmentAttempt });
           appClient.focus();
           
           return new Promise((resolve) => {
             const timeoutId = setTimeout(() => {
               // Si no recibimos respuesta (la app estaba congelada), forzamos recarga
-              self.clients.openWindow(`/driver-app?accept=${orderId}`);
+              self.clients.openWindow(`/driver-app?accept=${orderId}&attempt=${assignmentAttempt}`);
               resolve();
             }, 1500);
 
@@ -108,7 +108,7 @@ self.addEventListener("notificationclick", (event) => {
             self.addEventListener("message", ackListener);
           });
         } else {
-          return self.clients.openWindow(`/driver-app?accept=${orderId}`);
+          return self.clients.openWindow(`/driver-app?accept=${orderId}&attempt=${assignmentAttempt}`);
         }
       })
     );
@@ -120,7 +120,7 @@ self.addEventListener("notificationclick", (event) => {
       self.clients.matchAll({ type: "window" }).then(clients => {
         const appClient = clients.find(c => c.url.includes("/driver-app"));
         if (appClient) {
-          appClient.postMessage({ type: "SW_REJECT_ORDER", orderId });
+          appClient.postMessage({ type: "SW_REJECT_ORDER", orderId, assignmentAttempt });
           appClient.focus();
           
           return new Promise((resolve) => {
