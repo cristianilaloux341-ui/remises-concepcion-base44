@@ -28,8 +28,6 @@ export default function DailyStats({ driverId }) {
 
   useEffect(() => {
     fetchStats();
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
   }, [driverId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
