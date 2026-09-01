@@ -10,7 +10,7 @@ import { Capacitor } from '@capacitor/core';
  * @param {Function} onResume — callback que se llama al volver al primer plano
  * @param {number}   pingInterval — ms entre pings al SW (default: 20s)
  */
-export function useBackgroundSync(onResume, pingInterval = 20_000) {
+export function useBackgroundSync(onResume, pingInterval = 120_000) {
   const onResumeRef = useRef(onResume);
   const pingTimerRef = useRef(null);
   const jsHeartbeatRef = useRef(null);
@@ -26,18 +26,9 @@ export function useBackgroundSync(onResume, pingInterval = 20_000) {
   }, []);
 
   useEffect(() => {
-    // JS Execution Heartbeat Log y Reconexión Forzada en Background
-    jsHeartbeatRef.current = setInterval(() => {
-      console.log(`[JS-Heartbeat] Proceso JS corriendo. Timestamp: ${new Date().toISOString()}`);
-      
-      // Si la pantalla está apagada, el WebView de Android pausa los WebSockets.
-      // Como este setInterval nativo sigue vivo, obligamos a reconectar y hacer fetch.
-      if (wasHiddenRef.current) {
-        console.log("[Realtime-Background] WebView oculto/bloqueado. Forzando reconexión para revivir el WebSocket y hacer Polling...");
-        onResumeRef.current?.();
-        pingSW();
-      }
-    }, 15000);
+    // Android nativo se despierta por FCM. No mantenemos el WebView activo
+    // ni hacemos reconexiones periódicas con la pantalla apagada.
+    // Eso evita CPU/red innecesarias y reduce mucho el consumo de batería.
 
     // Escuchar mensajes del SW (reconexión solicitada desde background sync)
     const onSWMessage = (e) => {
@@ -111,8 +102,13 @@ export function useBackgroundSync(onResume, pingInterval = 20_000) {
     };
     window.addEventListener("radiocab_reconnect", onCustomReconnect);
 
-    // Ping periódico para mantener SW + conexión activa
-    pingTimerRef.current = setInterval(pingSW, pingInterval);
+    // En Android nativo FCM se encarga del background. El ping al SW queda
+    // solo para navegador/PWA y únicamente mientras la app está visible.
+    if (!Capacitor.isNativePlatform()) {
+      pingTimerRef.current = setInterval(() => {
+        if (document.visibilityState === "visible") pingSW();
+      }, Math.max(pingInterval, 120_000));
+    }
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
