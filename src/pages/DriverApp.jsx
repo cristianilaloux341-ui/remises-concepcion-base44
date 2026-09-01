@@ -992,11 +992,12 @@ export default function DriverApp() {
 
       if (msg.type === "SW_ACCEPT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "accept")) {
         const orderId = getRealOrderId(msg.orderId || msg.payload?.orderId);
+        const messageAttempt = Number(msg.assignmentAttempt || msg.payload?.assignmentAttempt || 1);
         if (orderId && myDriverId) {
           stopAlert();
           if (Capacitor.isNativePlatform()) { 
              PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
-             Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId, assignmentAttempt: 1, resolutionType: "ACCEPTED" }).catch(()=>{});
+             Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId, assignmentAttempt: messageAttempt, resolutionType: "ACCEPTED" }).catch(()=>{});
              stopNativeRideAlert(orderId, "swAcceptOrder");
           }
           notifySW({ type: "ACK_ACCEPT_ORDER", orderId }); // Send ACK immediately so SW doesn't spawn a new tab
@@ -1004,7 +1005,7 @@ export default function DriverApp() {
           base44.functions.invoke("acceptRide", {
             orderId: orderId,
             driverId: myDriverId,
-            assignmentAttempt: 1,
+            assignmentAttempt: messageAttempt,
             sessionToken: getSessionToken()
           }).then((res) => {
             if (res.data?.accepted) {
@@ -1024,12 +1025,13 @@ export default function DriverApp() {
 
       if (msg.type === "SW_REJECT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "reject")) {
         const orderId = getRealOrderId(msg.orderId || msg.payload?.orderId);
+        const messageAttempt = Number(msg.assignmentAttempt || msg.payload?.assignmentAttempt || 1);
         if (orderId && myDriverId) {
           stopAlert();
           ignoredOrdersRef.current.add(orderId);
           if (Capacitor.isNativePlatform()) { 
             PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
-            Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId, assignmentAttempt: 1, resolutionType: "REJECTED" }).catch(()=>{});
+            Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId, assignmentAttempt: messageAttempt, resolutionType: "REJECTED" }).catch(()=>{});
             stopNativeRideAlert(orderId, "swRejectOrder");
           }
           notifySW({ type: "ACK_REJECT_ORDER", orderId }); // Send ACK
