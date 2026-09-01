@@ -11,7 +11,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,18 +37,27 @@ jobs:
       - name: Build web app
         run: npm run build
 
-      - name: Sync client Android project
+      - name: Prepare and sync client Android project
         run: |
+          rm -rf android-ci
+          mv android android-ci
+          cp -a android-cliente android
           cp capacitor.config.json capacitor.driver.config.json
           cp capacitor.cliente.config.json capacitor.config.json
-          npx cap sync android-cliente
+          npx cap sync android
           mv capacitor.driver.config.json capacitor.config.json
 
       - name: Compile client Android debug APK without Firebase secret
-        working-directory: android-cliente
+        working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug -x processDebugGoogleServices
+
+      - name: Restore synced client folder for artifact
+        run: |
+          rm -rf android-cliente
+          mv android android-cliente
+          mv android-ci android
 
       - name: Package client source
         run: |
