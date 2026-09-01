@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
-import { useBackgroundSync } from "./useBackgroundSync";
 import { withRetry } from "@/lib/retryFetch";
 
 export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) {
@@ -67,19 +66,11 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
     mountedRef.current = true;
     connect();
 
-    // Polling en segundo plano muy relajado para no gastar datos
-    const pollInterval = setInterval(() => {
-      if (document.visibilityState === "visible") fetchAll();
-    }, 300000); // 5 minutos
-
     return () => {
       mountedRef.current = false;
       unsubRef.current?.();
-      clearInterval(pollInterval);
     };
-  }, [connect, fetchAll]);
-
-  useBackgroundSync(connect);
+  }, [connect]);
 
   return { orders, isLoading };
 }
