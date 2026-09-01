@@ -997,7 +997,14 @@ export default function DriverApp() {
       if (msg.type === "SW_ACCEPT_ORDER" || (msg.type === "NOTIFICATION_ACTION" && msg.action === "accept")) {
         const orderId = getRealOrderId(msg.orderId || msg.payload?.orderId);
         const messageAttempt = Number(msg.assignmentAttempt || msg.payload?.assignmentAttempt || 1);
+        const acceptKey = `${orderId || ''}:${messageAttempt}`;
         if (orderId && myDriverId) {
+          // Pantalla y notificación pueden entrar casi juntas: solo una ejecuta acceptRide.
+          if (acceptInFlightRef.current === acceptKey) {
+            notifySW({ type: "ACK_ACCEPT_ORDER", orderId });
+            return;
+          }
+          acceptInFlightRef.current = acceptKey;
           stopAlert();
           if (Capacitor.isNativePlatform()) { 
              PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
@@ -1023,6 +1030,8 @@ export default function DriverApp() {
           }).catch(() => {
             alert("Error de conexión al intentar aceptar el viaje desde la notificación.");
             window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+          }).finally(() => {
+            if (acceptInFlightRef.current === acceptKey) acceptInFlightRef.current = null;
           });
         }
       }
