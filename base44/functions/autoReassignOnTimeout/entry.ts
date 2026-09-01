@@ -162,7 +162,14 @@ Deno.serve(async (req) => {
             driver_name: nextDriver ? nextDriver.name : null,
             reserved_driver_id: nextDriver ? nextDriver.id : null,
             reservation_token: null,
+            manual_reservation_token: null,
             assigned_base: nextDriver ? nextDriver.current_base : null,
+            offerExpiresAt: null,
+            processingAction: null,
+            processingOperationKey: null,
+            processingOwnerId: null,
+            processingLeaseExpiresAt: null,
+            processingPhase: null,
             assignment_attempt: newAttempt,
             assigned_at: nextDriver ? new Date().toISOString() : null
           },
@@ -187,7 +194,11 @@ Deno.serve(async (req) => {
                status: 'disponible',
                dispatch_status: 'normal',
                reserved_order_id: null,
+               active_order_id: null,
+               active_ride_id: null,
                reservation_token: null,
+               manual_reservation_token: null,
+               driver_reservation_key: null,
                queue_entered_at: new Date().toISOString()
              } }
            ); 
