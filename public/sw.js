@@ -125,7 +125,7 @@ self.addEventListener("notificationclick", (event) => {
           
           return new Promise((resolve) => {
             const timeoutId = setTimeout(() => {
-              self.clients.openWindow(`/driver-app?reject=${orderId}`);
+              self.clients.openWindow(`/driver-app?reject=${orderId}&attempt=${assignmentAttempt}`);
               resolve();
             }, 1500);
 
@@ -139,7 +139,7 @@ self.addEventListener("notificationclick", (event) => {
             self.addEventListener("message", ackListener);
           });
         } else {
-          return self.clients.openWindow(`/driver-app?reject=${orderId}`);
+          return self.clients.openWindow(`/driver-app?reject=${orderId}&attempt=${assignmentAttempt}`);
         }
       })
     );
@@ -172,7 +172,7 @@ self.addEventListener("push", (event) => {
         renotify: true,
         requireInteraction: true,
         vibrate: [500, 200, 500, 200, 1000],
-        data: { orderId: data.orderId, driverId: data.driverId },
+        data: { orderId: data.orderId, driverId: data.driverId, assignmentAttempt: data.assignmentAttempt || data.assignment_attempt || 1 },
         actions: data.actions || [
           { action: "accept", title: "✅ Aceptar" },
           { action: "reject", title: "❌ Rechazar" },
