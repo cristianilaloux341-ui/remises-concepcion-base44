@@ -146,6 +146,10 @@ Deno.serve(async (req) => {
 
       const newAttempt = (order.assignment_attempt || 0) + 1;
       const targetStatus = nextDriver ? 'ofrecido' : 'pendiente';
+      // Cada reasignación es una oferta nueva: token propio + ventana completa.
+      const nextReservationToken = nextDriver ? crypto.randomUUID() : null;
+      const nextAssignedAt = nextDriver ? new Date().toISOString() : null;
+      const nextOfferExpiresAt = nextDriver ? Date.now() + (timeoutSeconds * 1000) : null;
 
       // 1. Escritura Atómica Transaccional
       const result = await base44.asServiceRole.entities.RideOrder.updateMany(
@@ -161,17 +165,17 @@ Deno.serve(async (req) => {
             driver_id: nextDriver ? nextDriver.id : null,
             driver_name: nextDriver ? nextDriver.name : null,
             reserved_driver_id: nextDriver ? nextDriver.id : null,
-            reservation_token: null,
+            reservation_token: nextReservationToken,
             manual_reservation_token: null,
             assigned_base: nextDriver ? nextDriver.current_base : null,
-            offerExpiresAt: null,
+            offerExpiresAt: nextOfferExpiresAt,
             processingAction: null,
             processingOperationKey: null,
             processingOwnerId: null,
             processingLeaseExpiresAt: null,
             processingPhase: null,
             assignment_attempt: newAttempt,
-            assigned_at: nextDriver ? new Date().toISOString() : null
+            assigned_at: nextAssignedAt
           },
           $addToSet: { offered_driver_ids: currentDriver?.id }
         }
@@ -218,7 +222,33 @@ Deno.serve(async (req) => {
       }
       
       if (nextDriver) {
-         // El status se mantiene en 'disponible' para que acceptRideV2 no rechace la aceptación por DRIVER_ALREADY_BUSY
+         // Espejar la reserva del RideOrder en el Driver, igual que assignRide.
+         // Si el móvil dejó de estar libre entre la selección y este punto, no lo pisamos.
+         const reserveNext = await base44.asServiceRole.entities.Driver.updateMany(
+           {
+             id: nextDriver.id,
+             status: 'disponible',
+             dispatch_status: 'normal',
+             reserved_order_id: null,
+             active_order_id: null,
+             active_ride_id: null
+           },
+           { $set: {
+             dispatch_status: 'automatic_pending',
+             reserved_order_id: order.id,
+             reservation_token: nextReservationToken
+           } }
+         );
+
+         if ((reserveNext.matchedCount ?? reserveNext.modifiedCount ?? reserveNext.updated ?? 0) !== 1) {
+           // El candidato cambió de estado mientras reasignábamos. No enviarle una oferta
+           // que el servidor no pudo reservar; devolver la orden a pendiente de forma segura.
+           await base44.asServiceRole.entities.RideOrder.updateMany(
+             { id: order.id, status: 'ofrecido', reserved_driver_id: nextDriver.id, assignment_attempt: newAttempt, reservation_token: nextReservationToken },
+             { $set: { status: 'pendiente', driver_id: null, driver_name: null, reserved_driver_id: null, reservation_token: null, assigned_base: null, assigned_at: null, offerExpiresAt: null } }
+           );
+           return Response.json({ ok: true, reassigned_to: null, reason: 'next_driver_state_changed' });
+         }
          
          // Enviar notificación Push al siguiente chofer
          try {
