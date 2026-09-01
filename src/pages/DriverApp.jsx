@@ -936,24 +936,6 @@ export default function DriverApp() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep-alive: envía un ping al SW cada 15s para mantenerlo activo
-  // y recibe PONG para confirmar que el SW sigue vivo. También actualiza presencia online si está en servicio.
-  useEffect(() => {
-    if (!myDriverId) return;
-    const updatePresence = () => {
-      // SOLO si no está fuera de servicio
-      if (myDriverRef.current && myDriverRef.current.status !== "no_disponible") {
-        base44.entities.Driver.update(myDriverId, { last_active: new Date().toISOString() }).catch(() => {});
-      }
-    };
-    updatePresence(); // Primera vez
-    const interval = setInterval(() => {
-      notifySW({ type: "SW_PING" });
-      updatePresence();
-    }, 15000); // 15 segundos
-    return () => clearInterval(interval);
-  }, [myDriverId]);
-
   // BroadcastChannel: el SW nos despierta cuando detecta que la app está dormida
   useEffect(() => {
     if (!("BroadcastChannel" in window)) return;
