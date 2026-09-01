@@ -1899,25 +1899,30 @@ export default function DriverApp() {
   const handleStatusChange = (newStatus) => {
     updateOrder.mutate({ id: activeOrder.id, data: { status: newStatus } });
   };
-  const handleEnterBase = (base = selectedBase) => {
+  const handleEnterBase = async (base = selectedBase) => {
     if (!base) return;
     const ts = new Date().toISOString();
-    setSelectedBase(base);
-    setLocalOverride({ current_base: base, status: "disponible", queue_entered_at: ts });
-    updateDriver.mutate({
-      id: myDriverId,
-      data: { 
-        current_base: base, 
-        status: "disponible", 
-        dispatch_status: "normal",
-        queue_entered_at: ts,
-        active_ride_id: null,
-        reserved_order_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null
-      },
-    });
+    try {
+      await updateDriver.mutateAsync({
+        id: myDriverId,
+        data: {
+          current_base: base,
+          status: "disponible",
+          dispatch_status: "normal",
+          queue_entered_at: ts,
+          active_ride_id: null,
+          reserved_order_id: null,
+          reservation_token: null,
+          manual_reservation_token: null,
+          driver_reservation_key: null
+        },
+      });
+      setSelectedBase(base);
+      setLocalOverride({ current_base: base, status: "disponible", queue_entered_at: ts });
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+    } catch (error) {
+      window.alert("No se pudo entrar en posición. Revisá Internet e intentá nuevamente.");
+    }
   };
   const handleChangeBase = (newBase) => {
     const ts = new Date().toISOString();
@@ -1971,22 +1976,27 @@ export default function DriverApp() {
     }
   };
 
-  const handleGoOffService = () => {
+  const handleGoOffService = async () => {
     if (libreBlockedSegs > 0) return; // bloqueado
-    setLocalOverride({ status: "no_disponible", current_base: null });
-    updateDriver.mutate({ 
-      id: myDriverId, 
-      data: { 
-        status: "no_disponible", 
-        dispatch_status: "normal",
-        current_base: null,
-        active_ride_id: null,
-        reserved_order_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null
-      } 
-    });
+    try {
+      await updateDriver.mutateAsync({
+        id: myDriverId,
+        data: {
+          status: "no_disponible",
+          dispatch_status: "normal",
+          current_base: null,
+          active_ride_id: null,
+          reserved_order_id: null,
+          reservation_token: null,
+          manual_reservation_token: null,
+          driver_reservation_key: null
+        }
+      });
+      setLocalOverride({ status: "no_disponible", current_base: null });
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+    } catch (error) {
+      window.alert("No se pudo salir de servicio. Revisá Internet e intentá nuevamente.");
+    }
   };
 
   // Anular viaje aceptado: vuelve al principio de la base asignada y el viaje pasa al siguiente
@@ -2015,8 +2025,7 @@ export default function DriverApp() {
     }).catch(() => {});
 
     const ts = new Date(0).toISOString(); // timestamp en el pasado → queda primero en la cola
-    setLocalOverride({ status: "disponible", current_base: base, queue_entered_at: ts });
-    updateDriver.mutate({
+    await updateDriver.mutateAsync({
       id: myDriverId,
       data: {
         status: "disponible",
@@ -2030,29 +2039,37 @@ export default function DriverApp() {
         driver_reservation_key: null
       }
     });
+    setLocalOverride({ status: "disponible", current_base: base, queue_entered_at: ts });
     setLibreBlockedSegs(0); // al anular no aplica bloqueo
 
-    // Disparamos la reasignación automática para que no quede trabado
+    // Releer choferes DESPUÉS de confirmar la limpieza: evita reasignar con estado viejo.
+    const freshDrivers = await base44.entities.Driver.list();
     const currentOrder = { ...activeOrder, status: "pendiente", driver_id: null, offered_driver_ids: updatedOfferedIds };
-    await reassignAfterReject(currentOrder, drivers, []);
+    await reassignAfterReject(currentOrder, freshDrivers, []);
   };
 
-  const handleGoOnService = () => {
-    setLocalOverride({ status: "disponible", current_base: null });
-    updateDriver.mutate({ 
-      id: myDriverId, 
-      data: { 
-        status: "disponible", 
-        dispatch_status: "normal",
-        current_base: null, 
-        queue_entered_at: null,
-        active_ride_id: null,
-        reserved_order_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null
-      } 
-    });
+  const handleGoOnService = async () => {
+    try {
+      await updateDriver.mutateAsync({
+        id: myDriverId,
+        data: {
+          status: "disponible",
+          dispatch_status: "normal",
+          current_base: null,
+          queue_entered_at: null,
+          active_ride_id: null,
+          reserved_order_id: null,
+          reservation_token: null,
+          manual_reservation_token: null,
+          driver_reservation_key: null,
+          last_active: new Date().toISOString()
+        }
+      });
+      setLocalOverride({ status: "disponible", current_base: null });
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+    } catch (error) {
+      window.alert("No se pudo entrar en servicio. Revisá Internet e intentá nuevamente.");
+    }
   };
 
   const handleBroadcastAccept = async (order) => {
