@@ -146,10 +146,15 @@ Deno.serve(async (req) => {
 
       const newAttempt = (order.assignment_attempt || 0) + 1;
       const targetStatus = nextDriver ? 'ofrecido' : 'pendiente';
-      // Cada reasignación es una oferta nueva: token propio + ventana completa.
+      // Cada reasignación es una oferta NUEVA. Nunca usar timeoutSeconds acá:
+      // en este punto representa sólo el último tramo de la espera encadenada
+      // (por ejemplo 5/10/20 s), no la ventana completa configurada.
+      const tarifaConfigs = await base44.asServiceRole.entities.TarifaConfig.list();
+      const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
+      const originalTimeoutSeconds = tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos ?? 60;
       const nextReservationToken = nextDriver ? crypto.randomUUID() : null;
       const nextAssignedAt = nextDriver ? new Date().toISOString() : null;
-      const nextOfferExpiresAt = nextDriver ? Date.now() + (timeoutSeconds * 1000) : null;
+      const nextOfferExpiresAt = nextDriver ? Date.now() + (originalTimeoutSeconds * 1000) : null;
 
       // 1. Escritura Atómica Transaccional
       const result = await base44.asServiceRole.entities.RideOrder.updateMany(
@@ -268,10 +273,6 @@ Deno.serve(async (req) => {
          } catch(pushErr) {
            console.error("Error al enviar push en autoReassignOnTimeout:", pushErr);
          }
-         
-         const tarifaConfigs = await base44.asServiceRole.entities.TarifaConfig.list();
-         const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
-         const originalTimeoutSeconds = tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos ?? 60;
          
          if (autoReassignActive) {
             base44.functions.invoke("autoReassignOnTimeout", {
