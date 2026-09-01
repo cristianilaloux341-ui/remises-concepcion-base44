@@ -17,7 +17,6 @@ import java.util.Map;
 
 public class MyFirebaseMessagingService extends MessagingService {
     private static final String TAG = "ClientPush";
-    // v2 evita que Android conserve la configuracion anterior del canal.
     private static final String CHANNEL_ID = "client_arrival_v2";
 
     @Override public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
@@ -42,14 +41,11 @@ public class MyFirebaseMessagingService extends MessagingService {
         if (title == null || title.isEmpty()) title = "Tu móvil está afuera";
         if (body == null || body.isEmpty()) {
             body = noticeNumber >= 2
-                    ? "Segundo aviso: tu móvil te está esperando. Tocá para abrir el viaje."
+                    ? "Segundo aviso: tu móvil te está esperando. Tocá YA VOY para avisarle al chofer."
                     : "Tu móvil llegó. Tocá YA VOY para avisarle al chofer.";
         }
 
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-
-        // Mientras horn.mp3 no este incorporado, conserva un fallback compilable.
-        // Al agregar android-cliente/app/src/main/res/raw/horn.mp3, este lookup lo usa automaticamente.
         int hornResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
         Uri sound = hornResId != 0
                 ? Uri.parse("android.resource://" + context.getPackageName() + "/" + hornResId)
@@ -67,12 +63,19 @@ public class MyFirebaseMessagingService extends MessagingService {
             manager.createNotificationChannel(channel);
         }
 
-        // El boton YA VOY abre el viaje. La sesion queda solo dentro de la app y no viaja por FCM.
         Intent openIntent = new Intent(context, MainActivity.class);
         openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         openIntent.putExtra("orderId", orderId);
         int requestCode = ((orderId != null ? orderId.hashCode() : 7001) * 31) + noticeNumber;
         PendingIntent openPending = PendingIntent.getActivity(context, requestCode, openIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        // YA VOY no recibe ni transporta credenciales. Solo marca la intención del usuario;
+        // MainActivity entrega el orderId al WebView y la app confirma con su sesión local autenticada.
+        Intent yaVoyIntent = new Intent(context, MainActivity.class);
+        yaVoyIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        yaVoyIntent.putExtra("orderId", orderId);
+        yaVoyIntent.putExtra("clientAction", "YA_VOY");
+        PendingIntent yaVoyPending = PendingIntent.getActivity(context, requestCode + 100000, yaVoyIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(context.getApplicationInfo().icon)
@@ -86,9 +89,8 @@ public class MyFirebaseMessagingService extends MessagingService {
                 .setAutoCancel(true)
                 .setOnlyAlertOnce(false)
                 .setContentIntent(openPending)
-                .addAction(0, "YA VOY", openPending);
+                .addAction(0, "YA VOY", yaVoyPending);
 
-        // Aviso 1 y aviso 2 usan IDs diferentes: ambos pueden sonar una vez sin entrar en loop.
         int notificationId = ((orderId != null ? orderId.hashCode() : 7001) * 31) + noticeNumber;
         manager.notify(notificationId, builder.build());
         Log.i(TAG, "Aviso de llegada " + noticeNumber + " mostrado para " + orderId + (hornResId != 0 ? " con horn.mp3" : " con sonido fallback"));
