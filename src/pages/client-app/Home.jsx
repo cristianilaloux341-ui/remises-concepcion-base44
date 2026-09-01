@@ -16,34 +16,41 @@ export default function Home() {
   const clientId = localStorage.getItem('client_id');
   const [favHome, setFavHome] = useState(localStorage.getItem('fav_home') || '');
   const [favWork, setFavWork] = useState(localStorage.getItem('fav_work') || '');
+  const [recoveringRide, setRecoveringRide] = useState(Boolean(localStorage.getItem('client_active_order_id')));
 
   useEffect(() => {
     let cancelled = false;
     const resumeActiveRide = async () => {
       const activeOrderId = localStorage.getItem('client_active_order_id');
-      if (!activeOrderId) return;
+      if (!activeOrderId) { if (!cancelled) setRecoveringRide(false); return; }
       try {
         const order = await base44.entities.RideOrder.get(activeOrderId);
         if (cancelled) return;
         if (!order || (clientId && String(order.client_id || '') !== String(clientId))) {
           localStorage.removeItem('client_active_order_id');
+          setRecoveringRide(false);
           return;
         }
         if (order.status === 'procesando_despacho' || order.status === 'pendiente' || order.status === 'ofrecido') {
-          navigate('/app-cliente/searching', { state: { orderId: activeOrderId }, replace: true });
-          return;
+          navigate('/app-cliente/searching', { state: { orderId: activeOrderId }, replace: true }); return;
         }
         if (order.status === 'aceptado' || order.status === 'en_camino') {
-          navigate('/app-cliente/assigned', { state: { orderId: activeOrderId }, replace: true });
-          return;
+          navigate('/app-cliente/assigned', { state: { orderId: activeOrderId }, replace: true }); return;
         }
         if (order.status === 'en_viaje') {
-          navigate('/app-cliente/active-ride', { state: { orderId: activeOrderId }, replace: true });
-          return;
+          navigate('/app-cliente/active-ride', { state: { orderId: activeOrderId }, replace: true }); return;
+        }
+        if (order.status === 'completado') {
+          localStorage.removeItem('client_active_order_id');
+          navigate('/app-cliente/rating', { state: { orderId: activeOrderId }, replace: true }); return;
         }
         localStorage.removeItem('client_active_order_id');
+        setRecoveringRide(false);
       } catch (error) {
         console.error('No se pudo recuperar el viaje activo', error);
+        // Si la lectura falla por red, no borramos el ID: podría ser un viaje real activo.
+        // Tampoco permitimos crear otro hasta poder verificarlo.
+        if (!cancelled) setRecoveringRide(true);
       }
     };
     resumeActiveRide();
@@ -51,10 +58,7 @@ export default function Home() {
   }, [clientId, navigate]);
 
   useEffect(() => {
-    const handleFavUpdate = () => {
-      setFavHome(localStorage.getItem('fav_home') || '');
-      setFavWork(localStorage.getItem('fav_work') || '');
-    };
+    const handleFavUpdate = () => { setFavHome(localStorage.getItem('fav_home') || ''); setFavWork(localStorage.getItem('fav_work') || ''); };
     window.addEventListener('fav_addresses_updated', handleFavUpdate);
     return () => window.removeEventListener('fav_addresses_updated', handleFavUpdate);
   }, []);
@@ -62,11 +66,8 @@ export default function Home() {
   useEffect(() => {
     if (clientId) {
       base44.entities.Client.get(clientId).then(client => {
-        if (client.name === client.phone || !client.name) {
-          setShowSetup(true);
-        } else {
-          localStorage.setItem('client_name', client.name);
-        }
+        if (client.name === client.phone || !client.name) setShowSetup(true);
+        else localStorage.setItem('client_name', client.name);
       }).catch(console.error);
     }
   }, [clientId]);
@@ -77,13 +78,14 @@ export default function Home() {
     setSaving(true);
     try {
       await base44.entities.Client.update(clientId, { name: name.trim() });
-      localStorage.setItem('client_name', name.trim());
-      setShowSetup(false);
-      toast.success('¡Perfil completado!');
-    } catch (error) {
-      console.error(error);
-      toast.error('Ocurrió un error al guardar');
-    } finally { setSaving(false); }
+      localStorage.setItem('client_name', name.trim()); setShowSetup(false); toast.success('¡Perfil completado!');
+    } catch (error) { console.error(error); toast.error('Ocurrió un error al guardar'); }
+    finally { setSaving(false); }
+  };
+
+  const requestRide = () => {
+    if (recoveringRide) { toast.info('Estamos verificando tu viaje anterior. Esperá un momento.'); return; }
+    navigate('/app-cliente/request');
   };
 
   return (
@@ -104,10 +106,10 @@ export default function Home() {
       </div>
       <div className="absolute bottom-0 inset-x-0 bg-white rounded-t-[2.5rem] shadow-[0_-20px_40px_rgba(0,0,0,0.08)] p-6 z-10 flex flex-col gap-6 animate-in slide-in-from-bottom-full duration-500">
         <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto -mt-2"></div><h2 className="text-2xl font-bold text-slate-900 mt-2">¿A dónde vamos?</h2>
-        <button onClick={() => navigate('/app-cliente/request')} className="w-full bg-slate-50 p-5 rounded-2xl flex items-center gap-4 text-left active:bg-slate-100 transition-colors border border-slate-100 shadow-sm"><Search className="w-6 h-6 text-slate-500" /><span className="text-lg text-slate-500 font-medium">Buscar destino...</span></button>
+        <button onClick={requestRide} disabled={recoveringRide} className="w-full bg-slate-50 p-5 rounded-2xl flex items-center gap-4 text-left active:bg-slate-100 transition-colors border border-slate-100 shadow-sm disabled:opacity-60"><Search className="w-6 h-6 text-slate-500" /><span className="text-lg text-slate-500 font-medium">{recoveringRide ? 'Verificando viaje anterior...' : 'Buscar destino...'}</span></button>
         <div className="flex gap-4 overflow-x-auto pb-4 pt-2 hide-scrollbar -mx-6 px-6">
-          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform cursor-pointer" onClick={() => { if (favHome) navigate('/app-cliente/fare', { state: { pickup: 'Mi ubicación', dropoff: favHome } }); else { toast.info('Configurá tu dirección de Casa en Perfil'); navigate('/app-cliente/profile'); } }}><div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center shrink-0"><Star className="w-6 h-6 text-blue-600" /></div><div className="min-w-0"><p className="font-bold text-slate-800">Casa</p><p className="text-sm text-slate-500 truncate">{favHome || 'Tocar para agregar'}</p></div></div>
-          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform cursor-pointer" onClick={() => { if (favWork) navigate('/app-cliente/fare', { state: { pickup: 'Mi ubicación', dropoff: favWork } }); else { toast.info('Configurá tu dirección de Trabajo en Perfil'); navigate('/app-cliente/profile'); } }}><div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center shrink-0"><Clock className="w-6 h-6 text-slate-600" /></div><div className="min-w-0"><p className="font-bold text-slate-800">Trabajo</p><p className="text-sm text-slate-500 truncate">{favWork || 'Tocar para agregar'}</p></div></div>
+          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform cursor-pointer" onClick={() => { if (recoveringRide) return; if (favHome) navigate('/app-cliente/fare', { state: { pickup: 'Mi ubicación', dropoff: favHome } }); else { toast.info('Configurá tu dirección de Casa en Perfil'); navigate('/app-cliente/profile'); } }}><div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center shrink-0"><Star className="w-6 h-6 text-blue-600" /></div><div className="min-w-0"><p className="font-bold text-slate-800">Casa</p><p className="text-sm text-slate-500 truncate">{favHome || 'Tocar para agregar'}</p></div></div>
+          <div className="shrink-0 bg-white border border-slate-100 shadow-sm p-4 rounded-3xl flex items-center gap-4 w-56 active:scale-95 transition-transform cursor-pointer" onClick={() => { if (recoveringRide) return; if (favWork) navigate('/app-cliente/fare', { state: { pickup: 'Mi ubicación', dropoff: favWork } }); else { toast.info('Configurá tu dirección de Trabajo en Perfil'); navigate('/app-cliente/profile'); } }}><div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center shrink-0"><Clock className="w-6 h-6 text-slate-600" /></div><div className="min-w-0"><p className="font-bold text-slate-800">Trabajo</p><p className="text-sm text-slate-500 truncate">{favWork || 'Tocar para agregar'}</p></div></div>
         </div>
       </div>
     </div>
