@@ -100,7 +100,29 @@ export default function DriverAssigned() {
   const handleCancel = async () => {
     if (!orderId) return;
     try {
-      await base44.entities.RideOrder.update(orderId, { status: 'cancelado' });
+      const currentOrder = await base44.entities.RideOrder.get(orderId);
+      const linkedDrivers = [...new Set([currentOrder?.driver_id, currentOrder?.reserved_driver_id].filter(Boolean))];
+      await base44.entities.RideOrder.update(orderId, {
+        status: 'cancelado',
+        offerExpiresAt: null,
+        processingAction: null,
+        processingOperationKey: null,
+        processingOwnerId: null,
+        processingLeaseExpiresAt: null,
+        processingPhase: null
+      });
+      if (linkedDrivers.length > 0) {
+        await base44.entities.Driver.updateMany(
+          { id: { $in: linkedDrivers }, $or: [{ active_order_id: orderId }, { active_ride_id: orderId }, { reserved_order_id: orderId }] },
+          { $set: {
+            status: 'disponible', dispatch_status: 'normal', active_order_id: null, active_ride_id: null,
+            reserved_order_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null
+          } }
+        );
+        base44.functions.invoke('sendPushNotification', {
+          action: 'cancel_multiple', orderId, driversToCancel: linkedDrivers
+        }).catch(console.error);
+      }
       toast.info('Viaje cancelado correctamente');
       navigate('/app-cliente/home', { replace: true });
     } catch (error) {
