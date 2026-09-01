@@ -883,12 +883,13 @@ export default function DriverApp() {
       window.history.replaceState({}, "", "/driver-app");
     }
     const autoRejectOrderId = getRealOrderId(urlParams.get("reject"));
+    const autoRejectAttempt = parseInt(urlParams.get("attempt") || "1", 10);
     if (autoRejectOrderId && myDriverId) {
       stopAlert();
       ignoredOrdersRef.current.add(autoRejectOrderId);
       if (Capacitor.isNativePlatform()) { 
         PushNotifications.removeAllDeliveredNotifications().catch(()=>{}); 
-        Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId: autoRejectOrderId, assignmentAttempt: 1, resolutionType: "REJECTED" }).catch(()=>{});
+        Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId: autoRejectOrderId, assignmentAttempt: autoRejectAttempt, resolutionType: "REJECTED" }).catch(()=>{});
         stopNativeRideAlert(autoRejectOrderId, "autoRejectFromURL");
       }
       // El rechazo puede llegar tarde desde una notificación vieja.
