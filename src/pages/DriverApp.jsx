@@ -2037,6 +2037,7 @@ export default function DriverApp() {
           status: "no_disponible",
           dispatch_status: "normal",
           current_base: null,
+          active_order_id: null,
           active_ride_id: null,
           reserved_order_id: null,
           reservation_token: null,
@@ -2076,7 +2077,9 @@ export default function DriverApp() {
       details: `Anuló el viaje de ${activeOrder.client_name} - Reasignando al siguiente`
     }).catch(() => {});
 
-    const ts = new Date(0).toISOString(); // timestamp en el pasado → queda primero en la cola
+    // Si el chofer anula un viaje que ya tenía, vuelve disponible pero al FINAL
+    // de su cola/base. Posición 1 queda reservada para cancelación del cliente/operador.
+    const ts = new Date().toISOString();
     await updateDriver.mutateAsync({
       id: myDriverId,
       data: {
@@ -2084,6 +2087,7 @@ export default function DriverApp() {
         dispatch_status: "normal",
         current_base: base,
         queue_entered_at: ts,
+        active_order_id: null,
         active_ride_id: null,
         reserved_order_id: null,
         reservation_token: null,
@@ -2109,6 +2113,7 @@ export default function DriverApp() {
           dispatch_status: "normal",
           current_base: null,
           queue_entered_at: null,
+          active_order_id: null,
           active_ride_id: null,
           reserved_order_id: null,
           reservation_token: null,
