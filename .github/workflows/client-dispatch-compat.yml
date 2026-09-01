@@ -23,7 +23,7 @@ jobs:
           cache: npm
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -38,7 +38,11 @@ jobs:
         run: npm run build
 
       - name: Sync client Android project
-        run: npx cap sync android-cliente --config capacitor.cliente.config.json
+        run: |
+          cp capacitor.config.json capacitor.driver.config.json
+          cp capacitor.cliente.config.json capacitor.config.json
+          npx cap sync android-cliente
+          mv capacitor.driver.config.json capacitor.config.json
 
       - name: Compile client Android debug APK without Firebase secret
         working-directory: android-cliente
