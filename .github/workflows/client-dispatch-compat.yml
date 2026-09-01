@@ -1,0 +1,32 @@
+name: Client Dispatch Compatibility
+
+on:
+  push:
+    branches:
+      - clientes-despacho-compatible-v2
+  pull_request:
+    branches:
+      - cliente-aviso-seguro
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Client dispatch selection tests
+        run: node --test tests/client-dispatch-selection.test.mjs
+
+      - name: Build web app
+        run: npm run build
