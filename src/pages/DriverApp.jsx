@@ -1045,11 +1045,6 @@ export default function DriverApp() {
         }
       }
 
-      // SW ping — respondemos para mantener el canal vivo
-      if (msg.type === "SW_PING" || msg.type === "SW_ALIVE") {
-        notifySW({ type: "KEEP_ALIVE" });
-      }
-
       // SW nos pide reconectar (app estaba dormida)
       if (msg.type === "RECONNECT") {
         // Reconectar forzando una recarga del estado
@@ -1103,7 +1098,7 @@ export default function DriverApp() {
   // Se aumenta el límite y se ordena por updated_date para evitar que el viaje activo desaparezca (causa de que el taxímetro se corte)
   const { orders } = useRealtimeOrders({ limit: 150, sort: "-updated_date" });
 
-  // Sincronización agresiva de la UI cuando el teléfono se desbloquea / la app vuelve a primer plano
+  // Sincronizar la UI sólo cuando vuelve al primer plano o recupera internet
   useEffect(() => {
     const handleSync = () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
