@@ -75,10 +75,20 @@ Deno.serve(async (req) => {
       const allMoviles = await base44.asServiceRole.entities.Movil.list();
       const isDriverWorking = (d) => {
         if (d.status !== 'disponible') return false;
+
+        // Un status "disponible" puede quedar viejo si el teléfono dejó de trabajar
+        // sin alcanzar a marcar fuera de servicio. El despacho automático sólo puede
+        // ofertar a un chofer cuya app haya reportado presencia recientemente.
+        const lastActiveMs = d.last_active ? new Date(d.last_active).getTime() : 0;
+        const PRESENCE_MAX_AGE_MS = 5 * 60 * 1000;
+        if (!lastActiveMs || Number.isNaN(lastActiveMs) || (Date.now() - lastActiveMs) > PRESENCE_MAX_AGE_MS) {
+          return false;
+        }
+
         const mobileId = String(d.vehicle_model || '');
         const mobileNumber = parseInt(mobileId, 10);
         const movil = allMoviles.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
-        if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
+        if (!movil || movil.activo === false || movil.fuera_de_servicio === true) {
           return false;
         }
         return true;
