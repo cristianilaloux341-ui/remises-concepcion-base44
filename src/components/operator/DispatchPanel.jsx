@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -173,6 +173,26 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   );
 }
 
+function OfferCountdown({ order }) {
+  const [seconds, setSeconds] = useState(null);
+
+  useEffect(() => {
+    if (order.status !== "ofrecido" || order.offerExpiresAt == null) {
+      setSeconds(null);
+      return;
+    }
+    const update = () => setSeconds(Math.max(0, Math.ceil((Number(order.offerExpiresAt) - Date.now()) / 1000)));
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [order.status, order.offerExpiresAt, order.assignment_attempt]);
+
+  if (seconds == null) return null;
+  const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+  const ss = String(seconds % 60).padStart(2, "0");
+  return <span className={`font-mono text-xs font-bold ${seconds <= 10 ? "text-red-600" : "text-amber-700"}`}>⏱ {mm}:${ss}</span>;
+}
+
 export default function DispatchPanel({ orders, drivers, bases, moviles, onOrderClick }) {
   const [dispatchingAll, setDispatchingAll] = useState(false);
 
@@ -256,6 +276,7 @@ export default function DispatchPanel({ orders, drivers, bases, moviles, onOrder
                 </div>
                 <div className="flex items-center gap-2">
                   <OrderStatusBadge status={order.status} />
+                  <OfferCountdown order={order} />
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 </div>
               </div>
