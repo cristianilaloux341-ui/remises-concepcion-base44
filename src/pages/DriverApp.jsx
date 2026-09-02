@@ -856,7 +856,7 @@ export default function DriverApp() {
 
       tryAutoAccept().then(res => {
         if (res.data?.accepted) {
-          setLocalOverride({ status: "aceptado", optimisticOrderId: autoAcceptOrderId });
+          setLocalOverride({ status: "en_viaje", optimisticOrderId: autoAcceptOrderId });
           // acceptRide es la única autoridad que confirma el viaje y ocupa al chofer.
           base44.functions.invoke("sendPushNotification", { action: "cancel_ride", orderId: autoAcceptOrderId, driverId: myDriverId }).catch(()=>{});
         } else {
@@ -998,7 +998,7 @@ export default function DriverApp() {
             sessionToken: getSessionToken()
           }).then((res) => {
             if (res.data?.accepted) {
-              setLocalOverride({ status: "aceptado", optimisticOrderId: orderId });
+              setLocalOverride({ status: "en_viaje", optimisticOrderId: orderId });
               base44.functions.invoke("sendPushNotification", { action: "cancel_ride", orderId, driverId: myDriverId }).catch(()=>{});
             } else {
               alert("El viaje ya expiró o fue tomado por otro móvil.");
@@ -1315,10 +1315,7 @@ export default function DriverApp() {
   if (!activeOrder && optimisticOrderId) {
     const optOrder = debugArray(safeOrders, 'safeOrders').find(o => o.id === optimisticOrderId);
     if (optOrder) {
-      const optimisticStatus = ["aceptado", "en_camino", "en_viaje"].includes(localOverride?.status)
-        ? localOverride.status
-        : "aceptado";
-      activeOrder = { ...optOrder, status: optimisticStatus, driver_id: myDriverId };
+      activeOrder = { ...optOrder, status: "aceptado", driver_id: myDriverId };
     }
   }
 
@@ -1729,9 +1726,9 @@ export default function DriverApp() {
         // El backend acceptRide es el único que confirma y guarda la aceptación.
         // La pantalla solamente se adelanta visualmente; no vuelve a escribir los mismos estados.
         if (offeredOrder?.id) {
-          setLocalOverride({ status: "aceptado", optimisticOrderId: offeredOrder.id });
+          setLocalOverride({ status: "en_viaje", optimisticOrderId: offeredOrder.id });
         } else {
-          setLocalOverride({ status: "aceptado" });
+          setLocalOverride({ status: "en_viaje" });
         }
 
         base44.functions.invoke("sendPushNotification", {
@@ -1914,12 +1911,7 @@ export default function DriverApp() {
     return true;
   };
 
-  const handleStatusChange = (newStatus, _fare, options = {}) => {
-    if (!activeOrder?.id) return;
-    if (options?.optimisticOnly) {
-      setLocalOverride({ status: newStatus, optimisticOrderId: activeOrder.id });
-      return;
-    }
+  const handleStatusChange = (newStatus) => {
     updateOrder.mutate({ id: activeOrder.id, data: { status: newStatus } });
   };
   const handleEnterBase = async (base = selectedBase) => {
@@ -1999,7 +1991,7 @@ export default function DriverApp() {
           resolutionType: "ACCEPTED"
         }).catch(()=>{});
       }
-      setLocalOverride({ status: "aceptado", optimisticOrderId: order.id });
+      setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
     } catch (error) {
       console.error("No se pudo aceptar el viaje", error);
       alert("Sin conexión: no se pudo contactar al servidor.");
@@ -2156,9 +2148,9 @@ export default function DriverApp() {
       if (res.data.accepted) {
         // La aceptación ya quedó confirmada de forma atómica en acceptRide.
         if (order?.id) {
-          setLocalOverride({ status: "aceptado", optimisticOrderId: order.id });
+          setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
         } else {
-          setLocalOverride({ status: "aceptado" });
+          setLocalOverride({ status: "en_viaje" });
         }
 
         base44.functions.invoke("sendPushNotification", {

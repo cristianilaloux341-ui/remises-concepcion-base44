@@ -23,7 +23,6 @@ export async function startRideCAS(b44: any, rideOrderId: string, driverId: stri
   // El destino nunca interviene en estas transiciones.
   const allowedTransition =
     (order.status === "aceptado" && targetStatus === "en_camino") ||
-    (order.status === "aceptado" && targetStatus === "en_viaje") ||
     (order.status === "en_camino" && targetStatus === "en_viaje");
   if (!allowedTransition) {
     return { status: "INVALID_TRANSITION" };

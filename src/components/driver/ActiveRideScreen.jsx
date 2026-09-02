@@ -216,13 +216,11 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
 
   const [isFinishing, setIsFinishing] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
-  const startLockRef = useRef(false);
-  const finishLockRef = useRef(false);
 
   const handleStartRide = async (targetStatus) => {
-    if (startLockRef.current || finishLockRef.current || isStarting || isFinishing) return;
-    startLockRef.current = true;
+    if (isStarting || isFinishing) return;
     setIsStarting(true);
+    
     const sessionToken = localStorage.getItem("session_token");
     let confirmed = false;
     for (let attempt = 0; attempt < 4 && !confirmed; attempt++) {
@@ -247,24 +245,17 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     if (!confirmed) {
       window.alert("No se pudo actualizar el estado del viaje. Revisá tu conexión.");
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
-    } else {
-      onStatusChange?.(targetStatus, undefined, { optimisticOnly: true });
     }
-    startLockRef.current = false;
     setIsStarting(false);
   };
 
   const handleCompletar = async () => {
-    if (finishLockRef.current || startLockRef.current || isFinishing || isStarting) return;
-    finishLockRef.current = true;
+    if (isFinishing || isStarting) return; 
     setIsFinishing(true);
     const finalFare = Math.round(importeRef.current);
     if (onFinishRide) {
       const completed = await onFinishRide(finalFare);
-      if (completed === false) {
-        finishLockRef.current = false;
-        setIsFinishing(false);
-      }
+      if (completed === false) setIsFinishing(false);
     } else {
       onStatusChange("completado", finalFare);
     }
