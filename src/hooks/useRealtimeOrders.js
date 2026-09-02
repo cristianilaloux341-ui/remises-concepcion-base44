@@ -81,9 +81,16 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
     startVisible();
     document.addEventListener("visibilitychange", stopHidden);
 
+    // Respaldo liviano para la Central: si el canal realtime tarda o pierde un evento,
+    // refrescar órdenes visibles cada 2 s. No toca asignación ni estados; solo lectura.
+    const centralRefresh = setInterval(() => {
+      if (mountedRef.current && document.visibilityState === "visible") fetchAll();
+    }, 2000);
+
     return () => {
       mountedRef.current = false;
       document.removeEventListener("visibilitychange", stopHidden);
+      clearInterval(centralRefresh);
       unsubRef.current?.();
       unsubRef.current = null;
     };
