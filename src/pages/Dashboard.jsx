@@ -20,6 +20,36 @@ import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { resolvePanicAlert } from "@/lib/panicAlerts";
 
+function CentralOfferCountdown({ order }) {
+  const [seconds, setSeconds] = useState(null);
+
+  useEffect(() => {
+    if (order.status !== "ofrecido") {
+      setSeconds(null);
+      return;
+    }
+    const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : NaN;
+    const expiresMs = order.offerExpiresAt != null
+      ? Number(order.offerExpiresAt)
+      : (Number.isFinite(assignedMs) ? assignedMs + 30000 : NaN);
+    if (!Number.isFinite(expiresMs)) {
+      setSeconds(null);
+      return;
+    }
+    const tick = () => setSeconds(Math.max(0, Math.ceil((expiresMs - Date.now()) / 1000)));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [order.status, order.offerExpiresAt, order.assigned_at, order.assignment_attempt]);
+
+  if (seconds == null) return null;
+  return (
+    <Badge className={`${seconds <= 10 ? "bg-red-600 animate-pulse" : "bg-amber-500"} text-white font-mono text-sm font-black px-3 py-1`}>
+      ⏱ QUEDAN 00:{String(seconds).padStart(2, "0")}
+    </Badge>
+  );
+}
+
 export default function Dashboard() {
   const { toast } = useToast();
   // Suscripciones en tiempo real — actualizaciones instantáneas sin polling
@@ -259,6 +289,21 @@ export default function Dashboard() {
           <StatCard key={stat.title} {...stat} />
         ))}
       </div>
+
+      {/* Ofertas activas: contador visible en la Central real */}
+      {activeOrders.some(o => o.status === "ofrecido") && (
+        <div className="space-y-2">
+          {activeOrders.filter(o => o.status === "ofrecido").map(order => (
+            <div key={order.id} className="flex items-center justify-between gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3 shadow-sm">
+              <div className="min-w-0">
+                <p className="text-sm font-black text-slate-900 truncate">{order.client_name || "Viaje"}</p>
+                <p className="text-xs font-semibold text-slate-600 truncate">Ofrecido a {order.driver_name || "móvil"}</p>
+              </div>
+              <CentralOfferCountdown order={order} />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Base Queues */}
       <div>
