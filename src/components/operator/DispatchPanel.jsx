@@ -190,7 +190,7 @@ function OfferCountdown({ order }) {
   if (seconds == null) return null;
   const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
   const ss = String(seconds % 60).padStart(2, "0");
-  return <span className={`font-mono text-xs font-bold ${seconds <= 10 ? "text-red-600" : "text-amber-700"}`}>⏱ {mm}:${ss}</span>;
+  return <span className={`font-mono text-xs font-bold ${seconds <= 10 ? "text-red-600" : "text-amber-700"}`}>⏱ {mm}:{ss}</span>;
 }
 
 export default function DispatchPanel({ orders, drivers, bases, moviles, onOrderClick }) {
