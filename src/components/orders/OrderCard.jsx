@@ -1,7 +1,45 @@
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { MapPin, Phone, User, Clock, Trash2 } from "lucide-react";
 import OrderStatusBadge from "./OrderStatusBadge";
 import { formatTimeBA } from "@/lib/utils";
+
+function OfferCountdown({ order }) {
+  const [seconds, setSeconds] = useState(null);
+
+  useEffect(() => {
+    if (order.status !== "ofrecido") {
+      setSeconds(null);
+      return;
+    }
+
+    const explicitExpiry = Number(order.offerExpiresAt);
+    const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : NaN;
+    const updatedMs = order.updated_date ? new Date(order.updated_date).getTime() : NaN;
+    const createdMs = order.created_date ? new Date(order.created_date).getTime() : NaN;
+    const baseMs = Number.isFinite(assignedMs) ? assignedMs : (Number.isFinite(updatedMs) ? updatedMs : createdMs);
+    const expiresMs = order.offerExpiresAt != null && Number.isFinite(explicitExpiry)
+      ? explicitExpiry
+      : baseMs + 30000;
+
+    if (!Number.isFinite(expiresMs)) {
+      setSeconds(null);
+      return;
+    }
+
+    const tick = () => setSeconds(Math.max(0, Math.ceil((expiresMs - Date.now()) / 1000)));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [order.status, order.offerExpiresAt, order.assigned_at, order.updated_date, order.created_date, order.assignment_attempt]);
+
+  if (seconds == null) return null;
+  return (
+    <span className={`font-mono text-xs font-black px-2 py-1 rounded-md ${seconds <= 10 ? "bg-red-600 text-white animate-pulse" : "bg-amber-400 text-black"}`}>
+      ⏱ {String(seconds).padStart(2, "0")}s
+    </span>
+  );
+}
 
 export default function OrderCard({ order, onClick, isAdmin, onDelete }) {
   return (
@@ -35,6 +73,7 @@ export default function OrderCard({ order, onClick, isAdmin, onDelete }) {
               <Trash2 className="w-4 h-4" />
             </button>
           )}
+          <OfferCountdown order={order} />
           <OrderStatusBadge status={order.status} />
         </div>
       </div>
