@@ -1914,7 +1914,12 @@ export default function DriverApp() {
     return true;
   };
 
-  const handleStatusChange = (newStatus) => {
+  const handleStatusChange = (newStatus, _fare, options = {}) => {
+    if (!activeOrder?.id) return;
+    if (options?.optimisticOnly) {
+      setLocalOverride({ status: newStatus, optimisticOrderId: activeOrder.id });
+      return;
+    }
     updateOrder.mutate({ id: activeOrder.id, data: { status: newStatus } });
   };
   const handleEnterBase = async (base = selectedBase) => {
