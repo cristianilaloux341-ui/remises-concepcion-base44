@@ -190,7 +190,11 @@ function OfferCountdown({ order }) {
   if (seconds == null) return null;
   const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
   const ss = String(seconds % 60).padStart(2, "0");
-  return <span className={`font-mono text-xs font-bold ${seconds <= 10 ? "text-red-600" : "text-amber-700"}`}>⏱ {mm}:{ss}</span>;
+  return (
+    <span className={`font-mono text-sm font-black px-2 py-1 rounded-lg border ${seconds <= 10 ? "text-white bg-red-600 border-red-700 animate-pulse" : "text-amber-900 bg-amber-100 border-amber-300"}`}>
+      ⏱ QUEDAN {mm}:{ss}
+    </span>
+  );
 }
 
 export default function DispatchPanel({ orders, drivers, bases, moviles, onOrderClick }) {
