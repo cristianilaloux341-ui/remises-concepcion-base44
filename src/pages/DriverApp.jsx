@@ -267,7 +267,7 @@ function IncomingAlert({ order, onAccept, onReject, isAccepting }) {
       mounted = false; 
       if (timer) clearInterval(timer);
     };
-  }, [order.updated_date]);
+  }, [order.id, order.assignment_attempt, order.assigned_at, order.offerExpiresAt]);
 
   if (isValid === false) return null;
 
@@ -280,14 +280,14 @@ function IncomingAlert({ order, onAccept, onReject, isAccepting }) {
             alt="RC" 
             className="w-10 h-10 rounded-xl object-cover border border-white/30 shadow-sm"
           />
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="font-bold text-white text-lg leading-tight">¡Nuevo Viaje!</p>
             <p className="text-amber-100 text-xs">Respondé antes de que se reasigne</p>
           </div>
-          {timeLeft !== null && totalTime !== null && (
-            <div className="bg-amber-600/20 px-4 py-2 flex items-center justify-between">
-              <span className="text-xs font-semibold text-amber-900 flex items-center gap-1.5"><Timer className="w-3.5 h-3.5"/> Tiempo para responder</span>
-              <span className={`font-bold font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-amber-700'}`}>00:{String(timeLeft).padStart(2, '0')}</span>
+          {timeLeft !== null && (
+            <div className={`shrink-0 min-w-[76px] rounded-xl px-3 py-2 text-center shadow ${timeLeft <= 10 ? 'bg-red-600' : 'bg-white'}`}>
+              <p className={`text-[10px] font-bold uppercase leading-none mb-1 ${timeLeft <= 10 ? 'text-white' : 'text-amber-700'}`}>Quedan</p>
+              <p className={`text-2xl font-black font-mono leading-none ${timeLeft <= 10 ? 'text-white animate-pulse' : 'text-gray-950'}`}>{Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</p>
             </div>
           )}
         </div>
