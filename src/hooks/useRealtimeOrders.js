@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { withRetry } from "@/lib/retryFetch";
 
-export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) {
+export function useRealtimeOrders({ limit = 100, sort = "-created_date", fallbackRefreshMs = 0 } = {}) {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const mountedRef = useRef(true);
@@ -81,20 +81,20 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date" } = {}) 
     startVisible();
     document.addEventListener("visibilitychange", stopHidden);
 
-    // Respaldo liviano para la Central: si el canal realtime tarda o pierde un evento,
-    // refrescar órdenes visibles cada 2 s. No toca asignación ni estados; solo lectura.
-    const centralRefresh = setInterval(() => {
+    // Respaldo opcional para pantallas de Central que necesitan reflejar estados rápido.
+    // El chofer sigue trabajando solo con realtime para no agregarle polling.
+    const centralRefresh = fallbackRefreshMs > 0 ? setInterval(() => {
       if (mountedRef.current && document.visibilityState === "visible") fetchAll();
-    }, 2000);
+    }, fallbackRefreshMs) : null;
 
     return () => {
       mountedRef.current = false;
       document.removeEventListener("visibilitychange", stopHidden);
-      clearInterval(centralRefresh);
+      if (centralRefresh) clearInterval(centralRefresh);
       unsubRef.current?.();
       unsubRef.current = null;
     };
-  }, [connect]);
+  }, [connect, fallbackRefreshMs]);
 
   return { orders, isLoading };
 }
