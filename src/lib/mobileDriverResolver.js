@@ -31,8 +31,10 @@ export function resolveActiveDriverForMobile(input, drivers = [], mobiles = []) 
   const normalized = normalizeText(raw);
   if (!raw) return { driver: null, mobile: null, error: "Ingresá un número de móvil." };
 
+  // La UI puede buscar por nombre humano, pero nunca por IDs internos.
+  // Un ID de Driver/Movil no es un identificador operativo válido para el operador.
   const directMatches = drivers.filter((driver) =>
-    driver.id === raw || normalizeText(driver.name) === normalized
+    normalizeText(driver.name) === normalized
   );
   if (directMatches.length === 1) {
     const driver = directMatches[0];
@@ -45,7 +47,6 @@ export function resolveActiveDriverForMobile(input, drivers = [], mobiles = []) 
   const numericInput = /^\d+$/.test(raw) ? Number(raw) : null;
   const plateInput = normalizePlate(raw);
   const mobileMatches = mobiles.filter((mobile) =>
-    mobile.id === raw ||
     (numericInput !== null && Number(mobile.numero_movil) === numericInput) ||
     (plateInput && normalizePlate(mobile.dominio) === plateInput)
   );
