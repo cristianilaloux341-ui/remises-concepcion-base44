@@ -25,7 +25,7 @@ export default function Orders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const { orders, isLoading } = useRealtimeOrders({ limit: 100 });
+  const { orders, isLoading } = useRealtimeOrders({ limit: 100, fallbackRefreshMs: 2000 });
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
