@@ -223,8 +223,6 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     if (startLockRef.current || finishLockRef.current || isStarting || isFinishing) return;
     startLockRef.current = true;
     setIsStarting(true);
-    onStatusChange?.(targetStatus, undefined, { optimisticOnly: true });
-    
     const sessionToken = localStorage.getItem("session_token");
     let confirmed = false;
     for (let attempt = 0; attempt < 4 && !confirmed; attempt++) {
@@ -247,9 +245,10 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
     }
     
     if (!confirmed) {
-      onStatusChange?.(order.status, undefined, { optimisticOnly: true });
       window.alert("No se pudo actualizar el estado del viaje. Revisá tu conexión.");
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+    } else {
+      onStatusChange?.(targetStatus, undefined, { optimisticOnly: true });
     }
     startLockRef.current = false;
     setIsStarting(false);
