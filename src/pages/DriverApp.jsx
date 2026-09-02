@@ -856,7 +856,7 @@ export default function DriverApp() {
 
       tryAutoAccept().then(res => {
         if (res.data?.accepted) {
-          setLocalOverride({ status: "en_viaje", optimisticOrderId: autoAcceptOrderId });
+          setLocalOverride({ status: "aceptado", optimisticOrderId: autoAcceptOrderId });
           // acceptRide es la única autoridad que confirma el viaje y ocupa al chofer.
           base44.functions.invoke("sendPushNotification", { action: "cancel_ride", orderId: autoAcceptOrderId, driverId: myDriverId }).catch(()=>{});
         } else {
@@ -998,7 +998,7 @@ export default function DriverApp() {
             sessionToken: getSessionToken()
           }).then((res) => {
             if (res.data?.accepted) {
-              setLocalOverride({ status: "en_viaje", optimisticOrderId: orderId });
+              setLocalOverride({ status: "aceptado", optimisticOrderId: orderId });
               base44.functions.invoke("sendPushNotification", { action: "cancel_ride", orderId, driverId: myDriverId }).catch(()=>{});
             } else {
               alert("El viaje ya expiró o fue tomado por otro móvil.");
@@ -1729,9 +1729,9 @@ export default function DriverApp() {
         // El backend acceptRide es el único que confirma y guarda la aceptación.
         // La pantalla solamente se adelanta visualmente; no vuelve a escribir los mismos estados.
         if (offeredOrder?.id) {
-          setLocalOverride({ status: "en_viaje", optimisticOrderId: offeredOrder.id });
+          setLocalOverride({ status: "aceptado", optimisticOrderId: offeredOrder.id });
         } else {
-          setLocalOverride({ status: "en_viaje" });
+          setLocalOverride({ status: "aceptado" });
         }
 
         base44.functions.invoke("sendPushNotification", {
@@ -1999,7 +1999,7 @@ export default function DriverApp() {
           resolutionType: "ACCEPTED"
         }).catch(()=>{});
       }
-      setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
+      setLocalOverride({ status: "aceptado", optimisticOrderId: order.id });
     } catch (error) {
       console.error("No se pudo aceptar el viaje", error);
       alert("Sin conexión: no se pudo contactar al servidor.");
@@ -2156,9 +2156,9 @@ export default function DriverApp() {
       if (res.data.accepted) {
         // La aceptación ya quedó confirmada de forma atómica en acceptRide.
         if (order?.id) {
-          setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
+          setLocalOverride({ status: "aceptado", optimisticOrderId: order.id });
         } else {
-          setLocalOverride({ status: "en_viaje" });
+          setLocalOverride({ status: "aceptado" });
         }
 
         base44.functions.invoke("sendPushNotification", {
