@@ -177,15 +177,29 @@ function OfferCountdown({ order }) {
   const [seconds, setSeconds] = useState(null);
 
   useEffect(() => {
-    if (order.status !== "ofrecido" || order.offerExpiresAt == null) {
+    if (order.status !== "ofrecido") {
       setSeconds(null);
       return;
     }
-    const update = () => setSeconds(Math.max(0, Math.ceil((Number(order.offerExpiresAt) - Date.now()) / 1000)));
+
+    // Autoridad principal: offerExpiresAt. Si todavía no llegó a Central,
+    // usar assigned_at + los 30 s configurados actualmente como respaldo visual.
+    const configuredSeconds = 30;
+    const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : NaN;
+    const expiresMs = order.offerExpiresAt != null
+      ? Number(order.offerExpiresAt)
+      : (Number.isFinite(assignedMs) ? assignedMs + configuredSeconds * 1000 : NaN);
+
+    if (!Number.isFinite(expiresMs)) {
+      setSeconds(null);
+      return;
+    }
+
+    const update = () => setSeconds(Math.max(0, Math.ceil((expiresMs - Date.now()) / 1000)));
     update();
     const timer = setInterval(update, 1000);
     return () => clearInterval(timer);
-  }, [order.status, order.offerExpiresAt, order.assignment_attempt]);
+  }, [order.status, order.offerExpiresAt, order.assigned_at, order.assignment_attempt]);
 
   if (seconds == null) return null;
   const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
