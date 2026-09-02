@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,28 @@ export default function Orders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const { orders, isLoading } = useRealtimeOrders({ limit: 100, fallbackRefreshMs: 2000 });
+  const { orders: realtimeOrders, isLoading } = useRealtimeOrders({ limit: 100 });
+  const [orders, setOrders] = useState([]);
+
+  useEffect(() => {
+    setOrders(realtimeOrders);
+  }, [realtimeOrders]);
+
+  useEffect(() => {
+    let mounted = true;
+    const refreshStatuses = async () => {
+      try {
+        const fresh = await base44.entities.RideOrder.list("-created_date", 100);
+        if (mounted && Array.isArray(fresh)) setOrders(fresh);
+      } catch (_) {}
+    };
+    refreshStatuses();
+    const timer = setInterval(refreshStatuses, 2000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
