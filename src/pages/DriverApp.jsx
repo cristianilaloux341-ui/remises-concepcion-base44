@@ -1315,7 +1315,10 @@ export default function DriverApp() {
   if (!activeOrder && optimisticOrderId) {
     const optOrder = debugArray(safeOrders, 'safeOrders').find(o => o.id === optimisticOrderId);
     if (optOrder) {
-      activeOrder = { ...optOrder, status: "aceptado", driver_id: myDriverId };
+      const optimisticStatus = ["aceptado", "en_camino", "en_viaje"].includes(localOverride?.status)
+        ? localOverride.status
+        : "aceptado";
+      activeOrder = { ...optOrder, status: optimisticStatus, driver_id: myDriverId };
     }
   }
 
