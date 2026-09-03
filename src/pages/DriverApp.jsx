@@ -2039,7 +2039,10 @@ export default function DriverApp() {
       data: { 
         status: "pendiente", 
         driver_id: null, 
+        reserved_driver_id: null,
         driver_name: null,
+        reservation_token: null,
+        manual_reservation_token: null,
         offered_driver_ids: updatedOfferedIds
       } 
     });
