@@ -1793,7 +1793,7 @@ export default function DriverApp() {
     if (realId) {
       try {
         await base44.entities.Driver.updateMany(
-          { id: myDriverId, $or: [{ reserved_order_id: realId }, { active_order_id: realId }, { active_ride_id: realId }] },
+          { id: myDriverId, reservation_token: offeredOrder?.reservation_token, $or: [{ reserved_order_id: realId }, { active_order_id: realId }, { active_ride_id: realId }] },
           { $set: {
             status: "disponible",
             dispatch_status: "normal",
