@@ -900,7 +900,8 @@ export default function DriverApp() {
           base44.entities.RideOrder.get(autoRejectOrderId),
           base44.entities.Driver.list()
         ]);
-        const currentOrder = { ...order, offered_driver_ids: [...(order.offered_driver_ids || []), myDriverId] };
+        // assignRide ya registró esta oferta; no contarla dos veces al rechazar.
+        const currentOrder = { ...order };
         await reassignAfterReject(currentOrder, allDrivers, []);
       }).catch((e) => {
         console.error("No se pudo confirmar el rechazo por URL", e);
@@ -1047,7 +1048,8 @@ export default function DriverApp() {
               base44.entities.RideOrder.get(orderId),
               base44.entities.Driver.list()
             ]);
-            const currentOrder = { ...order, offered_driver_ids: [...(order.offered_driver_ids || []), myDriverId] };
+            // assignRide ya registró esta oferta; no contarla dos veces al rechazar.
+        const currentOrder = { ...order };
             await reassignAfterReject(currentOrder, allDrivers, []);
           }).catch((e) => {
             console.error("No se pudo confirmar el rechazo desde notificación", e);
@@ -1812,7 +1814,8 @@ export default function DriverApp() {
     }
 
     if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
-    const currentOrder = { ...offeredOrder, offered_driver_ids: [...(offeredOrder.offered_driver_ids || []), myDriverId] };
+    // assignRide ya registró esta oferta; no contarla dos veces al rechazar.
+    const currentOrder = { ...offeredOrder };
     
     // Regresamos al chofer a disponible SOLO si todavía está vinculado
     // a la oferta que acaba de rechazar. Un rechazo atrasado no toca otro viaje.
