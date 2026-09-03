@@ -917,13 +917,19 @@ export default function DriverApp() {
         } }
       ).then(async () => {
         setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
-        const [order, allDrivers] = await Promise.all([
-          base44.entities.RideOrder.get(autoRejectOrderId),
-          base44.entities.Driver.list()
-        ]);
-        // assignRide ya registró esta oferta; no contarla dos veces al rechazar.
-        const currentOrder = { ...order };
-        await reassignAfterReject(currentOrder, allDrivers, []);
+        // MODO ARRANQUE SEGURO: el rechazo desde URL/notificación deja el viaje
+        // pendiente y sin reserva. El operador decide la próxima asignación.
+        await base44.entities.RideOrder.update(autoRejectOrderId, {
+          status: "pendiente",
+          driver_id: null,
+          driver_name: null,
+          reserved_driver_id: null,
+          reservation_token: null,
+          manual_reservation_token: null,
+          assigned_at: null,
+          offerExpiresAt: null
+        });
+        window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       }).catch((e) => {
         console.error("No se pudo confirmar el rechazo por URL", e);
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
@@ -1065,13 +1071,19 @@ export default function DriverApp() {
             } }
           ).then(async () => {
             setLocalOverride({ status: "disponible", _ignoredOrderId: orderId });
-            const [order, allDrivers] = await Promise.all([
-              base44.entities.RideOrder.get(orderId),
-              base44.entities.Driver.list()
-            ]);
-            // assignRide ya registró esta oferta; no contarla dos veces al rechazar.
-            const currentOrder = { ...order };
-            await reassignAfterReject(currentOrder, allDrivers, []);
+            // MODO ARRANQUE SEGURO: el rechazo desde la notificación deja el viaje
+            // pendiente y sin reserva. No se reasigna automáticamente.
+            await base44.entities.RideOrder.update(orderId, {
+              status: "pendiente",
+              driver_id: null,
+              driver_name: null,
+              reserved_driver_id: null,
+              reservation_token: null,
+              manual_reservation_token: null,
+              assigned_at: null,
+              offerExpiresAt: null
+            });
+            window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
           }).catch((e) => {
             console.error("No se pudo confirmar el rechazo desde notificación", e);
             window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
