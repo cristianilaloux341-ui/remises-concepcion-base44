@@ -2054,9 +2054,16 @@ export default function DriverApp() {
     // Si el chofer anula un viaje que ya tenía, vuelve disponible pero al FINAL
     // de su cola/base. Posición 1 queda reservada para cancelación del cliente/operador.
     const ts = new Date().toISOString();
-    await updateDriver.mutateAsync({
-      id: myDriverId,
-      data: {
+    const releaseCancelledRide = await base44.entities.Driver.updateMany(
+      {
+        id: myDriverId,
+        $or: [
+          { active_order_id: activeOrder.id },
+          { active_ride_id: activeOrder.id },
+          { reserved_order_id: activeOrder.id }
+        ]
+      },
+      { $set: {
         status: "disponible",
         dispatch_status: "normal",
         current_base: base,
@@ -2067,8 +2074,12 @@ export default function DriverApp() {
         reservation_token: null,
         manual_reservation_token: null,
         driver_reservation_key: null
-      }
-    });
+      } }
+    );
+    if ((releaseCancelledRide.updated ?? releaseCancelledRide.modifiedCount ?? 0) < 1) {
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+      return;
+    }
     setLocalOverride({ status: "disponible", current_base: base, queue_entered_at: ts });
     setLibreBlockedSegs(0); // al anular no aplica bloqueo
 
