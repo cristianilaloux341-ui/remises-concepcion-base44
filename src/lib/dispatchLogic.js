@@ -32,10 +32,23 @@ export function getBaseQueue(drivers, baseName) {
   return sortQueue(drivers.filter(d => d.current_base === baseName && d.status === "disponible"));
 }
 
+// Invariante de despacho: un Driver solo puede ser candidato si su Movil real está habilitado.
+async function filterDispatchEligibleDrivers(drivers = []) {
+  const moviles = await base44.entities.Movil.list();
+  const movilByNumber = new Map(moviles.map(m => [String(m.numero), m]));
+  return drivers.filter(d => {
+    const movil = movilByNumber.get(String(d.mobile_number));
+    return d.status === "disponible" &&
+      !d.active_order_id && !d.active_ride_id && !d.reserved_order_id &&
+      (d.dispatch_status == null || d.dispatch_status === "normal") &&
+      !!movil && movil.activo !== false && movil.fuera_de_servicio !== true;
+  });
+}
+
 // Find best driver for an order: strictly by zone (FIFO)
 export async function findBestDriver(order, drivers, bases) {
   if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in findBestDriver!", drivers); return null; }
-  const availableDrivers = drivers.filter(d => d.status === "disponible" && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === "normal"));
+  const availableDrivers = await filterDispatchEligibleDrivers(drivers);
   if (!availableDrivers.length) return null;
 
   // 1) Asignar a los de la zona correspondiente (FIFO)
@@ -52,13 +65,13 @@ export async function findBestDriver(order, drivers, bases) {
 }
 
 // Find first available driver in the exact zone (FIFO queue by queue_entered_at)
-export function findDriverInZone(zone, drivers) {
+export async function findDriverInZone(zone, drivers) {
   if (!zone) return null;
   const inZone = getBaseQueue(drivers, zone)[0];
   if (inZone) return inZone;
   
   // Prioridad 2: Si no hay nadie en la zona, retorna el libre de mayor tiempo de espera globalmente
-  const allAvailable = drivers.filter(d => d.status === "disponible" && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === "normal"));
+  const allAvailable = await filterDispatchEligibleDrivers(drivers);
   if (allAvailable.length > 0) {
       return sortQueue(allAvailable)[0];
   }
@@ -109,7 +122,7 @@ export async function broadcastOrder(order, drivers = []) {
 // Retorna: "assigned" | "broadcast" | "no_drivers"
 export async function autoDispatch(order, drivers, bases) {
   // offered_driver_ids es historial, nunca lista negra permanente.
-  const availableDrivers = drivers.filter(d => d.status === "disponible" && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === "normal"));
+  const availableDrivers = await filterDispatchEligibleDrivers(drivers);
 
   if (!availableDrivers.length) return "no_drivers";
 
@@ -181,7 +194,7 @@ export async function reassignAfterReject(order, drivers, bases) {
   // Si existe cualquier otro móvil elegible, aunque esté en otra base, debe probarse antes.
   // offered_driver_ids sigue siendo historial: solo volvemos a considerar esos móviles
   // cuando ya no queda ningún candidato nuevo disponible.
-  const allAvailable = drivers.filter(d => d.status === "disponible" && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === "normal"));
+  const allAvailable = await filterDispatchEligibleDrivers(drivers);
   const alreadyOffered = new Set(order.offered_driver_ids || []);
   const freshAvailable = allAvailable.filter(d => !alreadyOffered.has(d.id));
   const available = freshAvailable.length ? freshAvailable : allAvailable;
