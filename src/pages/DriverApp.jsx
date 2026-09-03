@@ -2043,7 +2043,9 @@ export default function DriverApp() {
         driver_name: null,
         reservation_token: null,
         manual_reservation_token: null,
-        offered_driver_ids: updatedOfferedIds
+        // Viaje ya aceptado y devuelto: comienza una ronda nueva.
+        // Conservamos solo al chofer que lo devuelve; los anteriores pueden recibirlo otra vez.
+        offered_driver_ids: [myDriverId]
       } 
     });
     
