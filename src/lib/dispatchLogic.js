@@ -38,7 +38,10 @@ async function filterDispatchEligibleDrivers(drivers = []) {
   const movilByNumber = new Map(moviles.map(m => [String(m.numero), m]));
   return drivers.filter(d => {
     const movil = movilByNumber.get(String(d.mobile_number));
+    const lastActiveMs = d.last_active ? new Date(d.last_active).getTime() : 0;
+    const isRecentlyActive = lastActiveMs > 0 && (Date.now() - lastActiveMs) <= 5 * 60 * 1000;
     return d.status === "disponible" &&
+      isRecentlyActive &&
       !d.active_order_id && !d.active_ride_id && !d.reserved_order_id &&
       (d.dispatch_status == null || d.dispatch_status === "normal") &&
       !!movil && movil.activo !== false && movil.fuera_de_servicio !== true;
