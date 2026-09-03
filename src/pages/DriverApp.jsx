@@ -1110,11 +1110,17 @@ export default function DriverApp() {
   // Se aumenta el límite y se ordena por updated_date para evitar que el viaje activo desaparezca (causa de que el taxímetro se corte)
   const { orders } = useRealtimeOrders({ limit: 150, sort: "-updated_date" });
 
-  // Sincronizar la UI sólo cuando vuelve al primer plano o recupera internet
+  // Sincronizar la UI al recibir push/realtime y también al volver al primer plano.
+  // Un viaje nuevo debe aparecer sin cerrar/reabrir la app.
   useEffect(() => {
     const handleSync = () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
+      // Compatibilidad con las query keys reales de los hooks realtime.
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const key = Array.isArray(q.queryKey) ? q.queryKey : [];
+        return key.some(part => String(part).toLowerCase().includes("rideorder") || String(part).toLowerCase().includes("driver"));
+      }});
     };
     window.addEventListener("radiocab_reconnect", handleSync);
     window.addEventListener("online", handleSync); // Refrescar al recuperar internet
@@ -1447,8 +1453,28 @@ export default function DriverApp() {
         }
         
         if (data.orderId) {
-            // El sonido y la burbuja ya los maneja Java (MyFirebaseMessagingService).
+            // El sonido y la burbuja nativa los maneja Java. La pantalla React debe
+            // refrescar inmediatamente la orden dirigida: no depender de reiniciar la app.
             window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+            const pushedOrderId = getRealOrderId(data.orderId);
+            if (pushedOrderId && myDriverIdRef.current) {
+              base44.entities.RideOrder.get(pushedOrderId).then(fresh => {
+                if (fresh && fresh.status === "ofrecido" &&
+                    (fresh.driver_id === myDriverIdRef.current || fresh.reserved_driver_id === myDriverIdRef.current)) {
+                  // Inyectar la orden fresca en las caches que alimentan la UI y forzar evaluación.
+                  queryClient.setQueriesData({ predicate: (q) => {
+                    const key = Array.isArray(q.queryKey) ? q.queryKey : [];
+                    return key.some(part => String(part).toLowerCase().includes("rideorder") || String(part).toLowerCase().includes("orders"));
+                  }}, (old) => {
+                    if (!Array.isArray(old)) return old;
+                    const without = old.filter(o => o?.id !== fresh.id);
+                    return [fresh, ...without];
+                  });
+                  window.dispatchEvent(new CustomEvent("radiocab_force_alert_check", { detail: [fresh] }));
+                  window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+                }
+              }).catch(() => {});
+            }
             // FIX: Notificar a la app para matar el sonido si ya tomamos el viaje
             window.dispatchEvent(new CustomEvent("radiocab_check_late_push", { detail: { orderId: data.orderId } }));
         } else {
