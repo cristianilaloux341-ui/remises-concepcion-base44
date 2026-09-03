@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
            // Liberar SOLO si el móvil todavía pertenece a esta misma oferta.
            // Si otro operador ya lo reservó para otro pasaje, este timeout viejo no lo toca.
            await base44.asServiceRole.entities.Driver.updateMany(
-             { id: currentDriver.id, reserved_order_id: order.id },
+             { id: currentDriver.id, reserved_order_id: order.id, reservation_token: order.reservation_token },
              { $set: {
                status: 'disponible',
                dispatch_status: 'normal',
