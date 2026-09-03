@@ -2088,7 +2088,17 @@ export default function DriverApp() {
 
     // Releer choferes DESPUÉS de confirmar la limpieza: evita reasignar con estado viejo.
     const freshDrivers = await base44.entities.Driver.list();
-    const currentOrder = { ...activeOrder, status: "pendiente", driver_id: null, offered_driver_ids: updatedOfferedIds };
+    // Al devolver un viaje YA ACEPTADO empieza una ronda nueva.
+    // El chofer que lo devuelve queda excluido de esta primera vuelta para evitar Cristian→Cristian.
+    // Los anteriores vuelven a ser candidatos inmediatamente.
+    const currentOrder = {
+      ...activeOrder,
+      status: "pendiente",
+      driver_id: null,
+      reserved_driver_id: null,
+      reservation_token: null,
+      offered_driver_ids: [myDriverId]
+    };
     await reassignAfterReject(currentOrder, freshDrivers, []);
   };
 
