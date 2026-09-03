@@ -2138,20 +2138,10 @@ export default function DriverApp() {
     setLocalOverride({ status: "disponible", current_base: base, queue_entered_at: ts });
     setLibreBlockedSegs(0); // al anular no aplica bloqueo
 
-    // Releer choferes DESPUÉS de confirmar la limpieza: evita reasignar con estado viejo.
-    const freshDrivers = await base44.entities.Driver.list();
-    // Al devolver un viaje YA ACEPTADO empieza una ronda nueva.
-    // El chofer que lo devuelve queda excluido de esta primera vuelta para evitar Cristian→Cristian.
-    // Los anteriores vuelven a ser candidatos inmediatamente.
-    const currentOrder = {
-      ...activeOrder,
-      status: "pendiente",
-      driver_id: null,
-      reserved_driver_id: null,
-      reservation_token: null,
-      offered_driver_ids: [myDriverId]
-    };
-    await reassignAfterReject(currentOrder, freshDrivers, []);
+    // MODO SEGURO: un viaje YA ACEPTADO que el chofer cancela NO se reasigna
+    // automáticamente. Queda pendiente para que el operador decida a quién reactivarlo.
+    // Esto evita cadenas de reasignación/cancelación mientras estabilizamos el despacho.
+    window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
   };
 
   const handleGoOnService = async () => {
