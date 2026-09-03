@@ -150,8 +150,12 @@ public class RideAlertController {
                 "Hilo: " + Thread.currentThread().getName() + "\n" +
                 Log.getStackTraceString(new Throwable()));
                 
-        if (orderId == null || !orderId.equals(currentOrderId)) return;
-        executeStop(context, orderId);
+        if (orderId == null || currentOrderId == null) return;
+        // La cancelación puede llegar con el intento NUEVO (_att_N) mientras este
+        // teléfono conserva la alerta del intento anterior. Comparar el ID real del
+        // viaje y cancelar la notificación que efectivamente está activa.
+        if (!baseOrderId(orderId).equals(baseOrderId(currentOrderId))) return;
+        executeStop(context, currentOrderId);
     }
 
     public synchronized void stopAllAlerts(Context context, String reason) {
@@ -184,8 +188,14 @@ public class RideAlertController {
         currentOrderId = null;
     }
 
+    private String baseOrderId(String orderId) {
+        if (orderId == null) return "";
+        return orderId.replaceFirst("_att_\\d+$", "");
+    }
+
     public synchronized boolean isAlertActive(String orderId) {
-        return orderId != null && orderId.equals(currentOrderId);
+        return orderId != null && currentOrderId != null &&
+                baseOrderId(orderId).equals(baseOrderId(currentOrderId));
     }
 
     public synchronized void playOneShotSound(Context context, String type) {
