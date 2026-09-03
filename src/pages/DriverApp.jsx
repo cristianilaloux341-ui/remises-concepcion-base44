@@ -1049,7 +1049,7 @@ export default function DriverApp() {
               base44.entities.Driver.list()
             ]);
             // assignRide ya registró esta oferta; no contarla dos veces al rechazar.
-        const currentOrder = { ...order };
+            const currentOrder = { ...order };
             await reassignAfterReject(currentOrder, allDrivers, []);
           }).catch((e) => {
             console.error("No se pudo confirmar el rechazo desde notificación", e);
