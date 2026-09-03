@@ -76,15 +76,6 @@ Deno.serve(async (req) => {
       const isDriverWorking = (d) => {
         if (d.status !== 'disponible') return false;
 
-        // Un status "disponible" puede quedar viejo si el teléfono dejó de trabajar
-        // sin alcanzar a marcar fuera de servicio. El despacho automático sólo puede
-        // ofertar a un chofer cuya app haya reportado presencia recientemente.
-        const lastActiveMs = d.last_active ? new Date(d.last_active).getTime() : 0;
-        const PRESENCE_MAX_AGE_MS = 5 * 60 * 1000;
-        if (!lastActiveMs || Number.isNaN(lastActiveMs) || (Date.now() - lastActiveMs) > PRESENCE_MAX_AGE_MS) {
-          return false;
-        }
-
         const mobileId = String(d.vehicle_model || '');
         const mobileNumber = parseInt(mobileId, 10);
         const movil = allMoviles.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
@@ -95,15 +86,20 @@ Deno.serve(async (req) => {
       };
 
       const allDrivers = await base44.asServiceRole.entities.Driver.list();
-      // offered_driver_ids queda como historial/auditoría, no como lista negra.
-      // Un móvil que rechazó o recibió antes este pasaje puede volver a ser candidato
-      // apenas esté disponible. Para evitar rebote inmediato, priorizamos primero a
-      // cualquier otro móvil disponible y sólo reutilizamos el actual si no hay otro.
+      // offered_driver_ids registra cuántas veces se ofertó este pasaje a cada móvil.
+      // Máximo 2 ofertas por móvil; después queda fuera de ESTE pasaje. Si no queda
+      // ningún candidato, el viaje pasa a pendiente para resolución manual del operador.
       // Estar en una base/cola NO es requisito para recibir pasajes.
       // Todo móvil en servicio + libre sigue siendo ofertable aunque current_base sea null.
       const workingDrivers = allDrivers.filter(d => isDriverWorking(d) && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === 'normal'));
-      const otherAvailable = workingDrivers.filter(d => d.id !== driverId);
-      const available = otherAvailable.length > 0 ? otherAvailable : workingDrivers;
+      const offerCounts = (order.offered_driver_ids || []).reduce((acc, id) => {
+        if (id) acc[id] = (acc[id] || 0) + 1;
+        return acc;
+      }, {});
+      // La oferta que acaba de vencer cuenta como una oferta al móvil actual aunque
+      // todavía no hubiese quedado persistida en el historial.
+      offerCounts[driverId] = Math.max(offerCounts[driverId] || 0, 1);
+      const available = workingDrivers.filter(d => (offerCounts[d.id] || 0) < 2 && d.id !== driverId);
 
       let nextDriver = null;
       if (available.length > 0) {
