@@ -1872,7 +1872,21 @@ export default function DriverApp() {
       driverId: myDriverId
     }).catch(console.error);
 
-    await reassignAfterReject(currentOrder, drivers, []);
+    // MODO ARRANQUE SEGURO: RECHAZAR NO vuelve a largar el viaje automáticamente.
+    // Lo deja pendiente y totalmente sin reserva para que el operador lo reactive manualmente.
+    if (realId) {
+      await base44.entities.RideOrder.update(realId, {
+        status: "pendiente",
+        driver_id: null,
+        driver_name: null,
+        reserved_driver_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        assigned_at: null,
+        offerExpiresAt: null
+      });
+    }
+    window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     base44.entities.AuditLog.create({
       action: "rechazar_viaje",
       user_type: "chofer",
