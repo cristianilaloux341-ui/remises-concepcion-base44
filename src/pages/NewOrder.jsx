@@ -65,7 +65,7 @@ export default function NewOrder() {
 
           if (newOrder.status === "procesando_despacho" || newOrder.status === "pendiente") {
             if (newOrder.zone) {
-              const zoneDriver = findDriverInZone(newOrder.zone, drivers);
+              const zoneDriver = await findDriverInZone(newOrder.zone, drivers);
               if (zoneDriver) {
                 await assignDriverToOrder(newOrder, zoneDriver);
               } else {
