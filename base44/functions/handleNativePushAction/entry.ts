@@ -19,7 +19,9 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, reason: "missing_params" });
     }
 
-    const realOrderId = orderId.includes('_att_') ? orderId.split('_att_')[0] : orderId;
+    const attemptMatch = String(orderId).match(/_att_(\d+)$/);
+    const nativeAssignmentAttempt = attemptMatch ? Number(attemptMatch[1]) : null;
+    const realOrderId = String(orderId).replace(/_att_\d+$/, '');
 
     if (action === "native_ack") {
       const driver = await b44.entities.Driver.get(driverId);
@@ -38,7 +40,10 @@ Deno.serve(async (req) => {
       const driver = await b44.entities.Driver.get(driverId);
       if (!driver) return Response.json({ success: false, reason: "driver_not_found" });
 
-      const attempt = order.assignment_attempt || 1;
+      // La acción nativa debe conservar el intento ORIGINAL recibido en la notificación.
+      // Si llega tarde una notificación de un intento anterior, acceptRide la rechazará
+      // en lugar de convertirla accidentalmente en una aceptación del intento actual.
+      const attempt = nativeAssignmentAttempt ?? (order.assignment_attempt || 1);
       
       // Llamamos internamente a la función de aceptación de producción
       // USAMOS INTERNAL_KEY para saltarnos el chequeo de sesión del chofer,
