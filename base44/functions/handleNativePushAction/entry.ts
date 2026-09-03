@@ -65,6 +65,10 @@ Deno.serve(async (req) => {
       if (order.status !== "ofrecido" || order.reserved_driver_id !== driverId) {
          return Response.json({ success: false, reason: "already_processed_or_expired" });
       }
+      // Igual que Aceptar: un rechazo viejo nunca puede actuar sobre una oferta nueva.
+      if (nativeAssignmentAttempt != null && order.assignment_attempt !== nativeAssignmentAttempt) {
+         return Response.json({ success: false, reason: "stale_assignment_attempt" });
+      }
 
       // Buscar si el driver sigue teniendo este viaje reservado
       const driver = await b44.entities.Driver.get(driverId);
