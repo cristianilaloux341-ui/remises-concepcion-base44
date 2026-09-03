@@ -821,6 +821,27 @@ export default function DriverApp() {
 
     // Si la app fue abierta desde un tap de "Aceptar" en pantalla bloqueada
     const urlParams = new URLSearchParams(window.location.search);
+    // Full-screen nativo: MainActivity abre con ?incoming=<viaje>. No aceptar
+    // automáticamente; sólo forzar la carga inmediata de ESA oferta para mostrar plantilla.
+    const incomingOrderId = getRealOrderId(urlParams.get("incoming"));
+    if (incomingOrderId && myDriverId) {
+      base44.entities.RideOrder.get(incomingOrderId).then(fresh => {
+        if (fresh && fresh.status === "ofrecido" &&
+            (fresh.driver_id === myDriverId || fresh.reserved_driver_id === myDriverId)) {
+          queryClient.setQueriesData({ predicate: (q) => {
+            const key = Array.isArray(q.queryKey) ? q.queryKey : [];
+            return key.some(part => String(part).toLowerCase().includes("rideorder") || String(part).toLowerCase().includes("orders"));
+          }}, (old) => {
+            if (!Array.isArray(old)) return old;
+            return [fresh, ...old.filter(o => o?.id !== fresh.id)];
+          });
+          window.dispatchEvent(new CustomEvent("radiocab_force_alert_check", { detail: [fresh] }));
+          window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+        }
+      }).catch(() => window.dispatchEvent(new CustomEvent("radiocab_reconnect")));
+      window.history.replaceState({}, "", "/driver-app");
+    }
+
     const autoAcceptOrderId = getRealOrderId(urlParams.get("accept"));
     const autoAcceptAttempt = parseInt(urlParams.get("attempt") || "1", 10);
     if (autoAcceptOrderId && myDriverId) {
