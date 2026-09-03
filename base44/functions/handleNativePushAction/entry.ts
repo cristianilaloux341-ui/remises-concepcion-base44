@@ -70,23 +70,20 @@ Deno.serve(async (req) => {
          return Response.json({ success: false, reason: "stale_assignment_attempt" });
       }
 
-      // Buscar si el driver sigue teniendo este viaje reservado
+      // Buscar si el driver sigue teniendo este viaje reservado.
+      // NO lo liberamos acá: reassignAfterAutomaticReject hace la liberación atómica
+      // usando el token de esta misma oferta. Liberarlo antes rompía esa protección.
       const driver = await b44.entities.Driver.get(driverId);
-      if (driver) {
-        // Liberamos al conductor atómicamente si estaba bloqueado por este viaje
-        if (driver.dispatch_status === 'automatic_pending' || driver.reserved_order_id === realOrderId) {
-           await b44.entities.Driver.updateMany(
-             { id: driverId, reserved_order_id: realOrderId },
-             { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } }
-           );
-        }
-      }
 
-      // Reasignación atómica al siguiente chofer (o volver a pendiente si no hay piloto)
-      let baseId = order.assigned_base || '1-Puerto';
-      if (driver && driver.current_base) {
-         baseId = driver.current_base;
+      // reassignAfterAutomaticReject necesita el ID real de Base, mientras que
+      // assigned_base/current_base guardan el nombre visible (ej. "1-Puerto").
+      const baseName = (driver && driver.current_base) || order.assigned_base || order.zone || '1-Puerto';
+      const matchingBases = await b44.entities.Base.filter({ name: baseName });
+      const baseEntity = matchingBases.find((b: any) => b.dispatch_status === 'libre') || matchingBases[0];
+      if (!baseEntity) {
+        return Response.json({ success: false, reason: "base_not_found" });
       }
+      const baseId = baseEntity.id;
       
       const oldToken = order.reservation_token;
       let rejectResult;
