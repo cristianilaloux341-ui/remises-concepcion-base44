@@ -177,8 +177,14 @@ export async function autoDispatch(order, drivers, bases) {
 export async function reassignAfterReject(order, drivers, bases) {
   if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in reassignAfterReject!", drivers); return null; }
   if (!Array.isArray(bases)) { console.error("[CRITICAL ERROR] bases is not array in reassignAfterReject!", bases); bases = BASES; }
-  // Un rechazo previo no excluye al móvil de futuras rondas de esta orden.
-  const available = drivers.filter(d => d.status === "disponible" && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === "normal"));
+  // Alta demanda: el móvil que acaba de rechazar queda al final de ESTA ronda.
+  // Si existe cualquier otro móvil elegible, aunque esté en otra base, debe probarse antes.
+  // offered_driver_ids sigue siendo historial: solo volvemos a considerar esos móviles
+  // cuando ya no queda ningún candidato nuevo disponible.
+  const allAvailable = drivers.filter(d => d.status === "disponible" && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === "normal"));
+  const alreadyOffered = new Set(order.offered_driver_ids || []);
+  const freshAvailable = allAvailable.filter(d => !alreadyOffered.has(d.id));
+  const available = freshAvailable.length ? freshAvailable : allAvailable;
 
   const tarifaConfigs = await base44.entities.TarifaConfig.list();
   const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
