@@ -358,17 +358,6 @@ Deno.serve(async (req) => {
         const driver = drivers[0];
         if (!driver) continue;
 
-        // Si fue cancelado, lo devolvemos al principio de la fila
-        if (currentOrder && currentOrder.status === 'cancelado') {
-           await base44.asServiceRole.entities.Driver.update(dId, { 
-             queue_entered_at: new Date('2000-01-01T00:00:00Z').toISOString(),
-             status: 'disponible',
-             dispatch_status: 'normal',
-             reserved_order_id: null,
-             active_ride_id: null
-           });
-        }
-
         // Native FCM Cancel (Prioritize over Web Push)
         if (driver.fcm_token && cachedAccessToken) {
            try {
