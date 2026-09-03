@@ -106,8 +106,9 @@ Deno.serve(async (req) => {
     const targetDriverStatus = autoAceptarViajes ? "en_viaje" : "ofrecido";
 
     const newAttempt = (orderReq.assignment_attempt || 0) + 1;
-    const offeredIds = [...(orderReq.offered_driver_ids || [])];
-    if (!offeredIds.includes(driverId)) offeredIds.push(driverId);
+    // Historial real de ofertas: conservar repeticiones para poder limitar a 2
+    // intentos por móvil para un mismo pasaje.
+    const offeredIds = [...(orderReq.offered_driver_ids || []), driverId];
 
     // Cada asignación crea una ventana propia de respuesta. acceptRide usa
     // offerExpiresAt como autoridad para decidir si la oferta sigue vigente.
