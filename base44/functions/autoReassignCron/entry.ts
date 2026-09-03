@@ -82,8 +82,12 @@ Deno.serve(async (req) => {
     for (const order of offerOrders) {
       if (!order.assigned_at) continue; // Si no tiene assigned_at, ignorar (legacy o procesado por autoReassignOnTimeout)
       
-      const elapsedMs = Date.now() - new Date(order.assigned_at).getTime();
-      if (elapsedMs < (tiempoMaximo * 1000)) continue; // Aún no venció desde la última reasignación real
+      // Misma autoridad que acceptRide y la pantalla del chofer: offerExpiresAt.
+      // Así el cron nunca vence una oferta antes de la ventana real asignada.
+      const expiresAt = order.offerExpiresAt != null
+        ? Number(order.offerExpiresAt)
+        : (new Date(order.assigned_at).getTime() + (tiempoMaximo * 1000));
+      if (!Number.isFinite(expiresAt) || Date.now() < expiresAt) continue;
 
       // Re-lectura estricta para evitar carreras
       const freshOrder = await b44.entities.RideOrder.get(order.id).catch(() => null);
