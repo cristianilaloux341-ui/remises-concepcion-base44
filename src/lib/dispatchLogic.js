@@ -198,9 +198,14 @@ export async function reassignAfterReject(order, drivers, bases) {
   // offered_driver_ids sigue siendo historial: solo volvemos a considerar esos móviles
   // cuando ya no queda ningún candidato nuevo disponible.
   const allAvailable = await filterDispatchEligibleDrivers(drivers);
-  const alreadyOffered = new Set(order.offered_driver_ids || []);
-  const freshAvailable = allAvailable.filter(d => !alreadyOffered.has(d.id));
-  const available = freshAvailable.length ? freshAvailable : allAvailable;
+  // Cada aparición en offered_driver_ids cuenta una oferta real al móvil.
+  // Máximo 2 ofertas por móvil para este pasaje. Después queda excluido y,
+  // si no queda ningún candidato, el viaje vuelve a pendiente para operador manual.
+  const offerCounts = (order.offered_driver_ids || []).reduce((acc, driverId) => {
+    if (driverId) acc[driverId] = (acc[driverId] || 0) + 1;
+    return acc;
+  }, {});
+  const available = allAvailable.filter(d => (offerCounts[d.id] || 0) < 2);
 
   const tarifaConfigs = await base44.entities.TarifaConfig.list();
   const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
