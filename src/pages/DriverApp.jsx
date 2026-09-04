@@ -784,6 +784,7 @@ export default function DriverApp() {
   // Guardia sincrónica: React state no alcanza para dos eventos que entran en el mismo tick
   // (pantalla + notificación/SW). La clave incluye viaje e intento.
   const acceptInFlightRef = useRef(null);
+  const promoteNextInFlightRef = useRef(null);
   const [receiptOrder, setReceiptOrder] = useState(null);
   const [cancelledOrder, setCancelledOrder] = useState(null);
 
@@ -1362,6 +1363,27 @@ export default function DriverApp() {
       activeOrder = { ...optOrder, status: "aceptado", driver_id: myDriverId };
     }
   }
+
+  // Recuperación automática: si la app se reinicia o falla el primer intento después
+  // de cerrar el viaje, el próximo pasaje reservado vuelve a promocionarse sin perderse.
+  useEffect(() => {
+    const nextOrderId = myDriver?.next_order_id;
+    if (!myDriverId || !nextOrderId || activeOrder || showOcasional || receiptOrder) return;
+    if (promoteNextInFlightRef.current === nextOrderId) return;
+
+    promoteNextInFlightRef.current = nextOrderId;
+    base44.functions.invoke("claimNextRide", {
+      action: "promote",
+      driverId: myDriverId,
+      sessionToken: getSessionToken()
+    }).then(() => {
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+    }).catch(() => {
+      // Se libera la guardia para que una futura sincronización pueda reintentar.
+    }).finally(() => {
+      promoteNextInFlightRef.current = null;
+    });
+  }, [myDriverId, myDriver?.next_order_id, activeOrder?.id, showOcasional, receiptOrder]);
 
   const isLocallyBusy = 
     (localOverride && ["en_viaje", "aceptado", "en_camino"].includes(localOverride.status)) || 
