@@ -189,8 +189,10 @@ Deno.serve(async (req) => {
   if (body.event && body.event.entity_name === "RideOrder" && body.data) {
     const isStatusChanged = !body.old_data || body.data.status !== body.old_data.status;
     
-    const targetDriverId = body.data.driver_id || body.data.reserved_driver_id;
-    const oldTargetDriverId = body.old_data ? (body.old_data.driver_id || body.old_data.reserved_driver_id) : null;
+    const targetDriverId = body.data.driver_id || body.data.reserved_driver_id || body.data.preassigned_driver_id;
+    const oldTargetDriverId = body.old_data
+      ? (body.old_data.driver_id || body.old_data.reserved_driver_id || body.old_data.preassigned_driver_id)
+      : null;
 
     if (body.data.status === "ofrecido" && targetDriverId && isStatusChanged) {
       body.action = "send";
@@ -210,6 +212,19 @@ Deno.serve(async (req) => {
       let toCancel = [];
       
       if (body.data.status === "cancelado") {
+        // Si era un próximo viaje, liberar únicamente esa preasignación.
+        // Nunca modificar active_order_id, active_ride_id ni el viaje/taxímetro actual.
+        const nextDriverId = body.old_data?.preassigned_driver_id || body.data.preassigned_driver_id;
+        const nextToken = body.old_data?.preassignment_token || body.data.preassignment_token;
+        if (nextDriverId) {
+          const releaseQuery: any = { id: nextDriverId, next_order_id: body.data.id };
+          if (nextToken) releaseQuery.next_order_token = nextToken;
+          await base44.asServiceRole.entities.Driver.updateMany(
+            releaseQuery,
+            { $set: { next_order_id: null, next_order_token: null } }
+          ).catch(error => console.error("No se pudo liberar próximo viaje cancelado", error));
+        }
+
         // Cancelación: la fuente de verdad es la relación activa inmediatamente ANTES de cancelar.
         // Así aseguramos que si el operador cancela y limpia el driver_id al mismo tiempo,
         // el móvil que tenía el viaje reciba la alerta para apagarse.
