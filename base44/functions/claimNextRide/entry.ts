@@ -162,6 +162,7 @@ Deno.serve(async (req) => {
             preassigned_driver_id: driverId,
             preassignment_token: token,
             preassigned_at: new Date().toISOString(),
+            driver_name: driver.name,
             assigned_base: driver.current_base || order.zone || null
           }
         }
