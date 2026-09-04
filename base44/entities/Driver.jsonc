@@ -121,6 +121,14 @@
     "active_ride_id": {
       "type": "string"
     },
+    "next_order_id": {
+      "type": "string",
+      "description": "Pr\u00f3ximo pasaje tomado desde la cartelera de pendientes; no reemplaza el viaje activo"
+    },
+    "next_order_token": {
+      "type": "string",
+      "description": "Token exclusivo de la preasignaci\u00f3n del pr\u00f3ximo viaje"
+    },
     "reservation_token": {
       "type": "string"
     },
