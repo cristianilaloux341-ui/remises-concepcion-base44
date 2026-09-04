@@ -134,7 +134,7 @@ export default function CancellationAlert() {
                   className="w-full rounded-xl bg-red-500 hover:bg-red-600 gap-1.5 text-xs font-bold"
                   onClick={() => dismiss(order.id)}
                 >
-                  <MapPin className="w-3.5 h-3.5" /> Ver y Reasignar
+                  <MapPin className="w-3.5 h-3.5" /> Ver pasaje
                 </Button>
               </Link>
               <Button
