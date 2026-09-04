@@ -2119,6 +2119,10 @@ export default function DriverApp() {
   // Anular viaje aceptado: vuelve al principio de la base asignada y el viaje pasa al siguiente
   const handleCancelRide = async () => {
     if (!activeOrder) return;
+    if (activeOrder.claimed_from_pending) {
+      window.alert("Este pasaje fue tomado desde Pendientes. Solo puede cancelarlo la Central o el cliente.");
+      return;
+    }
     const base = activeOrder.assigned_base || myDriver?.current_base || null;
     
     // Lo marcamos pendiente y conservamos quiénes ya lo vieron SOLO como historial.
