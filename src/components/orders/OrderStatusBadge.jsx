@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 
 const statusConfig = {
   pendiente: { label: "Pendiente", className: "bg-amber-100 text-amber-700 border-amber-200" },
+  preasignado_proximo: { label: "Próximo viaje", className: "bg-orange-100 text-orange-700 border-orange-200" },
   ofrecido: { label: "Ofrecido", className: "bg-blue-100 text-blue-700 border-blue-200" },
   aceptado: { label: "Aceptado", className: "bg-indigo-100 text-indigo-700 border-indigo-200" },
   asignado: { label: "Asignado", className: "bg-blue-100 text-blue-700 border-blue-200" },
