@@ -10,7 +10,7 @@ import { DollarSign, Timer, Navigation, CheckCircle2, XCircle, Zap, Clock } from
  * - Tolerancia inicial que descuenta por cada segundo de viaje (en movimiento o no).
  * - Después de consumir la tolerancia, valor de ficha por segundos de espera/detenido.
  */
-export default function OcasionalMeter({ onClose, driver }) {
+export default function OcasionalMeter({ onClose, onFinished, driver }) {
   const [phase, setPhase] = useState("idle"); // 'idle' | 'running' | 'done'
   const [guardando, setGuardando] = useState(false);
   const [importeActual, setImporteActual] = useState(0);
@@ -269,7 +269,10 @@ export default function OcasionalMeter({ onClose, driver }) {
             </button>
             <button
               className="w-full h-11 rounded-2xl border border-gray-700 text-gray-400 font-semibold text-sm active:scale-95 transition-all"
-              onClick={onClose}
+              onClick={async () => {
+                await onFinished?.();
+                onClose?.();
+              }}
             >
               Volver a la App
             </button>
