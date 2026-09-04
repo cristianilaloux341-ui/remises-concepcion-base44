@@ -62,10 +62,7 @@ export default function NewOrder() {
       // El despacho automático continúa en segundo plano.
       (async () => {
         try {
-          const [drivers, bases] = await Promise.all([
-            base44.entities.Driver.list(),
-            base44.entities.Base.list(),
-          ]);
+          const drivers = await base44.entities.Driver.list();
 
           if (newOrder.status === "procesando_despacho" || newOrder.status === "pendiente") {
             if (newOrder.zone) {
