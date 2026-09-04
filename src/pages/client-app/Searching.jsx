@@ -57,7 +57,7 @@ export default function Searching() {
     if (orderId) {
       try {
         const currentOrder = await base44.entities.RideOrder.get(orderId);
-        const linkedDrivers = [...new Set([currentOrder?.driver_id, currentOrder?.reserved_driver_id].filter(Boolean))];
+        const linkedDrivers = [...new Set([currentOrder?.driver_id, currentOrder?.reserved_driver_id, currentOrder?.preassigned_driver_id].filter(Boolean))];
         await base44.entities.RideOrder.update(orderId, {
           status: 'cancelado',
           offerExpiresAt: null,
@@ -67,6 +67,12 @@ export default function Searching() {
           processingLeaseExpiresAt: null,
           processingPhase: null
         });
+        if (currentOrder?.preassigned_driver_id) {
+          await base44.entities.Driver.updateMany(
+            { id: currentOrder.preassigned_driver_id, next_order_id: orderId },
+            { $set: { next_order_id: null, next_order_token: null } }
+          );
+        }
         if (linkedDrivers.length > 0) {
           await base44.entities.Driver.updateMany(
             { id: { $in: linkedDrivers }, $or: [{ active_order_id: orderId }, { active_ride_id: orderId }, { reserved_order_id: orderId }] },
