@@ -20,6 +20,26 @@ import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { resolvePanicAlert } from "@/lib/panicAlerts";
 
+function RideAge({ createdDate }) {
+  const [minutes, setMinutes] = useState(0);
+
+  useEffect(() => {
+    const tick = () => {
+      const createdMs = new Date(createdDate || Date.now()).getTime();
+      setMinutes(Math.max(0, Math.floor((Date.now() - createdMs) / 60000)));
+    };
+    tick();
+    const timer = setInterval(tick, 30000);
+    return () => clearInterval(timer);
+  }, [createdDate]);
+
+  return (
+    <Badge className={`${minutes >= 15 ? "bg-red-600" : minutes >= 5 ? "bg-amber-500" : "bg-slate-600"} text-white font-black`}>
+      ⏱ {minutes < 1 ? "Recién ingresado" : `${minutes} min`}
+    </Badge>
+  );
+}
+
 function CentralOfferCountdown({ order }) {
   const [seconds, setSeconds] = useState(null);
 
@@ -191,6 +211,10 @@ export default function Dashboard() {
 
   const activeOrders = orders.filter(o => ["pendiente", "preasignado_proximo", "ofrecido", "aceptado", "en_camino", "en_viaje"].includes(o.status));
   const pendingOrders = orders.filter(o => o.status === "pendiente");
+  const claimedPendingOrders = activeOrders.filter(o =>
+    o.claimed_from_pending &&
+    ["preasignado_proximo", "aceptado", "en_camino", "en_viaje"].includes(o.status)
+  );
   const completedToday = orders.filter(o => {
     if (o.status !== "completado") return false;
     return new Date(o.updated_date).toDateString() === new Date().toDateString();
@@ -302,6 +326,39 @@ export default function Dashboard() {
               <CentralOfferCountdown order={order} />
             </div>
           ))}
+        </div>
+      )}
+
+      {claimedPendingOrders.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-green-600" />
+            Tomados desde Pendientes
+          </h2>
+          {claimedPendingOrders
+            .sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0))
+            .map(order => (
+              <Link key={order.id} to={`/orders/${order.id}`} className="block">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-xl border-2 border-green-300 bg-green-50 px-4 py-3 shadow-sm hover:bg-green-100">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-900 truncate">
+                      {order.pickup_address || order.client_name || "Pasaje"}
+                    </p>
+                    <p className="text-xs font-semibold text-slate-600 truncate">
+                      🚗 {order.driver_name || "Móvil asignado"} · {order.zone || "Sin zona"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <RideAge createdDate={order.created_date} />
+                    <Badge className={order.status === "preasignado_proximo" ? "bg-orange-500 text-white" : "bg-green-600 text-white"}>
+                      {order.status === "preasignado_proximo" ? "PRÓXIMO VIAJE" :
+                       order.status === "aceptado" ? "ACEPTADO" :
+                       order.status === "en_camino" ? "EN CAMINO" : "EN VIAJE"}
+                    </Badge>
+                  </div>
+                </div>
+              </Link>
+            ))}
         </div>
       )}
 
