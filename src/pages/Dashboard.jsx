@@ -189,7 +189,7 @@ export default function Dashboard() {
     }
   };
 
-  const activeOrders = orders.filter(o => ["pendiente", "ofrecido", "aceptado", "en_camino", "en_viaje"].includes(o.status));
+  const activeOrders = orders.filter(o => ["pendiente", "preasignado_proximo", "ofrecido", "aceptado", "en_camino", "en_viaje"].includes(o.status));
   const pendingOrders = orders.filter(o => o.status === "pendiente");
   const completedToday = orders.filter(o => {
     if (o.status !== "completado") return false;
