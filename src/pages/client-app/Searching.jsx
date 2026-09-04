@@ -20,7 +20,7 @@ export default function Searching() {
     const checkOrder = async () => {
       try {
         const order = await base44.entities.RideOrder.get(orderId);
-        if (order.status === 'aceptado' || order.status === 'en_camino') {
+        if (order.status === 'preasignado_proximo' || order.status === 'aceptado' || order.status === 'en_camino') {
           if (isMounted) navigate('/app-cliente/assigned', { state: { orderId }, replace: true });
         } else if (order.status === 'rechazado' || order.status === 'cancelado') {
           if (isMounted) {
@@ -38,7 +38,7 @@ export default function Searching() {
     const unsubscribe = base44.entities.RideOrder.subscribe((event) => {
       if (event.data?.id === orderId) {
         const status = event.data.status;
-        if (status === 'aceptado' || status === 'en_camino') {
+        if (status === 'preasignado_proximo' || status === 'aceptado' || status === 'en_camino') {
           navigate('/app-cliente/assigned', { state: { orderId }, replace: true });
         } else if (status === 'rechazado' || status === 'cancelado') {
           toast.error('Viaje cancelado o no hay móviles disponibles');
