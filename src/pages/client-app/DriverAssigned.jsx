@@ -101,7 +101,7 @@ export default function DriverAssigned() {
     if (!orderId) return;
     try {
       const currentOrder = await base44.entities.RideOrder.get(orderId);
-      const linkedDrivers = [...new Set([currentOrder?.driver_id, currentOrder?.reserved_driver_id].filter(Boolean))];
+      const linkedDrivers = [...new Set([currentOrder?.driver_id, currentOrder?.reserved_driver_id, currentOrder?.preassigned_driver_id].filter(Boolean))];
       await base44.entities.RideOrder.update(orderId, {
         status: 'cancelado',
         offerExpiresAt: null,
@@ -111,6 +111,12 @@ export default function DriverAssigned() {
         processingLeaseExpiresAt: null,
         processingPhase: null
       });
+      if (currentOrder?.preassigned_driver_id) {
+        await base44.entities.Driver.updateMany(
+          { id: currentOrder.preassigned_driver_id, next_order_id: orderId },
+          { $set: { next_order_id: null, next_order_token: null } }
+        );
+      }
       if (linkedDrivers.length > 0) {
         await base44.entities.Driver.updateMany(
           { id: { $in: linkedDrivers }, $or: [{ active_order_id: orderId }, { active_ride_id: orderId }, { reserved_order_id: orderId }] },
@@ -147,7 +153,7 @@ export default function DriverAssigned() {
       <div className="absolute top-14 inset-x-0 flex justify-center z-10">
         <div className="bg-slate-900 text-white px-6 py-3 rounded-full shadow-xl font-bold flex items-center gap-2">
           <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-          Llega en 4 minutos
+          {order?.status === 'preasignado_proximo' ? 'Es el próximo viaje del móvil' : 'Móvil en camino'}
         </div>
       </div>
 
@@ -207,7 +213,7 @@ export default function DriverAssigned() {
             <Phone className="w-5 h-5" /> Llamar
           </a>
           <button onClick={handleCancel} className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 h-14 rounded-2xl flex items-center justify-center gap-2 font-bold transition-colors">
-            <X className="w-5 h-5" /> Rechazar
+            <X className="w-5 h-5" /> Cancelar
           </button>
         </div>
       </div>
