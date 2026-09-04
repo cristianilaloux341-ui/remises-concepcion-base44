@@ -210,16 +210,13 @@ Deno.serve(async (req) => {
       let toCancel = [];
       
       if (body.data.status === "cancelado") {
-        // Cancelación: validamos que el destinatario siga siendo el móvil activo/reservado de ese pasaje
-        if (targetDriverId) {
-          // Si oldTargetDriverId existe pero ya no coincide con la relación activa, no enviar
-          if (oldTargetDriverId && oldTargetDriverId !== targetDriverId) {
-            // no coincide, se ignora
-          } else {
-            toCancel.push(targetDriverId);
-          }
+        // Cancelación: la fuente de verdad es la relación activa inmediatamente ANTES de cancelar.
+        // Así aseguramos que si el operador cancela y limpia el driver_id al mismo tiempo,
+        // el móvil que tenía el viaje reciba la alerta para apagarse.
+        const recipient = oldTargetDriverId || targetDriverId;
+        if (recipient) {
+          toCancel.push(recipient);
         }
-        // Si el viaje estaba pendiente y sin móvil activo al cancelarse, toCancel queda []
       } else {
         // Para aceptado (por otro móvil) o pendiente (rechazo/timeout), silenciamos al oldTargetDriverId
         if (oldTargetDriverId) toCancel.push(oldTargetDriverId);
