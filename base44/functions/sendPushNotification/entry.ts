@@ -207,14 +207,26 @@ Deno.serve(async (req) => {
       body.action = "cancel_multiple";
       body.orderId = body.data.id;
       
-      // offered_driver_ids es historial: no mandar CANCEL a todos los móviles
-      // que alguna vez vieron esta orden, porque alguno puede estar ya en otro viaje.
-      // Solo se cancela la alerta del destinatario que tenía la oferta inmediatamente antes.
       let toCancel = [];
-      if (oldTargetDriverId) toCancel.push(oldTargetDriverId);
       
-      if (body.data.status === "aceptado" && targetDriverId) {
-        toCancel = toCancel.filter(id => id !== targetDriverId);
+      if (body.data.status === "cancelado") {
+        // Cancelación: validamos que el destinatario siga siendo el móvil activo/reservado de ese pasaje
+        if (targetDriverId) {
+          // Si oldTargetDriverId existe pero ya no coincide con la relación activa, no enviar
+          if (oldTargetDriverId && oldTargetDriverId !== targetDriverId) {
+            // no coincide, se ignora
+          } else {
+            toCancel.push(targetDriverId);
+          }
+        }
+        // Si el viaje estaba pendiente y sin móvil activo al cancelarse, toCancel queda []
+      } else {
+        // Para aceptado (por otro móvil) o pendiente (rechazo/timeout), silenciamos al oldTargetDriverId
+        if (oldTargetDriverId) toCancel.push(oldTargetDriverId);
+        
+        if (body.data.status === "aceptado" && targetDriverId) {
+          toCancel = toCancel.filter(id => id !== targetDriverId);
+        }
       }
       
       body.driversToCancel = [...new Set(toCancel)];
@@ -315,8 +327,9 @@ Deno.serve(async (req) => {
     }
   }
 
-  if (action === 'cancel_multiple') {
-    if (!driversToCancel || driversToCancel.length === 0 || !orderId) return Response.json({ ok: true, reason: 'no_drivers_to_cancel' });
+  if (action === 'cancel_multiple' || action === 'cancel_ride') {
+    const listToCancel = driversToCancel || (driverId ? [driverId] : []);
+    if (!listToCancel || listToCancel.length === 0 || !orderId) return Response.json({ ok: true, reason: 'no_drivers_to_cancel' });
     try {
       const saStr = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
       let tokenRes = null;
@@ -353,7 +366,7 @@ Deno.serve(async (req) => {
       const currentOrder = await base44.asServiceRole.entities.RideOrder.get(orderId).catch(() => null);
       const currentAttempt = currentOrder ? (currentOrder.assignment_attempt || 1) : 1;
       
-      for (const dId of driversToCancel) {
+      for (const dId of listToCancel) {
         const drivers = await base44.asServiceRole.entities.Driver.filter({ id: dId });
         const driver = drivers[0];
         if (!driver) continue;

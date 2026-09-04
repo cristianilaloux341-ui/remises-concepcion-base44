@@ -70,8 +70,8 @@ export default function OrderDetail() {
       processingPhase: null
     });
     
-    // offered_driver_ids es historial: no se debe liberar a esos móviles porque
-    // pueden estar trabajando en otro pasaje. Solo tocar vínculos actuales.
+    // offered_driver_ids es historial: no usar jamás como fallback.
+    // Solo enviar cancelación al móvil activamente asignado o reservado.
     const toCancel = [...new Set([order.driver_id, order.reserved_driver_id])].filter(Boolean);
     
     if (toCancel.length > 0) {
