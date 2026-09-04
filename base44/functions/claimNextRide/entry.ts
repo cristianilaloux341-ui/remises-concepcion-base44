@@ -125,9 +125,11 @@ Deno.serve(async (req) => {
     }
 
     const token = crypto.randomUUID();
+    // Un estado "en_viaje" aislado puede haber quedado atrasado. Solo se reserva
+    // como próximo si existen referencias reales a otro viaje o la app informa
+    // explícitamente que mantiene un viaje/taxímetro actual en pantalla.
     const hasCurrentRide = !!(
-      driver.active_order_id || driver.active_ride_id || driver.reserved_order_id ||
-      driver.status === 'en_viaje'
+      driver.active_order_id || driver.active_ride_id || driver.reserved_order_id
     );
     const queueAsNext = asNext === true || hasCurrentRide;
 
@@ -196,7 +198,7 @@ Deno.serve(async (req) => {
     const driverRes = await b44.entities.Driver.updateMany(
       {
         id: driverId,
-        status: 'disponible',
+        status: { $ne: 'no_disponible' },
         $or: [
           { active_order_id: null },
           { active_order_id: { $exists: false } }
