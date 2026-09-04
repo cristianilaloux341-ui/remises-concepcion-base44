@@ -158,7 +158,7 @@ export default function DriverRejectionAlert() {
                   className="w-full rounded-xl bg-orange-500 hover:bg-orange-600 gap-1.5 text-xs font-bold"
                   onClick={() => dismiss(order.id)}
                 >
-                  <MapPin className="w-3.5 h-3.5" /> Reasignar Urgente
+                  <MapPin className="w-3.5 h-3.5" /> Ver pasaje
                 </Button>
               </Link>
               <Button
