@@ -2586,8 +2586,8 @@ export default function DriverApp() {
       {/* Taxímetro ocasional: permanece montado debajo de la cartelera */}
       {showOcasional && (
         <OcasionalMeter
-          onClose={async () => {
-            setShowOcasional(false);
+          onClose={() => setShowOcasional(false)}
+          onFinished={async () => {
             await base44.functions.invoke("claimNextRide", {
               action: "promote",
               driverId: myDriverId,
