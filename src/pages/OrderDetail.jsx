@@ -16,6 +16,7 @@ import { formatTimeBA } from "@/lib/utils";
 
 export default function OrderDetail() {
   const { user } = useAuth();
+  const canEmergencyAssign = ["admin", "supervisor"].includes(getEffectiveRole(user));
   const urlParams = new URLSearchParams(window.location.search);
   const orderId = window.location.pathname.split("/").pop();
   const navigate = useNavigate();
@@ -394,30 +395,38 @@ export default function OrderDetail() {
         </Card>
 
         <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Acciones</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  {order.driver_id ? "Reasignar Conductor" : "Asignar Conductor"}
-                </label>
-                <Select value={order.driver_id || undefined} onValueChange={handleAssignDriver}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar conductor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableDrivers.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name} - {d.vehicle_plate}{d.current_base ? ` (${d.current_base})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
+          {canEmergencyAssign ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Asignación de emergencia</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    {order.driver_id ? "Reasignar Conductor" : "Asignar Conductor"}
+                  </label>
+                  <Select value={order.driver_id || undefined} onValueChange={handleAssignDriver}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar conductor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableDrivers.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name} - {d.vehicle_plate}{d.current_base ? ` (${d.current_base})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="pt-6 text-sm text-muted-foreground">
+                El despacho se resuelve automáticamente por la cola de la zona o desde Pendientes.
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="overflow-hidden">
             <CardContent className="p-0 h-[250px]">
