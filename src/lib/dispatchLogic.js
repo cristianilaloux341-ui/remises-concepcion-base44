@@ -57,25 +57,15 @@ export async function findBestDriver(order, drivers, bases) {
     if (zoneQueue.length > 0) return zoneQueue[0];
   }
 
-  // 2) Si no hay nadie en la zona (o no tiene zona), forzar asignación al chofer libre con mayor espera global
-  const globalQueue = sortQueue(availableDrivers);
-  if (globalQueue.length > 0) return globalQueue[0];
-
+  // Fuera de la zona no se asigna automáticamente: queda para la cartelera Pendientes.
   return null;
 }
 
 // Find first available driver in the exact zone (FIFO queue by queue_entered_at)
 export async function findDriverInZone(zone, drivers) {
   if (!zone) return null;
-  const inZone = getBaseQueue(drivers, zone)[0];
-  if (inZone) return inZone;
-  
-  // Prioridad 2: Si no hay nadie en la zona, retorna el libre de mayor tiempo de espera globalmente
-  const allAvailable = await filterDispatchEligibleDrivers(drivers);
-  if (allAvailable.length > 0) {
-      return sortQueue(allAvailable)[0];
-  }
-  return null;
+  const availableDrivers = await filterDispatchEligibleDrivers(drivers);
+  return getBaseQueue(availableDrivers, zone)[0] || null;
 }
 
 // Assign driver to order (direct / zone-based)
@@ -139,35 +129,8 @@ export async function autoDispatch(order, drivers, bases) {
     }
   }
 
-  // 2) Si la zona está vacía o el pedido no tiene zona, asignamos al móvil más cercano
-  if (order.pickup_lat && order.pickup_lng) {
-    let driversWithDist = availableDrivers
-      .filter(d => d.current_lat && d.current_lng)
-      .map(d => ({ d, dist: getDistance(order.pickup_lat, order.pickup_lng, d.current_lat, d.current_lng) }))
-      .sort((a, b) => a.dist - b.dist);
-      
-    for (const item of driversWithDist) {
-      try {
-        await assignDriverToOrder(order, item.d);
-        return "assigned";
-      } catch (e) {
-        console.warn("Fallo asignando a", item.d.name, e);
-      }
-    }
-  }
-
-  // 3) Fallback al móvil libre de cualquier zona (el de mayor espera)
-  const globalQueue = sortQueue(availableDrivers);
-  for (const driver of globalQueue) {
-    try {
-      await assignDriverToOrder(order, driver);
-      return "assigned";
-    } catch (e) {
-      console.warn("Fallo asignando a", driver.name, e);
-    }
-  }
-
-  // Fallback: se deja pendiente (Broadcast fue deshabilitado por requerimiento del cliente)
+  // Agotada la cola de la zona, se deja pendiente para que un chofer lo tome.
+  // No se usa distancia ni se recorre otra zona automáticamente.
   await base44.entities.RideOrder.update(order.id, {
     status: "pendiente",
     driver_id: null,
@@ -234,35 +197,8 @@ export async function reassignAfterReject(order, drivers, bases) {
     }
   }
 
-  // No one in same zone → closest driver!
-  if (order.pickup_lat && order.pickup_lng) {
-    let driversWithDist = available
-      .filter(d => d.current_lat && d.current_lng)
-      .map(d => ({ d, dist: getDistance(order.pickup_lat, order.pickup_lng, d.current_lat, d.current_lng) }))
-      .sort((a, b) => a.dist - b.dist);
-
-    for (const item of driversWithDist) {
-      try {
-        await assignDriverToOrder(order, item.d);
-        return "closest";
-      } catch (e) {
-        console.warn("Fallo asignando a", item.d.name, e);
-      }
-    }
-  }
-
-  // Fallback global
-  const globalQueue = sortQueue(available);
-  for (const driver of globalQueue) {
-    try {
-      await assignDriverToOrder(order, driver);
-      return "next_in_queue";
-    } catch (e) {
-      console.warn("Fallo asignando a", driver.name, e);
-    }
-  }
-
-  // No one at all -> se pasa a pendiente
+  // Agotada la cola de la zona, se pasa a Pendientes.
+  // No se reasigna por distancia ni a otra zona.
   const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) 
       ? sessionStorage.getItem("local_operator_token") 
       : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
