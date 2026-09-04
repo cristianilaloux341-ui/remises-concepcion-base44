@@ -73,6 +73,10 @@ Deno.serve(async (req) => {
           $or: [
             { active_order_id: null },
             { active_order_id: { $exists: false } }
+          ],
+          $and: [
+            { $or: [{ active_ride_id: null }, { active_ride_id: { $exists: false } }] },
+            { $or: [{ reserved_order_id: null }, { reserved_order_id: { $exists: false } }] }
           ]
         },
         {
@@ -159,6 +163,7 @@ Deno.serve(async (req) => {
         {
           $set: {
             status: 'preasignado_proximo',
+            driver_id: driverId,
             preassigned_driver_id: driverId,
             preassignment_token: token,
             preassigned_at: new Date().toISOString(),
