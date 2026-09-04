@@ -61,6 +61,7 @@
         "pendiente",
         "procesando_despacho",
         "esperando_confirmacion_manual",
+        "preasignado_proximo",
         "ofrecido",
         "aceptado",
         "en_camino",
@@ -87,6 +88,20 @@
     },
     "reserved_driver_id": {
       "type": "string"
+    },
+    "preassigned_driver_id": {
+      "type": "string",
+      "description": "Chofer que tom\u00f3 este pasaje como pr\u00f3ximo viaje"
+    },
+    "preassignment_token": {
+      "type": "string",
+      "description": "Token exclusivo para tomar y promover el pr\u00f3ximo viaje"
+    },
+    "preassigned_at": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "assigned_base": {
       "type": "string",
