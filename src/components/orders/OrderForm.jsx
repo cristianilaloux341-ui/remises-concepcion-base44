@@ -17,7 +17,7 @@ import { resolveActiveDriverForMobile } from "@/lib/mobileDriverResolver";
 
 const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 
-export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = () => {} }) {
+export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = () => {}, allowManualAssignment = false }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
@@ -311,6 +311,14 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     data.metros_taximetro = 0;
     data.taximetro_iniciado = false;
 
+    // El operador común nunca puede inyectar una asignación manual, aunque llegue un dato viejo.
+    if (!allowManualAssignment) {
+      delete data.driver_id;
+      delete data.driver_name;
+      delete data._resolved_mobile_id;
+      data.status = "pendiente";
+    }
+
     // La selección visual nunca puede saltar la validación del estado real del chofer.
     if (data.driver_id) {
       const selectedDriver = drivers.find(d => d.id === data.driver_id);
@@ -571,6 +579,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
           </div>
 
           {/* ── ASIGNACIÓN ── */}
+          {allowManualAssignment ? (
           <div className="p-4 rounded-xl bg-muted/40 border space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
               <Car className="w-3.5 h-3.5" /> Asignación de Móvil
@@ -648,6 +657,15 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
               <p className="text-xs text-amber-600">Sin móviles disponibles en base</p>
             )}
           </div>
+          ) : (
+            <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 space-y-1">
+              <p className="text-sm font-semibold text-blue-900">Despacho automático por zona</p>
+              <p className="text-xs text-blue-700">
+                Se ofrecerá respetando el orden de móviles de {form.zone || "la zona del pasaje"}.
+                Si la cola se agota, quedará en Pendientes para que lo tome un chofer.
+              </p>
+            </div>
+          )}
 
           {/* ── TARIFA Y NOTAS ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
