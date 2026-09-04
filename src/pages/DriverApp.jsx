@@ -34,6 +34,7 @@ import { usePushSubscription } from "@/hooks/usePushSubscription";
 import BatteryOptimizationGuide from "@/components/driver/BatteryOptimizationGuide";
 import OcasionalMeter from "@/components/driver/OcasionalMeter";
 import ActiveRideScreen from "@/components/driver/ActiveRideScreen";
+import PendingRidesOverlay from "@/components/driver/PendingRidesOverlay";
 import { getDriverDisplay } from "@/lib/utils";
 
 const debugArray = (arr, name) => {
@@ -777,6 +778,7 @@ export default function DriverApp() {
   const [showBatteryGuide, setShowBatteryGuide] = useState(false);
   const [showOcasional, setShowOcasional] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPendingRides, setShowPendingRides] = useState(false);
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState([]);
   const [isAccepting, setIsAccepting] = useState(false);
   // Guardia sincrónica: React state no alcanza para dos eventos que entran en el mismo tick
@@ -785,16 +787,17 @@ export default function DriverApp() {
   const [receiptOrder, setReceiptOrder] = useState(null);
   const [cancelledOrder, setCancelledOrder] = useState(null);
 
-  const overlays = useRef({ showMessages, showStats, showOcasional, showBatteryGuide, showSettings });
+  const overlays = useRef({ showMessages, showStats, showOcasional, showBatteryGuide, showSettings, showPendingRides });
   useEffect(() => {
-    overlays.current = { showMessages, showStats, showOcasional, showBatteryGuide, showSettings };
-  }, [showMessages, showStats, showOcasional, showBatteryGuide, showSettings]);
+    overlays.current = { showMessages, showStats, showOcasional, showBatteryGuide, showSettings, showPendingRides };
+  }, [showMessages, showStats, showOcasional, showBatteryGuide, showSettings, showPendingRides]);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const listener = App.addListener('backButton', () => {
        const o = overlays.current;
-       if (o.showBatteryGuide) setShowBatteryGuide(false);
+       if (o.showPendingRides) setShowPendingRides(false);
+       else if (o.showBatteryGuide) setShowBatteryGuide(false);
        else if (o.showSettings) setShowSettings(false);
        else if (o.showStats) setShowStats(false);
        else if (o.showOcasional) setShowOcasional(false);
@@ -1373,6 +1376,10 @@ export default function DriverApp() {
     !ignoredOrdersRef.current.has(o.id)
   );
   
+  const pendingBoardCount = debugArray(safeOrders, "safeOrders").filter(o =>
+    o.status === "pendiente" && !o.driver_id && !o.reserved_driver_id && !o.preassigned_driver_id
+  ).length;
+
   // Broadcast desactivado
   const broadcastOrder = null;
 
@@ -1984,6 +1991,13 @@ export default function DriverApp() {
         queue_entered_at: queueEnteredAt
       } }
     );
+
+    await base44.functions.invoke("claimNextRide", {
+      action: "promote",
+      driverId: myDriverId,
+      sessionToken: getSessionToken()
+    }).catch(error => console.error("No se pudo abrir el próximo viaje", error));
+    window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     return true;
   };
 
@@ -2553,9 +2567,48 @@ export default function DriverApp() {
         />
       )}
 
-      {/* Taxímetro ocasional */}
+      {/* Acceso flotante: no desmonta el viaje ni el taxímetro ocasional */}
+      {myDriver.status !== "no_disponible" && (
+        <button
+          onClick={() => setShowPendingRides(true)}
+          className="fixed z-[10000] bottom-5 right-4 h-14 px-4 rounded-2xl bg-orange-500 text-gray-950 font-black shadow-2xl flex items-center gap-2 active:scale-95"
+        >
+          <List className="w-5 h-5" />
+          Pendientes
+          {pendingBoardCount > 0 && (
+            <span className="min-w-6 h-6 px-1 rounded-full bg-gray-950 text-orange-400 text-xs flex items-center justify-center">
+              {pendingBoardCount}
+            </span>
+          )}
+        </button>
+      )}
+
+      {/* Taxímetro ocasional: permanece montado debajo de la cartelera */}
       {showOcasional && (
-        <OcasionalMeter onClose={() => setShowOcasional(false)} driver={myDriver} />
+        <OcasionalMeter
+          onClose={async () => {
+            setShowOcasional(false);
+            await base44.functions.invoke("claimNextRide", {
+              action: "promote",
+              driverId: myDriverId,
+              sessionToken: getSessionToken()
+            }).catch(() => {});
+            window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+          }}
+          driver={myDriver}
+        />
+      )}
+
+      {showPendingRides && myDriver && (
+        <PendingRidesOverlay
+          orders={safeOrders}
+          driver={myDriver}
+          asNext={!!activeOrder || showOcasional}
+          onClose={() => setShowPendingRides(false)}
+          onClaimed={(result) => {
+            if (result?.mode === "current") setShowPendingRides(false);
+          }}
+        />
       )}
 
       {/* Ajustes de cuenta */}
