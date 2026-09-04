@@ -79,6 +79,13 @@ export default function NewOrder() {
           }
         } catch (err) {
           console.error("Error en despacho asíncrono:", err);
+          // Nunca dejar una pantalla en "procesando" si falló la oferta.
+          await base44.entities.RideOrder.update(newOrder.id, {
+            status: "pendiente",
+            driver_id: null,
+            reserved_driver_id: null,
+            driver_name: null,
+          }).catch(() => {});
         }
       })();
 
