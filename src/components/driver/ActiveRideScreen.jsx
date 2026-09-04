@@ -395,9 +395,11 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
                 <AlertCircle className="w-5 h-5" /> {isStarting ? "Avisando..." : "Llegué a la Puerta (Avisar)"}
               </button>
             )}
-            <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all disabled:opacity-50" onClick={onCancelRide} disabled={isStarting || isFinishing}>
-              <XCircle className="w-4 h-4" /> Anular — volver a mi base
-            </button>
+            {!order.claimed_from_pending && (
+              <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all disabled:opacity-50" onClick={onCancelRide} disabled={isStarting || isFinishing}>
+                <XCircle className="w-4 h-4" /> Anular — volver a mi base
+              </button>
+            )}
           </div>
         )}
         {order.status === "en_camino" && (
@@ -405,9 +407,11 @@ export default function ActiveRideScreen({ order, driver, onStatusChange, onCanc
             <button className="w-full h-14 rounded-2xl gap-2 bg-cyan-600 text-white text-base font-bold flex items-center justify-center active:scale-95 transition-all shadow-lg disabled:opacity-50" onClick={() => handleStartRide("en_viaje")} disabled={isStarting || isFinishing}>
               <Car className="w-5 h-5" /> {isStarting ? "Iniciando..." : "Pasajero a Bordo"}
             </button>
-            <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all disabled:opacity-50" onClick={onCancelRide} disabled={isStarting || isFinishing}>
-              <XCircle className="w-4 h-4" /> Anular — no salió / cancelar
-            </button>
+            {!order.claimed_from_pending && (
+              <button className="w-full h-11 rounded-2xl gap-2 border border-red-500/40 text-red-400 bg-red-500/10 font-semibold text-sm flex items-center justify-center active:scale-95 transition-all disabled:opacity-50" onClick={onCancelRide} disabled={isStarting || isFinishing}>
+                <XCircle className="w-4 h-4" /> Anular — no salió / cancelar
+              </button>
+            )}
           </div>
         )}
         {order.status === "en_viaje" && (
