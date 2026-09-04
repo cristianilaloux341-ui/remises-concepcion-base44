@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
       driver.active_order_id || driver.active_ride_id || driver.reserved_order_id ||
       driver.status === 'en_viaje'
     );
-    const queueAsNext = = asNext === true || hasCurrentRide;
+    const queueAsNext = asNext === true || hasCurrentRide;
 
     if (queueAsNext) {
       if (driver.next_order_id) {
