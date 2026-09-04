@@ -72,7 +72,14 @@ export default function OrderDetail() {
     
     // offered_driver_ids es historial: no usar jamás como fallback.
     // Solo enviar cancelación al móvil activamente asignado o reservado.
-    const toCancel = [...new Set([order.driver_id, order.reserved_driver_id])].filter(Boolean);
+    const toCancel = [...new Set([order.driver_id, order.reserved_driver_id, order.preassigned_driver_id])].filter(Boolean);
+
+    if (order.preassigned_driver_id) {
+      await base44.entities.Driver.updateMany(
+        { id: order.preassigned_driver_id, next_order_id: order.id },
+        { $set: { next_order_id: null, next_order_token: null } }
+      ).catch(() => {});
+    }
     
     if (toCancel.length > 0) {
       // Liberar únicamente móviles que todavía sigan vinculados a ESTA orden.
@@ -116,6 +123,18 @@ export default function OrderDetail() {
       const orderToDelete = orders.find(o => o.id === id);
       if (orderToDelete) {
         const toCancel = [...new Set([orderToDelete.driver_id, orderToDelete.reserved_driver_id])].filter(Boolean);
+        if (orderToDelete.preassigned_driver_id) {
+          await base44.entities.Driver.updateMany(
+            { id: orderToDelete.preassigned_driver_id, next_order_id: orderToDelete.id },
+            { $set: { next_order_id: null, next_order_token: null } }
+          ).catch(() => {});
+          base44.functions.invoke("sendPushNotification", {
+            action: "cancel_multiple",
+            driversToCancel: [orderToDelete.preassigned_driver_id],
+            orderId: orderToDelete.id,
+            sessionToken: sessionStorage.getItem("local_operator_token")
+          }).catch(() => {});
+        }
         if (toCancel.length > 0) {
           await base44.entities.Driver.updateMany(
             { id: { $in: toCancel }, $or: [{ active_order_id: orderToDelete.id }, { active_ride_id: orderToDelete.id }, { reserved_order_id: orderToDelete.id }] },
@@ -184,6 +203,12 @@ export default function OrderDetail() {
     // Primero se limpia el chofer y recién después se reactiva la orden para que
     // nunca vuelva a circular con una reserva/lease de una asignación anterior.
     const toCancel = [...new Set([order.driver_id, order.reserved_driver_id])].filter(Boolean);
+    if (order.preassigned_driver_id) {
+      await base44.entities.Driver.updateMany(
+        { id: order.preassigned_driver_id, next_order_id: order.id },
+        { $set: { next_order_id: null, next_order_token: null } }
+      ).catch(() => {});
+    }
     if (toCancel.length > 0) {
       try {
         await base44.entities.Driver.updateMany(
@@ -216,6 +241,10 @@ export default function OrderDetail() {
         driver_name: null,
         assigned_base: null,
         reserved_driver_id: null,
+        preassigned_driver_id: null,
+        preassignment_token: null,
+        preassigned_at: null,
+        claimed_from_pending: false,
         reservation_token: null,
         manual_reservation_token: null,
         offerExpiresAt: null,
