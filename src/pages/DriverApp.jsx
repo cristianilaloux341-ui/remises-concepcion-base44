@@ -2014,11 +2014,44 @@ export default function DriverApp() {
       } }
     );
 
-    await base44.functions.invoke("claimNextRide", {
-      action: "promote",
-      driverId: myDriverId,
-      sessionToken: getSessionToken()
-    }).catch(error => console.error("No se pudo abrir el próximo viaje", error));
+    try {
+      const promotion = await base44.functions.invoke("claimNextRide", {
+        action: "promote",
+        driverId: myDriverId,
+        sessionToken: getSessionToken()
+      });
+
+      if (promotion.data?.success && promotion.data?.promoted && promotion.data?.orderId) {
+        const promotedOrder = await base44.entities.RideOrder.get(promotion.data.orderId);
+
+        // Insertar el próximo viaje inmediatamente en todas las cachés utilizadas
+        // por la app. No dependemos del evento realtime ni de reiniciar Android.
+        queryClient.setQueriesData({ predicate: (q) => {
+          const key = Array.isArray(q.queryKey) ? q.queryKey : [];
+          return key.some(part => String(part).toLowerCase().includes("rideorder") || String(part).toLowerCase().includes("orders"));
+        }}, (old) => {
+          if (!Array.isArray(old)) return old;
+          return [promotedOrder, ...old.filter(o => o?.id !== promotedOrder.id)];
+        });
+
+        setLocalOverride({
+          status: "en_viaje",
+          current_base: promotedOrder.assigned_base || promotedOrder.zone || null,
+          optimisticOrderId: promotedOrder.id
+        });
+      }
+    } catch (error) {
+      console.error("No se pudo abrir el próximo viaje", error);
+    }
+
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["orders"] }),
+      queryClient.invalidateQueries({ queryKey: ["drivers"] }),
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const key = Array.isArray(q.queryKey) ? q.queryKey : [];
+        return key.some(part => String(part).toLowerCase().includes("rideorder") || String(part).toLowerCase().includes("driver"));
+      }})
+    ]);
     window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     return true;
   };
