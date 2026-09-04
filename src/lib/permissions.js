@@ -36,7 +36,8 @@ const NAV_PERMISSIONS = {
  */
 const ACTION_PERMISSIONS = {
   admin: {
-    canDispatch: true,          // Despachar viajes
+    canDispatch: true,          // Crear y despachar viajes
+    canManualAssign: true,      // Asignación excepcional a un móvil
     canCancelOrder: true,       // Cancelar viajes
     canViewFares: true,         // Ver tarifas y configuración
     canEditTarifas: true,       // Editar tarifas
@@ -50,6 +51,7 @@ const ACTION_PERMISSIONS = {
   },
   supervisor: {
     canDispatch: true,
+    canManualAssign: true,
     canCancelOrder: true,
     canViewFares: true,
     canEditTarifas: false,
@@ -63,6 +65,7 @@ const ACTION_PERMISSIONS = {
   },
   operador: {
     canDispatch: true,
+    canManualAssign: false,
     canCancelOrder: true,
     canViewFares: false,
     canEditTarifas: false,
@@ -76,6 +79,7 @@ const ACTION_PERMISSIONS = {
   },
   caja: {
     canDispatch: false,
+    canManualAssign: false,
     canCancelOrder: false,
     canViewFares: true,
     canEditTarifas: false,
