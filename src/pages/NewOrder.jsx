@@ -4,19 +4,23 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrderForm from "@/components/orders/OrderForm";
-import { findBestDriver, findDriverInZone, assignDriverToOrder } from "@/lib/dispatchLogic";
+import { findDriverInZone, assignDriverToOrder } from "@/lib/dispatchLogic";
+import { useAuth } from "@/lib/AuthContext";
+import { getEffectiveRole } from "@/lib/permissions";
 
 export default function NewOrder() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canManualAssign = ["admin", "supervisor"].includes(getEffectiveRole(user));
 
   const scheduledRideId = location.state?.scheduled_ride_id;
   const initialData = location.state?.initialData;
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      const manualDriverId = data.driver_id;
+      const manualDriverId = canManualAssign ? data.driver_id : null;
       const resolvedMobileId = data._resolved_mobile_id || null;
       const orderData = { ...data };
       delete orderData._resolved_mobile_id;
@@ -72,12 +76,8 @@ export default function NewOrder() {
                 await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
               }
             } else {
-              const bestDriver = await findBestDriver(newOrder, drivers, bases);
-              if (bestDriver) {
-                await assignDriverToOrder(newOrder, bestDriver);
-              } else {
-                await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
-              }
+              // Sin zona confirmada no se salta a otra cola: queda visible en Pendientes.
+              await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
             }
           }
         } catch (err) {
@@ -113,7 +113,7 @@ export default function NewOrder() {
         <ArrowLeft className="w-4 h-4" />
         Volver
       </Button>
-      <OrderForm order={initialData} onSubmit={(data) => createMutation.mutate(data)} isSubmitting={createMutation.isPending} onCancel={() => navigate(-1)} />
+      <OrderForm order={initialData} onSubmit={(data) => createMutation.mutate(data)} isSubmitting={createMutation.isPending} onCancel={() => navigate(-1)} allowManualAssignment={canManualAssign} />
     </div>
   );
 }
