@@ -126,6 +126,11 @@
     "notes": {
       "type": "string"
     },
+    "claimed_from_pending": {
+      "type": "boolean",
+      "default": false,
+      "description": "Impide que el chofer cancele un viaje que tom\u00f3 voluntariamente desde Pendientes"
+    },
     "source": {
       "type": "string",
       "enum": [
