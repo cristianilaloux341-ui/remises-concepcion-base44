@@ -1219,9 +1219,14 @@ export default function DriverApp() {
     ? { ...myDriverRaw, ...(localOverride ?? {}) }
     : null;
 
-  // GPS nativo SOLO cuando hace falta para un viaje/taxímetro.
-  // En espera FCM mantiene la recepción de viajes sin tener el GPS encendido.
-  const preciseGpsTracking = myDriver?.status === "en_viaje" || showOcasional;
+  // Un viaje asignado debe encender el mismo proveedor GPS que el taxímetro ocasional.
+  // La orden es la fuente de verdad del viaje: no dependemos de que Driver.status llegue antes.
+  const assignedRideForGps = safeOrders.find(order =>
+    (order.driver_id === myDriverId || order.reserved_driver_id === myDriverId) &&
+    ["aceptado", "en_camino", "en_viaje"].includes(order.status)
+  );
+  const assignedRideGpsEnabled = !!assignedRideForGps;
+  const preciseGpsTracking = assignedRideGpsEnabled || showOcasional;
   const gpsTrackingEnabled = !!myDriverId && !!myDriver && preciseGpsTracking;
   const gpsIdRef = useRef(null);
 
