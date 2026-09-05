@@ -1239,13 +1239,31 @@ export default function DriverApp() {
     const filter = createGpsStabilityFilter();
     let stopped = false;
     let webRetryTimer = null;
+    let nativeRetryTimer = null;
+    let nativeStartInFlight = false;
+    let nativeWatchId = null;
     let lastPublishedAt = 0;
     let distanceSincePublish = 0;
+
+    const scheduleNativeRestart = (delay = 2500) => {
+      if (stopped || !Capacitor.isNativePlatform()) return;
+      clearTimeout(nativeRetryTimer);
+      nativeRetryTimer = setTimeout(() => {
+        startNativeWatch();
+      }, delay);
+    };
 
     const handleLocation = (location, error = null) => {
       if (stopped) return;
       if (error) {
         console.warn("GPS descartado:", error);
+        if (Capacitor.isNativePlatform()) {
+          const failedId = nativeWatchId;
+          nativeWatchId = null;
+          if (gpsIdRef.current === failedId) gpsIdRef.current = null;
+          if (failedId) BackgroundGeolocation.removeWatcher({ id: failedId }).catch(() => {});
+          scheduleNativeRestart();
+        }
         return;
       }
 
@@ -1302,25 +1320,36 @@ export default function DriverApp() {
       );
     };
 
-    if (Capacitor.isNativePlatform()) {
-      BackgroundGeolocation.addWatcher(
-        {
-          backgroundMessage: preciseGpsTracking
-            ? "Taxímetro activo durante el viaje."
-            : "Ubicación activa mientras está en servicio.",
-          backgroundTitle: "Remises Concepción",
-          requestPermissions: true,
-          stale: false,
-          distanceFilter: preciseGpsTracking ? 3 : 20
-        },
-        handleLocation
-      ).then(id => {
+    const startNativeWatch = async () => {
+      if (stopped || nativeStartInFlight || nativeWatchId) return;
+      nativeStartInFlight = true;
+      try {
+        const id = await BackgroundGeolocation.addWatcher(
+          {
+            backgroundMessage: "GPS activo durante el viaje.",
+            backgroundTitle: "Remises Concepción",
+            requestPermissions: true,
+            stale: false,
+            distanceFilter: 3
+          },
+          handleLocation
+        );
         if (stopped) {
           BackgroundGeolocation.removeWatcher({ id }).catch(() => {});
         } else {
+          nativeWatchId = id;
           gpsIdRef.current = id;
         }
-      }).catch(e => console.error("Error iniciando GPS nativo", e));
+      } catch (error) {
+        console.error("Error iniciando GPS nativo", error);
+        scheduleNativeRestart();
+      } finally {
+        nativeStartInFlight = false;
+      }
+    };
+
+    if (Capacitor.isNativePlatform()) {
+      startNativeWatch();
     } else {
       startWebWatch();
     }
@@ -1328,7 +1357,9 @@ export default function DriverApp() {
     return () => {
       stopped = true;
       clearTimeout(webRetryTimer);
-      const id = gpsIdRef.current;
+      clearTimeout(nativeRetryTimer);
+      const id = nativeWatchId || gpsIdRef.current;
+      nativeWatchId = null;
       gpsIdRef.current = null;
       filter.reset();
 
