@@ -119,6 +119,9 @@ Deno.serve(async (req) => {
 
     if (!orderId) return Response.json({ success: false, reason: 'missing_order_id' });
     const order = await b44.entities.RideOrder.get(orderId);
+    if (String(order?.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]')) {
+      return Response.json({ success: false, reason: 'pending_central_review' });
+    }
     if (!order || order.status !== 'pendiente' || order.driver_id || order.reserved_driver_id ||
         order.preassigned_driver_id) {
       return Response.json({ success: false, reason: 'already_taken' });
