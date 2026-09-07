@@ -94,6 +94,11 @@ export async function assignDriverToOrder(order, driver, options = {}) {
 // Auto-dispatch: intenta asignar por zona; si no hay nadie → deja en pendiente
 // Retorna: "assigned" | "no_drivers"
 export async function autoDispatch(order, drivers, bases) {
+  // Un viaje aceptado y luego cancelado por el chofer queda reservado para que
+  // la Central decida; nunca vuelve solo a la rueda automática.
+  if (String(order?.notes || "").includes("[REVISION_CENTRAL_CANCELADO_CHOFER]")) {
+    return "revision_central";
+  }
   // offered_driver_ids es historial, nunca lista negra permanente.
   const availableDrivers = await filterDispatchEligibleDrivers(drivers);
 
