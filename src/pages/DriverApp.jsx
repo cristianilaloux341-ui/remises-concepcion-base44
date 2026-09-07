@@ -818,6 +818,10 @@ export default function DriverApp() {
   const offeredOrderRef = useRef(null);
   const prevBroadcastId = useRef(null);
   const ignoredOrdersRef = useRef(new Set());
+  // Evita que el mismo toque usado para aceptar atraviese el cambio de pantalla
+  // y active por accidente el botón de anular del viaje recién aceptado.
+  const activeOrderShownAtRef = useRef(0);
+  const activeOrderShownIdRef = useRef(null);
 
   // Register SW and request notification permission on load
   useEffect(() => {
@@ -1399,6 +1403,17 @@ export default function DriverApp() {
       activeOrder = { ...optOrder, status: "aceptado", driver_id: myDriverId };
     }
   }
+
+  useEffect(() => {
+    const activeId = activeOrder?.id || null;
+    if (activeId && activeOrderShownIdRef.current !== activeId) {
+      activeOrderShownIdRef.current = activeId;
+      activeOrderShownAtRef.current = Date.now();
+    } else if (!activeId) {
+      activeOrderShownIdRef.current = null;
+      activeOrderShownAtRef.current = 0;
+    }
+  }, [activeOrder?.id]);
 
   // Recuperación automática: si la app se reinicia o falla el primer intento después
   // de cerrar el viaje, el próximo pasaje reservado vuelve a promocionarse sin perderse.
@@ -2226,6 +2241,18 @@ export default function DriverApp() {
   // Anular viaje aceptado: vuelve al principio de la base asignada y el viaje pasa al siguiente
   const handleCancelRide = async () => {
     if (!activeOrder) return;
+
+    // Protección contra el click-through observado en producción: durante los
+    // primeros 4 segundos la pantalla puede haber aparecido debajo del dedo que
+    // acaba de tocar ACEPTAR. En ese lapso jamás se procesa una anulación.
+    const msSinceShown = Date.now() - (activeOrderShownAtRef.current || Date.now());
+    if (msSinceShown < 4000) return;
+
+    const confirmed = window.confirm(
+      `¿Seguro que querés anular el viaje de ${activeOrder.client_name || "este pasajero"}? Quedará pendiente para revisión de la Central.`
+    );
+    if (!confirmed) return;
+
     if (activeOrder.claimed_from_pending) {
       window.alert("Este pasaje fue tomado desde Pendientes. Solo puede cancelarlo la Central o el cliente.");
       return;
@@ -2244,9 +2271,10 @@ export default function DriverApp() {
         driver_name: null,
         reservation_token: null,
         manual_reservation_token: null,
-        // Viaje ya aceptado y devuelto: comienza una ronda nueva.
-        // Conservamos solo al chofer que lo devuelve; los anteriores pueden recibirlo otra vez.
-        offered_driver_ids: [myDriverId]
+        // Viaje ya aceptado y devuelto: queda fuera del despacho automático
+        // hasta que la Central decida reactivarlo.
+        offered_driver_ids: [myDriverId],
+        notes: `${activeOrder.notes || ""} [REVISION_CENTRAL_CANCELADO_CHOFER]`.trim()
       } 
     });
     
