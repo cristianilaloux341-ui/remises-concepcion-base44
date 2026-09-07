@@ -64,6 +64,10 @@ Deno.serve(async (req) => {
   // Nueva Validación estricta de Zona (Server-Side)
   let isManualAuthorized = false;
   const requestedManual = payload.requireDriverConfirmation === true || forceManual;
+  const heldForCentralReview = String(orderReq.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]');
+  if (heldForCentralReview && !requestedManual) {
+    return Response.json({ success: false, reason: 'PENDING_CENTRAL_REVIEW' });
+  }
   
   if (requestedManual && sessionToken) {
     const tokenData = await verifyJWT(sessionToken);
@@ -200,7 +204,10 @@ Deno.serve(async (req) => {
       
       // Escribir los datos de asignación solo después del éxito atómico
       await b44.entities.RideOrder.update(orderId, {
-        status: targetOrderStatus, 
+        status: targetOrderStatus,
+        notes: requestedManual
+          ? String(orderReq.notes || '').replace(/\s*\[REVISION_CENTRAL_CANCELADO_CHOFER\]\s*/g, ' ').trim()
+          : orderReq.notes,
         reserved_driver_id: driverId,
         offered_driver_ids: offeredIds,
         assignment_attempt: newAttempt,
