@@ -595,48 +595,16 @@ export default function DriverApp() {
         Capacitor.Plugins.ForegroundService?.markRideResolved({ orderId: autoRejectOrderId, assignmentAttempt: autoRejectAttempt, resolutionType: "REJECTED" }).catch(()=>{});
         stopNativeRideAlert(autoRejectOrderId, "autoRejectFromURL");
       }
-      // El rechazo puede llegar tarde desde una notificación vieja.
-      // Primero confirmar la liberación en servidor y recién después reasignar.
-      base44.entities.Driver.updateMany(
-        { id: myDriverId, $or: [{ reserved_order_id: autoRejectOrderId }, { active_order_id: autoRejectOrderId }, { active_ride_id: autoRejectOrderId }] },
-        { $set: {
-          status: "disponible",
-          dispatch_status: "normal",
-          queue_entered_at: new Date().toISOString(),
-          active_order_id: null,
-          active_ride_id: null,
-          reserved_order_id: null,
-          reservation_token: null,
-          manual_reservation_token: null,
-          driver_reservation_key: null
-        } }
-      ).then(async () => {
-        setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
-        // MODO ARRANQUE SEGURO: el rechazo desde URL/notificación deja el viaje
-        // pendiente y sin reserva. El operador decide la próxima asignación.
-        await base44.entities.RideOrder.updateMany(
-          { 
-            id: autoRejectOrderId, 
-            status: "ofrecido", 
-            reserved_driver_id: myDriverId,
-            assignment_attempt: autoRejectAttempt 
-          },
-          {
-            $set: {
-              status: "pendiente",
-              driver_id: null,
-              driver_name: null,
-              reserved_driver_id: null,
-              reservation_token: null,
-              manual_reservation_token: null,
-              assigned_at: null,
-              offerExpiresAt: null
-            }
-          }
-        );
+      setLocalOverride(prev => ({ ...(prev || {}), status: "disponible", _ignoredOrderId: autoRejectOrderId }));
+      base44.functions.invoke("rejectRide", {
+        orderId: autoRejectOrderId,
+        driverId: myDriverId,
+        assignmentAttempt: autoRejectAttempt,
+        sessionToken: getSessionToken()
+      }).then(() => {
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       }).catch((e) => {
-        console.error("No se pudo confirmar el rechazo por URL", e);
+        console.error("Error al invocar rejectRide por URL", e);
         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       });
       window.history.replaceState({}, "", "/driver-app");
@@ -759,51 +727,18 @@ export default function DriverApp() {
             stopNativeRideAlert(orderId, "swRejectOrder");
           }
           notifySW({ type: "ACK_REJECT_ORDER", orderId }); // Send ACK
-          // Igual que el rechazo por URL: confirmar primero la liberación real
-          // del móvil y sólo entonces buscar el siguiente candidato.
-          base44.entities.Driver.updateMany(
-            { id: myDriverId, $or: [{ reserved_order_id: orderId }, { active_order_id: orderId }, { active_ride_id: orderId }] },
-            { $set: {
-              status: "disponible",
-              dispatch_status: "normal",
-              queue_entered_at: new Date().toISOString(),
-              active_order_id: null,
-              active_ride_id: null,
-              reserved_order_id: null,
-              reservation_token: null,
-              manual_reservation_token: null,
-              driver_reservation_key: null
-            } }
-          ).then(async () => {
-            setLocalOverride({ status: "disponible", _ignoredOrderId: orderId });
-            // MODO ARRANQUE SEGURO: el rechazo desde la notificación deja el viaje
-            // pendiente y sin reserva. No se reasigna automáticamente.
-            await base44.entities.RideOrder.updateMany(
-              { 
-                id: orderId, 
-                status: "ofrecido", 
-                reserved_driver_id: myDriverId,
-                assignment_attempt: messageAttempt 
-              },
-              {
-                $set: {
-                  status: "pendiente",
-                  driver_id: null,
-                  driver_name: null,
-                  reserved_driver_id: null,
-                  reservation_token: null,
-                  manual_reservation_token: null,
-                  assigned_at: null,
-                  offerExpiresAt: null
-                }
-              }
-            );
+          setLocalOverride({ status: "disponible", _ignoredOrderId: orderId });
+          base44.functions.invoke("rejectRide", {
+            orderId: orderId,
+            driverId: myDriverId,
+            assignmentAttempt: messageAttempt,
+            sessionToken: getSessionToken()
+          }).then(() => {
             window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
           }).catch((e) => {
-            console.error("No se pudo confirmar el rechazo desde notificación", e);
+            console.error("Error rejectRide desde notificación", e);
             window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
           });
-          window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
         }
       }
 
@@ -1634,80 +1569,34 @@ export default function DriverApp() {
     }
 
     if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
-    // assignRide ya registró esta oferta; no contarla dos veces al rechazar.
-    const currentOrder = { ...offeredOrder };
-    
-    // Regresamos al chofer a disponible SOLO si todavía está vinculado
-    // a la oferta que acaba de rechazar. Un rechazo atrasado no toca otro viaje.
-    if (realId) {
-      try {
-        await base44.entities.Driver.updateMany(
-          { id: myDriverId, reservation_token: offeredOrder?.reservation_token, $or: [{ reserved_order_id: realId }, { active_order_id: realId }, { active_ride_id: realId }] },
-          { $set: {
-            status: "disponible",
-            dispatch_status: "normal",
-            queue_entered_at: new Date().toISOString(),
-            active_order_id: null,
-            active_ride_id: null,
-            reserved_order_id: null,
-            reservation_token: null,
-            manual_reservation_token: null,
-            driver_reservation_key: null
-          } }
-        );
-      } catch (e) {
-        console.error("No se pudo liberar el chofer antes de reasignar", e);
-        alert("No se pudo confirmar el rechazo con el servidor. Revisá la conexión y reintentá.");
-        window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
-        return;
-      }
-    }
     setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
 
-    // Apagar sonido nativo en Android
+    if (realId) {
+      try {
+        await base44.functions.invoke("rejectRide", {
+          orderId: realId,
+          driverId: myDriverId,
+          assignmentAttempt: offeredOrder?.assignment_attempt || 1,
+          sessionToken: getSessionToken()
+        });
+      } catch (e) {
+        console.error("No se pudo invocar rejectRide", e);
+        // Fallback local en caso de error de red
+        base44.entities.Driver.updateMany(
+          { id: myDriverId, reservation_token: offeredOrder?.reservation_token, $or: [{ reserved_order_id: realId }, { active_order_id: realId }, { active_ride_id: realId }] },
+          { $set: { status: "disponible", dispatch_status: "normal", active_order_id: null, active_ride_id: null, reserved_order_id: null, reservation_token: null, queue_entered_at: new Date().toISOString() } }
+        ).catch(()=>{});
+      }
+    }
+    
+    // Apagar sonido nativo en Android (rejectRide también lo hace, pero por las dudas)
     base44.functions.invoke("sendPushNotification", {
       action: "cancel_ride",
       orderId: offeredOrder?.id,
       driverId: myDriverId
     }).catch(console.error);
 
-    // Un rechazo solo puede actuar sobre la oferta exacta que este móvil recibió.
-    // Si la orden ya fue reasignada, el rechazo es viejo y no debe sacar el pasaje
-    // del móvil nuevo ni reiniciar su ventana de 30 segundos.
-    let rejectApplied = false;
-    if (realId) {
-      const rejectResult = await base44.entities.RideOrder.updateMany(
-        {
-          id: realId,
-          status: "ofrecido",
-          reserved_driver_id: myDriverId,
-          reservation_token: offeredOrder?.reservation_token,
-          assignment_attempt: offeredOrder?.assignment_attempt
-        },
-        {
-          $set: {
-            status: "pendiente",
-            driver_id: null,
-            driver_name: null,
-            reserved_driver_id: null,
-            reservation_token: null,
-            manual_reservation_token: null,
-            assigned_at: null,
-            offerExpiresAt: null
-          }
-        }
-      );
-      rejectApplied = (rejectResult?.updated ?? rejectResult?.matchedCount ?? rejectResult?.modifiedCount ?? 0) === 1;
-    }
     window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
-    if (rejectApplied) {
-      base44.entities.AuditLog.create({
-        action: "rechazar_viaje",
-        user_type: "chofer",
-        user_name: myDriver?.name || "Chofer",
-        details: `Rechazó el viaje de ${offeredOrder?.client_name || "Desconocido"}`
-      }).catch(() => {});
-    }
   };
   // Cargar config de minutos de bloqueo post-viaje
   const tarifaMinutosRef = useRef(0);

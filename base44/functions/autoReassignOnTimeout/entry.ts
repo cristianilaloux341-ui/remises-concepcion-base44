@@ -94,55 +94,9 @@ Deno.serve(async (req) => {
       const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
       const currentDriver = drivers[0];
 
-      const allMoviles = await base44.asServiceRole.entities.Movil.list();
-      const isDriverWorking = (d) => {
-        if (d.status !== 'disponible') return false;
-
-        const mobileId = String(d.vehicle_model || '');
-        const mobileNumber = parseInt(mobileId, 10);
-        const movil = allMoviles.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
-        if (!movil || movil.activo === false || movil.fuera_de_servicio === true) {
-          return false;
-        }
-        return true;
-      };
-
-      const allDrivers = await base44.asServiceRole.entities.Driver.list();
-      // offered_driver_ids registra cuántas veces se ofertó este pasaje a cada móvil.
-      // Máximo 2 ofertas por móvil; después queda fuera de ESTE pasaje. Si no queda
-      // ningún candidato, el viaje pasa a pendiente para resolución manual del operador.
-      // Estar en una base/cola NO es requisito para recibir pasajes.
-      // Todo móvil en servicio + libre sigue siendo ofertable aunque current_base sea null.
-      const workingDrivers = allDrivers.filter(d => isDriverWorking(d) && !d.active_order_id && !d.active_ride_id && !d.reserved_order_id && (d.dispatch_status == null || d.dispatch_status === 'normal'));
-      const offerCounts = (order.offered_driver_ids || []).reduce((acc, id) => {
-        if (id) acc[id] = (acc[id] || 0) + 1;
-        return acc;
-      }, {});
-      // La oferta que acaba de vencer cuenta como una oferta al móvil actual aunque
-      // todavía no hubiese quedado persistida en el historial.
-      offerCounts[driverId] = Math.max(offerCounts[driverId] || 0, 1);
-      const available = workingDrivers.filter(d => (offerCounts[d.id] || 0) < 2 && d.id !== driverId);
-
-      let nextDriver = null;
-      if (available.length > 0) {
-        const targetZone = order.zone;
-        if (targetZone) {
-          const sameBaseQueue = available
-            .filter(d => d.current_base === targetZone)
-            .sort((a, b) => {
-              const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
-              const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : Infinity;
-              const tA = isNaN(timeA) ? Infinity : timeA;
-              const tB = isNaN(timeB) ? Infinity : timeB;
-              if (tA !== tB) return tA - tB;
-              return (a.id || "").localeCompare(b.id || "");
-            });
-          
-          if (sameBaseQueue.length > 0) {
-            nextDriver = sameBaseQueue[0];
-          }
-        }
-      }
+      const { findNextDriverInZone } = await import('../../shared/driverSelection.ts');
+      
+      const nextDriver = await findNextDriverInZone(base44.asServiceRole, order, driverId);
 
       const newAttempt = (order.assignment_attempt || 0) + 1;
       const targetStatus = nextDriver ? 'ofrecido' : 'pendiente';
