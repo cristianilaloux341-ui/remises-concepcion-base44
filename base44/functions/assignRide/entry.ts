@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { assignDriverToOrderAtomic } from '../../shared/DispatchLogic.ts';
-import { verifyRequestAuth } from '../../shared/security.ts';
+import { verifyRequestAuth, verifyJWT } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -62,10 +62,24 @@ Deno.serve(async (req) => {
   }
 
   // Nueva Validación estricta de Zona (Server-Side)
-  // Permitimos saltar la regla SOLO si es una asignación manual explícita (requiere operador/admin/supervisor).
-  const isManual = payload.requireDriverConfirmation === true || forceManual;
-  if (!isManual && orderReq.zone && driverReq.current_base !== orderReq.zone) {
-    console.warn(`[STRICT ZONE] Rechazado auto-assign de Viaje ${orderId} (Zona: ${orderReq.zone}) a Móvil ${driverId} (Base: ${driverReq.current_base})`);
+  let isManualAuthorized = false;
+  const requestedManual = payload.requireDriverConfirmation === true || forceManual;
+  
+  if (requestedManual && sessionToken) {
+    const tokenData = await verifyJWT(sessionToken);
+    if (tokenData && tokenData.id) {
+      const ops = await b44.entities.UsuariosSistema.filter({ id: tokenData.id });
+      if (ops.length > 0 && ops[0].activo) {
+        const rol = ops[0].rol || ops[0].role;
+        if (["Administrador General", "Supervisor", "admin", "supervisor"].includes(rol)) {
+          isManualAuthorized = true;
+        }
+      }
+    }
+  }
+
+  if (!isManualAuthorized && orderReq.zone && driverReq.current_base !== orderReq.zone) {
+    console.warn(`[STRICT ZONE] Rechazado assign de Viaje ${orderId} (Zona: ${orderReq.zone}) a Móvil ${driverId} (Base: ${driverReq.current_base}). ManualAuth: ${isManualAuthorized}`);
     
     // Limpiamos cualquier procesamiento si quedó a medias, devolviéndolo a pendiente.
     await b44.entities.RideOrder.updateMany(
@@ -75,7 +89,9 @@ Deno.serve(async (req) => {
     
     return Response.json({
       success: false,
-      reason: `Asignación automática denegada: el móvil está en ${driverReq.current_base || 'ninguna base'} y el pasaje es de zona ${orderReq.zone}.`
+      reason: requestedManual 
+        ? `Asignación manual denegada: Tu rol no tiene permisos para enviar un móvil fuera de su zona.`
+        : `Asignación automática denegada: el móvil está en ${driverReq.current_base || 'ninguna base'} y el pasaje es de zona ${orderReq.zone}.`
     });
   }
 
