@@ -61,6 +61,24 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Nueva Validación estricta de Zona (Server-Side)
+  // Permitimos saltar la regla SOLO si es una asignación manual explícita (requiere operador/admin/supervisor).
+  const isManual = payload.requireDriverConfirmation === true || forceManual;
+  if (!isManual && orderReq.zone && driverReq.current_base !== orderReq.zone) {
+    console.warn(`[STRICT ZONE] Rechazado auto-assign de Viaje ${orderId} (Zona: ${orderReq.zone}) a Móvil ${driverId} (Base: ${driverReq.current_base})`);
+    
+    // Limpiamos cualquier procesamiento si quedó a medias, devolviéndolo a pendiente.
+    await b44.entities.RideOrder.updateMany(
+       { id: orderId, status: { $in: ['procesando_despacho', 'ofrecido', 'pendiente'] } },
+       { $set: { status: 'pendiente', driver_id: null, driver_name: null, reserved_driver_id: null, assigned_base: null, reservation_token: null, manual_reservation_token: null, offerExpiresAt: null } }
+    );
+    
+    return Response.json({
+      success: false,
+      reason: `Asignación automática denegada: el móvil está en ${driverReq.current_base || 'ninguna base'} y el pasaje es de zona ${orderReq.zone}.`
+    });
+  }
+
   // 2. Recuperación segura de referencias huérfanas.
   // NUNCA limpiar una reserva vigente solo para que una asignación manual entre:
   // otro operador puede haber reservado este móvil milisegundos antes.

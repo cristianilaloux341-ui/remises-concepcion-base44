@@ -35,13 +35,15 @@ export function getBaseQueue(drivers, baseName) {
 // Invariante de despacho: un Driver solo puede ser candidato si su Movil real está habilitado.
 async function filterDispatchEligibleDrivers(drivers = []) {
   const moviles = await base44.entities.Movil.list();
-  const movilByNumber = new Map(moviles.map(m => [String(m.numero), m]));
   return drivers.filter(d => {
-    const movil = movilByNumber.get(String(d.mobile_number));
-    return d.status === "disponible" &&
-      !d.active_order_id && !d.active_ride_id && !d.reserved_order_id &&
+    if (d.status !== "disponible") return false;
+    const mobileId = String(d.vehicle_model || "");
+    const mobileNumber = parseInt(mobileId, 10);
+    const movil = moviles?.find(m => m.id === mobileId || m.numero_movil === mobileNumber || m.dominio?.toUpperCase() === d.vehicle_plate?.toUpperCase());
+    
+    return !d.active_order_id && !d.active_ride_id && !d.reserved_order_id &&
       (d.dispatch_status == null || d.dispatch_status === "normal") &&
-      !!movil && movil.activo !== false && movil.fuera_de_servicio !== true;
+      (!movil || (movil.activo !== false && movil.fuera_de_servicio !== true));
   });
 }
 
@@ -89,27 +91,8 @@ export async function assignDriverToOrder(order, driver, options = {}) {
   return res.data;
 }
 
-// Broadcast: marcar el pedido como "pendiente_broadcast" para que TODOS los disponibles lo vean
-// El primero en aceptar gana. Se usa cuando no hay nadie en la zona.
-export async function broadcastOrder(order, drivers = []) {
-  try {
-    const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) 
-      ? sessionStorage.getItem("local_operator_token") 
-      : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
-    const res = await base44.functions.invoke("broadcastRide", {
-      orderId: order.id,
-      sessionToken
-    });
-    if (!res.data || !res.data.success) {
-      console.error("BroadcastRide backend returned false:", res.data?.reason);
-    }
-  } catch (e) {
-    console.error("Error invoking broadcastRide", e);
-  }
-}
-
-// Auto-dispatch: intenta asignar por zona; si no hay nadie → asigna global
-// Retorna: "assigned" | "broadcast" | "no_drivers"
+// Auto-dispatch: intenta asignar por zona; si no hay nadie → deja en pendiente
+// Retorna: "assigned" | "no_drivers"
 export async function autoDispatch(order, drivers, bases) {
   // offered_driver_ids es historial, nunca lista negra permanente.
   const availableDrivers = await filterDispatchEligibleDrivers(drivers);

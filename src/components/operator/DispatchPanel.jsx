@@ -120,9 +120,9 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
             <Badge className="text-xs bg-amber-100 text-amber-700 border-0 shrink-0">1° en zona</Badge>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-xs text-orange-600 bg-orange-50 rounded-lg px-3 py-2">
-            <Radio className="w-3 h-3" />
-            Sin móviles en zona · se enviará broadcast
+          <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+            <Car className="w-3 h-3" />
+            Sin móviles en zona · Quedará pendiente
           </div>
         )
       )}
@@ -139,10 +139,10 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
         size="sm"
         className="w-full gap-2 rounded-lg h-8 font-extrabold"
         onClick={handleAutoAssign}
-        disabled={dispatching}
+        disabled={dispatching || !suggestedDriver}
       >
         {dispatching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-        {suggestedDriver ? `Asignar a ${suggestedDriver.name}` : "Broadcast a todos"}
+        {suggestedDriver ? `Asignar a ${suggestedDriver.name}` : "Ningún móvil en zona"}
       </Button>
 
       {/* Selector manual */}

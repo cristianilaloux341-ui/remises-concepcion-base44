@@ -125,20 +125,22 @@ Deno.serve(async (req) => {
 
       let nextDriver = null;
       if (available.length > 0) {
-        const lastBase = order.assigned_base || order.zone;
-        const sameBaseQueue = available
-          .filter(d => d.current_base === lastBase)
-          .sort((a, b) => {
-            const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
-            const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : Infinity;
-            const tA = isNaN(timeA) ? Infinity : timeA;
-            const tB = isNaN(timeB) ? Infinity : timeB;
-            if (tA !== tB) return tA - tB;
-            return (a.id || "").localeCompare(b.id || "");
-          });
-        
-        if (sameBaseQueue.length > 0) {
-          nextDriver = sameBaseQueue[0];
+        const targetZone = order.zone;
+        if (targetZone) {
+          const sameBaseQueue = available
+            .filter(d => d.current_base === targetZone)
+            .sort((a, b) => {
+              const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
+              const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : Infinity;
+              const tA = isNaN(timeA) ? Infinity : timeA;
+              const tB = isNaN(timeB) ? Infinity : timeB;
+              if (tA !== tB) return tA - tB;
+              return (a.id || "").localeCompare(b.id || "");
+            });
+          
+          if (sameBaseQueue.length > 0) {
+            nextDriver = sameBaseQueue[0];
+          }
         }
       }
 
