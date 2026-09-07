@@ -1949,27 +1949,43 @@ export default function DriverApp() {
       driverId: myDriverId
     }).catch(console.error);
 
-    // MODO ARRANQUE SEGURO: RECHAZAR NO vuelve a largar el viaje automáticamente.
-    // Lo deja pendiente y totalmente sin reserva para que el operador lo reactive manualmente.
+    // Un rechazo solo puede actuar sobre la oferta exacta que este móvil recibió.
+    // Si la orden ya fue reasignada, el rechazo es viejo y no debe sacar el pasaje
+    // del móvil nuevo ni reiniciar su ventana de 30 segundos.
+    let rejectApplied = false;
     if (realId) {
-      await base44.entities.RideOrder.update(realId, {
-        status: "pendiente",
-        driver_id: null,
-        driver_name: null,
-        reserved_driver_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        assigned_at: null,
-        offerExpiresAt: null
-      });
+      const rejectResult = await base44.entities.RideOrder.updateMany(
+        {
+          id: realId,
+          status: "ofrecido",
+          reserved_driver_id: myDriverId,
+          reservation_token: offeredOrder?.reservation_token,
+          assignment_attempt: offeredOrder?.assignment_attempt
+        },
+        {
+          $set: {
+            status: "pendiente",
+            driver_id: null,
+            driver_name: null,
+            reserved_driver_id: null,
+            reservation_token: null,
+            manual_reservation_token: null,
+            assigned_at: null,
+            offerExpiresAt: null
+          }
+        }
+      );
+      rejectApplied = (rejectResult?.updated ?? rejectResult?.matchedCount ?? rejectResult?.modifiedCount ?? 0) === 1;
     }
     window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
-    base44.entities.AuditLog.create({
-      action: "rechazar_viaje",
-      user_type: "chofer",
-      user_name: myDriver?.name || "Chofer",
-      details: `Rechazó el viaje de ${offeredOrder?.client_name || "Desconocido"}`
-    }).catch(() => {});
+    if (rejectApplied) {
+      base44.entities.AuditLog.create({
+        action: "rechazar_viaje",
+        user_type: "chofer",
+        user_name: myDriver?.name || "Chofer",
+        details: `Rechazó el viaje de ${offeredOrder?.client_name || "Desconocido"}`
+      }).catch(() => {});
+    }
   };
   // Cargar config de minutos de bloqueo post-viaje
   const tarifaMinutosRef = useRef(0);
