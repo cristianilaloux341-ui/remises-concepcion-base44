@@ -40,17 +40,6 @@ Deno.serve(async (req) => {
       }
     }
     
-    // Si no se asignó en zona (o no tenía zona), buscar al móvil más antiguo de CUALQUIER zona (global)
-    if (!assigned && drivers.length > 0) {
-      const globalDrivers = sortByQueue(drivers);
-      const res = await b44.functions.invoke("assignRide", {
-         orderId: order.id,
-         driverId: globalDrivers[0].id,
-         sessionToken: sessionToken || 'client_demo_token'
-      });
-      assigned = res?.data?.success === true;
-    }
-
     // Si no hay móviles no hacemos broadcast, lo dejamos en pendiente para que el operador lo gestione
     if (!assigned) {
        await b44.entities.RideOrder.update(order.id, { status: "pendiente" });
