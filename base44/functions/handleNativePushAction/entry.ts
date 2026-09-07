@@ -25,14 +25,50 @@ Deno.serve(async (req) => {
 
     if (action === "native_ack") {
       const driver = await b44.entities.Driver.get(driverId);
+      const order = await b44.entities.RideOrder.get(realOrderId).catch(() => null);
+
+      // Los 30 segundos deben ser reales para el chofer: empiezan cuando el
+      // teléfono confirma que recibió ESTA oferta, no cuando FCM la puso en cola.
+      let responseWindowExtended = false;
+      if (
+        order &&
+        order.status === "ofrecido" &&
+        order.reserved_driver_id === driverId &&
+        (nativeAssignmentAttempt == null || order.assignment_attempt === nativeAssignmentAttempt)
+      ) {
+        const configs = await b44.entities.TarifaConfig.list();
+        const responseSeconds = configs[0]?.tiempo_maximo_respuesta_segundos ?? 30;
+        const receivedAt = new Date().toISOString();
+        const receivedOfferExpiresAt = Date.now() + (responseSeconds * 1000);
+        const extended = await b44.entities.RideOrder.updateMany(
+          {
+            id: realOrderId,
+            status: "ofrecido",
+            reserved_driver_id: driverId,
+            reservation_token: order.reservation_token,
+            assignment_attempt: order.assignment_attempt
+          },
+          {
+            $set: {
+              assigned_at: receivedAt,
+              offerExpiresAt: receivedOfferExpiresAt
+            }
+          }
+        );
+        responseWindowExtended =
+          (extended?.updated ?? extended?.matchedCount ?? extended?.modifiedCount ?? 0) === 1;
+      }
+
       await b44.entities.AuditLog.create({
         action: "push_ack_recibido",
         user_type: "sistema",
         user_name: driver?.name || "Chofer",
-        details: `El teléfono confirmó recepción del push en SEGUNDO PLANO (Nativo Android).`,
-        metadata: { orderId: realOrderId, driverId }
+        details: responseWindowExtended
+          ? `El teléfono confirmó la recepción; comenzaron sus 30 segundos reales de respuesta.`
+          : `El teléfono confirmó recepción del push, pero la oferta ya no estaba vigente para este móvil.`,
+        metadata: { orderId: realOrderId, driverId, responseWindowExtended }
       }).catch(() => {});
-      return Response.json({ success: true });
+      return Response.json({ success: true, responseWindowExtended });
     } else if (action === "native_accept") {
       const order = await b44.entities.RideOrder.get(realOrderId);
       if (!order) return Response.json({ success: false, reason: "order_not_found" });
