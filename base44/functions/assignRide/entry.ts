@@ -81,9 +81,18 @@ Deno.serve(async (req) => {
   if (!isManualAuthorized && orderReq.zone && driverReq.current_base !== orderReq.zone) {
     console.warn(`[STRICT ZONE] Rechazado assign de Viaje ${orderId} (Zona: ${orderReq.zone}) a Móvil ${driverId} (Base: ${driverReq.current_base}). ManualAuth: ${isManualAuthorized}`);
     
-    // Limpiamos cualquier procesamiento si quedó a medias, devolviéndolo a pendiente.
+    // Limpiamos devolviendo a pendiente de forma 100% ATÓMICA.
+    // Solo si el pasaje sigue exactamente en el mismo estado en que lo leímos.
+    // Si otro proceso legítimo ya lo tomó o modificó, no tocamos nada.
     await b44.entities.RideOrder.updateMany(
-       { id: orderId, status: { $in: ['procesando_despacho', 'ofrecido', 'pendiente'] } },
+       { 
+         id: orderId, 
+         status: orderReq.status,
+         assignment_attempt: orderReq.assignment_attempt ?? null,
+         driver_id: orderReq.driver_id ?? null,
+         reserved_driver_id: orderReq.reserved_driver_id ?? null,
+         reservation_token: orderReq.reservation_token ?? null
+       },
        { $set: { status: 'pendiente', driver_id: null, driver_name: null, reserved_driver_id: null, assigned_base: null, reservation_token: null, manual_reservation_token: null, offerExpiresAt: null } }
     );
     
