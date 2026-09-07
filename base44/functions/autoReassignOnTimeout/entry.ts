@@ -69,6 +69,28 @@ Deno.serve(async (req) => {
         return Response.json({ ok: true, skipped: true, reason: 'attempt_changed' });
       }
 
+      // El teléfono puede haber recibido el push con demora. native_ack extiende
+      // offerExpiresAt para darle al chofer la ventana completa configurada.
+      // Si todavía tiene tiempo real, reprogramar solo el remanente y no reasignar.
+      const authoritativeExpiresAt = Number(order.offerExpiresAt);
+      const remainingMs = Number.isFinite(authoritativeExpiresAt)
+        ? authoritativeExpiresAt - Date.now()
+        : 0;
+      if (remainingMs > 0) {
+        base44.functions.invoke("autoReassignOnTimeout", {
+          orderId,
+          driverId,
+          timeoutSeconds: Math.max(1, Math.ceil(remainingMs / 1000)),
+          assignmentAttempt,
+          internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+        }).catch(e => console.error("Extended Timeout Chain Error:", e));
+        return Response.json({
+          ok: true,
+          extended_for_device_receipt: true,
+          remainingSeconds: Math.ceil(remainingMs / 1000)
+        });
+      }
+
       const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
       const currentDriver = drivers[0];
 
