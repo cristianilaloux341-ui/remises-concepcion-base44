@@ -188,6 +188,68 @@ Deno.serve(async (req) => {
   // Interceptar payload de automación de entidad (RideOrder)
   if (body.event && body.event.entity_name === "RideOrder" && body.data) {
     const isStatusChanged = !body.old_data || body.data.status !== body.old_data.status;
+
+    // Traba definitiva para APK viejos: esos clientes todavía intentan devolver
+    // directamente a `pendiente` un viaje que ya fue aceptado. La Central y el
+    // cliente cancelan mediante `cancelado`, por lo que sus cancelaciones siguen normales.
+    const protectedAcceptedStatuses = new Set(['aceptado', 'en_camino', 'en_viaje']);
+    const isDriverRollbackAfterAccept =
+      isStatusChanged &&
+      body.data.status === 'pendiente' &&
+      protectedAcceptedStatuses.has(body.old_data?.status);
+
+    if (isDriverRollbackAfterAccept) {
+      const orderId = body.data.id;
+      const previousDriverId = body.old_data.driver_id || body.old_data.reserved_driver_id;
+      const restoreOrder = {
+        status: body.old_data.status,
+        driver_id: body.old_data.driver_id || previousDriverId,
+        reserved_driver_id: body.old_data.reserved_driver_id || previousDriverId,
+        driver_name: body.old_data.driver_name,
+        reservation_token: body.old_data.reservation_token,
+        manual_reservation_token: body.old_data.manual_reservation_token,
+        offerExpiresAt: body.old_data.offerExpiresAt
+      };
+
+      // CAS: solamente se revierte si la orden continúa en el estado ilegal que
+      // produjo el móvil. Si la Central ya actuó, no se pisa su decisión.
+      await base44.asServiceRole.entities.RideOrder.updateMany(
+        { id: orderId, status: 'pendiente', driver_id: body.data.driver_id ?? null },
+        { $set: restoreOrder }
+      );
+
+      // Los APK viejos liberan el registro Driver inmediatamente después. Esperamos
+      // ese segundo paso y restauramos el vínculo con el viaje aceptado.
+      if (previousDriverId) {
+        await new Promise(resolve => setTimeout(resolve, 750));
+        await base44.asServiceRole.entities.Driver.updateMany(
+          {
+            id: previousDriverId,
+            $or: [
+              { active_ride_id: null },
+              { active_ride_id: orderId },
+              { active_ride_id: { $exists: false } }
+            ]
+          },
+          { $set: {
+            status: 'en_viaje',
+            dispatch_status: 'normal',
+            active_ride_id: orderId,
+            reserved_order_id: orderId
+          } }
+        );
+      }
+
+      await base44.asServiceRole.entities.AuditLog.create({
+        action: 'CANCELACION_CHOFER_BLOQUEADA',
+        user_type: 'sistema',
+        user_name: body.old_data.driver_name || 'Chofer',
+        details: `Se bloqueó la anulación posterior a la aceptación del viaje ${orderId}`,
+        metadata: { orderId, driverId: previousDriverId, previousStatus: body.old_data.status }
+      }).catch(() => {});
+
+      return Response.json({ ok: true, reason: 'driver_cancel_after_accept_blocked' });
+    }
     
     const targetDriverId = body.data.driver_id || body.data.reserved_driver_id || body.data.preassigned_driver_id;
     const oldTargetDriverId = body.old_data
