@@ -64,7 +64,13 @@ Deno.serve(async (req) => {
   // Nueva Validación estricta de Zona (Server-Side)
   let isManualAuthorized = false;
   const requestedManual = payload.requireDriverConfirmation === true || forceManual;
-  const heldForCentralReview = String(orderReq.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]');
+  // Protección server-side también para APK viejos: si una orden ya tuvo una
+  // aceptación confirmada y aparece nuevamente como pendiente, nunca debe entrar
+  // al despacho automático. Solo una asignación manual autorizada de Central puede reactivarla.
+  const wasAlreadyAccepted = orderReq.status === 'pendiente' && orderReq.lastCompletedAction === 'ACCEPT';
+  const heldForCentralReview =
+    String(orderReq.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]') ||
+    wasAlreadyAccepted;
   if (heldForCentralReview && !requestedManual) {
     return Response.json({ success: false, reason: 'PENDING_CENTRAL_REVIEW' });
   }
