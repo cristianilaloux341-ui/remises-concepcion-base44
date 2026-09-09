@@ -1694,6 +1694,7 @@ export default function DriverApp() {
       { $set: {
         status: "disponible",
         dispatch_status: "normal",
+        current_base: null,
         active_order_id: null,
         active_ride_id: null,
         reserved_order_id: null,
@@ -1924,7 +1925,7 @@ export default function DriverApp() {
       { $set: {
         status: "disponible",
         dispatch_status: "normal",
-        current_base: base,
+        current_base: null,
         queue_entered_at: ts,
         active_order_id: null,
         active_ride_id: null,
@@ -1938,7 +1939,7 @@ export default function DriverApp() {
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       return;
     }
-    setLocalOverride({ status: "disponible", current_base: base, queue_entered_at: ts });
+    setLocalOverride({ status: "disponible", current_base: null, queue_entered_at: ts });
     setLibreBlockedSegs(0); // al anular no aplica bloqueo
     localStorage.removeItem(`libre_block_started_at_${myDriverId}`);
 
