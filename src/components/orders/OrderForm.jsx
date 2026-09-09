@@ -356,7 +356,6 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
         data.driver_name = selectedDriver.name;
         data.status = "ofrecido";
       }
-      data.status = "ofrecido";
     }
 
     if (!data.driver_id && manualDriverInput) {
