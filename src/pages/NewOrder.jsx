@@ -13,7 +13,7 @@ export default function NewOrder() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const canManualAssign = ["admin", "supervisor"].includes(getEffectiveRole(user));
+  const canManualAssign = ["admin", "supervisor", "operador"].includes(getEffectiveRole(user));
 
   const scheduledRideId = location.state?.scheduled_ride_id;
   const initialData = location.state?.initialData;
@@ -52,20 +52,11 @@ export default function NewOrder() {
         if (!driver || driver.status !== "disponible") {
           throw new Error("El móvil está fuera de servicio u ocupado. El pasaje quedó pendiente y no fue enviado.");
         }
-        // Validación en el punto correcto: antes de asignar el pasaje recién creado.
-        // Se usa el Driver releído del servidor, no la sugerencia que quedó en pantalla.
-        if (!newOrder.zone || driver.current_base !== newOrder.zone) {
-          await base44.entities.RideOrder.update(newOrder.id, {
-            status: "pendiente",
-            driver_id: null,
-            driver_name: null,
-            reserved_driver_id: null,
-            assigned_base: null,
-          });
-          return newOrder;
-        }
+        // Excepción explícita de Central: el operador puede elegir un móvil habilitado
+        // aunque esté en otra zona. Nunca modifica la selección automática por cola.
         await assignDriverToOrder(newOrder, driver, {
           requireDriverConfirmation: true,
+          forceManual: true,
           mobileId: resolvedMobileId,
         });
         return newOrder;
