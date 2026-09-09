@@ -65,11 +65,14 @@ export function useRealtimeDrivers() {
             // Aplicar todos los eventos acumulados en el buffer
             for (const ev of buffer) {
               if (ev.type === "create" || ev.type === "update") {
-                const idx = next.findIndex(d => d.id === ev.id);
+                // Some realtime payloads omit id inside data; keep the event id
+                // so queue membership and position calculations never lose the driver.
+                const eventDriver = { ...ev.data, id: ev.data.id || ev.id };
+                const idx = next.findIndex(d => d.id === eventDriver.id);
                 if (idx >= 0) {
-                  next[idx] = { ...next[idx], ...ev.data };
+                  next[idx] = { ...next[idx], ...eventDriver };
                 } else {
-                  next.push(ev.data);
+                  next.push(eventDriver);
                 }
               } else if (ev.type === "delete") {
                 next = next.filter(d => d.id !== ev.id);
