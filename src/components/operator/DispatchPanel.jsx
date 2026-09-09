@@ -59,6 +59,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       const driver = resolved.driver;
       await assignDriverToOrder(order, driver, {
         requireDriverConfirmation: true,
+        forceManual: true,
         mobileId: resolved.mobile?.id || null,
       });
 
@@ -150,7 +151,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
         <input 
           className="flex-1 h-8 text-base font-extrabold text-slate-900 rounded-lg border-2 border-slate-400 px-3 bg-white placeholder:text-slate-500 placeholder:font-normal"
           style={{ color: "#000000", backgroundColor: "#ffffff" }}
-          placeholder="Nº o Nombre para asignar..."
+          placeholder="Emergencia: Nº o nombre..."
           value={selectedDriverId}
           onChange={(e) => setSelectedDriverId(e.target.value)}
           onKeyDown={(e) => {
