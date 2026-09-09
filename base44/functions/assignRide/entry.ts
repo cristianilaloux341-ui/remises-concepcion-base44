@@ -136,16 +136,16 @@ Deno.serve(async (req) => {
       const ops = await b44.entities.UsuariosSistema.filter({ id: tokenData.id });
       if (ops.length > 0 && ops[0].activo) {
         const rol = ops[0].rol || ops[0].role;
-        if (["Administrador General", "Supervisor", "admin", "supervisor"].includes(rol)) {
+        if (["Administrador General", "Supervisor", "Operador", "admin", "supervisor", "operador"].includes(rol)) {
           isManualAuthorized = true;
         }
       }
     }
   }
 
-  // Regla absoluta de operación: ningún pasaje se ofrece a un móvil de otra base,
-  // incluso si la solicitud vino de Central o de un usuario administrador.
-  if (orderReq.zone && driverReq.current_base !== orderReq.zone) {
+  // La selección automática jamás cruza zonas. Solamente una asignación manual
+  // autenticada de Central puede elegir otro móvil como excepción de emergencia.
+  if (orderReq.zone && driverReq.current_base !== orderReq.zone && !isManualAuthorized) {
     console.warn(`[STRICT ZONE] Rechazado assign de Viaje ${orderId} (Zona: ${orderReq.zone}) a Móvil ${driverId} (Base: ${driverReq.current_base}). ManualAuth: ${isManualAuthorized}`);
     
     // Limpiamos devolviendo a pendiente de forma 100% ATÓMICA.
