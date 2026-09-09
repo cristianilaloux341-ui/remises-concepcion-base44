@@ -87,7 +87,9 @@ Deno.serve(async (req) => {
 
   // Nueva Validación estricta de Zona (Server-Side)
   let isManualAuthorized = false;
-  const requestedManual = payload.requireDriverConfirmation === true || forceManual;
+  // Esperar la confirmación del chofer NO convierte la asignación en manual
+  // ni autoriza a saltar la zona. Solo forceManual identifica una excepción explícita.
+  const requestedManual = forceManual === true;
   // Protección server-side también para APK viejos: si una orden ya tuvo una
   // aceptación confirmada y aparece nuevamente como pendiente, nunca debe entrar
   // al despacho automático. Solo una asignación manual autorizada de Central puede reactivarla.
@@ -112,7 +114,9 @@ Deno.serve(async (req) => {
     }
   }
 
-  if (!isManualAuthorized && orderReq.zone && driverReq.current_base !== orderReq.zone) {
+  // Regla absoluta de operación: ningún pasaje se ofrece a un móvil de otra base,
+  // incluso si la solicitud vino de Central o de un usuario administrador.
+  if (orderReq.zone && driverReq.current_base !== orderReq.zone) {
     console.warn(`[STRICT ZONE] Rechazado assign de Viaje ${orderId} (Zona: ${orderReq.zone}) a Móvil ${driverId} (Base: ${driverReq.current_base}). ManualAuth: ${isManualAuthorized}`);
     
     // Limpiamos devolviendo a pendiente de forma 100% ATÓMICA.
@@ -132,9 +136,7 @@ Deno.serve(async (req) => {
     
     return Response.json({
       success: false,
-      reason: requestedManual 
-        ? `Asignación manual denegada: Tu rol no tiene permisos para enviar un móvil fuera de su zona.`
-        : `Asignación automática denegada: el móvil está en ${driverReq.current_base || 'ninguna base'} y el pasaje es de zona ${orderReq.zone}.`
+      reason: `Asignación denegada: el móvil está en ${driverReq.current_base || 'ninguna base'} y el pasaje es de zona ${orderReq.zone}. Debe quedar pendiente.`
     });
   }
 
