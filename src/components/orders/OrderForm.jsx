@@ -119,11 +119,15 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
+    staleTime: 0,
+    refetchInterval: 3000,
   });
 
   const { data: moviles = [] } = useQuery({
     queryKey: ["moviles"],
     queryFn: () => base44.entities.Movil.list(),
+    staleTime: 0,
+    refetchInterval: 3000,
   });
 
   const { data: clients = [] } = useQuery({
@@ -144,10 +148,23 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
   const isDriverWorking = (d) => {
     if (d.status !== "disponible") return false;
+    if (d.active_order_id || d.active_ride_id || d.reserved_order_id) return false;
+    if (d.dispatch_status != null && d.dispatch_status !== "normal") return false;
+
     const mobileId = String(d.vehicle_model || "");
     const mobileNumber = parseInt(mobileId, 10);
-    const movil = moviles?.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
-    if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
+    const driverPlate = String(d.vehicle_plate || "").replace(/\s+/g, "").toUpperCase();
+    const movil = moviles?.find(m =>
+      m.id === mobileId ||
+      m.numero_movil === mobileNumber ||
+      m.driver_id === d.id ||
+      (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id)) ||
+      (driverPlate && String(m.dominio || "").replace(/\s+/g, "").toUpperCase() === driverPlate)
+    );
+
+    // Sin un móvil real habilitado no existe candidato válido, aunque el Driver
+    // conserve por error una base o un estado "disponible" antiguos.
+    if (!movil || movil.activo === false || movil.fuera_de_servicio === true || movil.suspension_motivo) {
       return false;
     }
     return true;
