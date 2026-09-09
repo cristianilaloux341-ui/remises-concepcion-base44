@@ -112,18 +112,33 @@ export function useRealtimeDrivers() {
     startVisible();
     document.addEventListener("visibilitychange", stopHidden);
 
+    // Respaldo contra canales realtime congelados: mientras la pantalla está
+    // visible, reconstruir la cola desde el servidor cada 10 segundos.
+    const refreshInterval = setInterval(() => {
+      if (mountedRef.current && document.visibilityState === "visible") {
+        fetchAll();
+      }
+    }, 10000);
+
     return () => {
       mountedRef.current = false;
+      clearInterval(refreshInterval);
       document.removeEventListener("visibilitychange", stopHidden);
       unsubRef.current?.();
       unsubRef.current = null;
     };
-  }, [connect]);
+  }, [connect, fetchAll]);
 
   useEffect(() => {
     const handleForceRefresh = () => fetchAll();
     window.addEventListener('force-driver-refresh', handleForceRefresh);
-    return () => window.removeEventListener('force-driver-refresh', handleForceRefresh);
+    window.addEventListener('radiocab_reconnect', handleForceRefresh);
+    window.addEventListener('online', handleForceRefresh);
+    return () => {
+      window.removeEventListener('force-driver-refresh', handleForceRefresh);
+      window.removeEventListener('radiocab_reconnect', handleForceRefresh);
+      window.removeEventListener('online', handleForceRefresh);
+    };
   }, [fetchAll]);
 
   return { drivers, isLoading, error: errorInfo };
