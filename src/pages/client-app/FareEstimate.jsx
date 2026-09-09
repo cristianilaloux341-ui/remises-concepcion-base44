@@ -15,6 +15,7 @@ export default function FareEstimate() {
   const [estimatedPrice, setEstimatedPrice] = useState(null);
   const [distance, setDistance] = useState(null);
   const [calculatingPrice, setCalculatingPrice] = useState(true);
+  const isCreatingRef = React.useRef(false);
 
   const pickup = state?.pickup || 'Mi ubicación';
   const [resolvedPickupCoords, setResolvedPickupCoords] = useState(state?.pickupCoords || null);
@@ -125,6 +126,8 @@ export default function FareEstimate() {
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
 
   const handleConfirm = async () => {
+    if (isCreatingRef.current) return;
+    isCreatingRef.current = true;
     setIsCreating(true);
     try {
       const clientId = localStorage.getItem('client_id') || "";
@@ -185,6 +188,7 @@ export default function FareEstimate() {
       console.error(error);
       toast.error('Ocurrió un error al pedir el móvil');
       setIsCreating(false);
+      isCreatingRef.current = false;
     }
   };
 

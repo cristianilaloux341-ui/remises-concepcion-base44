@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,6 +53,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
   const [calculandoTarifa, setCalculandoTarifa] = useState(false);
   const [distanciaCalculada, setDistanciaCalculada] = useState(null);
   const tarifa = useTarifaConfig();
+  const submitLockRef = useRef(false);
 
   // Geocodifica una dirección de texto si no tiene coords, usando Google Places
   const geocodeAddress = async (address) => {
@@ -285,6 +286,9 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitLockRef.current || isSubmitting) return; // Prevent double submit
+    submitLockRef.current = true;
+    setTimeout(() => { submitLockRef.current = false; }, 2000);
     const data = { ...form };
     if (data.fare && String(data.fare).trim() !== "") {
       data.fare = Number(data.fare);
