@@ -34,6 +34,30 @@ Deno.serve(async (req) => {
   const driverReq = await b44.entities.Driver.get(driverId);
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
 
+  // Barrera definitiva: un mismo pasaje jamás se ofrece dos veces al mismo chofer.
+  // Se valida en el punto común de entrada para cubrir reasignaciones automáticas,
+  // solicitudes duplicadas, cron atrasado y acciones de pantallas viejas.
+  const previousOffers = Array.isArray(orderReq.offered_driver_ids)
+    ? orderReq.offered_driver_ids.filter(Boolean)
+    : [];
+  if (previousOffers.includes(driverId)) {
+    await b44.entities.AuditLog.create({
+      action: 'DUPLICATE_DRIVER_REASSIGN_BLOCKED',
+      user_type: 'sistema',
+      user_name: 'assignRide',
+      details: `Bloqueada segunda oferta del viaje ${orderId} al chofer ${driverId}`,
+      metadata: {
+        orderId,
+        driverId,
+        assignmentAttempt: orderReq.assignment_attempt ?? null
+      }
+    }).catch(() => {});
+    return Response.json({
+      success: false,
+      reason: 'DRIVER_ALREADY_OFFERED_THIS_ORDER'
+    });
+  }
+
   // 1. Verificar si el móvil está ocupado con OTRO viaje real activo (seguridad para no robar viajes)
   const [assignedOrders, reservedOrders] = await Promise.all([
     b44.entities.RideOrder.filter({ driver_id: driverId }),
@@ -159,9 +183,9 @@ Deno.serve(async (req) => {
     const targetDriverStatus = autoAceptarViajes ? "en_viaje" : "ofrecido";
 
     const newAttempt = (orderReq.assignment_attempt || 0) + 1;
-    // Historial real de ofertas: conservar repeticiones para poder limitar a 2
-    // intentos por móvil para un mismo pasaje.
-    const offeredIds = [...(orderReq.offered_driver_ids || []), driverId];
+    // Historial único de ofertas. La barrera superior impide repeticiones;
+    // Set protege además contra datos históricos duplicados.
+    const offeredIds = [...new Set([...(orderReq.offered_driver_ids || []), driverId])];
 
     // Cada asignación crea una ventana propia de respuesta. acceptRide usa
     // offerExpiresAt como autoridad para decidir si la oferta sigue vigente.
