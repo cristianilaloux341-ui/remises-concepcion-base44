@@ -363,16 +363,10 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
         alert(`El móvil ${data.driver_name || manualDriverInput || ""} está fuera de servicio u ocupado. El pasaje no fue asignado.`);
         return;
       }
-      if (!data.zone || selectedDriver.current_base !== data.zone) {
-        alert(`El móvil ${selectedDriver.name} está en ${selectedDriver.current_base || "ninguna base"} y el pasaje pertenece a ${data.zone || "una zona no definida"}. Quedará pendiente.`);
-        delete data.driver_id;
-        delete data.driver_name;
-        delete data._resolved_mobile_id;
-        data.status = "pendiente";
-      } else {
-        data.driver_name = selectedDriver.name;
-        data.status = "ofrecido";
-      }
+      // Si fue elegido por Central, puede ser una excepción manual de emergencia.
+      // La barrera de zona estricta continúa vigente para todo despacho automático.
+      data.driver_name = selectedDriver.name;
+      data.status = "ofrecido";
     }
 
     if (!data.driver_id && manualDriverInput) {
@@ -383,18 +377,10 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
         return;
       }
 
-      if (!data.zone || resolved.driver.current_base !== data.zone) {
-        alert(`El móvil ${resolved.driver.name} está en ${resolved.driver.current_base || "ninguna base"} y el pasaje pertenece a ${data.zone || "una zona no definida"}. Quedará pendiente.`);
-        delete data.driver_id;
-        delete data.driver_name;
-        delete data._resolved_mobile_id;
-        data.status = "pendiente";
-      } else {
-        data.driver_id = resolved.driver.id;
-        data.driver_name = resolved.driver.name;
-        data._resolved_mobile_id = resolved.mobile?.id || null;
-        data.status = "ofrecido";
-      }
+      data.driver_id = resolved.driver.id;
+      data.driver_name = resolved.driver.name;
+      data._resolved_mobile_id = resolved.mobile?.id || null;
+      data.status = "ofrecido";
     } else if (!data.driver_id) {
       delete data.driver_id; 
       delete data.driver_name;
@@ -692,7 +678,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
               <input 
                 className="flex-1 h-9 text-base font-extrabold text-slate-900 rounded-lg border-2 border-slate-400 px-3 bg-white placeholder:text-slate-500 placeholder:font-normal"
                 style={{ color: "#000000", backgroundColor: "#ffffff" }}
-                placeholder="Nº de móvil para asignar..."
+                placeholder="Emergencia: Nº de móvil..."
                 value={manualDriverInput}
                 onChange={(e) => {
                   setManualDriverInput(e.target.value);
