@@ -572,6 +572,7 @@ export default function DriverApp() {
 
       tryAutoAccept().then(res => {
         if (res.data?.accepted) {
+          startLibreBlockCountdown();
           setLocalOverride({ status: "en_viaje", optimisticOrderId: autoAcceptOrderId });
           // acceptRide es la única autoridad que confirma el viaje y ocupa al chofer.
           base44.functions.invoke("sendPushNotification", { action: "cancel_ride", orderId: autoAcceptOrderId, driverId: myDriverId }).catch(()=>{});
@@ -699,6 +700,7 @@ export default function DriverApp() {
             sessionToken: getSessionToken()
           }).then((res) => {
             if (res.data?.accepted) {
+              startLibreBlockCountdown();
               setLocalOverride({ status: "en_viaje", optimisticOrderId: orderId });
               base44.functions.invoke("sendPushNotification", { action: "cancel_ride", orderId, driverId: myDriverId }).catch(()=>{});
             } else {
@@ -1506,6 +1508,7 @@ export default function DriverApp() {
       const res = await tryAccept(3);
 
       if (res.data.accepted) {
+        startLibreBlockCountdown();
         // El backend acceptRide es el único que confirma y guarda la aceptación.
         // La pantalla solamente se adelanta visualmente; no vuelve a escribir los mismos estados.
         if (offeredOrder?.id) {
@@ -1602,13 +1605,40 @@ export default function DriverApp() {
   const tarifaMinutosRef = useRef(0);
   useEffect(() => {
     base44.entities.TarifaConfig.list().then(configs => {
-      if (configs[0]) tarifaMinutosRef.current = configs[0].minutos_libre_post_viaje ?? 0;
+      if (configs[0]) {
+        tarifaMinutosRef.current = configs[0].minutos_libre_post_viaje ?? 0;
+        if (myDriverId && tarifaMinutosRef.current > 0) {
+          const startedAt = parseInt(localStorage.getItem(`libre_block_started_at_${myDriverId}`) || "0", 10);
+          if (startedAt > 0) {
+            const elapsedSecs = Math.floor((Date.now() - startedAt) / 1000);
+            const totalSecs = tarifaMinutosRef.current * 60;
+            const remaining = totalSecs - elapsedSecs;
+            if (remaining > 0) {
+              setLibreBlockedSegs(remaining);
+            } else {
+              localStorage.removeItem(`libre_block_started_at_${myDriverId}`);
+            }
+          }
+        }
+      }
     }).catch(() => {});
+  }, [myDriverId]);
+
+  const startLibreBlockCountdown = useCallback(() => {
+    const dId = myDriverIdRef.current;
+    const secs = (tarifaMinutosRef.current || 0) * 60;
+    if (secs > 0 && dId) {
+      setLibreBlockedSegs(secs);
+      localStorage.setItem(`libre_block_started_at_${dId}`, Date.now().toString());
+    }
   }, []);
 
   // Countdown del bloqueo post-viaje
   useEffect(() => {
-    if (libreBlockedSegs <= 0) return;
+    if (libreBlockedSegs <= 0) {
+       if (myDriverId) localStorage.removeItem(`libre_block_started_at_${myDriverId}`);
+       return;
+    }
     const t = setInterval(() => {
       setLibreBlockedSegs(s => {
         if (s <= 1) { clearInterval(t); return 0; }
@@ -1616,7 +1646,7 @@ export default function DriverApp() {
       });
     }, 1000);
     return () => clearInterval(t);
-  }, [libreBlockedSegs > 0]);
+  }, [libreBlockedSegs > 0, myDriverId]);
 
   const handleFinishRide = async (finalFare) => {
     if (!activeOrder) return false;
@@ -1654,9 +1684,6 @@ export default function DriverApp() {
     ignoredOrdersRef.current.add(currentOrderId);
     setReceiptOrder({ ...activeOrder, importe_final: finalFare || activeOrder.importe_real_actual || activeOrder.importe_estimado });
     lastRideBaseRef.current = activeOrder.assigned_base || myDriver?.current_base || null;
-
-    const secs = (tarifaMinutosRef.current || 0) * 60;
-    if (secs > 0) setLibreBlockedSegs(secs);
 
     const queueEnteredAt = new Date().toISOString();
     setLocalOverride({ status: "disponible", current_base: null, _ignoredOrderId: currentOrderId });
@@ -1799,6 +1826,7 @@ export default function DriverApp() {
           resolutionType: "ACCEPTED"
         }).catch(()=>{});
       }
+      startLibreBlockCountdown();
       setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
     } catch (error) {
       console.error("No se pudo aceptar el viaje", error);
@@ -1912,6 +1940,7 @@ export default function DriverApp() {
     }
     setLocalOverride({ status: "disponible", current_base: base, queue_entered_at: ts });
     setLibreBlockedSegs(0); // al anular no aplica bloqueo
+    localStorage.removeItem(`libre_block_started_at_${myDriverId}`);
 
     // MODO SEGURO: un viaje YA ACEPTADO que el chofer cancela NO se reasigna
     // automáticamente. Queda pendiente para que el operador decida a quién reactivarlo.
@@ -1987,6 +2016,7 @@ export default function DriverApp() {
       const res = await tryBroadcastAccept(3);
 
       if (res.data.accepted) {
+        startLibreBlockCountdown();
         // La aceptación ya quedó confirmada de forma atómica en acceptRide.
         if (order?.id) {
           setLocalOverride({ status: "en_viaje", optimisticOrderId: order.id });
