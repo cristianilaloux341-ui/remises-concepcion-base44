@@ -201,6 +201,15 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     }
     const zoneQueue = getBaseQueue(availableDrivers, form.zone);
     setSuggestedDriver(zoneQueue[0] || null);
+
+    // Si cambió la zona después de una sugerencia/selección, borrar el móvil anterior.
+    // Así el formulario nunca arrastra un chofer perteneciente a otra base.
+    setForm(prev => {
+      if (!prev.driver_id) return prev;
+      const selected = drivers.find(d => d.id === prev.driver_id);
+      if (selected?.current_base === prev.zone) return prev;
+      return { ...prev, driver_id: "", driver_name: "", status: "pendiente" };
+    });
   }, [form.zone, form.pickup_address, drivers, moviles]);
 
   const handleAddressClientSelect = (clientData) => {
@@ -337,7 +346,16 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
         alert(`El móvil ${data.driver_name || manualDriverInput || ""} está fuera de servicio u ocupado. El pasaje no fue asignado.`);
         return;
       }
-      data.driver_name = selectedDriver.name;
+      if (!data.zone || selectedDriver.current_base !== data.zone) {
+        alert(`El móvil ${selectedDriver.name} está en ${selectedDriver.current_base || "ninguna base"} y el pasaje pertenece a ${data.zone || "una zona no definida"}. Quedará pendiente.`);
+        delete data.driver_id;
+        delete data.driver_name;
+        delete data._resolved_mobile_id;
+        data.status = "pendiente";
+      } else {
+        data.driver_name = selectedDriver.name;
+        data.status = "ofrecido";
+      }
       data.status = "ofrecido";
     }
 
@@ -349,10 +367,18 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
         return;
       }
 
-      data.driver_id = resolved.driver.id;
-      data.driver_name = resolved.driver.name;
-      data._resolved_mobile_id = resolved.mobile?.id || null;
-      data.status = "ofrecido";
+      if (!data.zone || resolved.driver.current_base !== data.zone) {
+        alert(`El móvil ${resolved.driver.name} está en ${resolved.driver.current_base || "ninguna base"} y el pasaje pertenece a ${data.zone || "una zona no definida"}. Quedará pendiente.`);
+        delete data.driver_id;
+        delete data.driver_name;
+        delete data._resolved_mobile_id;
+        data.status = "pendiente";
+      } else {
+        data.driver_id = resolved.driver.id;
+        data.driver_name = resolved.driver.name;
+        data._resolved_mobile_id = resolved.mobile?.id || null;
+        data.status = "ofrecido";
+      }
     } else if (!data.driver_id) {
       delete data.driver_id; 
       delete data.driver_name;
