@@ -39,11 +39,21 @@ async function filterDispatchEligibleDrivers(drivers = []) {
     if (d.status !== "disponible") return false;
     const mobileId = String(d.vehicle_model || "");
     const mobileNumber = parseInt(mobileId, 10);
-    const movil = moviles?.find(m => m.id === mobileId || m.numero_movil === mobileNumber || m.dominio?.toUpperCase() === d.vehicle_plate?.toUpperCase());
+    const driverPlate = String(d.vehicle_plate || "").replace(/\s+/g, "").toUpperCase();
+    const movil = moviles?.find(m =>
+      m.id === mobileId ||
+      m.numero_movil === mobileNumber ||
+      m.driver_id === d.id ||
+      (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id)) ||
+      (driverPlate && String(m.dominio || "").replace(/\s+/g, "").toUpperCase() === driverPlate)
+    );
     
-    return !d.active_order_id && !d.active_ride_id && !d.reserved_order_id &&
+    return Boolean(movil) &&
+      !d.active_order_id && !d.active_ride_id && !d.reserved_order_id &&
       (d.dispatch_status == null || d.dispatch_status === "normal") &&
-      (!movil || (movil.activo !== false && movil.fuera_de_servicio !== true));
+      movil.activo !== false &&
+      movil.fuera_de_servicio !== true &&
+      !movil.suspension_motivo;
   });
 }
 
