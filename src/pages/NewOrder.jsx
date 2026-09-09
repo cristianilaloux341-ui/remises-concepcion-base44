@@ -52,6 +52,18 @@ export default function NewOrder() {
         if (!driver || driver.status !== "disponible") {
           throw new Error("El móvil está fuera de servicio u ocupado. El pasaje quedó pendiente y no fue enviado.");
         }
+        // Validación en el punto correcto: antes de asignar el pasaje recién creado.
+        // Se usa el Driver releído del servidor, no la sugerencia que quedó en pantalla.
+        if (!newOrder.zone || driver.current_base !== newOrder.zone) {
+          await base44.entities.RideOrder.update(newOrder.id, {
+            status: "pendiente",
+            driver_id: null,
+            driver_name: null,
+            reserved_driver_id: null,
+            assigned_base: null,
+          });
+          return newOrder;
+        }
         await assignDriverToOrder(newOrder, driver, {
           requireDriverConfirmation: true,
           mobileId: resolvedMobileId,
@@ -68,7 +80,20 @@ export default function NewOrder() {
             if (newOrder.zone) {
               const zoneDriver = await findDriverInZone(newOrder.zone, drivers);
               if (zoneDriver) {
-                await assignDriverToOrder(newOrder, zoneDriver);
+                // Releer inmediatamente antes de asignar: si el móvil cambió de
+                // base mientras se cargaba el pasaje, no recibe la oferta.
+                const freshDriver = await base44.entities.Driver.get(zoneDriver.id);
+                if (freshDriver?.status === "disponible" && freshDriver.current_base === newOrder.zone) {
+                  await assignDriverToOrder(newOrder, freshDriver);
+                } else {
+                  await base44.entities.RideOrder.update(newOrder.id, {
+                    status: "pendiente",
+                    driver_id: null,
+                    reserved_driver_id: null,
+                    driver_name: null,
+                    assigned_base: null,
+                  });
+                }
               } else {
                 await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
               }
