@@ -65,7 +65,7 @@ const ACTION_PERMISSIONS = {
   },
   operador: {
     canDispatch: true,
-    canManualAssign: false,
+    canManualAssign: true,
     canCancelOrder: true,
     canViewFares: false,
     canEditTarifas: false,
