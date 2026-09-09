@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, User, Phone, DollarSign, Loader2, Plus, X, Zap, Car, UserPlus, Wand2, Calculator } from "lucide-react";
-import { findBestDriver, detectZoneFromAddress, detectZoneFromCoords, learnZoneMapping, parseAddress, getBaseQueue } from "@/lib/dispatchLogic";
+import { detectZoneFromAddress, detectZoneFromCoords, learnZoneMapping, parseAddress, getBaseQueue } from "@/lib/dispatchLogic";
 import PickupAutocomplete from "@/components/orders/PickupAutocomplete";
 import AddressAutocomplete from "@/components/orders/AddressAutocomplete";
 import { recordAddressUsage } from "@/hooks/useAddressSuggestions";
@@ -192,12 +192,16 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     return () => clearTimeout(timeout);
   }, [form.pickup_address, form.pickup_lat, form.pickup_lng]);
 
-  // Auto-suggest best driver when zone or pickup changes
+  // Sugerir únicamente el primero de la cola de la base exacta del pasaje.
+  // La resolución es sincrónica para que nunca quede visible una sugerencia de la zona anterior.
   useEffect(() => {
-    if (!form.pickup_address || availableDrivers.length === 0) { setSuggestedDriver(null); return; }
-    findBestDriver({ zone: form.zone, pickup_address: form.pickup_address, pickup_lat: form.pickup_lat, pickup_lng: form.pickup_lng }, drivers, bases)
-      .then(d => setSuggestedDriver(d));
-  }, [form.zone, form.pickup_address, drivers.length]);
+    if (!form.pickup_address || !form.zone) {
+      setSuggestedDriver(null);
+      return;
+    }
+    const zoneQueue = getBaseQueue(availableDrivers, form.zone);
+    setSuggestedDriver(zoneQueue[0] || null);
+  }, [form.zone, form.pickup_address, drivers, moviles]);
 
   const handleAddressClientSelect = (clientData) => {
     // Force unconditional update — use the exact row's data (identified by addressId)
@@ -234,10 +238,13 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
   const handleAutoAssign = async () => {
     setAutoAssigning(true);
-    const driver = await findBestDriver({ zone: form.zone, pickup_address: form.pickup_address }, drivers, bases);
+    const driver = form.zone ? (getBaseQueue(availableDrivers, form.zone)[0] || null) : null;
     if (driver) {
       setForm(prev => ({ ...prev, driver_id: driver.id, driver_name: driver.name, status: "ofrecido" }));
       setSuggestedDriver(driver);
+    } else {
+      setSuggestedDriver(null);
+      setForm(prev => ({ ...prev, driver_id: "", driver_name: "", status: "pendiente" }));
     }
     setAutoAssigning(false);
   };
