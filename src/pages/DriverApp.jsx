@@ -2347,12 +2347,7 @@ export default function DriverApp() {
           className="fixed z-[10000] bottom-5 right-4 h-14 px-4 rounded-2xl bg-orange-500 text-gray-950 font-black shadow-2xl flex items-center gap-2 active:scale-95"
         >
           <List className="w-5 h-5" />
-          Pendientes
-          {pendingBoardCount > 0 && (
-            <span className="min-w-6 h-6 px-1 rounded-full bg-gray-950 text-orange-400 text-xs flex items-center justify-center">
-              {pendingBoardCount}
-            </span>
-          )}
+          <span>Pendientes ({pendingBoardCount})</span>
         </button>
       )}
 
