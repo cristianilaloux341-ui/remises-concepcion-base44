@@ -91,6 +91,8 @@ export async function assignDriverToOrder(order, driver, options = {}) {
     driverId: driver.id,
     sessionToken,
     requireDriverConfirmation: options.requireDriverConfirmation === true,
+    forceManual: options.forceManual === true,
+    manualDriverName: options.forceManual === true ? driver.name : null,
     mobileId: options.mobileId || null,
   });
 
