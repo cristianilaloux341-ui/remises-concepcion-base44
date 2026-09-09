@@ -556,8 +556,72 @@ Deno.serve(async (req) => {
     }
 
     try {
-      const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
+      const [drivers, orders] = await Promise.all([
+        base44.asServiceRole.entities.Driver.filter({ id: driverId }),
+        base44.asServiceRole.entities.RideOrder.filter({ id: String(orderId).split('_att_')[0] })
+      ]);
       const driver = drivers[0];
+      const liveOrder = orders[0];
+
+      if (!driver) {
+        return Response.json({ ok: false, reason: 'driver_not_found' }, { status: 404 });
+      }
+
+      // Última barrera antes del teléfono: ningún FCM/WebPush de oferta puede
+      // salir si la base actual del móvil no coincide exactamente con la zona.
+      // Cubre escrituras directas, automatizaciones antiguas y eventos retrasados.
+      if (!liveOrder || !liveOrder.zone || driver.current_base !== liveOrder.zone) {
+        if (liveOrder && (liveOrder.driver_id === driverId || liveOrder.reserved_driver_id === driverId)) {
+          await base44.asServiceRole.entities.RideOrder.updateMany(
+            {
+              id: liveOrder.id,
+              status: 'ofrecido',
+              $or: [{ driver_id: driverId }, { reserved_driver_id: driverId }]
+            },
+            { $set: {
+              status: 'pendiente',
+              driver_id: null,
+              driver_name: null,
+              reserved_driver_id: null,
+              assigned_base: null,
+              reservation_token: null,
+              manual_reservation_token: null,
+              assigned_at: null,
+              offerExpiresAt: null
+            } }
+          );
+          await base44.asServiceRole.entities.Driver.updateMany(
+            {
+              id: driverId,
+              $or: [{ reserved_order_id: liveOrder.id }, { active_order_id: liveOrder.id }]
+            },
+            { $set: {
+              status: 'disponible',
+              dispatch_status: 'normal',
+              reserved_order_id: null,
+              active_order_id: null,
+              reservation_token: null,
+              manual_reservation_token: null,
+              driver_reservation_key: null
+            } }
+          );
+        }
+
+        await base44.asServiceRole.entities.AuditLog.create({
+          action: 'CROSS_ZONE_PUSH_BLOCKED',
+          user_type: 'sistema',
+          user_name: 'sendPushNotification',
+          details: `Bloqueado push del viaje ${liveOrder?.id || orderId}: zona ${liveOrder?.zone || 'sin zona'}, móvil en ${driver.current_base || 'sin base'}`,
+          metadata: {
+            orderId: liveOrder?.id || String(orderId).split('_att_')[0],
+            driverId,
+            orderZone: liveOrder?.zone || null,
+            driverBase: driver.current_base || null
+          }
+        }).catch(() => {});
+
+        return Response.json({ ok: false, reason: 'CROSS_ZONE_BLOCKED' });
+      }
       
       const title = '🚖 ¡NUEVO VIAJE!';
       let bodyStr = orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}${orderData.fare ? ' · $' + orderData.fare : ''}` : 'Tenés un viaje asignado';
