@@ -21,6 +21,8 @@ export function usePushSubscription(driverId) {
     }).catch(()=>{});
 
     let cancelled = false;
+    let registrationHandle = null;
+    let registrationErrorHandle = null;
 
     async function registerNative() {
       try {
@@ -38,9 +40,10 @@ export function usePushSubscription(driverId) {
           return;
         }
 
-        await PushNotifications.removeAllListeners();
-
-        PushNotifications.addListener('registration', async (token) => {
+        // IMPORTANTE: no usar removeAllListeners() acá. DriverApp mantiene sus propios
+        // listeners de pushNotificationReceived / pushNotificationActionPerformed;
+        // borrarlos deja a la WebView sin enterarse de viajes que Android sí recibió.
+        registrationHandle = await PushNotifications.addListener('registration', async (token) => {
           // Quitamos la validación de 'cancelled' porque en Android a veces la pantalla
           // recarga muy rápido y mata el proceso justo cuando llega el token de Google.
           
@@ -60,7 +63,7 @@ export function usePushSubscription(driverId) {
           subscribedRef.current = true;
         });
 
-        PushNotifications.addListener('registrationError', (error) => {
+        registrationErrorHandle = await PushNotifications.addListener('registrationError', (error) => {
           console.error('Error al registrar FCM: ', error);
           base44.entities.AuditLog.create({
             action: 'push_error',
@@ -157,7 +160,11 @@ export function usePushSubscription(driverId) {
       registerWeb();
     }
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      try { registrationHandle?.remove?.(); } catch (_) {}
+      try { registrationErrorHandle?.remove?.(); } catch (_) {}
+    };
   }, [driverId]);
 }
 
