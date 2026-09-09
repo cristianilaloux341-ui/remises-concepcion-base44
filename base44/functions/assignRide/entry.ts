@@ -34,6 +34,35 @@ Deno.serve(async (req) => {
   const driverReq = await b44.entities.Driver.get(driverId);
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
 
+  // Barrera de vehículo real: el estado del Driver no alcanza porque puede quedar
+  // una base o un "disponible" viejo. La asignación exige un Movil vinculado,
+  // activo, sin suspensión y en servicio en este mismo instante.
+  const allMoviles = await b44.entities.Movil.list();
+  const driverMobileId = String(driverReq.vehicle_model || '');
+  const driverMobileNumber = parseInt(driverMobileId, 10);
+  const driverPlate = String(driverReq.vehicle_plate || '').replace(/\s+/g, '').toUpperCase();
+  const linkedMovil = allMoviles.find((m: any) =>
+    m.id === driverMobileId ||
+    m.numero_movil === driverMobileNumber ||
+    m.driver_id === driverId ||
+    (Array.isArray(m.driver_ids) && m.driver_ids.includes(driverId)) ||
+    (driverPlate && String(m.dominio || '').replace(/\s+/g, '').toUpperCase() === driverPlate)
+  );
+
+  if (!linkedMovil || linkedMovil.activo === false || linkedMovil.fuera_de_servicio === true || linkedMovil.suspension_motivo) {
+    await b44.entities.AuditLog.create({
+      action: 'INELIGIBLE_MOBILE_ASSIGN_BLOCKED',
+      user_type: 'sistema',
+      user_name: 'assignRide',
+      details: `Bloqueada asignación del viaje ${orderId}: móvil inexistente, suspendido o fuera de servicio`,
+      metadata: { orderId, driverId, mobileId: linkedMovil?.id || null }
+    }).catch(() => {});
+    return Response.json({
+      success: false,
+      reason: 'El móvil no está habilitado o está fuera de servicio. El pasaje debe quedar pendiente.'
+    });
+  }
+
   // Barrera definitiva: un mismo pasaje jamás se ofrece dos veces al mismo chofer.
   // Se valida en el punto común de entrada para cubrir reasignaciones automáticas,
   // solicitudes duplicadas, cron atrasado y acciones de pantallas viejas.
