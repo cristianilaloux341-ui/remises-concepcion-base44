@@ -59,6 +59,39 @@ Deno.serve(async (req) => {
   };
 
   if (order.status === 'completado') {
+    // Compatibilidad con APKs anteriores: algunas versiones podían marcar el viaje
+    // como completado justo antes de invocar finishRide. En ese caso no debemos salir
+    // sin guardar el cierre real. Reparamos únicamente si faltan datos de finalización.
+    const closureIncomplete = !order.ride_finished_at || order.lastCompletedAction !== 'FINISH' || order.taximetro_iniciado !== false;
+    if (closureIncomplete) {
+      const finishedAt = new Date();
+      const startedAtMs = Date.parse(order.ride_started_at || '');
+      const rideDurationSeconds = Number.isFinite(startedAtMs)
+        ? Math.max(0, Math.floor((finishedAt.getTime() - startedAtMs) / 1000))
+        : Number(order.ride_duration_seconds || 0);
+      const finalImporte = Math.max(0, Number(importeFinal ?? order.importe_real_actual ?? 0));
+
+      const repairOrder = await b44.entities.RideOrder.updateMany(
+        { id: orderId, status: 'completado', driver_id: driverId },
+        { $set: {
+            taximetro_iniciado: false,
+            importe_real_actual: finalImporte,
+            ride_finished_at: order.ride_finished_at || finishedAt.toISOString(),
+            ride_duration_seconds: rideDurationSeconds,
+            updated_date: finishedAt.toISOString(),
+            lastCompletedOperationKey: opKey,
+            lastCompletedAction: 'FINISH'
+          }
+        }
+      );
+
+      if (repairOrder.updated === 1) {
+        await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_REPAIRED', user_type: 'sistema', user_name: 'finishRide', details: 'Completed order had incomplete finish metadata and was repaired', metadata: { orderId, driverId } });
+      } else {
+        await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: `Could not repair completed order, raw: ${JSON.stringify(repairOrder)}`, metadata: { orderId, driverId } });
+        return Response.json({ success: false, reason: 'COMPLETED_ORDER_REPAIR_FAILED', db_result: repairOrder });
+      }
+    }
     return await checkAndRepairDriver(driver);
   }
 
