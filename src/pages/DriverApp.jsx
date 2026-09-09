@@ -234,8 +234,13 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
 
   const isInBase = driver.current_base && driver.status === "disponible";
 
-  // Queue for current base
-  const baseQueue = debugArray(drivers, 'drivers_in_IdleScreen')
+  // Queue for current base. Include the locally-confirmed driver immediately:
+  // the realtime collection can arrive a moment after entering/changing base.
+  const driverList = debugArray(drivers, 'drivers_in_IdleScreen');
+  const queueSource = driverList.some(d => d.id === driver.id)
+    ? driverList.map(d => d.id === driver.id ? { ...d, ...driver } : d)
+    : [...driverList, driver];
+  const baseQueue = queueSource
     .filter(d => d.current_base === driver.current_base && d.status === "disponible")
     .sort((a, b) => {
       const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
@@ -1772,6 +1777,7 @@ export default function DriverApp() {
       setSelectedBase(base);
       setLocalOverride({ current_base: base, status: "disponible", queue_entered_at: ts });
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+      window.dispatchEvent(new CustomEvent("force-driver-refresh"));
     } catch (error) {
       window.alert("No se pudo entrar en posición. Revisá Internet e intentá nuevamente.");
     }
@@ -1796,6 +1802,7 @@ export default function DriverApp() {
       });
       setLocalOverride({ current_base: newBase, status: "disponible", queue_entered_at: ts });
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+      window.dispatchEvent(new CustomEvent("force-driver-refresh"));
     } catch (error) {
       window.alert("No se pudo cambiar de base. Revisá Internet e intentá nuevamente.");
     }
