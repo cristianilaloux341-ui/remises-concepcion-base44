@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { findNextDriverInZone } from '../../shared/driverSelection.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -8,44 +9,48 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { orderData, sessionToken } = body;
     
-    // 1. Crear el viaje inmediatamente
-    const order = await b44.entities.RideOrder.create(orderData);
-    
-    // 2. Ejecutar la lógica de despacho de forma síncrona en el servidor
-    const allAvailable = await b44.entities.Driver.filter({ status: "disponible" });
-    // Misma regla que Central: estar en servicio/libre alcanza; la cola/base solo
-    // ordena prioridad y nunca es requisito. Excluir cualquier vínculo activo.
-    const drivers = allAvailable.filter(d =>
-      !d.active_order_id && !d.active_ride_id && !d.reserved_order_id &&
-      (d.dispatch_status == null || d.dispatch_status === "normal")
-    );
-    let assigned = false;
-    
-    // Función auxiliar para ordenar choferes por tiempo de espera
-    const sortByQueue = (arr) => arr.sort((a, b) => {
-       const tA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : 0;
-       const tB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : 0;
-       return tA - tB;
+    // 1. Crear el viaje en estado técnico de despacho. Así la Central no muestra
+    // "pendiente" durante los milisegundos en que todavía estamos buscando candidato.
+    const order = await b44.entities.RideOrder.create({
+      ...orderData,
+      status: "procesando_despacho"
     });
 
+    // 2. Resolver el candidato en el servidor con la misma regla oficial:
+    // misma zona, FIFO por queue_entered_at, móvil real habilitado.
+    let assigned = false;
     if (order.zone) {
-      const zoneDrivers = sortByQueue(drivers.filter(d => d.current_base === order.zone));
-      if (zoneDrivers.length > 0) {
+      const nextDriver = await findNextDriverInZone(b44, order, null);
+      if (nextDriver) {
         const res = await b44.functions.invoke("assignRide", {
-           orderId: order.id,
-           driverId: zoneDrivers[0].id,
-           sessionToken: sessionToken || 'client_demo_token'
+          orderId: order.id,
+          driverId: nextDriver.id,
+          sessionToken: sessionToken || "client_demo_token",
+          internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
         });
         assigned = res?.data?.success === true;
       }
     }
-    
-    // Si no hay móviles no hacemos broadcast, lo dejamos en pendiente para que el operador lo gestione
+
+    // Si no hay candidato válido, recién ahí pasa a Pendientes.
     if (!assigned) {
-       await b44.entities.RideOrder.update(order.id, { status: "pendiente" });
+      await b44.entities.RideOrder.update(order.id, {
+        status: "pendiente",
+        driver_id: null,
+        driver_name: null,
+        reserved_driver_id: null,
+        assigned_base: null,
+        reservation_token: null,
+        offerExpiresAt: null
+      });
     }
-    
-    return Response.json({ success: true, orderId: order.id });
+
+    return Response.json({
+      success: true,
+      orderId: order.id,
+      assigned,
+      status: assigned ? "ofrecido" : "pendiente"
+    });
   } catch(e) {
     console.error("Error en clientCreateAndDispatchRide", e);
     return Response.json({ success: false, error: e.message }, { status: 500 });
