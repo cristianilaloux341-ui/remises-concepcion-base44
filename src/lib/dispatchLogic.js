@@ -34,7 +34,23 @@ export function getBaseQueue(drivers, baseName) {
 
 // Invariante de despacho: un Driver solo puede ser candidato si su Movil real está habilitado.
 async function filterDispatchEligibleDrivers(drivers = []) {
-  const moviles = await base44.entities.Movil.list();
+  // No descargar toda la flota para validar una cola ya conocida. Traer solamente
+  // los móviles vinculados a los choferes recibidos (normalmente los de una zona).
+  const driverIds = [...new Set(drivers.map(d => d.id).filter(Boolean))];
+  const mobileIds = [...new Set(drivers.map(d => String(d.vehicle_model || "")).filter(Boolean))];
+  const mobileNumbers = [...new Set(drivers.map(d => parseInt(String(d.vehicle_model || ""), 10)).filter(Number.isFinite))];
+  const plates = [...new Set(drivers.map(d => String(d.vehicle_plate || "").trim()).filter(Boolean))];
+
+  const clauses = [];
+  if (mobileIds.length) clauses.push({ id: { $in: mobileIds } });
+  if (mobileNumbers.length) clauses.push({ numero_movil: { $in: mobileNumbers } });
+  if (driverIds.length) {
+    clauses.push({ driver_id: { $in: driverIds } });
+    clauses.push({ driver_ids: { $in: driverIds } });
+  }
+  if (plates.length) clauses.push({ dominio: { $in: plates } });
+
+  const moviles = clauses.length ? await base44.entities.Movil.filter({ $or: clauses }) : [];
   return drivers.filter(d => {
     if (d.status !== "disponible") return false;
     const mobileId = String(d.vehicle_model || "");
