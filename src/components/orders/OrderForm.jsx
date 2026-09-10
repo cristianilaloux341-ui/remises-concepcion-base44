@@ -118,16 +118,18 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
-    queryFn: () => base44.entities.Driver.list(),
-    staleTime: 0,
-    refetchInterval: 3000,
+    queryFn: () => base44.entities.Driver.filter({ status: "disponible" }),
+    staleTime: 10_000,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 
   const { data: moviles = [] } = useQuery({
     queryKey: ["moviles"],
     queryFn: () => base44.entities.Movil.list(),
-    staleTime: 0,
-    refetchInterval: 3000,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 
   const { data: clients = [] } = useQuery({
