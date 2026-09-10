@@ -38,10 +38,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
       // Buscar en servidor: listar solo los 500 más usados hacía desaparecer
       // direcciones guardadas que quedaban fuera de ese corte.
       return base44.entities.ClientAddress.filter({
-        $or: [
-          { full_address: { $regex: searchTerm, $options: "i" } },
-          { client_name: { $regex: searchTerm, $options: "i" } }
-        ]
+        full_address: { $regex: searchTerm, $options: "i" }
       }, "-usage_count", 100);
     },
     enabled: !!restrictToClient || searchTerm.length >= 3,
