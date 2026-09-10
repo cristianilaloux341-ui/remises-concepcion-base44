@@ -26,7 +26,10 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
   }, []);
 
   const normalizedInput = normalize(inputValue);
+  // Buscar por la parte de calle para tolerar variantes guardadas como
+  // "Ratto Dr. 917" frente a lo escrito "Ratto 917".
   const searchTerm = inputValue.trim();
+  const streetSearchTerm = searchTerm.split(/\s+\d/)[0].trim() || searchTerm;
 
   const { data: clientAddresses = [] } = useQuery({
     queryKey: ["client_addresses_search", restrictToClient || "all", normalizedInput],
@@ -38,7 +41,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
       // Buscar en servidor: listar solo los 500 más usados hacía desaparecer
       // direcciones guardadas que quedaban fuera de ese corte.
       return base44.entities.ClientAddress.filter({
-        full_address: { $regex: searchTerm, $options: "i" }
+        full_address: { $regex: streetSearchTerm, $options: "i" }
       }, "-usage_count", 100);
     },
     enabled: !!restrictToClient || searchTerm.length >= 3,
