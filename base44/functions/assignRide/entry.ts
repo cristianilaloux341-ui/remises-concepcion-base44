@@ -49,9 +49,8 @@ Deno.serve(async (req) => {
   // Estas validaciones son independientes entre sí. Ejecutarlas en serie agregaba
   // varios viajes de red antes de marcar la oferta como `ofrecido` (10–15 s en
   // casos reales). Se resuelven en paralelo sin relajar ninguna regla operativa.
-  const [driverReq, allMoviles, assignedOrders, reservedOrders, tarifaConfigs] = await Promise.all([
+  const [driverReq, assignedOrders, reservedOrders, tarifaConfigs] = await Promise.all([
     b44.entities.Driver.get(driverId),
-    b44.entities.Movil.list(),
     b44.entities.RideOrder.filter({ driver_id: driverId }),
     b44.entities.RideOrder.filter({ reserved_driver_id: driverId }),
     b44.entities.TarifaConfig.list(),
@@ -89,8 +88,21 @@ Deno.serve(async (req) => {
   // activo, sin suspensión y en servicio en este mismo instante.
   const driverMobileId = String(driverReq.vehicle_model || '');
   const driverMobileNumber = parseInt(driverMobileId, 10);
-  const driverPlate = String(driverReq.vehicle_plate || '').replace(/\s+/g, '').toUpperCase();
-  const linkedMovil = allMoviles.find((m: any) =>
+  const driverPlateRaw = String(driverReq.vehicle_plate || '').trim();
+  const driverPlate = driverPlateRaw.replace(/\s+/g, '').toUpperCase();
+
+  // Validar SOLO el móvil de este chofer. Antes se hacía Movil.list() y se bajaba
+  // toda la flota para cada despacho, aunque ya sabíamos qué chofer queríamos validar.
+  const movilLookup: any[] = [
+    { driver_id: driverId },
+    { driver_ids: { $in: [driverId] } }
+  ];
+  if (driverMobileId) movilLookup.push({ id: driverMobileId });
+  if (Number.isFinite(driverMobileNumber)) movilLookup.push({ numero_movil: driverMobileNumber });
+  if (driverPlateRaw) movilLookup.push({ dominio: driverPlateRaw });
+
+  const linkedMoviles = await b44.entities.Movil.filter({ $or: movilLookup });
+  const linkedMovil = linkedMoviles.find((m: any) =>
     m.id === driverMobileId ||
     m.numero_movil === driverMobileNumber ||
     m.driver_id === driverId ||
