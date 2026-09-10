@@ -169,19 +169,11 @@ export async function autoDispatch(order, drivers, bases) {
 export async function reassignAfterReject(order, drivers, bases) {
   if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in reassignAfterReject!", drivers); return null; }
   if (!Array.isArray(bases)) { console.error("[CRITICAL ERROR] bases is not array in reassignAfterReject!", bases); bases = BASES; }
-  // Alta demanda: el móvil que acaba de rechazar queda al final de ESTA ronda.
-  // Si existe cualquier otro móvil elegible, aunque esté en otra base, debe probarse antes.
-  // offered_driver_ids sigue siendo historial: solo volvemos a considerar esos móviles
-  // cuando ya no queda ningún candidato nuevo disponible.
+  // Reasignación normal: únicamente dentro de la zona original del pasaje.
+  // offered_driver_ids es historial de esta ronda: un móvil ya ofertado no se repite.
   const allAvailable = await filterDispatchEligibleDrivers(drivers);
-  // Cada aparición en offered_driver_ids cuenta una oferta real al móvil.
-  // Máximo 2 ofertas por móvil para este pasaje. Después queda excluido y,
-  // si no queda ningún candidato, el viaje vuelve a pendiente para operador manual.
-  const offerCounts = (order.offered_driver_ids || []).reduce((acc, driverId) => {
-    if (driverId) acc[driverId] = (acc[driverId] || 0) + 1;
-    return acc;
-  }, {});
-  const available = allAvailable.filter(d => (offerCounts[d.id] || 0) < 2);
+  const offeredDriverIds = new Set((order.offered_driver_ids || []).filter(Boolean));
+  const available = allAvailable.filter(d => !offeredDriverIds.has(d.id));
 
   const tarifaConfigs = await base44.entities.TarifaConfig.list();
   const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
@@ -200,9 +192,11 @@ export async function reassignAfterReject(order, drivers, bases) {
     return !autoReassignActive ? "manual" : "sin_moviles";
   }
 
-  // Next driver in same base (FIFO)
-  const lastBase = order.assigned_base || order.zone;
-  const sameBaseQueue = sortQueue(available.filter(d => d.current_base === lastBase));
+  // Siguiente móvil exclusivamente en la zona del pasaje (FIFO).
+  const targetZone = order.zone;
+  const sameBaseQueue = targetZone
+    ? sortQueue(available.filter(d => d.current_base === targetZone))
+    : [];
 
   for (const driver of sameBaseQueue) {
     try {
