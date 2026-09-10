@@ -91,9 +91,18 @@ export default function Dashboard() {
     queryFn: () => base44.entities.Base.list(),
   });
 
+  const dashboardMobileIds = [...new Set(drivers.map(d => String(d.vehicle_model || "")).filter(Boolean))].sort();
+  const dashboardMobileNumbers = [...new Set(drivers.map(d => parseInt(String(d.vehicle_model || ""), 10)).filter(Number.isFinite))].sort((a, b) => a - b);
+
   const { data: moviles = [] } = useQuery({
-    queryKey: ["moviles"],
-    queryFn: () => base44.entities.Movil.list(),
+    queryKey: ["moviles_dashboard", dashboardMobileIds.join(","), dashboardMobileNumbers.join(",")],
+    queryFn: () => {
+      const clauses = [];
+      if (dashboardMobileIds.length) clauses.push({ id: { $in: dashboardMobileIds } });
+      if (dashboardMobileNumbers.length) clauses.push({ numero_movil: { $in: dashboardMobileNumbers } });
+      return clauses.length ? base44.entities.Movil.filter({ $or: clauses }) : Promise.resolve([]);
+    },
+    enabled: drivers.length > 0,
     staleTime: 60_000,
   });
 
