@@ -28,7 +28,7 @@ export default function Orders() {
   // Una sola fuente de verdad: la suscripción en tiempo real.
   // Evita que respuestas de polling atrasadas hagan retroceder visualmente
   // el estado (aceptado → ofrecido) o produzcan saltos en el reloj.
-  const { orders, isLoading } = useRealtimeOrders({ limit: 100, verifyActiveMs: 2000, fallbackRefreshMs: 15000 });
+  const { orders, isLoading } = useRealtimeOrders({ limit: 100, verifyActiveMs: 2000 });
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
