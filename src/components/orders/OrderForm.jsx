@@ -195,22 +195,23 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       setDetectingZone(true);
       let zone = null;
       
-      // 1. Intentar SIEMPRE por coordenadas primero (Geofencing con los polígonos del mapa)
-      let coords = (form.pickup_lat && form.pickup_lng) 
-        ? { lat: form.pickup_lat, lng: form.pickup_lng } 
-        : await geocodeAddress(form.pickup_address);
-        
-      if (coords) {
-        zone = await detectZoneFromCoords(coords.lat, coords.lng);
-        // Guardar las coordenadas geocodificadas si no las teníamos
-        if (!form.pickup_lat || !form.pickup_lng) {
-          setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
-        }
-      }
+      // 1. MEMORIA PRIMERO: si esta calle/altura ya fue aprendida, resolver la zona
+      // sin geocodificar ni volver a consultar polígonos.
+      zone = await detectZoneFromAddress(form.pickup_address);
 
-      // 2. Fallback al diccionario de texto (nombres de calles) si no cayó en ningún polígono del mapa
+      // 2. Solo si la dirección todavía no fue aprendida, usar coordenadas/geofencing.
       if (!zone) {
-        zone = await detectZoneFromAddress(form.pickup_address);
+        const coords = (form.pickup_lat && form.pickup_lng)
+          ? { lat: form.pickup_lat, lng: form.pickup_lng }
+          : await geocodeAddress(form.pickup_address);
+
+        if (coords) {
+          zone = await detectZoneFromCoords(coords.lat, coords.lng);
+          // Guardar las coordenadas geocodificadas si no las teníamos.
+          if (!form.pickup_lat || !form.pickup_lng) {
+            setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
+          }
+        }
       }
 
       setDetectingZone(false);
