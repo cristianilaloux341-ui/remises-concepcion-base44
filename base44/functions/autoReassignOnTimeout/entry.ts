@@ -109,6 +109,14 @@ Deno.serve(async (req) => {
       const nextReservationToken = nextDriver ? crypto.randomUUID() : null;
       const nextAssignedAt = nextDriver ? new Date().toISOString() : null;
       const nextOfferExpiresAt = nextDriver ? Date.now() + (originalTimeoutSeconds * 1000) : null;
+      // El historial debe incluir al NUEVO móvil antes de enviarle la oferta.
+      // Si solo guardamos al anterior, findNextDriverInZone puede volver a elegir
+      // al mismo móvil en el siguiente timeout.
+      const offeredIds = [...new Set([
+        ...(order.offered_driver_ids || []),
+        currentDriver?.id,
+        nextDriver?.id
+      ].filter(Boolean))];
 
       // 1. Escritura Atómica Transaccional
       const result = await base44.asServiceRole.entities.RideOrder.updateMany(
@@ -134,9 +142,9 @@ Deno.serve(async (req) => {
             processingLeaseExpiresAt: null,
             processingPhase: null,
             assignment_attempt: newAttempt,
-            assigned_at: nextAssignedAt
-          },
-          $addToSet: { offered_driver_ids: currentDriver?.id }
+            assigned_at: nextAssignedAt,
+            offered_driver_ids: offeredIds
+          }
         }
       );
 
