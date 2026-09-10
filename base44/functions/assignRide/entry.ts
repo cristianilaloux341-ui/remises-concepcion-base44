@@ -65,6 +65,22 @@ Deno.serve(async (req) => {
   ]);
 
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
+
+  // Invariante de servicio: ningún móvil sin base activa puede recibir pasajes,
+  // tampoco por asignación manual. `status=disponible` con current_base=null es
+  // un estado intermedio/fantasma (por ejemplo app cerrada o antes de elegir base),
+  // no significa que esté en posición para trabajar.
+  if (driverReq.status !== 'disponible' || !driverReq.current_base) {
+    await b44.entities.AuditLog.create({
+      action: 'OFF_SERVICE_ASSIGN_BLOCKED',
+      user_type: 'sistema',
+      user_name: 'assignRide',
+      details: `Bloqueada asignación de ${orderId} a ${driverReq.name || driverId}: móvil fuera de servicio o sin base`,
+      metadata: { orderId, driverId, status: driverReq.status ?? null, current_base: driverReq.current_base ?? null }
+    }).catch(() => {});
+    return Response.json({ success: false, reason: 'DRIVER_OFF_SERVICE_OR_NO_BASE' });
+  }
+
   // Evita repetir la misma consulta dentro del bloque atómico.
   orderReq.__pilotValidated = true;
 
