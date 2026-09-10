@@ -254,7 +254,7 @@ export default function Dashboard() {
       m.driver_id === d.id ||
       (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id))
     );
-    if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
+    if (!movil || movil.activo === false || movil.fuera_de_servicio === true || movil.suspension_motivo) {
       return false;
     }
     return true;
