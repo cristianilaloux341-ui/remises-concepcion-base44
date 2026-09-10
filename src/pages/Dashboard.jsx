@@ -13,7 +13,7 @@ import StatCard from "@/components/dashboard/StatCard";
 import RideMap from "@/components/map/RideMap";
 import BaseQueueManager, { QuickAssignInput } from "@/components/operator/BaseQueueManager";
 import { reassignAfterReject } from "@/lib/dispatchLogic";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
@@ -73,7 +73,7 @@ function CentralOfferCountdown({ order }) {
 export default function Dashboard() {
   const { toast } = useToast();
   // Suscripciones en tiempo real — actualizaciones instantáneas sin polling
-  const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100 });
+  const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100, verifyOfferedMs: 1500 });
   const { drivers } = useRealtimeDrivers();
 
   // Alarma + reasignación automática cuando un chofer rechaza
@@ -98,14 +98,19 @@ export default function Dashboard() {
   const [showPanicPanel, setShowPanicPanel] = useState(false);
 
   // Monitoreo de Viajes Nuevos (Burbuja/Notificación para el Operador)
+  // Mantener los IDs en un ref para NO reconectar este canal cada vez que cambia orders.
+  const knownOrderIdsRef = useRef(new Set());
+  useEffect(() => {
+    orders.forEach(o => { if (o?.id) knownOrderIdsRef.current.add(o.id); });
+  }, [orders]);
+
   useEffect(() => {
     let unsubscribe = null;
-    let knownOrderIds = new Set(orders.map(o => o.id));
 
     unsubscribe = base44.entities.RideOrder.subscribe((event) => {
       if (event.type === "create" && event.data?.status === "pendiente") {
-        if (!knownOrderIds.has(event.id)) {
-          knownOrderIds.add(event.id);
+        if (!knownOrderIdsRef.current.has(event.id)) {
+          knownOrderIdsRef.current.add(event.id);
           
           // Sonido de viaje nuevo en la central
           try {
@@ -138,7 +143,7 @@ export default function Dashboard() {
       }
     });
     return () => unsubscribe?.();
-  }, [orders, toast]);
+  }, [toast]);
 
   // Mantener únicamente alertas activas. Las atendidas nunca vuelven al recargar.
   useEffect(() => {
