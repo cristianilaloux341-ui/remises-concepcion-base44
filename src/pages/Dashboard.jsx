@@ -74,7 +74,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   // Suscripciones en tiempo real — actualizaciones instantáneas sin polling
   const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100, verifyOfferedMs: 1500 });
-  const { drivers } = useRealtimeDrivers();
+  const { drivers } = useRealtimeDrivers({ refreshIntervalMs: 30000 });
 
   // Alarma + reasignación automática cuando un chofer rechaza
   useRejectionAlert(orders, async (rejectedOrder) => {
