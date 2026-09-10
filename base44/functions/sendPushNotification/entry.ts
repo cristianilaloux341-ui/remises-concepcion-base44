@@ -582,6 +582,24 @@ Deno.serve(async (req) => {
     try {
       const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
       const driver = drivers[0];
+
+      // Última barrera antes de FCM/WebPush. Aunque una ruta vieja o una carrera
+      // intente notificar, no despertar un teléfono fuera de servicio, sin base o
+      // que ya no conserve la reserva de ESTA orden.
+      const cleanOrderId = String(orderId).split('_att_')[0];
+      if (
+        !driver ||
+        driver.status !== 'disponible' ||
+        !driver.current_base ||
+        String(driver.reserved_order_id || '') !== cleanOrderId
+      ) {
+        return Response.json({
+          ok: false,
+          reason: 'driver_not_eligible_at_push_time',
+          driverStatus: driver?.status ?? null,
+          currentBase: driver?.current_base ?? null
+        });
+      }
       
       const title = '🚖 ¡NUEVO VIAJE!';
       let bodyStr = orderData ? `${orderData.pickup_address}${orderData.dropoff_address ? ' → ' + orderData.dropoff_address : ''}${orderData.fare ? ' · $' + orderData.fare : ''}` : 'Tenés un viaje asignado';
