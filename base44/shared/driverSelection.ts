@@ -2,12 +2,31 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const targetZone = order.zone;
   if (!targetZone) return null;
 
-  // Solo traer candidatos de la zona objetivo. Evita descargar toda la flota
-  // en cada despacho/reasignación.
-  const [allMoviles, zoneDrivers] = await Promise.all([
-    b44.entities.Movil.list(),
-    b44.entities.Driver.filter({ status: "disponible", current_base: targetZone })
-  ]);
+  // Traer únicamente los choferes de la zona objetivo.
+  const zoneDrivers = await b44.entities.Driver.filter({
+    status: "disponible",
+    current_base: targetZone
+  });
+
+  // Driver.vehicle_model guarda el ID del móvil. No descargar toda la flota:
+  // validar solamente los móviles vinculados a los choferes de ESTA zona.
+  const driverIds = [...new Set(zoneDrivers.map((d: any) => d.id).filter(Boolean))];
+  const mobileIds = [...new Set(zoneDrivers.map((d: any) => String(d.vehicle_model || '')).filter(Boolean))];
+  const mobileNumbers = [...new Set(zoneDrivers.map((d: any) => parseInt(String(d.vehicle_model || ''), 10)).filter((n: number) => Number.isFinite(n)))];
+  const plates = [...new Set(zoneDrivers.map((d: any) => String(d.vehicle_plate || '').replace(/\s+/g, '').toUpperCase()).filter(Boolean))];
+
+  const movilOr: any[] = [];
+  if (mobileIds.length) movilOr.push({ id: { $in: mobileIds } });
+  if (mobileNumbers.length) movilOr.push({ numero_movil: { $in: mobileNumbers } });
+  if (driverIds.length) {
+    movilOr.push({ driver_id: { $in: driverIds } });
+    movilOr.push({ driver_ids: { $in: driverIds } });
+  }
+  if (plates.length) movilOr.push({ dominio: { $in: plates } });
+
+  const allMoviles = movilOr.length
+    ? await b44.entities.Movil.filter({ $or: movilOr })
+    : [];
 
   const isDriverWorking = (d: any) => {
     if (d.status !== 'disponible') return false;
