@@ -25,11 +25,26 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
+  const normalizedInput = normalize(inputValue);
+  const searchTerm = inputValue.trim();
+
   const { data: clientAddresses = [] } = useQuery({
-    queryKey: ["client_addresses", restrictToClient],
-    queryFn: () => restrictToClient 
-      ? base44.entities.ClientAddress.filter({ client_id: restrictToClient }, "-usage_count", 500)
-      : base44.entities.ClientAddress.list("-usage_count", 500),
+    queryKey: ["client_addresses_search", restrictToClient || "all", normalizedInput],
+    queryFn: () => {
+      if (restrictToClient) {
+        return base44.entities.ClientAddress.filter({ client_id: restrictToClient }, "-usage_count", 500);
+      }
+      if (searchTerm.length < 3) return [];
+      // Buscar en servidor: listar solo los 500 más usados hacía desaparecer
+      // direcciones guardadas que quedaban fuera de ese corte.
+      return base44.entities.ClientAddress.filter({
+        $or: [
+          { full_address: { $regex: searchTerm, $options: "i" } },
+          { client_name: { $regex: searchTerm, $options: "i" } }
+        ]
+      }, "-usage_count", 100);
+    },
+    enabled: !!restrictToClient || searchTerm.length >= 3,
     staleTime: 30_000,
   });
 
