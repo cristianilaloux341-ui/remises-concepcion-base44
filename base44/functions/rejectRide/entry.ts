@@ -66,6 +66,13 @@ Deno.serve(async (req) => {
       const nextReservationToken = crypto.randomUUID();
       const nextAssignedAt = new Date().toISOString();
       const nextOfferExpiresAt = Date.now() + (timeoutSeconds * 1000);
+      // Registrar también al NUEVO móvil como ya ofertado antes del push.
+      // Evita que una segunda reasignación vuelva a elegirlo.
+      const offeredIds = [...new Set([
+        ...(order.offered_driver_ids || []),
+        driverId,
+        nextDriver.id
+      ].filter(Boolean))];
 
       const result = await b44.entities.RideOrder.updateMany(
         {
@@ -90,9 +97,9 @@ Deno.serve(async (req) => {
             processingOperationKey: null,
             processingOwnerId: null,
             processingLeaseExpiresAt: null,
-            processingPhase: null
-          },
-          $addToSet: { offered_driver_ids: driverId }
+            processingPhase: null,
+            offered_driver_ids: offeredIds
+          }
         }
       );
 
