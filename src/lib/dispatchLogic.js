@@ -259,6 +259,25 @@ export function parseAddress(address) {
 // Saves/updates ZoneMapping when an address+zone is confirmed
 const _normalize = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
+// Cache corta en memoria: evita releer todo ZoneMapping por cada dirección.
+let _zoneMappingsCache = null;
+let _zoneMappingsCacheAt = 0;
+const ZONE_MAPPING_CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function getZoneMappingsCached(force = false) {
+  const now = Date.now();
+  if (!force && _zoneMappingsCache && (now - _zoneMappingsCacheAt) < ZONE_MAPPING_CACHE_TTL_MS) return _zoneMappingsCache;
+  const mappings = await base44.entities.ZoneMapping.list("-priority", 500);
+  _zoneMappingsCache = mappings || [];
+  _zoneMappingsCacheAt = now;
+  return _zoneMappingsCache;
+}
+
+function invalidateZoneMappingsCache() {
+  _zoneMappingsCache = null;
+  _zoneMappingsCacheAt = 0;
+}
+
 export async function learnZoneMapping(address, zone) {
   if (!address || !zone || address.trim().length < 3) return;
 
@@ -266,7 +285,7 @@ export async function learnZoneMapping(address, zone) {
   if (!parsed.street || parsed.street.length < 2) return;
 
   const streetNorm = _normalize(parsed.street);
-  const mappings = await base44.entities.ZoneMapping.list("-priority", 500);
+  const mappings = await getZoneMappingsCached();
 
   // Check general street mapping
   const existingGeneral = mappings.find(m => _normalize(m.keyword) === streetNorm);
@@ -308,6 +327,9 @@ export async function learnZoneMapping(address, zone) {
       await base44.entities.ZoneMapping.update(existingBlock.id, { zone });
     }
   }
+
+  // La próxima detección ve inmediatamente lo recién aprendido/corregido.
+  invalidateZoneMappingsCache();
 }
 
 // ── Zone Detection ────────────────────────────────────────────────────────────
@@ -343,7 +365,7 @@ export async function detectZoneFromCoords(lat, lng) {
 export async function detectZoneFromAddress(address) {
   if (!address || address.trim().length < 2) return null;
 
-  const mappings = await base44.entities.ZoneMapping.list("-priority");
+  const mappings = await getZoneMappingsCached();
   if (!mappings.length) return null;
 
   const parsed = parseAddress(address);
