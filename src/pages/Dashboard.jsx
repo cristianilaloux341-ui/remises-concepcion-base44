@@ -56,7 +56,10 @@ function CentralOfferCountdown({ order }) {
       setSeconds(null);
       return;
     }
-    const tick = () => setSeconds(Math.max(0, Math.ceil((expiresMs - Date.now()) / 1000)));
+    const tick = () => {
+      const remaining = Math.ceil((expiresMs - Date.now()) / 1000);
+      setSeconds(remaining > 0 ? remaining : null);
+    };
     tick();
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
@@ -73,7 +76,7 @@ function CentralOfferCountdown({ order }) {
 export default function Dashboard() {
   const { toast } = useToast();
   // Suscripciones en tiempo real — actualizaciones instantáneas sin polling
-  const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100, verifyOfferedMs: 1500 });
+  const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 2000, fallbackRefreshMs: 15000 });
   const { drivers } = useRealtimeDrivers({ refreshIntervalMs: 30000 });
 
   // Alarma + reasignación automática cuando un chofer rechaza
