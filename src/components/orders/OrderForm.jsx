@@ -124,9 +124,18 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     refetchOnWindowFocus: true,
   });
 
+  const availableDriverMobileIds = [...new Set(drivers.map(d => String(d.vehicle_model || "")).filter(Boolean))].sort();
+  const availableDriverMobileNumbers = [...new Set(drivers.map(d => parseInt(String(d.vehicle_model || ""), 10)).filter(Number.isFinite))].sort((a, b) => a - b);
+
   const { data: moviles = [] } = useQuery({
-    queryKey: ["moviles"],
-    queryFn: () => base44.entities.Movil.list(),
+    queryKey: ["moviles_order_form", availableDriverMobileIds.join(","), availableDriverMobileNumbers.join(",")],
+    queryFn: () => {
+      const clauses = [];
+      if (availableDriverMobileIds.length) clauses.push({ id: { $in: availableDriverMobileIds } });
+      if (availableDriverMobileNumbers.length) clauses.push({ numero_movil: { $in: availableDriverMobileNumbers } });
+      return clauses.length ? base44.entities.Movil.filter({ $or: clauses }) : Promise.resolve([]);
+    },
+    enabled: drivers.length > 0,
     staleTime: 60_000,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
