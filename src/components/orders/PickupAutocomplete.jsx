@@ -52,11 +52,22 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     if (!inputValue || inputValue.length < 3) return [];
     const norm = normalize(inputValue);
 
+    const seenClientAddresses = new Set();
     const clientResults = clientAddresses
-      .filter((ca) =>
-        normalize(ca.full_address).includes(norm) ||
-        normalize(ca.client_name).includes(norm)
-      )
+      .filter((ca) => normalize(ca.full_address).includes(norm))
+      .sort((a, b) => {
+        const aa = normalize(a.full_address);
+        const bb = normalize(b.full_address);
+        const rankA = aa === norm ? 0 : aa.startsWith(norm) ? 1 : 2;
+        const rankB = bb === norm ? 0 : bb.startsWith(norm) ? 1 : 2;
+        return rankA - rankB || (b.usage_count || 0) - (a.usage_count || 0);
+      })
+      .filter((ca) => {
+        const key = normalize(ca.full_address);
+        if (seenClientAddresses.has(key)) return false;
+        seenClientAddresses.add(key);
+        return true;
+      })
       .map((ca) => ({ ...ca, type: "client" }))
       .slice(0, 5);
 
