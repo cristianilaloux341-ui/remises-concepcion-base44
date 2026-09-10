@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { assignDriverToOrderAtomic } from '../../shared/DispatchLogic.ts';
+import { assignDriverToOrderAtomic, validatePilotDriver } from '../../shared/DispatchLogic.ts';
 import { verifyRequestAuth, verifyJWT } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
@@ -44,21 +44,33 @@ Deno.serve(async (req) => {
     return Response.json({ success: false, reason: 'LIFECYCLE_REGRESSION_PROTECTED' });
   }
 
-  await b44.entities.AuditLog.create({
-    action: 'ASSIGN_RIDE_REQUESTED',
-    user_type: 'sistema',
-    user_name: 'assignRide',
-    details: `Request to assign ride ${orderId} to driver ${forceManual ? manualDriverName : driverId}`
-  }).catch(() => {});
-
   if (!driverId) return Response.json({ success: false, reason: 'Missing driverId' });
-  const driverReq = await b44.entities.Driver.get(driverId);
+
+  // Estas validaciones son independientes entre sí. Ejecutarlas en serie agregaba
+  // varios viajes de red antes de marcar la oferta como `ofrecido` (10–15 s en
+  // casos reales). Se resuelven en paralelo sin relajar ninguna regla operativa.
+  const [driverReq, allMoviles, assignedOrders, reservedOrders, tarifaConfigs] = await Promise.all([
+    b44.entities.Driver.get(driverId),
+    b44.entities.Movil.list(),
+    b44.entities.RideOrder.filter({ driver_id: driverId }),
+    b44.entities.RideOrder.filter({ reserved_driver_id: driverId }),
+    b44.entities.TarifaConfig.list(),
+    b44.entities.AuditLog.create({
+      action: 'ASSIGN_RIDE_REQUESTED',
+      user_type: 'sistema',
+      user_name: 'assignRide',
+      details: `Request to assign ride ${orderId} to driver ${forceManual ? manualDriverName : driverId}`
+    }).catch(() => null),
+    validatePilotDriver(b44, orderReq.zone || '1-Puerto', driverId)
+  ]);
+
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
+  // Evita repetir la misma consulta dentro del bloque atómico.
+  orderReq.__pilotValidated = true;
 
   // Barrera de vehículo real: el estado del Driver no alcanza porque puede quedar
   // una base o un "disponible" viejo. La asignación exige un Movil vinculado,
   // activo, sin suspensión y en servicio en este mismo instante.
-  const allMoviles = await b44.entities.Movil.list();
   const driverMobileId = String(driverReq.vehicle_model || '');
   const driverMobileNumber = parseInt(driverMobileId, 10);
   const driverPlate = String(driverReq.vehicle_plate || '').replace(/\s+/g, '').toUpperCase();
@@ -109,10 +121,6 @@ Deno.serve(async (req) => {
   }
 
   // 1. Verificar si el móvil está ocupado con OTRO viaje real activo (seguridad para no robar viajes)
-  const [assignedOrders, reservedOrders] = await Promise.all([
-    b44.entities.RideOrder.filter({ driver_id: driverId }),
-    b44.entities.RideOrder.filter({ reserved_driver_id: driverId })
-  ]);
   const activeStatuses = new Set(['ofrecido', 'aceptado', 'en_camino', 'en_viaje']);
   const conflictingOrders = [...assignedOrders, ...reservedOrders].filter(
     (existing: any) => existing.id !== orderId && activeStatuses.has(existing.status)
@@ -221,8 +229,7 @@ Deno.serve(async (req) => {
   try {
     // Nota: Lógica de penalización de cola removida por pedido del cliente (mantenía a todos saltando de lugar incorrectamente)
 
-    // 2. Fetch config
-    const tarifaConfigs = await b44.entities.TarifaConfig.list();
+    // 2. Config ya cargada en paralelo con las validaciones anteriores.
     const config = tarifaConfigs[0] || {};
     const timeoutSeconds = config.tiempo_maximo_respuesta_segundos ?? 60;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
@@ -251,6 +258,11 @@ Deno.serve(async (req) => {
     orderReq.driver_name = driverReq.name;
     orderReq.assigned_at = assignedAt;
     orderReq.offerExpiresAt = offerExpiresAt;
+    if (requestedManual) {
+      orderReq.notes = String(orderReq.notes || '')
+        .replace(/\s*\[REVISION_CENTRAL_CANCELADO_CHOFER\]\s*/g, ' ')
+        .trim();
+    }
 
     // 3. Dispatch Logic Atomic Run (handles the lock, Push, and Audit)
     const token = crypto.randomUUID();
@@ -284,20 +296,23 @@ Deno.serve(async (req) => {
         );
       }
       
-      // Escribir los datos de asignación solo después del éxito atómico
-      await b44.entities.RideOrder.update(orderId, {
-        status: targetOrderStatus,
-        notes: requestedManual
-          ? String(orderReq.notes || '').replace(/\s*\[REVISION_CENTRAL_CANCELADO_CHOFER\]\s*/g, ' ').trim()
-          : orderReq.notes,
-        reserved_driver_id: driverId,
-        offered_driver_ids: offeredIds,
-        assignment_attempt: newAttempt,
-        assigned_base: driverReq.current_base,
-        driver_name: driverReq.name,
-        assigned_at: assignedAt,
-        offerExpiresAt: offerExpiresAt
-      });
+      // Para el flujo normal `ofrecido`, todos estos datos ya quedaron persistidos
+      // atómicamente ANTES del push. Evitar una segunda escritura reduce latencia y
+      // elimina la ventana de carrera con assignment_attempt. Solo conservar el
+      // update adicional si alguna instalación usa auto_aceptar_viajes.
+      if (targetOrderStatus !== "ofrecido") {
+        await b44.entities.RideOrder.update(orderId, {
+          status: targetOrderStatus,
+          notes: orderReq.notes,
+          reserved_driver_id: driverId,
+          offered_driver_ids: offeredIds,
+          assignment_attempt: newAttempt,
+          assigned_base: driverReq.current_base,
+          driver_name: driverReq.name,
+          assigned_at: assignedAt,
+          offerExpiresAt: offerExpiresAt
+        });
+      }
 
       // 5. Trigger Reassignment if needed
       if (targetOrderStatus === "ofrecido" && autoReassignActive) {
