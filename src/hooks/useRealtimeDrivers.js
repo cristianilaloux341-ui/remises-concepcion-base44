@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { withRetry } from "@/lib/retryFetch";
 
-export function useRealtimeDrivers() {
+export function useRealtimeDrivers({ refreshIntervalMs = 10000 } = {}) {
   const [drivers, setDrivers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorInfo, setErrorInfo] = useState(null);
@@ -112,22 +112,23 @@ export function useRealtimeDrivers() {
     startVisible();
     document.addEventListener("visibilitychange", stopHidden);
 
-    // Respaldo contra canales realtime congelados: mientras la pantalla está
-    // visible, reconstruir la cola desde el servidor cada 10 segundos.
-    const refreshInterval = setInterval(() => {
+    // Respaldo contra canales realtime congelados. El intervalo es configurable:
+    // la Central usa 30s para no reconstruir 500 choferes seis veces por minuto,
+    // mientras el comportamiento por defecto queda en 10s para no alterar otros consumidores.
+    const refreshInterval = refreshIntervalMs > 0 ? setInterval(() => {
       if (mountedRef.current && document.visibilityState === "visible") {
         fetchAll();
       }
-    }, 10000);
+    }, refreshIntervalMs) : null;
 
     return () => {
       mountedRef.current = false;
-      clearInterval(refreshInterval);
+      if (refreshInterval) clearInterval(refreshInterval);
       document.removeEventListener("visibilitychange", stopHidden);
       unsubRef.current?.();
       unsubRef.current = null;
     };
-  }, [connect, fetchAll]);
+  }, [connect, fetchAll, refreshIntervalMs]);
 
   useEffect(() => {
     const handleForceRefresh = () => fetchAll();
