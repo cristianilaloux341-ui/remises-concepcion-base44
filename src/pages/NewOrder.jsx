@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrderForm from "@/components/orders/OrderForm";
-import { findDriverInZone, assignDriverToOrder } from "@/lib/dispatchLogic";
+import { assignDriverToOrder } from "@/lib/dispatchLogic";
 import { useAuth } from "@/lib/AuthContext";
 import { getEffectiveRole } from "@/lib/permissions";
 
@@ -25,35 +25,26 @@ export default function NewOrder() {
       const orderData = { ...data };
       delete orderData._resolved_mobile_id;
 
-      // La orden nunca nace aceptada. La asignación real pasa por el backend.
+      // La asignación manual conserva el flujo actual y exige confirmación del chofer.
       if (manualDriverId) {
         orderData.status = "pendiente";
         delete orderData.driver_id;
         delete orderData.driver_name;
         delete orderData.reserved_driver_id;
-      } else {
-        orderData.status = "procesando_despacho";
-      }
 
-      // 1. Crear la orden sin saltar la validación del chofer
-      const newOrder = await base44.entities.RideOrder.create(orderData);
+        const newOrder = await base44.entities.RideOrder.create(orderData);
 
-      // Si viene de la agenda, marcamos el pasaje como despachado
-      if (scheduledRideId) {
-        await base44.entities.ScheduledRide.update(scheduledRideId, {
-          status: "despachado",
-          order_id: newOrder.id
-        }).catch(() => {});
-      }
+        if (scheduledRideId) {
+          await base44.entities.ScheduledRide.update(scheduledRideId, {
+            status: "despachado",
+            order_id: newOrder.id
+          }).catch(() => {});
+        }
 
-      // La asignación manual se confirma antes de continuar y siempre exige respuesta del chofer.
-      if (manualDriverId) {
         const driver = await base44.entities.Driver.get(manualDriverId);
         if (!driver || driver.status !== "disponible") {
           throw new Error("El móvil está fuera de servicio u ocupado. El pasaje quedó pendiente y no fue enviado.");
         }
-        // Excepción explícita de Central: el operador puede elegir un móvil habilitado
-        // aunque esté en otra zona. Nunca modifica la selección automática por cola.
         await assignDriverToOrder(newOrder, driver, {
           requireDriverConfirmation: true,
           forceManual: true,
@@ -62,48 +53,35 @@ export default function NewOrder() {
         return newOrder;
       }
 
-      // El despacho automático continúa en segundo plano.
-      (async () => {
-        try {
-          const drivers = await base44.entities.Driver.list();
+      // Despacho automático unificado en servidor: crear + buscar móvil de la zona +
+      // ofrecer. Se elimina Driver.list/Movil.list/Driver.get desde el navegador.
+      orderData.status = "procesando_despacho";
+      delete orderData.driver_id;
+      delete orderData.driver_name;
+      delete orderData.reserved_driver_id;
 
-          if (newOrder.status === "procesando_despacho" || newOrder.status === "pendiente") {
-            if (newOrder.zone) {
-              const zoneDriver = await findDriverInZone(newOrder.zone, drivers);
-              if (zoneDriver) {
-                // Releer inmediatamente antes de asignar: si el móvil cambió de
-                // base mientras se cargaba el pasaje, no recibe la oferta.
-                const freshDriver = await base44.entities.Driver.get(zoneDriver.id);
-                if (freshDriver?.status === "disponible" && freshDriver.current_base === newOrder.zone) {
-                  await assignDriverToOrder(newOrder, freshDriver);
-                } else {
-                  await base44.entities.RideOrder.update(newOrder.id, {
-                    status: "pendiente",
-                    driver_id: null,
-                    reserved_driver_id: null,
-                    driver_name: null,
-                    assigned_base: null,
-                  });
-                }
-              } else {
-                await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
-              }
-            } else {
-              // Sin zona confirmada no se salta a otra cola: queda visible en Pendientes.
-              await base44.entities.RideOrder.update(newOrder.id, { status: "pendiente" });
-            }
-          }
-        } catch (err) {
-          console.error("Error en despacho asíncrono:", err);
-          // Nunca dejar una pantalla en "procesando" si falló la oferta.
-          await base44.entities.RideOrder.update(newOrder.id, {
-            status: "pendiente",
-            driver_id: null,
-            reserved_driver_id: null,
-            driver_name: null,
-          }).catch(() => {});
-        }
-      })();
+      const sessionToken = sessionStorage.getItem("local_operator_token") || "client_demo_token";
+      const dispatchRes = await base44.functions.invoke("clientCreateAndDispatchRide", {
+        orderData,
+        sessionToken
+      });
+
+      if (!dispatchRes.data?.success || !dispatchRes.data?.orderId) {
+        throw new Error(dispatchRes.data?.error || "No se pudo crear/despachar el pasaje");
+      }
+
+      const newOrder = {
+        ...orderData,
+        id: dispatchRes.data.orderId,
+        status: dispatchRes.data.status || (dispatchRes.data.assigned ? "ofrecido" : "pendiente")
+      };
+
+      if (scheduledRideId) {
+        await base44.entities.ScheduledRide.update(scheduledRideId, {
+          status: "despachado",
+          order_id: newOrder.id
+        }).catch(() => {});
+      }
 
       return newOrder;
     },
