@@ -122,6 +122,27 @@ Deno.serve(async (req) => {
     if (String(order?.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]')) {
       return Response.json({ success: false, reason: 'pending_central_review' });
     }
+
+    // Invariante irreversible: un viaje que alguna vez fue aceptado/iniciado
+    // no puede volver a entrar por la cartelera Pendientes aunque otro proceso
+    // haya dejado erróneamente status='pendiente'. Evita revivir viajes ya hechos
+    // o en curso como ocurrió con 6aa2275510fe4fb31e0005c2.
+    const wasAlreadyStarted = Boolean(
+      order?.ride_started_at ||
+      order?.taximetro_iniciado === true ||
+      ['ACCEPT', 'START', 'FINISH'].includes(String(order?.lastCompletedAction || '').toUpperCase())
+    );
+    if (wasAlreadyStarted) {
+      await b44.entities.AuditLog.create({
+        action: 'PENDING_RECLAIM_BLOCKED_STARTED_RIDE',
+        user_type: 'sistema',
+        user_name: driver.name || driverId,
+        details: `Bloqueado intento de tomar como pendiente un viaje ya iniciado ${orderId}`,
+        metadata: { orderId, driverId, currentStatus: order?.status, lastCompletedAction: order?.lastCompletedAction }
+      }).catch(() => {});
+      return Response.json({ success: false, reason: 'ride_already_started' });
+    }
+
     if (!order || order.status !== 'pendiente' || order.driver_id || order.reserved_driver_id ||
         order.preassigned_driver_id) {
       return Response.json({ success: false, reason: 'already_taken' });
