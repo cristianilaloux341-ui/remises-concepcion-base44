@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
+import { assignDriverToOrderAtomic } from '../../shared/DispatchLogic.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -16,19 +17,52 @@ Deno.serve(async (req) => {
       status: "procesando_despacho"
     });
 
-    // 2. Resolver el candidato en el servidor con la misma regla oficial:
-    // misma zona, FIFO por queue_entered_at, móvil real habilitado.
+    // 2. Resolver y reservar en un único recorrido server-side. Antes se elegía
+    // candidato y luego se invocaba assignRide, que volvía a leer Driver, Movil,
+    // viajes activos y configuración. Esa duplicación era parte de la demora al
+    // apretar "Crear viaje".
     let assigned = false;
+    let assignedDriver: any = null;
+    let newAttempt = (order.assignment_attempt || 0) + 1;
+    let timeoutSeconds = 60;
+    let autoReassignActive = true;
+
     if (order.zone) {
-      const nextDriver = await findNextDriverInZone(b44, order, null);
+      const [nextDriver, tarifaConfigs] = await Promise.all([
+        findNextDriverInZone(b44, order, null),
+        b44.entities.TarifaConfig.list()
+      ]);
+      const config = tarifaConfigs[0] || {};
+      timeoutSeconds = config.tiempo_maximo_respuesta_segundos ?? 60;
+      autoReassignActive = config.auto_reasignacion_activa ?? true;
+
       if (nextDriver) {
-        const res = await b44.functions.invoke("assignRide", {
-          orderId: order.id,
-          driverId: nextDriver.id,
-          sessionToken: sessionToken || "client_demo_token",
-          internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
-        });
-        assigned = res?.data?.success === true;
+        assignedDriver = nextDriver;
+        const assignedAt = new Date().toISOString();
+        order.assignment_attempt = newAttempt;
+        order.offered_driver_ids = [...new Set([...(order.offered_driver_ids || []), nextDriver.id])];
+        order.assigned_base = nextDriver.current_base;
+        order.driver_name = nextDriver.name;
+        order.assigned_at = assignedAt;
+        order.offerExpiresAt = Date.now() + (timeoutSeconds * 1000);
+
+        const token = crypto.randomUUID();
+        try {
+          assigned = await assignDriverToOrderAtomic(b44, order, nextDriver, token);
+        } catch (e) {
+          console.error('Fast dispatch atomic error', e);
+          assigned = false;
+        }
+
+        if (assigned && autoReassignActive) {
+          b44.functions.invoke("autoReassignOnTimeout", {
+            orderId: order.id,
+            driverId: nextDriver.id,
+            timeoutSeconds,
+            assignmentAttempt: newAttempt,
+            internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+          }).catch(e => console.error("AutoReassign Trigger Error:", e));
+        }
       }
     }
 
