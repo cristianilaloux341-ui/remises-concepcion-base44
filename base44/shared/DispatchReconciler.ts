@@ -173,7 +173,12 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
         const toReset = linkedOrders.filter(o => o.id !== accepted.id);
         let mCount = 0;
         for (const o of toReset) {
-           const r = await b44.entities.RideOrder.updateMany({ id: o.id, status: { $ne: 'aceptado' } }, { $set: { status: 'pendiente', reserved_driver_id: null, reservation_token: null, manual_reservation_token: null } });
+           // Solo estados PREVIOS a la aceptación pueden volver a pendiente.
+           // Nunca permitir que en_camino/en_viaje/completado/cancelado retrocedan por reconciliación.
+           const r = await b44.entities.RideOrder.updateMany(
+             { id: o.id, status: { $in: ['procesando_despacho', 'esperando_confirmacion_manual', 'ofrecido'] } },
+             { $set: { status: 'pendiente', reserved_driver_id: null, reservation_token: null, manual_reservation_token: null } }
+           );
            mCount += r.matchedCount ?? r.modifiedCount ?? 0;
         }
         await pushResult({ status: mCount ? 'repaired' : 'concurrent_change', issueType: 'DRIVER_LINKED_TO_MULTIPLE_ORDERS', driverIds: [d.id], actions: ['Viajes extra devueltos a pendiente'], correlationId, matchedCount: mCount });
