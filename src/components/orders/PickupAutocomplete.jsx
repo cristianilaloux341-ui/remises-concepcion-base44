@@ -65,8 +65,8 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
       .sort((a, b) => {
         const aa = normalize(a.full_address);
         const bb = normalize(b.full_address);
-        const rankA = aa === norm ? 0 : aa.startsWith(norm) ? 1 : 2;
-        const rankB = bb === norm ? 0 : bb.startsWith(norm) ? 1 : 2;
+        const rankA = aa === norm ? 0 : queryParts.every(part => aa.includes(part)) ? 1 : 2;
+        const rankB = bb === norm ? 0 : queryParts.every(part => bb.includes(part)) ? 1 : 2;
         return rankA - rankB || (b.usage_count || 0) - (a.usage_count || 0);
       })
       .filter((ca) => {
