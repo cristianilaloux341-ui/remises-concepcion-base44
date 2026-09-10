@@ -7,7 +7,7 @@ import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 
 export default function MapView() {
-  const { orders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 2000, fallbackRefreshMs: 15000 });
+  const { orders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 2000 });
   const { drivers } = useRealtimeDrivers();
 
   const activeOrders = orders.filter(o =>
