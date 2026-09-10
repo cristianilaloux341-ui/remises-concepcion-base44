@@ -2,8 +2,12 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const targetZone = order.zone;
   if (!targetZone) return null;
 
-  const allMoviles = await b44.entities.Movil.list();
-  const allDrivers = await b44.entities.Driver.list();
+  // Solo traer candidatos de la zona objetivo. Evita descargar toda la flota
+  // en cada despacho/reasignación.
+  const [allMoviles, zoneDrivers] = await Promise.all([
+    b44.entities.Movil.list(),
+    b44.entities.Driver.filter({ status: "disponible", current_base: targetZone })
+  ]);
 
   const isDriverWorking = (d: any) => {
     if (d.status !== 'disponible') return false;
@@ -19,7 +23,7 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   // offered_driver_ids holds previously offered drivers. We cap at 1 offer per driver.
   const offeredDriverIds = order.offered_driver_ids || [];
   
-  const available = allDrivers.filter((d: any) => {
+  const available = zoneDrivers.filter((d: any) => {
     const isExcluded = excludeDriverId && d.id === excludeDriverId;
     const isAlreadyOffered = offeredDriverIds.includes(d.id);
     return isDriverWorking(d) && 
