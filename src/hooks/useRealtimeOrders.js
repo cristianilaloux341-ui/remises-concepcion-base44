@@ -96,21 +96,33 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date", fallbac
     // perdido por realtime: pendiente→ofrecido→aceptado→en_camino→en_viaje→completado/cancelado.
     const activeVerifier = verifyActiveMs > 0 ? setInterval(async () => {
       if (!mountedRef.current || document.visibilityState !== "visible" || verifyActiveInFlightRef.current) return;
-      const activeStatuses = new Set(["pendiente", "preasignado_proximo", "ofrecido", "aceptado", "en_camino", "en_viaje"]);
+      const activeStatusList = ["pendiente", "preasignado_proximo", "ofrecido", "aceptado", "en_camino", "en_viaje"];
+      const activeStatuses = new Set(activeStatusList);
       const activeIds = [...new Set((ordersRef.current || [])
         .filter(o => o?.id && activeStatuses.has(o.status))
         .map(o => o.id))];
-      if (!activeIds.length) return;
 
       verifyActiveInFlightRef.current = true;
       try {
-        const freshList = await base44.entities.RideOrder.filter({ id: { $in: activeIds } }).catch(() => []);
-        if (!mountedRef.current || !Array.isArray(freshList) || !freshList.length) return;
+        // Descubrir viajes activos NUEVOS aunque el realtime de create/update se haya perdido.
+        // A la vez, volver a traer por ID los que localmente estaban activos para detectar
+        // si ya pasaron a completado/cancelado.
+        const filter = activeIds.length > 0
+          ? { $or: [
+              { status: { $in: activeStatusList } },
+              { id: { $in: activeIds } }
+            ] }
+          : { status: { $in: activeStatusList } };
+
+        const freshList = await base44.entities.RideOrder.filter(filter).catch(() => []);
+        if (!mountedRef.current || !Array.isArray(freshList)) return;
 
         setOrders(prev => {
           let changed = false;
-          const byId = new Map(freshList.map(o => [o.id, o]));
-          const next = (Array.isArray(prev) ? prev : []).map(old => {
+          const prevArr = Array.isArray(prev) ? prev : [];
+          const byId = new Map(freshList.filter(o => o?.id).map(o => [o.id, o]));
+
+          let next = prevArr.map(old => {
             const fresh = byId.get(old.id);
             if (!fresh) return old;
             if (
@@ -126,6 +138,16 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date", fallbac
             }
             return old;
           });
+
+          // Incorporar inmediatamente cualquier viaje activo que la Central todavía
+          // no conocía porque se perdió el evento realtime.
+          const knownIds = new Set(next.map(o => o.id));
+          const discovered = freshList.filter(o => o?.id && !knownIds.has(o.id));
+          if (discovered.length > 0) {
+            changed = true;
+            discovered.sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
+            next = [...discovered, ...next].slice(0, limit);
+          }
 
           if (changed) {
             window.dispatchEvent(new CustomEvent("radiocab_force_alert_check", { detail: next }));
