@@ -29,11 +29,18 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
     : [];
 
   const isDriverWorking = (d: any) => {
-    if (d.status !== 'disponible') return false;
+    if (d.status !== 'disponible' || !d.current_base) return false;
     const mobileId = String(d.vehicle_model || '');
     const mobileNumber = parseInt(mobileId, 10);
-    const movil = allMoviles.find((m: any) => m.id === mobileId || m.numero_movil === mobileNumber);
-    if (!movil || movil.activo === false || movil.fuera_de_servicio === true) {
+    const driverPlate = String(d.vehicle_plate || '').replace(/\s+/g, '').toUpperCase();
+    const movil = allMoviles.find((m: any) =>
+      m.id === mobileId ||
+      m.numero_movil === mobileNumber ||
+      m.driver_id === d.id ||
+      (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id)) ||
+      (driverPlate && String(m.dominio || '').replace(/\s+/g, '').toUpperCase() === driverPlate)
+    );
+    if (!movil || movil.activo === false || movil.fuera_de_servicio === true || movil.suspension_motivo) {
       return false;
     }
     return true;
