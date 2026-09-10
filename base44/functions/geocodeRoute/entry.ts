@@ -43,9 +43,9 @@ Deno.serve(async (req) => {
       const { input } = body;
       if (!input || input.length < 2) return Response.json({ predictions: [] });
 
-      // Forzamos la búsqueda local con strictbounds y agregamos la ciudad si no está escrita para no poner "cualquier cosa" de otros lados
-      const query = input.toLowerCase().includes("concepci") ? input : `${input}, Concepción del Uruguay`;
-      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}&language=es&components=country:ar&location=-32.4853,-58.2375&radius=15000&strictbounds=true`;
+      // Google Places: enviar exactamente lo que escribe el operador.
+      // La ubicación/radio sesgan los resultados hacia Concepción del Uruguay sin deformar la consulta.
+      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&key=${GOOGLE_API_KEY}&language=es&components=country:ar&location=-32.4853,-58.2375&radius=15000`;
       const r = await fetch(url);
       const data = await r.json();
 
