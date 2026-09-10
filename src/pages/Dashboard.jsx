@@ -91,15 +91,20 @@ export default function Dashboard() {
     queryFn: () => base44.entities.Base.list(),
   });
 
+  const dashboardDriverIds = [...new Set(drivers.map(d => d.id).filter(Boolean))].sort();
   const dashboardMobileIds = [...new Set(drivers.map(d => String(d.vehicle_model || "")).filter(Boolean))].sort();
   const dashboardMobileNumbers = [...new Set(drivers.map(d => parseInt(String(d.vehicle_model || ""), 10)).filter(Number.isFinite))].sort((a, b) => a - b);
 
   const { data: moviles = [] } = useQuery({
-    queryKey: ["moviles_dashboard", dashboardMobileIds.join(","), dashboardMobileNumbers.join(",")],
+    queryKey: ["moviles_dashboard", dashboardDriverIds.join(","), dashboardMobileIds.join(","), dashboardMobileNumbers.join(",")],
     queryFn: () => {
       const clauses = [];
       if (dashboardMobileIds.length) clauses.push({ id: { $in: dashboardMobileIds } });
       if (dashboardMobileNumbers.length) clauses.push({ numero_movil: { $in: dashboardMobileNumbers } });
+      if (dashboardDriverIds.length) {
+        clauses.push({ driver_id: { $in: dashboardDriverIds } });
+        clauses.push({ driver_ids: { $in: dashboardDriverIds } });
+      }
       return clauses.length ? base44.entities.Movil.filter({ $or: clauses }) : Promise.resolve([]);
     },
     enabled: drivers.length > 0,
@@ -243,7 +248,12 @@ export default function Dashboard() {
     if (d.status !== "disponible") return false;
     const mobileId = String(d.vehicle_model || "");
     const mobileNumber = parseInt(mobileId, 10);
-    const movil = moviles?.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
+    const movil = moviles?.find(m =>
+      m.id === mobileId ||
+      m.numero_movil === mobileNumber ||
+      m.driver_id === d.id ||
+      (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id))
+    );
     if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
       return false;
     }
