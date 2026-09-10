@@ -37,12 +37,6 @@ export default function OrderDetail() {
     refetchOnWindowFocus: true,
   });
 
-  const { data: moviles = [] } = useQuery({
-    queryKey: ["moviles"],
-    queryFn: () => base44.entities.Movil.list(),
-    staleTime: 60000,
-  });
-
   const order = orders.find(o => o.id === orderId);
 
   const updateMutation = useMutation({
@@ -189,13 +183,12 @@ export default function OrderDetail() {
   };
 
   const isDriverWorking = (d) => {
-    if (d.status !== "disponible") return false;
-    const mobileId = String(d.vehicle_model || "");
-    const mobileNumber = parseInt(mobileId, 10);
-    const movil = moviles.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
-    if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
-      return false;
-    }
+    // En esta pantalla no descargamos la tabla completa de Movil. La lista visual
+    // usa el estado operativo del Driver y assignRide hace la validación definitiva
+    // del Movil seleccionado (activo, suspensión y fuera de servicio) antes del push.
+    if (d.status !== "disponible" || !d.current_base) return false;
+    if (d.active_order_id || d.active_ride_id || d.reserved_order_id) return false;
+    if (d.dispatch_status != null && d.dispatch_status !== "normal") return false;
     return true;
   };
 
