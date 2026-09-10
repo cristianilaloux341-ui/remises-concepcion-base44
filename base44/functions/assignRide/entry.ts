@@ -23,6 +23,27 @@ Deno.serve(async (req) => {
   const orderReq = await b44.entities.RideOrder.get(orderId);
   if (!orderReq) return Response.json({ success: false, reason: 'Order not found' });
 
+  // Barrera de ciclo de vida: una orden que ya fue aceptada/iniciada/finalizada
+  // nunca vuelve a entrar al motor de asignación. Esto protege contra timeouts,
+  // cron/reconciliadores atrasados y pantallas viejas.
+  const lifecycleProtectedStatuses = new Set(['aceptado', 'en_camino', 'en_viaje', 'completado', 'cancelado', 'rechazado']);
+  if (lifecycleProtectedStatuses.has(orderReq.status)) {
+    return Response.json({ success: false, reason: 'ORDER_ALREADY_ACTIVE_OR_FINAL' });
+  }
+
+  // Defensa adicional ante un retroceso ya ocurrido: si quedó "pendiente" pero
+  // el historial confirma que había sido aceptado o iniciado, no redistribuirlo.
+  if (orderReq.status === 'pendiente' && ['ACCEPT', 'START', 'FINISH'].includes(orderReq.lastCompletedAction)) {
+    await b44.entities.AuditLog.create({
+      action: 'LIFECYCLE_REGRESSION_ASSIGN_BLOCKED',
+      user_type: 'sistema',
+      user_name: 'assignRide',
+      details: `Bloqueada reasignación del viaje ${orderId}: figura pendiente pero ya había avanzado a ${orderReq.lastCompletedAction}`,
+      metadata: { orderId, driverId, lastCompletedAction: orderReq.lastCompletedAction }
+    }).catch(() => {});
+    return Response.json({ success: false, reason: 'LIFECYCLE_REGRESSION_PROTECTED' });
+  }
+
   await b44.entities.AuditLog.create({
     action: 'ASSIGN_RIDE_REQUESTED',
     user_type: 'sistema',
@@ -122,7 +143,7 @@ Deno.serve(async (req) => {
   // Protección server-side también para APK viejos: si una orden ya tuvo una
   // aceptación confirmada y aparece nuevamente como pendiente, nunca debe entrar
   // al despacho automático. Solo una asignación manual autorizada de Central puede reactivarla.
-  const wasAlreadyAccepted = orderReq.status === 'pendiente' && orderReq.lastCompletedAction === 'ACCEPT';
+  const wasAlreadyAccepted = orderReq.status === 'pendiente' && ['ACCEPT', 'START', 'FINISH'].includes(orderReq.lastCompletedAction);
   const heldForCentralReview =
     String(orderReq.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]') ||
     wasAlreadyAccepted;
