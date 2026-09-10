@@ -1,7 +1,13 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
 
+// ProtocolTrace fue útil para depurar el protocolo, pero en producción agregaba
+// muchas lecturas/escrituras ANTES de confirmar ACEPTAR. Queda activable por env
+// sin formar parte del camino crítico normal.
+const ENABLE_PROTOCOL_TRACE = Deno.env.get('ENABLE_PROTOCOL_TRACE') === 'true';
+
 async function captureState(b44: any, rideOrderId: string, driverId: string) {
+  if (!ENABLE_PROTOCOL_TRACE) return null;
   const [order, driver] = await Promise.all([
     b44.entities.RideOrder.get(rideOrderId).catch(() => null),
     b44.entities.Driver.get(driverId).catch(() => null)
@@ -32,6 +38,7 @@ async function captureState(b44: any, rideOrderId: string, driverId: string) {
 }
 
 async function logStep(ctx: any, step: string, start: number, filterCAS: any, resultObj: any, errorMsg: string | null, snapshotBefore: any, snapshotAfter: any, explicitResult?: string) {
+  if (!ENABLE_PROTOCOL_TRACE) return;
   const executionDurationMs = Date.now() - start;
   ctx.seq++;
   
@@ -417,7 +424,13 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
         driver_name: driver.name,
         assigned_base: driver.current_base,
         updated_date: new Date().toISOString(), // TRIGGER REALTIME UI UPDATE
-        processingPhase: "COMMITTED", 
+        // El commit comercial ya es definitivo: liberar el lease en la MISMA
+        // escritura evita otra ida y vuelta al backend antes de responder al chofer.
+        processingOwnerId: null,
+        processingPhase: null,
+        processingAction: null,
+        processingOperationKey: null,
+        processingLeaseExpiresAt: null,
         lastCompletedOperationKey: operationKey, 
         lastCompletedAction: "ACCEPT", 
         lastCompletedResult: "SUCCESS", 
@@ -500,11 +513,10 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     console.error("No se pudo escribir el AuditLog final", e);
   }
 
-  // 9. LIBERACIÓN
-  const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
+  // 9. El lease ya quedó liberado dentro del commit comercial.
   let retSnap = await captureState(b44, rideOrderId, driverId);
   await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
-  return { status: "SUCCESS", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
+  return { status: "SUCCESS", leaseReleasePending: false, correlationId };
 }
 
 Deno.serve(async (req) => {
@@ -525,13 +537,8 @@ Deno.serve(async (req) => {
       return Response.json({ accepted: false, reason: "unauthorized" }, { status: 401 });
     }
 
-    // Identificar de manera segura al chofer comparando tokens locales
-    const drivers = await b44.entities.Driver.filter({ id: driverId });
-    const driver = drivers[0];
-    if (!driver) {
-       return Response.json({ accepted: false, reason: "driver_not_found" });
-    }
-
+    // acceptRideV2 valida y reserva el Driver atómicamente; evitar una lectura
+    // duplicada acá reduce latencia sin relajar la seguridad.
     const invocationId = crypto.randomUUID();
     const operationKey = `ACCEPT_${orderId}_${driverId}_${assignmentAttempt || 1}_${invocationId.slice(0, 8)}`;
     
