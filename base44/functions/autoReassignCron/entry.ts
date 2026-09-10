@@ -15,12 +15,9 @@ Deno.serve(async (req) => {
     // Los viajes en estado "ofrecido" son asignaciones automáticas y deben vencer a los 60s, sin importar su origen.
     const offerOrders = await b44.entities.RideOrder.filter({ status: "ofrecido" });
 
-    // 1.5 Buscar viajes asignados abandonados por más de 2 horas O cancelados/rechazados que tengan choferes colgados
-    const abandonedOrders = await b44.entities.RideOrder.filter({
-      status: { $in: ["aceptado", "en_camino", "en_viaje"] },
-      updated_date: { $lt: twoHoursAgoStr }
-    });
-
+    // 1.5 Solo limpiar cancelados/rechazados recientes.
+    // NUNCA considerar "abandonado" un aceptado/en_camino/en_viaje por antigüedad:
+    // un viaje legítimo puede durar más de 2 horas y jamás debe volver a Pendientes.
     const recentlyCancelledOrders = await b44.entities.RideOrder.filter({
       status: { $in: ["cancelado", "rechazado"] },
       updated_date: { $gte: twoHoursAgoStr } // solo recientes para no barrer el histórico entero
@@ -166,10 +163,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // --- BLOQUE B (Existente): Abandonos y Cancelados ---
-    // Procesar los abandonados que quedaron en aceptado/en_camino/en_viaje por más de 2 horas
-    // + los cancelados/rechazados recientes que pudieran haber dejado al chofer colgado.
-    const allToReset = [...abandonedOrders, ...recentlyCancelledOrders];
+    // --- BLOQUE B: solo Cancelados/Rechazados ---
+    // Los viajes aceptados o iniciados nunca se resetean automáticamente por antigüedad.
+    const allToReset = [...recentlyCancelledOrders];
     
     for (const order of allToReset) {
       if (order.status === 'completado') continue;
@@ -187,9 +183,7 @@ Deno.serve(async (req) => {
 
         for (const dId of driversToFree) {
           try {
-            // Si era un abandono > 2 horas (aceptado/en_viaje), además lo sacamos de servicio para que no estorbe
-            const isAbandonment = ['aceptado', 'en_camino', 'en_viaje'].includes(order.status);
-            const newDriverStatus = isAbandonment ? "no_disponible" : "disponible";
+            const newDriverStatus = "disponible";
             
             // CAS: liberar únicamente si el móvil todavía apunta a ESTA orden.
             // Evita que el cron borre una reserva nueva creada por otro operador.
@@ -207,8 +201,7 @@ Deno.serve(async (req) => {
                   active_ride_id: null,
                   reservation_token: null,
                   manual_reservation_token: null,
-                  driver_reservation_key: null,
-                  ...(isAbandonment ? { current_base: null, queue_entered_at: null } : {})
+                  driver_reservation_key: null
               } }
             );
             count++;
@@ -217,32 +210,7 @@ Deno.serve(async (req) => {
           }
         }
         
-        // Re-marcar la orden a pendiente y eliminar driver (solo si no estaba ya cancelada o rechazada)
-        if (!isCancelled) {
-          try {
-            const query = { id: order.id };
-            if (order.reservation_token) query.reservation_token = order.reservation_token;
-            await b44.entities.RideOrder.updateMany(query, {
-              $set: { 
-                 status: 'pendiente', 
-                 driver_id: null,
-                 driver_name: null,
-                 reserved_driver_id: null,
-                 assigned_base: null,
-                 reservation_token: null,
-                 manual_reservation_token: null,
-                 offerExpiresAt: null,
-                 processingAction: null,
-                 processingOperationKey: null,
-                 processingOwnerId: null,
-                 processingLeaseExpiresAt: null,
-                 processingPhase: null
-              }
-            });
-          } catch(e) {
-            console.error("Error reseteando viaje atascado", order.id, e);
-          }
-        }
+        // Esta rama procesa únicamente cancelados/rechazados; nunca reabre el viaje como pendiente.
       }
     }
 
