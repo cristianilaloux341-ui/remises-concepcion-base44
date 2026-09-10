@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { getEffectiveRole } from "@/lib/permissions";
 import { useAuth } from "@/lib/AuthContext";
-import { useRealtimeOrders, useRealtimeDrivers } from "@/lib/useRealtimeOrders";
+import { useRealtimeOrders } from "@/lib/useRealtimeOrders";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,7 +23,6 @@ export default function OrderDetail() {
   const queryClient = useQueryClient();
 
   useRealtimeOrders();
-  useRealtimeDrivers();
 
   const { data: orders = [] } = useQuery({
     queryKey: ["orders"],
@@ -34,7 +33,8 @@ export default function OrderDetail() {
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
-    staleTime: 60000,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
   });
 
   const { data: moviles = [] } = useQuery({
