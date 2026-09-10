@@ -7,8 +7,8 @@ import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 
 export default function MapView() {
-  const { orders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 2000 });
-  const { drivers } = useRealtimeDrivers();
+  const { orders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 6000 });
+  const { drivers } = useRealtimeDrivers({ refreshIntervalMs: 30000 });
 
   const activeOrders = orders.filter(o =>
     ["pendiente", "asignado", "en_camino", "en_viaje"].includes(o.status)
