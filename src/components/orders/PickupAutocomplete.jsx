@@ -56,8 +56,12 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     const norm = normalize(inputValue);
 
     const seenClientAddresses = new Set();
+    const queryParts = norm.split(/\s+/).filter(Boolean);
     const clientResults = clientAddresses
-      .filter((ca) => normalize(ca.full_address).includes(norm))
+      .filter((ca) => {
+        const address = normalize(ca.full_address);
+        return queryParts.every(part => address.includes(part));
+      })
       .sort((a, b) => {
         const aa = normalize(a.full_address);
         const bb = normalize(b.full_address);
