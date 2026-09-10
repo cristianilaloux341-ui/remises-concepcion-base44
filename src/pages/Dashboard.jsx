@@ -100,53 +100,53 @@ export default function Dashboard() {
   const [panicAlerts, setPanicAlerts] = useState([]);
   const [showPanicPanel, setShowPanicPanel] = useState(false);
 
-  // Monitoreo de Viajes Nuevos (Burbuja/Notificación para el Operador)
-  // Mantener los IDs en un ref para NO reconectar este canal cada vez que cambia orders.
+  // Monitoreo de viajes nuevos usando la MISMA fuente de orders del Dashboard.
+  // Evita abrir una segunda suscripción global a RideOrder solo para la burbuja.
   const knownOrderIdsRef = useRef(new Set());
+  const knownOrdersInitializedRef = useRef(false);
   useEffect(() => {
-    orders.forEach(o => { if (o?.id) knownOrderIdsRef.current.add(o.id); });
-  }, [orders]);
+    if (!knownOrdersInitializedRef.current) {
+      orders.forEach(o => { if (o?.id) knownOrderIdsRef.current.add(o.id); });
+      knownOrdersInitializedRef.current = true;
+      return;
+    }
 
-  useEffect(() => {
-    let unsubscribe = null;
+    const newPending = [];
+    for (const order of orders) {
+      if (!order?.id) continue;
+      const isNew = !knownOrderIdsRef.current.has(order.id);
+      knownOrderIdsRef.current.add(order.id);
+      if (isNew && order.status === "pendiente") newPending.push(order);
+    }
 
-    unsubscribe = base44.entities.RideOrder.subscribe((event) => {
-      if (event.type === "create" && event.data?.status === "pendiente") {
-        if (!knownOrderIdsRef.current.has(event.id)) {
-          knownOrderIdsRef.current.add(event.id);
-          
-          // Sonido de viaje nuevo en la central
-          try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            if (ctx.state === "suspended") ctx.resume();
-            const o = ctx.createOscillator();
-            const g = ctx.createGain();
-            o.type = "sine";
-            o.frequency.setValueAtTime(880, ctx.currentTime);
-            o.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
-            g.gain.setValueAtTime(0, ctx.currentTime);
-            g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05);
-            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-            o.connect(g); g.connect(ctx.destination);
-            o.start(); o.stop(ctx.currentTime + 0.3);
-          } catch (_) {}
+    for (const order of newPending) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === "suspended") ctx.resume();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(880, ctx.currentTime);
+        o.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+        g.gain.setValueAtTime(0, ctx.currentTime);
+        g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        o.connect(g); g.connect(ctx.destination);
+        o.start(); o.stop(ctx.currentTime + 0.3);
+      } catch (_) {}
 
-          // Burbuja visual de Nuevo Viaje con botón de acción
-          toast({
-            title: "🚕 ¡Nuevo viaje entrante!",
-            description: `${event.data.pickup_address} (${event.data.client_name || 'Cliente'})`,
-            action: (
-              <ToastAction altText="Ver" onClick={() => window.location.href = `/orders/${event.id}`}>
-                Ver Viaje
-              </ToastAction>
-            ),
-            duration: 10000,
-          });
-        }
-      }
-    });
-    return () => unsubscribe?.();
-  }, [toast]);
+      toast({
+        title: "🚕 ¡Nuevo viaje entrante!",
+        description: `${order.pickup_address} (${order.client_name || 'Cliente'})`,
+        action: (
+          <ToastAction altText="Ver" onClick={() => window.location.href = `/orders/${order.id}`}>
+            Ver Viaje
+          </ToastAction>
+        ),
+        duration: 10000,
+      });
+    }
+  }, [orders, toast]);
 
   // Mantener únicamente alertas activas. Las atendidas nunca vuelven al recargar.
   useEffect(() => {
@@ -162,6 +162,7 @@ export default function Dashboard() {
 
     const connect = () => {
       unsubscribe?.();
+      lastEvent = Date.now();
       loadActive();
       unsubscribe = base44.entities.PanicAlert.subscribe((event) => {
         lastEvent = Date.now();
@@ -197,8 +198,9 @@ export default function Dashboard() {
     };
 
     connect();
+    // Reconexion de seguridad, no polling agresivo: realtime sigue siendo la vía principal.
     pollInterval = setInterval(() => {
-      if (Date.now() - lastEvent > 15000) connect();
+      if (Date.now() - lastEvent > 30000) connect();
     }, 15000);
 
     return () => {
