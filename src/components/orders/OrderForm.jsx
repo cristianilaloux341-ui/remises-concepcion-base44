@@ -124,15 +124,20 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     refetchOnWindowFocus: true,
   });
 
+  const availableDriverIds = [...new Set(drivers.map(d => d.id).filter(Boolean))].sort();
   const availableDriverMobileIds = [...new Set(drivers.map(d => String(d.vehicle_model || "")).filter(Boolean))].sort();
   const availableDriverMobileNumbers = [...new Set(drivers.map(d => parseInt(String(d.vehicle_model || ""), 10)).filter(Number.isFinite))].sort((a, b) => a - b);
 
   const { data: moviles = [] } = useQuery({
-    queryKey: ["moviles_order_form", availableDriverMobileIds.join(","), availableDriverMobileNumbers.join(",")],
+    queryKey: ["moviles_order_form", availableDriverIds.join(","), availableDriverMobileIds.join(","), availableDriverMobileNumbers.join(",")],
     queryFn: () => {
       const clauses = [];
       if (availableDriverMobileIds.length) clauses.push({ id: { $in: availableDriverMobileIds } });
       if (availableDriverMobileNumbers.length) clauses.push({ numero_movil: { $in: availableDriverMobileNumbers } });
+      if (availableDriverIds.length) {
+        clauses.push({ driver_id: { $in: availableDriverIds } });
+        clauses.push({ driver_ids: { $in: availableDriverIds } });
+      }
       return clauses.length ? base44.entities.Movil.filter({ $or: clauses }) : Promise.resolve([]);
     },
     enabled: drivers.length > 0,
