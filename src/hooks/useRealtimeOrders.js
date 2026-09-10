@@ -2,13 +2,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { withRetry } from "@/lib/retryFetch";
 
-export function useRealtimeOrders({ limit = 100, sort = "-created_date", fallbackRefreshMs = 0, verifyOfferedMs = 0 } = {}) {
+export function useRealtimeOrders({ limit = 100, sort = "-created_date", fallbackRefreshMs = 0, verifyActiveMs = 0 } = {}) {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const mountedRef = useRef(true);
   const unsubRef = useRef(null);
   const ordersRef = useRef([]);
-  const verifyOfferedInFlightRef = useRef(false);
+  const verifyActiveInFlightRef = useRef(false);
 
   const fetchAll = useCallback(() => {
     if (!mountedRef.current) return;
@@ -91,46 +91,61 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date", fallbac
       if (mountedRef.current && document.visibilityState === "visible") fetchAll();
     }, fallbackRefreshMs) : null;
 
-    // Respaldo liviano para la Central: mientras haya ofertas activas, verificar
-    // solamente esos RideOrder por ID. Si el canal realtime pierde el evento
-    // ofrecido→aceptado, la UI se corrige sin esperar un refresh manual ni listar 100 viajes.
-    const offeredVerifier = verifyOfferedMs > 0 ? setInterval(async () => {
-      if (!mountedRef.current || document.visibilityState !== "visible" || verifyOfferedInFlightRef.current) return;
-      const offered = (ordersRef.current || []).filter(o => o?.status === "ofrecido" && o?.id);
-      if (!offered.length) return;
-      verifyOfferedInFlightRef.current = true;
+    // Reconciliación dirigida para la Central: una sola consulta cada pocos segundos
+    // refresca TODOS los viajes que localmente siguen activos. Esto cubre cualquier salto
+    // perdido por realtime: pendiente→ofrecido→aceptado→en_camino→en_viaje→completado/cancelado.
+    const activeVerifier = verifyActiveMs > 0 ? setInterval(async () => {
+      if (!mountedRef.current || document.visibilityState !== "visible" || verifyActiveInFlightRef.current) return;
+      const activeStatuses = new Set(["pendiente", "preasignado_proximo", "ofrecido", "aceptado", "en_camino", "en_viaje"]);
+      const activeIds = [...new Set((ordersRef.current || [])
+        .filter(o => o?.id && activeStatuses.has(o.status))
+        .map(o => o.id))];
+      if (!activeIds.length) return;
+
+      verifyActiveInFlightRef.current = true;
       try {
-        const freshList = (await Promise.all(offered.map(o => base44.entities.RideOrder.get(o.id).catch(() => null)))).filter(Boolean);
-        if (!mountedRef.current || !freshList.length) return;
+        const freshList = await base44.entities.RideOrder.filter({ id: { $in: activeIds } }).catch(() => []);
+        if (!mountedRef.current || !Array.isArray(freshList) || !freshList.length) return;
+
         setOrders(prev => {
           let changed = false;
           const byId = new Map(freshList.map(o => [o.id, o]));
           const next = (Array.isArray(prev) ? prev : []).map(old => {
             const fresh = byId.get(old.id);
             if (!fresh) return old;
-            if (fresh.status !== old.status || fresh.updated_date !== old.updated_date || fresh.assignment_attempt !== old.assignment_attempt) {
+            if (
+              fresh.status !== old.status ||
+              fresh.updated_date !== old.updated_date ||
+              fresh.assignment_attempt !== old.assignment_attempt ||
+              fresh.driver_id !== old.driver_id ||
+              fresh.reserved_driver_id !== old.reserved_driver_id ||
+              fresh.offerExpiresAt !== old.offerExpiresAt
+            ) {
               changed = true;
               return { ...old, ...fresh };
             }
             return old;
           });
-          if (changed) window.dispatchEvent(new CustomEvent("radiocab_force_alert_check", { detail: next }));
+
+          if (changed) {
+            window.dispatchEvent(new CustomEvent("radiocab_force_alert_check", { detail: next }));
+          }
           return changed ? next : prev;
         });
       } finally {
-        verifyOfferedInFlightRef.current = false;
+        verifyActiveInFlightRef.current = false;
       }
-    }, verifyOfferedMs) : null;
+    }, verifyActiveMs) : null;
 
     return () => {
       mountedRef.current = false;
       document.removeEventListener("visibilitychange", stopHidden);
       if (centralRefresh) clearInterval(centralRefresh);
-      if (offeredVerifier) clearInterval(offeredVerifier);
+      if (activeVerifier) clearInterval(activeVerifier);
       unsubRef.current?.();
       unsubRef.current = null;
     };
-  }, [connect, fallbackRefreshMs, verifyOfferedMs]);
+  }, [connect, fallbackRefreshMs, verifyActiveMs]);
 
   return { orders, isLoading };
 }
