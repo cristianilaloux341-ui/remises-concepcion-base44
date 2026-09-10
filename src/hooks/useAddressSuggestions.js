@@ -19,7 +19,7 @@ const COUNTRY = "Argentina";
 const nominatimCache = new Map();
 
 // Bounding box de Concepción del Uruguay (lat/lng aprox)
-const VIEWBOX = "-58.35,-32.35,-58.10,-32.60";
+const VIEWBOX = "-58.35,-33.15,-58.15,-32.95";
 
 async function fetchNominatim(query) {
   if (nominatimCache.has(query)) return nominatimCache.get(query);
