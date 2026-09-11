@@ -14,9 +14,12 @@ Deno.serve(async (req) => {
     const order = await b44.entities.RideOrder.get(orderId);
     if (!order) return Response.json({ success:false, reason:'ORDER_NOT_FOUND' });
     if (order.status !== 'ofrecido' || order.reserved_driver_id !== driverId || order.assignment_attempt !== assignmentAttempt) return Response.json({ success:false, reason:'STALE_OR_EXPIRED' });
+    if (order.processingOwnerId && Number(order.processingLeaseExpiresAt || 0) > Date.now()) {
+      return Response.json({ success:false, reason:'PROCESSING_IN_PROGRESS' });
+    }
 
     const releasedCurrent = await b44.entities.Driver.updateMany(
-      { id:driverId, reserved_order_id:orderId, reservation_token:order.reservation_token },
+      { id:driverId, status:'disponible', dispatch_status:'automatic_pending', reserved_order_id:orderId, reservation_token:order.reservation_token },
       { $set:{ status:'disponible', dispatch_status:'normal', queue_entered_at:new Date().toISOString(), active_order_id:null, active_ride_id:null, reserved_order_id:null, reservation_token:null, manual_reservation_token:null, driver_reservation_key:null } }
     );
     if ((releasedCurrent.matchedCount ?? releasedCurrent.modifiedCount ?? releasedCurrent.updated ?? 0) !== 1) {
@@ -48,7 +51,18 @@ Deno.serve(async (req) => {
         const expiresAt = Date.now() + timeoutSeconds*1000;
         const offeredIds = [...new Set([...(order.offered_driver_ids || []), driverId, nextDriver.id].filter(Boolean))];
         const commit = await b44.entities.RideOrder.updateMany(
-          { id:orderId, status:'ofrecido', reserved_driver_id:driverId, reservation_token:order.reservation_token, assignment_attempt:assignmentAttempt },
+          {
+            id:orderId,
+            status:'ofrecido',
+            reserved_driver_id:driverId,
+            reservation_token:order.reservation_token,
+            assignment_attempt:assignmentAttempt,
+            $or:[
+              { processingOwnerId:null },
+              { processingOwnerId:{ $exists:false } },
+              { processingLeaseExpiresAt:{ $lt:Date.now() } }
+            ]
+          },
           { $set:{ status:'ofrecido', driver_id:nextDriver.id, driver_name:nextDriver.name, reserved_driver_id:nextDriver.id, reservation_token:token, manual_reservation_token:null, assigned_base:nextDriver.current_base, offerExpiresAt:expiresAt, assignment_attempt:newAttempt, assigned_at:assignedAt, processingAction:null, processingOperationKey:null, processingOwnerId:null, processingLeaseExpiresAt:null, processingPhase:null, offered_driver_ids:offeredIds } }
         );
         if (commit.updated !== 1) {
@@ -64,7 +78,18 @@ Deno.serve(async (req) => {
     }
 
     await b44.entities.RideOrder.updateMany(
-      { id:orderId, status:'ofrecido', reserved_driver_id:driverId, reservation_token:order.reservation_token, assignment_attempt:assignmentAttempt },
+      {
+        id:orderId,
+        status:'ofrecido',
+        reserved_driver_id:driverId,
+        reservation_token:order.reservation_token,
+        assignment_attempt:assignmentAttempt,
+        $or:[
+          { processingOwnerId:null },
+          { processingOwnerId:{ $exists:false } },
+          { processingLeaseExpiresAt:{ $lt:Date.now() } }
+        ]
+      },
       { $set:{ status:'pendiente', driver_id:null, driver_name:null, reserved_driver_id:null, reservation_token:null, manual_reservation_token:null, assigned_at:null, offerExpiresAt:null, assigned_base:null, processingAction:null, processingOperationKey:null, processingOwnerId:null, processingLeaseExpiresAt:null, processingPhase:null }, $addToSet:{ offered_driver_ids:driverId } }
     );
     await b44.entities.AuditLog.create({ action:'rechazar_viaje', user_type:'chofer', user_name:'Chofer', details:'Rechazó. Sin candidatos válidos en la zona, quedó pendiente.' }).catch(()=>{});
