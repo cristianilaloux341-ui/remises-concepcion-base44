@@ -15,11 +15,14 @@ Deno.serve(async (req) => {
     if (!order) return Response.json({ success:false, reason:'ORDER_NOT_FOUND' });
     if (order.status !== 'ofrecido' || order.reserved_driver_id !== driverId || order.assignment_attempt !== assignmentAttempt) return Response.json({ success:false, reason:'STALE_OR_EXPIRED' });
 
-    await b44.entities.Driver.updateMany(
+    const releasedCurrent = await b44.entities.Driver.updateMany(
       { id:driverId, reserved_order_id:orderId, reservation_token:order.reservation_token },
       { $set:{ status:'disponible', dispatch_status:'normal', queue_entered_at:new Date().toISOString(), active_order_id:null, active_ride_id:null, reserved_order_id:null, reservation_token:null, manual_reservation_token:null, driver_reservation_key:null } }
     );
-    b44.functions.invoke('sendPushNotification', { action:'cancel_multiple', orderId:order.id, driversToCancel:[driverId], orderData:{ assignmentAttempt }, internalKey:Deno.env.get('INTERNAL_SERVICE_KEY') }).catch(e=>console.error('Error cancelando push:',e));
+    if ((releasedCurrent.matchedCount ?? releasedCurrent.modifiedCount ?? releasedCurrent.updated ?? 0) !== 1) {
+      return Response.json({ success:false, reason:'STALE_OR_EXPIRED' });
+    }
+    await b44.functions.invoke('sendPushNotification', { action:'cancel_multiple', orderId:order.id, driversToCancel:[driverId], orderData:{ assignmentAttempt }, internalKey:Deno.env.get('INTERNAL_SERVICE_KEY') }).catch(e=>console.error('Error cancelando push:',e));
 
     const config = (await b44.entities.TarifaConfig.list())[0] || {};
     const timeoutSeconds = config.tiempo_maximo_respuesta_segundos ?? 60;
