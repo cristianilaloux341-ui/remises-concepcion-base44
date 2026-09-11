@@ -38,8 +38,11 @@ Deno.serve(async (req) => {
     const fullTimeout=config.tiempo_maximo_respuesta_segundos??60;
 
     if (currentDriver) {
-      await b44.entities.Driver.updateMany({id:currentDriver.id,reserved_order_id:order.id,reservation_token:order.reservation_token},{ $set:{status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_order_id:null,active_ride_id:null,reservation_token:null,manual_reservation_token:null,driver_reservation_key:null,queue_entered_at:new Date().toISOString()} }).catch(()=>{});
-      b44.functions.invoke('sendPushNotification',{action:'cancel_multiple',orderId:order.id,driversToCancel:[currentDriver.id],orderData:{assignmentAttempt},internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')}).catch(e=>console.error('Cancel push:',e));
+      const releasedCurrent = await b44.entities.Driver.updateMany({id:currentDriver.id,reserved_order_id:order.id,reservation_token:order.reservation_token},{ $set:{status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_order_id:null,active_ride_id:null,reservation_token:null,manual_reservation_token:null,driver_reservation_key:null,queue_entered_at:new Date().toISOString()} }).catch(()=>null);
+      if (!releasedCurrent || (releasedCurrent.matchedCount ?? releasedCurrent.modifiedCount ?? releasedCurrent.updated ?? 0) !== 1) {
+        return Response.json({ok:true,skipped:true,reason:'current_driver_reservation_changed'});
+      }
+      await b44.functions.invoke('sendPushNotification',{action:'cancel_multiple',orderId:order.id,driversToCancel:[currentDriver.id],orderData:{assignmentAttempt},internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')}).catch(e=>console.error('Cancel push:',e));
     }
 
     const {findNextDriverInZone}=await import('../../shared/driverSelection.ts');
