@@ -26,7 +26,16 @@ Deno.serve(async (req) => {
     if (!order || ['aceptado','en_camino','en_viaje','completado','cancelado','rechazado'].includes(order.status) || (order.driver_id&&order.driver_id!==driverId)) return Response.json({ok:true,skipped:true});
     if (order.assignment_attempt!==assignmentAttempt) return Response.json({ok:true,skipped:true,reason:'attempt_changed'});
     if (order.processingOwnerId && Number(order.processingLeaseExpiresAt || 0) > Date.now()) {
-      return Response.json({ok:true,skipped:true,reason:'processing_in_progress'});
+      const leaseRemainingMs = Number(order.processingLeaseExpiresAt) - Date.now();
+      const retrySeconds = Math.max(1, Math.min(5, Math.ceil(leaseRemainingMs / 1000) + 1));
+      b44.functions.invoke('autoReassignOnTimeout',{
+        orderId,
+        driverId,
+        timeoutSeconds:retrySeconds,
+        assignmentAttempt,
+        internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+      }).catch(e=>console.error('Deferred timeout after processing lease:',e));
+      return Response.json({ok:true,deferred:true,reason:'processing_in_progress',retrySeconds});
     }
 
     const remainingMs=Number.isFinite(Number(order.offerExpiresAt)) ? Number(order.offerExpiresAt)-Date.now() : 0;
