@@ -1,6 +1,6 @@
 /**
- * Hook para autocompletar direcciones usando Photon (OpenStreetMap) via backend proxy.
- * No requiere API key ni billing — funciona inmediatamente.
+ * Hook para autocompletar direcciones nuevas usando Geoapify vía backend.
+ * La API key queda protegida en los secretos de Base44.
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
@@ -44,12 +44,11 @@ export function useGooglePlaces(inputValue) {
     return () => clearTimeout(debounceRef.current);
   }, [inputValue]);
 
-  // Las predicciones de Photon ya traen _lat/_lng embebidos
-  // Solo necesita llamar al backend si el place_id no empieza por "photon_"
+  // Geoapify devuelve coordenadas asociadas a cada sugerencia.
   const getPlaceDetails = useCallback(async (place_id, description) => {
-    // Si las coordenadas vienen directo del place_id, extraerlas localmente
-    if (place_id?.startsWith("photon_") || place_id?.startsWith("osm_")) {
-      const parts = place_id.replace("photon_", "").replace("osm_", "").split("_");
+    // Si las coordenadas vienen dentro del identificador, extraerlas localmente.
+    if (place_id?.startsWith("geoapify_") || place_id?.startsWith("photon_") || place_id?.startsWith("osm_")) {
+      const parts = place_id.replace("geoapify_", "").replace("photon_", "").replace("osm_", "").split("_");
       return {
         lat: parseFloat(parts[0]),
         lng: parseFloat(parts[1]),
@@ -57,7 +56,7 @@ export function useGooglePlaces(inputValue) {
       };
     }
 
-    // Fallback al backend (Nominatim)
+    // Fallback al backend para identificadores legacy.
     const sessionToken = localStorage.getItem('client_token') || sessionStorage.getItem('local_operator_token') || 'client_demo_token';
     const res = await base44.functions.invoke("geocodeRoute", {
       action: "placedetails",
