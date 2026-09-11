@@ -178,8 +178,11 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   }
 
   // 1.5. PRE-VALIDACIÓN (Fast fail)
-  const isBroadcast = order.status === "pendiente" && !order.driver_id;
-  const isDirectOffer = order.status === "ofrecido" && (order.driver_id === driverId || order.reserved_driver_id === driverId);
+  // Los Pendientes se toman exclusivamente por claimNextRide. acceptRide sólo
+  // puede confirmar una oferta directa vigente; así una notificación vieja no
+  // puede aceptar un viaje que ya volvió a Pendientes.
+  const isBroadcast = false;
+  const isDirectOffer = order.status === "ofrecido" && order.reserved_driver_id === driverId;
 
   const preValidationNow = Date.now();
   let preValStatus = null;
@@ -205,6 +208,9 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   const acquiredLeaseVersion = expectedLeaseVersion + 1;
   const acquireFilter = {
     id: rideOrderId,
+    status: "ofrecido",
+    reserved_driver_id: driverId,
+    assignment_attempt: assignmentAttempt,
     processingLeaseVersion: expectedLeaseVersion,
     $or: [
       { processingOwnerId: null },
@@ -249,8 +255,8 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   order = await b44.entities.RideOrder.get(rideOrderId);
   const validationNow = Date.now();
   
-  const isNowBroadcast = order.status === "pendiente" && !order.driver_id;
-  const isNowDirectOffer = order.status === "ofrecido" && (order.driver_id === driverId || order.reserved_driver_id === driverId);
+  const isNowBroadcast = false;
+  const isNowDirectOffer = order.status === "ofrecido" && order.reserved_driver_id === driverId;
 
   if (
     !order ||
