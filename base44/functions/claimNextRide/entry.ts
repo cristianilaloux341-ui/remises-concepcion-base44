@@ -21,6 +21,33 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, reason: 'driver_off_service' });
     }
 
+    // La cartelera Pendientes debe respetar exactamente la misma habilitación real
+    // del vehículo que el despacho automático. Un Driver puede quedar momentáneamente
+    // como disponible aunque Central haya desactivado/suspendido su registro Movil.
+    const driverMobileId = String(driver.vehicle_model || '');
+    const driverMobileNumber = parseInt(driverMobileId, 10);
+    const driverPlateRaw = String(driver.vehicle_plate || '').trim();
+    const driverPlate = driverPlateRaw.replace(/\s+/g, '').toUpperCase();
+    const movilLookup: any[] = [
+      { driver_id: driverId },
+      { driver_ids: { $in: [driverId] } }
+    ];
+    if (driverMobileId) movilLookup.push({ id: driverMobileId });
+    if (Number.isFinite(driverMobileNumber)) movilLookup.push({ numero_movil: driverMobileNumber });
+    if (driverPlateRaw) movilLookup.push({ dominio: driverPlateRaw });
+
+    const linkedMoviles = await b44.entities.Movil.filter({ $or: movilLookup });
+    const linkedMovil = linkedMoviles.find((m: any) =>
+      m.id === driverMobileId ||
+      m.numero_movil === driverMobileNumber ||
+      m.driver_id === driverId ||
+      (Array.isArray(m.driver_ids) && m.driver_ids.includes(driverId)) ||
+      (driverPlate && String(m.dominio || '').replace(/\s+/g, '').toUpperCase() === driverPlate)
+    );
+    if (!linkedMovil || linkedMovil.activo === false || linkedMovil.fuera_de_servicio === true || linkedMovil.suspension_motivo) {
+      return Response.json({ success: false, reason: 'mobile_off_service' });
+    }
+
     if (action === 'promote') {
       const nextOrderId = driver.next_order_id;
       const token = driver.next_order_token;
