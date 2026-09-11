@@ -101,7 +101,11 @@ Deno.serve(async (req) => {
   if (Number.isFinite(driverMobileNumber)) movilLookup.push({ numero_movil: driverMobileNumber });
   if (driverPlateRaw) movilLookup.push({ dominio: driverPlateRaw });
 
-  const linkedMoviles = await b44.entities.Movil.filter({ $or: movilLookup });
+  const directMovil = driverMobileId
+    ? await b44.entities.Movil.get(driverMobileId).catch(() => null)
+    : null;
+  const fallbackMoviles = await b44.entities.Movil.filter({ $or: movilLookup }).catch(() => []);
+  const linkedMoviles = directMovil ? [directMovil, ...fallbackMoviles] : fallbackMoviles;
   const linkedMovil = linkedMoviles.find((m: any) =>
     m.id === driverMobileId ||
     m.numero_movil === driverMobileNumber ||
