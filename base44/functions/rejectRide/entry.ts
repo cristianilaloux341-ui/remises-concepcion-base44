@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
       { id:driverId, reserved_order_id:orderId, reservation_token:order.reservation_token },
       { $set:{ status:'disponible', dispatch_status:'normal', queue_entered_at:new Date().toISOString(), active_order_id:null, active_ride_id:null, reserved_order_id:null, reservation_token:null, manual_reservation_token:null, driver_reservation_key:null } }
     );
-    b44.functions.invoke('sendPushNotification', { action:'cancel_multiple', orderId:order.id, driversToCancel:[driverId], internalKey:Deno.env.get('INTERNAL_SERVICE_KEY') }).catch(e=>console.error('Error cancelando push:',e));
+    b44.functions.invoke('sendPushNotification', { action:'cancel_multiple', orderId:order.id, driversToCancel:[driverId], orderData:{ assignmentAttempt }, internalKey:Deno.env.get('INTERNAL_SERVICE_KEY') }).catch(e=>console.error('Error cancelando push:',e));
 
     const config = (await b44.entities.TarifaConfig.list())[0] || {};
     const timeoutSeconds = config.tiempo_maximo_respuesta_segundos ?? 60;
