@@ -25,6 +25,9 @@ Deno.serve(async (req) => {
     const order=(await b44.entities.RideOrder.filter({id:orderId}))[0];
     if (!order || ['aceptado','en_camino','en_viaje','completado','cancelado','rechazado'].includes(order.status) || (order.driver_id&&order.driver_id!==driverId)) return Response.json({ok:true,skipped:true});
     if (order.assignment_attempt!==assignmentAttempt) return Response.json({ok:true,skipped:true,reason:'attempt_changed'});
+    if (order.processingOwnerId && Number(order.processingLeaseExpiresAt || 0) > Date.now()) {
+      return Response.json({ok:true,skipped:true,reason:'processing_in_progress'});
+    }
 
     const remainingMs=Number.isFinite(Number(order.offerExpiresAt)) ? Number(order.offerExpiresAt)-Date.now() : 0;
     if (remainingMs>0) {
@@ -38,7 +41,7 @@ Deno.serve(async (req) => {
     const fullTimeout=config.tiempo_maximo_respuesta_segundos??60;
 
     if (currentDriver) {
-      const releasedCurrent = await b44.entities.Driver.updateMany({id:currentDriver.id,reserved_order_id:order.id,reservation_token:order.reservation_token},{ $set:{status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_order_id:null,active_ride_id:null,reservation_token:null,manual_reservation_token:null,driver_reservation_key:null,queue_entered_at:new Date().toISOString()} }).catch(()=>null);
+      const releasedCurrent = await b44.entities.Driver.updateMany({id:currentDriver.id,status:'disponible',dispatch_status:'automatic_pending',reserved_order_id:order.id,reservation_token:order.reservation_token},{ $set:{status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_order_id:null,active_ride_id:null,reservation_token:null,manual_reservation_token:null,driver_reservation_key:null,queue_entered_at:new Date().toISOString()} }).catch(()=>null);
       if (!releasedCurrent || (releasedCurrent.matchedCount ?? releasedCurrent.modifiedCount ?? releasedCurrent.updated ?? 0) !== 1) {
         return Response.json({ok:true,skipped:true,reason:'current_driver_reservation_changed'});
       }
@@ -58,7 +61,18 @@ Deno.serve(async (req) => {
 
         const newAttempt=(order.assignment_attempt||0)+1;
         const offeredIds=[...new Set([...(order.offered_driver_ids||[]),driverId,candidate.id].filter(Boolean))];
-        const commit=await b44.entities.RideOrder.updateMany({id:orderId,status:'ofrecido',reserved_driver_id:driverId,reservation_token:order.reservation_token,assignment_attempt:assignmentAttempt},{ $set:{status:'ofrecido',driver_id:candidate.id,driver_name:candidate.name,reserved_driver_id:candidate.id,reservation_token:token,manual_reservation_token:null,assigned_base:candidate.current_base,offerExpiresAt:Date.now()+fullTimeout*1000,assignment_attempt:newAttempt,assigned_at:new Date().toISOString(),processingAction:null,processingOperationKey:null,processingOwnerId:null,processingLeaseExpiresAt:null,processingPhase:null,offered_driver_ids:offeredIds} });
+        const commit=await b44.entities.RideOrder.updateMany({
+          id:orderId,
+          status:'ofrecido',
+          reserved_driver_id:driverId,
+          reservation_token:order.reservation_token,
+          assignment_attempt:assignmentAttempt,
+          $or:[
+            {processingOwnerId:null},
+            {processingOwnerId:{$exists:false}},
+            {processingLeaseExpiresAt:{$lt:Date.now()}}
+          ]
+        },{ $set:{status:'ofrecido',driver_id:candidate.id,driver_name:candidate.name,reserved_driver_id:candidate.id,reservation_token:token,manual_reservation_token:null,assigned_base:candidate.current_base,offerExpiresAt:Date.now()+fullTimeout*1000,assignment_attempt:newAttempt,assigned_at:new Date().toISOString(),processingAction:null,processingOperationKey:null,processingOwnerId:null,processingLeaseExpiresAt:null,processingPhase:null,offered_driver_ids:offeredIds} });
         if (commit.updated!==1) {
           await b44.entities.Driver.updateMany({id:candidate.id,reserved_order_id:order.id,reservation_token:token},{ $set:{dispatch_status:'normal',reserved_order_id:null,reservation_token:null} }).catch(()=>{});
           return Response.json({ok:true,skipped:true,reason:'order_changed_during_candidate_reservation'});
@@ -69,7 +83,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    const pending=await b44.entities.RideOrder.updateMany({id:orderId,status:'ofrecido',reserved_driver_id:driverId,reservation_token:order.reservation_token,assignment_attempt:assignmentAttempt},{ $set:{status:'pendiente',driver_id:null,driver_name:null,reserved_driver_id:null,reservation_token:null,manual_reservation_token:null,assigned_base:null,assigned_at:null,offerExpiresAt:null,processingAction:null,processingOperationKey:null,processingOwnerId:null,processingLeaseExpiresAt:null,processingPhase:null},$addToSet:{offered_driver_ids:driverId} });
+    const pending=await b44.entities.RideOrder.updateMany({
+      id:orderId,
+      status:'ofrecido',
+      reserved_driver_id:driverId,
+      reservation_token:order.reservation_token,
+      assignment_attempt:assignmentAttempt,
+      $or:[
+        {processingOwnerId:null},
+        {processingOwnerId:{$exists:false}},
+        {processingLeaseExpiresAt:{$lt:Date.now()}}
+      ]
+    },{ $set:{status:'pendiente',driver_id:null,driver_name:null,reserved_driver_id:null,reservation_token:null,manual_reservation_token:null,assigned_base:null,assigned_at:null,offerExpiresAt:null,processingAction:null,processingOperationKey:null,processingOwnerId:null,processingLeaseExpiresAt:null,processingPhase:null},$addToSet:{offered_driver_ids:driverId} });
     if (pending.updated!==1) return Response.json({ok:true,skipped:true,reason:'order_changed_before_pending'});
     return Response.json({ok:true,reassigned_to:null});
   } catch(err:any) {
