@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
           return Response.json({ success:true, skipped:true, reason:'order_changed_during_candidate_reservation' });
         }
 
-        b44.functions.invoke('sendPushNotification', { action:'send', driverId:nextDriver.id, orderId, orderData:{ pickup_address:order.pickup_address, dropoff_address:order.dropoff_address, fare:order.fare, notes:order.notes, assignmentAttempt:newAttempt }, internalKey:Deno.env.get('INTERNAL_SERVICE_KEY') }).catch(e=>console.error('Error push rejectRide:',e));
+        b44.functions.invoke('sendPushNotification', { action:'send', driverId:nextDriver.id, orderId, orderData:{ pickup_address:order.pickup_address, dropoff_address:order.dropoff_address, fare:order.fare, notes:order.notes, assignmentAttempt:newAttempt, responseTimeoutSeconds:timeoutSeconds }, internalKey:Deno.env.get('INTERNAL_SERVICE_KEY') }).catch(e=>console.error('Error push rejectRide:',e));
         b44.functions.invoke('autoReassignOnTimeout', { orderId, driverId:nextDriver.id, timeoutSeconds, assignmentAttempt:newAttempt, internalKey:Deno.env.get('INTERNAL_SERVICE_KEY') }).catch(e=>console.error('AutoReassign Trigger Error:',e));
         await b44.entities.AuditLog.create({ action:'rechazar_viaje', user_type:'chofer', user_name:'Chofer', details:`Rechazó. Reasignado a ${nextDriver.name}` }).catch(()=>{});
         return Response.json({ success:true, reassigned_to:nextDriver.name });
