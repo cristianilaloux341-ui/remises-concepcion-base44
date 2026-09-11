@@ -1,5 +1,4 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { reassignAfterAutomaticReject } from '../../shared/DispatchLogic.ts';
 import { verifyRequestAuth } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
@@ -106,43 +105,29 @@ Deno.serve(async (req) => {
          return Response.json({ success: false, reason: "stale_assignment_attempt" });
       }
 
-      // Buscar si el driver sigue teniendo este viaje reservado.
-      // NO lo liberamos acá: reassignAfterAutomaticReject hace la liberación atómica
-      // usando el token de esta misma oferta. Liberarlo antes rompía esa protección.
       const driver = await b44.entities.Driver.get(driverId);
+      const attempt = nativeAssignmentAttempt ?? (order.assignment_attempt || 1);
 
-      // reassignAfterAutomaticReject necesita el ID real de Base, mientras que
-      // assigned_base/current_base guardan el nombre visible (ej. "1-Puerto").
-      const baseName = (driver && driver.current_base) || order.assigned_base || order.zone || '1-Puerto';
-      const matchingBases = await b44.entities.Base.filter({ name: baseName });
-      const baseEntity = matchingBases.find((b: any) => b.dispatch_status === 'libre') || matchingBases[0];
-      if (!baseEntity) {
-        return Response.json({ success: false, reason: "base_not_found" });
-      }
-      const baseId = baseEntity.id;
-      
-      const oldToken = order.reservation_token;
-      let rejectResult;
-      
-      try {
-        rejectResult = await reassignAfterAutomaticReject(b44, baseId, realOrderId, driverId, oldToken);
-      } catch (e) {
-        // Si falla la reasignación atómica, forzamos la liberación del viaje
-        await b44.entities.RideOrder.updateMany(
-           { id: realOrderId, status: "ofrecido", reserved_driver_id: driverId },
-           { $set: { status: "procesando_despacho", reserved_driver_id: null, reservation_token: null, driver_name: null }, $push: { offered_driver_ids: driverId } }
-        );
-        rejectResult = { status: 'forced_reverted' };
-      }
+      // Una sola autoridad para TODOS los rechazos (pantalla, SW y acción nativa).
+      // Antes la acción nativa usaba una ruta legacy distinta que movía el viaje a
+      // procesando_despacho y podía competir con timeout/aceptación. Ahora usa
+      // rejectRide, con el mismo CAS, cola, cancelación y ventana completa del siguiente.
+      const rejectResponse = await b44.functions.invoke("rejectRide", {
+        orderId: realOrderId,
+        driverId,
+        assignmentAttempt: attempt,
+        internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+      });
+      const rejectResult = rejectResponse?.data || rejectResponse;
 
       await b44.entities.AuditLog.create({
         action: 'RIDE_REJECTED_NATIVE',
         user_type: 'chofer',
         user_name: driver ? driver.name : driverId,
-        details: `Chofer rechazó viaje ${realOrderId} desde notificación nativa. Resultado reasignación: ${rejectResult.status}`
+        details: `Chofer rechazó viaje ${realOrderId} desde notificación nativa. Resultado: ${rejectResult?.reason || rejectResult?.reassigned_to || (rejectResult?.success ? 'ok' : 'error')}`
       }).catch(() => {});
 
-      return Response.json({ success: true, rejectResult });
+      return Response.json({ success: rejectResult?.success !== false, rejectResult });
     }
 
     return Response.json({ success: false, reason: "unknown_action" });
