@@ -17,8 +17,18 @@ Deno.serve(async (req) => {
 
     let assigned = false;
     if (order.zone) {
-      const nextDriver = await findNextDriverInZone(b44, order, null);
-      if (nextDriver) {
+      // Si el primer candidato pierde la reserva por concurrencia (otro pasaje lo
+      // tomó entre la lectura y el CAS), continuar con el siguiente de ESTA MISMA
+      // zona. Un intento fallido no debe mandar a Pendientes mientras quede otro
+      // móvil elegible en la cola.
+      const excludedDriverIds = new Set<string>();
+      const MAX_CANDIDATE_ATTEMPTS = 100;
+
+      for (let attempt = 0; attempt < MAX_CANDIDATE_ATTEMPTS && !assigned; attempt++) {
+        const nextDriver = await findNextDriverInZone(b44, order, excludedDriverIds);
+        if (!nextDriver) break;
+
+        excludedDriverIds.add(nextDriver.id);
         const res = await b44.functions.invoke("assignRide", {
           orderId: order.id,
           driverId: nextDriver.id,
