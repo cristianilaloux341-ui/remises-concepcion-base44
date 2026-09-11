@@ -95,7 +95,8 @@ Deno.serve(async (req) => {
         freshOrder.assignment_attempt !== order.assignment_attempt ||
         freshOrder.reserved_driver_id !== order.reserved_driver_id ||
         freshOrder.driver_id !== order.driver_id ||
-        freshOrder.assigned_at !== order.assigned_at
+        freshOrder.assigned_at !== order.assigned_at ||
+        (freshOrder.processingOwnerId && Number(freshOrder.processingLeaseExpiresAt || 0) > Date.now())
       ) {
         continue;
       }
@@ -107,7 +108,12 @@ Deno.serve(async (req) => {
         assignment_attempt: freshOrder.assignment_attempt,
         reserved_driver_id: freshOrder.reserved_driver_id,
         driver_id: freshOrder.driver_id,
-        assigned_at: freshOrder.assigned_at
+        assigned_at: freshOrder.assigned_at,
+        $or: [
+          { processingOwnerId: null },
+          { processingOwnerId: { $exists: false } },
+          { processingLeaseExpiresAt: { $lt: Date.now() } }
+        ]
       };
       if (freshOrder.reservation_token) casQuery.reservation_token = freshOrder.reservation_token;
 
@@ -134,13 +140,22 @@ Deno.serve(async (req) => {
         if (updateRes && updateRes.updated > 0) {
           const driverToFree = freshOrder.reserved_driver_id || freshOrder.driver_id;
           if (driverToFree) {
+            await b44.functions.invoke('sendPushNotification', {
+              action: 'cancel_multiple',
+              orderId: freshOrder.id,
+              driversToCancel: [driverToFree],
+              orderData: { assignmentAttempt: freshOrder.assignment_attempt },
+              internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+            }).catch(e => console.error('Error cancelando oferta vencida desde cron', e));
             try {
               await b44.entities.Driver.updateMany(
-                { id: driverToFree, $or: [
-                  { reserved_order_id: freshOrder.id },
-                  { active_order_id: freshOrder.id },
-                  { active_ride_id: freshOrder.id }
-                ] },
+                {
+                  id: driverToFree,
+                  status: 'disponible',
+                  dispatch_status: 'automatic_pending',
+                  reserved_order_id: freshOrder.id,
+                  reservation_token: freshOrder.reservation_token
+                },
                 { $set: { 
                     status: "disponible", 
                     dispatch_status: "normal", 
