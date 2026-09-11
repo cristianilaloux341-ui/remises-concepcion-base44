@@ -220,6 +220,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Conservamos el reconciliador profundo cada 15 minutos desde ESTE cron.
+    // El workflow que antes lo ejecutaba se reutiliza para detectar entrada real
+    // de móviles en lista sin perder esta red de seguridad.
+    await b44.functions.invoke('dispatchReconciler', {
+      internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+    }).catch((e: any) => console.error('Deep reconciler backup error:', e));
+
     if (count > 0 || ghostsDisconnected > 0 || pendingAssigned > 0) {
       console.log(`AutoReassignCron liberó: ${count}; desconectados: ${ghostsDisconnected}; pendientes despachados: ${pendingAssigned}.`);
     }
