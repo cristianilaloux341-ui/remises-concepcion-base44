@@ -101,80 +101,24 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // CAS Fuerte sobre RideOrder
-      const casQuery: any = {
-        id: freshOrder.id,
-        status: "ofrecido",
-        assignment_attempt: freshOrder.assignment_attempt,
-        reserved_driver_id: freshOrder.reserved_driver_id,
-        driver_id: freshOrder.driver_id,
-        assigned_at: freshOrder.assigned_at,
-        $or: [
-          { processingOwnerId: null },
-          { processingOwnerId: { $exists: false } },
-          { processingLeaseExpiresAt: { $lt: Date.now() } }
-        ]
-      };
-      if (freshOrder.reservation_token) casQuery.reservation_token = freshOrder.reservation_token;
-
+      // Red de seguridad: el cron NO tiene un motor de reasignación propio.
+      // Una oferta vencida entra al mismo rechazo atómico que usa el botón RECHAZAR
+      // y autoReassignOnTimeout. Así hay una sola autoridad para cola, cancelación,
+      // misma zona y nueva ventana de respuesta.
+      const driverToExpire = freshOrder.reserved_driver_id || freshOrder.driver_id;
+      if (!driverToExpire) continue;
       try {
-        const updateRes = await b44.entities.RideOrder.updateMany(casQuery, {
-          $set: { 
-             status: 'pendiente', 
-             driver_id: null,
-             driver_name: null,
-             reserved_driver_id: null,
-             assigned_base: null,
-             reservation_token: null,
-             manual_reservation_token: null,
-             offerExpiresAt: null,
-             processingAction: null,
-             processingOperationKey: null,
-             processingOwnerId: null,
-             processingLeaseExpiresAt: null,
-             processingPhase: null
-          }
+        const timeoutRes = await b44.functions.invoke('rejectRide', {
+          orderId: freshOrder.id,
+          driverId: driverToExpire,
+          assignmentAttempt: freshOrder.assignment_attempt,
+          source: 'timeout',
+          internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
         });
-
-        // SOLO si el CAS actualizó exactamente la oferta vigente se libera al chofer
-        if (updateRes && updateRes.updated > 0) {
-          const driverToFree = freshOrder.reserved_driver_id || freshOrder.driver_id;
-          if (driverToFree) {
-            await b44.functions.invoke('sendPushNotification', {
-              action: 'cancel_multiple',
-              orderId: freshOrder.id,
-              driversToCancel: [driverToFree],
-              orderData: { assignmentAttempt: freshOrder.assignment_attempt },
-              internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
-            }).catch(e => console.error('Error cancelando oferta vencida desde cron', e));
-            try {
-              await b44.entities.Driver.updateMany(
-                {
-                  id: driverToFree,
-                  status: 'disponible',
-                  dispatch_status: 'automatic_pending',
-                  reserved_order_id: freshOrder.id,
-                  reservation_token: freshOrder.reservation_token
-                },
-                { $set: { 
-                    status: "disponible", 
-                    dispatch_status: "normal", 
-                    reserved_order_id: null,
-                    active_order_id: null,
-                    active_ride_id: null,
-                    reservation_token: null,
-                    manual_reservation_token: null,
-                    driver_reservation_key: null
-                } }
-              );
-            } catch(e) {
-              console.error("Error liberando driver", driverToFree, e);
-            }
-          }
-          count++;
-        }
+        const timeoutData = timeoutRes?.data || timeoutRes;
+        if (timeoutData?.success) count++;
       } catch(e) {
-        console.error("Error CAS reseteando viaje", freshOrder.id, e);
+        console.error("Error procesando oferta vencida por motor único", freshOrder.id, e);
       }
     }
 
