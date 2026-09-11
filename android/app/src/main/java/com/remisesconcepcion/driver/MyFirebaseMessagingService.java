@@ -114,16 +114,6 @@ public class MyFirebaseMessagingService extends MessagingService {
         if (title == null) title = "🚖 ¡NUEVO VIAJE!";
         if (body == null) body = "Tienes un viaje asignado";
 
-        long alertTimeoutMs = 30000L;
-        try {
-            String timeoutSeconds = data.get("responseTimeoutSeconds");
-            if (timeoutSeconds != null && !timeoutSeconds.isEmpty()) {
-                alertTimeoutMs = Math.max(1000L, Long.parseLong(timeoutSeconds) * 1000L);
-            }
-        } catch (NumberFormatException e) {
-            Log.e(TAG, "responseTimeoutSeconds inválido; usando 30 segundos.");
-        }
-
         Context context = getApplicationContext();
 
         Intent acceptIntent = new Intent(context, NotificationActionReceiver.class);
@@ -149,7 +139,7 @@ public class MyFirebaseMessagingService extends MessagingService {
         openAppIntent.putExtra("assignmentAttempt", data.get("assignmentAttempt"));
 
         // Delegar la alerta al controlador centralizado
-        RideAlertController.getInstance().startAlert(context, orderId, title, body, acceptIntent, rejectIntent, openAppIntent, alertTimeoutMs);
+        RideAlertController.getInstance().startAlert(context, orderId, title, body, acceptIntent, rejectIntent, openAppIntent);
     }
 
     @Override
