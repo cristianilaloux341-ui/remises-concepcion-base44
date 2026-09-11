@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { findNextDriverInZone } from '../../shared/driverSelection.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -173,14 +174,61 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (count > 0 || ghostsDisconnected > 0) {
-      console.log(`AutoReassignCron liberó: ${count} viajes/choferes trabados y ${ghostsDisconnected} choferes desconectados.`);
+    // --- BLOQUE C: drenar Pendientes con capacidad real de la misma zona ---
+    // Este barrido es deliberadamente server-side y usa el MISMO selector + assignRide
+    // que el despacho normal. No depende de que un workflow nuevo de Driver se dispare.
+    // Si un móvil entra/cambia de base y queda disponible, el próximo barrido lo toma.
+    let pendingAssigned = 0;
+    const pendingOrders = await b44.entities.RideOrder.filter({ status: 'pendiente' }).catch(() => []);
+    const eligiblePendings = pendingOrders
+      .filter((order: any) =>
+        Boolean(order.zone) &&
+        !String(order.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]') &&
+        !['ACCEPT', 'START', 'FINISH'].includes(String(order.lastCompletedAction || ''))
+      )
+      .sort((a: any, b: any) => new Date(a.created_date || 0).getTime() - new Date(b.created_date || 0).getTime());
+
+    for (const order of eligiblePendings.slice(0, 100)) {
+      const excluded = new Set<string>();
+
+      // Reintento corto solo por carreras legítimas: si el primer candidato fue
+      // tomado por otro pasaje entre selección y CAS, buscamos el siguiente de
+      // ESA MISMA zona. Nunca hay fallback global.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const nextDriver = await findNextDriverInZone(b44, order, excluded);
+        if (!nextDriver) break;
+        excluded.add(nextDriver.id);
+
+        const assignRes = await b44.functions.invoke('assignRide', {
+          orderId: order.id,
+          driverId: nextDriver.id,
+          requireDriverConfirmation: true,
+          internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch((e: any) => ({ data: { success: false, reason: e?.message || 'INVOKE_FAILED' } }));
+
+        if (assignRes?.data?.success === true) {
+          pendingAssigned++;
+          await b44.entities.AuditLog.create({
+            action: 'PENDING_AUTO_DISPATCH_SWEEP',
+            user_type: 'sistema',
+            user_name: 'autoReassignCron',
+            details: `Pendiente ${order.id} despachado automáticamente en ${order.zone}`,
+            metadata: { orderId: order.id, driverId: nextDriver.id, zone: order.zone }
+          }).catch(() => {});
+          break;
+        }
+      }
+    }
+
+    if (count > 0 || ghostsDisconnected > 0 || pendingAssigned > 0) {
+      console.log(`AutoReassignCron liberó: ${count}; desconectados: ${ghostsDisconnected}; pendientes despachados: ${pendingAssigned}.`);
     }
 
     return Response.json({ 
       success: true, 
       resetCount: count,
-      ghostsDisconnected
+      ghostsDisconnected,
+      pendingAssigned
     });
   } catch (error) {
     console.error("Error en autoReassignCron:", error);
