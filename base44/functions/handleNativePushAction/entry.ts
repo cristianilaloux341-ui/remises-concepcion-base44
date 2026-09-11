@@ -26,8 +26,8 @@ Deno.serve(async (req) => {
       const driver = await b44.entities.Driver.get(driverId);
       const order = await b44.entities.RideOrder.get(realOrderId).catch(() => null);
 
-      // Los 30 segundos deben ser reales para el chofer: empiezan cuando el
-      // teléfono confirma que recibió ESTA oferta, no cuando FCM la puso en cola.
+      // La ventana configurada en Central debe ser real para el chofer: empieza cuando
+      // el teléfono confirma que recibió ESTA oferta, no cuando FCM la puso en cola.
       let responseWindowExtended = false;
       if (
         order &&
@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
         user_type: "sistema",
         user_name: driver?.name || "Chofer",
         details: responseWindowExtended
-          ? `El teléfono confirmó la recepción; comenzaron sus 30 segundos reales de respuesta.`
+          ? `El teléfono confirmó la recepción; comenzó la ventana configurada en Central.`
           : `El teléfono confirmó recepción del push, pero la oferta ya no estaba vigente para este móvil.`,
         metadata: { orderId: realOrderId, driverId, responseWindowExtended }
       }).catch(() => {});
