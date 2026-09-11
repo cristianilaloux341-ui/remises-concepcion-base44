@@ -476,8 +476,17 @@ Deno.serve(async (req) => {
                body: JSON.stringify({
                  message: {
                    token: driver.fcm_token,
-                   data: { type: "cancelar", orderId: String(orderId) + "_att_" + currentAttempt },
-                   android: { priority: "HIGH" }
+                   data: {
+                     type: "cancelar",
+                     orderId: String(orderId) + "_att_" + currentAttempt,
+                     assignmentAttempt: String(currentAttempt),
+                     sentAt: Date.now().toString()
+                   },
+                   android: {
+                     priority: "HIGH",
+                     ttl: "30s",
+                     collapse_key: `ride_${orderId}_${dId}`
+                   }
                  }
                })
              });
@@ -489,6 +498,13 @@ Deno.serve(async (req) => {
                }
              } else {
                console.log("FCM Cancel Success sent to", driver.id);
+               await base44.asServiceRole.entities.AuditLog.create({
+                 action: "cancel_push_enviado",
+                 user_type: "sistema",
+                 user_name: "Sistema",
+                 details: `FCM de cierre enviado a ${driver.name || driver.id}`,
+                 metadata: { orderId, driverId: driver.id, assignmentAttempt: currentAttempt }
+               }).catch(() => {});
              }
            } catch(e) {
                console.error("FCM Cancel Exception:", e);
@@ -670,7 +686,8 @@ Deno.serve(async (req) => {
                    },
                    android: {
                      priority: "HIGH",
-                     ttl: "60s"
+                     ttl: "60s",
+                     collapse_key: `ride_${orderId}_${driverId}`
                    }
                  }
                };
