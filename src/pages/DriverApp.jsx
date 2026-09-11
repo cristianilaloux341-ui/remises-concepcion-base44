@@ -1596,14 +1596,11 @@ export default function DriverApp() {
         ).catch(()=>{});
       }
     }
-    
-    // Apagar sonido nativo en Android (rejectRide también lo hace, pero por las dudas)
-    base44.functions.invoke("sendPushNotification", {
-      action: "cancel_ride",
-      orderId: offeredOrder?.id,
-      driverId: myDriverId
-    }).catch(console.error);
 
+    // rejectRide es la única autoridad de cierre de la oferta: además de reasignar,
+    // envía la cancelación con el assignmentAttempt exacto del intento rechazado.
+    // No mandar una segunda cancelación desde la UI porque para entonces el viaje
+    // puede estar ya en el intento siguiente.
     window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
   };
   // Cargar config de minutos de bloqueo post-viaje
