@@ -434,7 +434,10 @@ Deno.serve(async (req) => {
       }
 
       const currentOrder = await base44.asServiceRole.entities.RideOrder.get(orderId).catch(() => null);
-      const currentAttempt = currentOrder ? (currentOrder.assignment_attempt || 1) : 1;
+      // En rechazo/timeout el RideOrder puede haber avanzado YA al intento siguiente.
+      // La cancelación debe apuntar al intento que tenía el teléfono anterior,
+      // no al assignment_attempt actual del pasaje.
+      const currentAttempt = Number(orderData?.assignmentAttempt ?? currentOrder?.assignment_attempt ?? 1);
       
       for (const dId of listToCancel) {
         const drivers = await base44.asServiceRole.entities.Driver.filter({ id: dId });
