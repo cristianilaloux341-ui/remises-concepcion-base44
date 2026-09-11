@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
           await b44.entities.Driver.updateMany({id:candidate.id,reserved_order_id:order.id,reservation_token:token},{ $set:{dispatch_status:'normal',reserved_order_id:null,reservation_token:null} }).catch(()=>{});
           return Response.json({ok:true,skipped:true,reason:'order_changed_during_candidate_reservation'});
         }
-        await b44.functions.invoke('sendPushNotification',{action:'send',driverId:candidate.id,orderId:order.id,orderData:{pickup_address:order.pickup_address,dropoff_address:order.dropoff_address,fare:order.fare,notes:order.notes,assignmentAttempt:newAttempt},internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')}).catch(e=>console.error('Push:',e));
+        await b44.functions.invoke('sendPushNotification',{action:'send',driverId:candidate.id,orderId:order.id,orderData:{pickup_address:order.pickup_address,dropoff_address:order.dropoff_address,fare:order.fare,notes:order.notes,assignmentAttempt:newAttempt,responseTimeoutSeconds:fullTimeout},internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')}).catch(e=>console.error('Push:',e));
         b44.functions.invoke('autoReassignOnTimeout',{orderId,driverId:candidate.id,timeoutSeconds:fullTimeout,assignmentAttempt:newAttempt,internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')}).catch(e=>console.error('AutoReassign:',e));
         return Response.json({ok:true,reassigned_to:candidate.name});
       }
