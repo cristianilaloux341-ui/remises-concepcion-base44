@@ -666,7 +666,6 @@ Deno.serve(async (req) => {
                      body: String(bodyStr),
                      sentAt: Date.now().toString(),
                      assignmentAttempt: orderData?.assignmentAttempt?.toString() || "1",
-                     responseTimeoutSeconds: String(orderData?.responseTimeoutSeconds || 30),
                      orderNotes: String(orderData?.notes || "")
                    },
                    android: {
