@@ -94,7 +94,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
 
     const allLocalNorms = new Set([...clientResults, ...historyResults, ...osmResults].map(r => normalize(r.full_address)));
     
-    const googleItems = predictions
+    const geoapifyItems = predictions
       .filter(p => !allLocalNorms.has(normalize(p.description)))
       .slice(0, 4)
       .map((p) => ({
@@ -105,7 +105,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
         usage_count: 0,
       }));
 
-    return [...clientResults, ...historyResults, ...osmResults, ...googleItems];
+    return [...clientResults, ...historyResults, ...osmResults, ...geoapifyItems];
   }, [inputValue, clientAddresses, osmAndHistory, predictions]);
 
   const handleChange = (e) => {
