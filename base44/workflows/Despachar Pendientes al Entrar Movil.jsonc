@@ -2,7 +2,7 @@
   "name": "Despachar Pendientes al Entrar Movil",
   "description": "Cuando un m\u00f3vil disponible entra o cambia de base, intenta despachar autom\u00e1ticamente el pendiente m\u00e1s antiguo de esa misma zona respetando la cola.",
   "trigger": {
-    "condition": "${ (.trigger.changed_fields | index(\"current_base\") != null) }",
+    "condition": "${ (.trigger.changed_fields | index(\"queue_entered_at\") != null) }",
     "config": {
       "trigger_type": "entity",
       "events": [
