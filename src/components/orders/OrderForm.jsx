@@ -195,22 +195,29 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       setDetectingZone(true);
       let zone = null;
       
-      // 1. MEMORIA PRIMERO: si esta calle/altura ya fue aprendida, resolver la zona
-      // sin geocodificar ni volver a consultar polígonos.
-      zone = await detectZoneFromAddress(form.pickup_address);
+      // Si la sugerencia trae coordenadas exactas (Geoapify/OSM), el polígono manda.
+      // Esto evita que una memoria vieja de calle completa asigne una zona incorrecta
+      // cuando esa misma calle atraviesa más de una zona.
+      const selectedCoords = (form.pickup_lat && form.pickup_lng)
+        ? { lat: form.pickup_lat, lng: form.pickup_lng }
+        : null;
 
-      // 2. Solo si la dirección todavía no fue aprendida, usar coordenadas/geofencing.
-      if (!zone) {
-        const coords = (form.pickup_lat && form.pickup_lng)
-          ? { lat: form.pickup_lat, lng: form.pickup_lng }
-          : await geocodeAddress(form.pickup_address);
+      if (selectedCoords) {
+        zone = await detectZoneFromCoords(selectedCoords.lat, selectedCoords.lng);
+      }
 
+      // Sin coordenadas seleccionadas, usar primero la memoria local para no hacer
+      // consultas externas innecesarias en direcciones ya conocidas.
+      if (!zone && !selectedCoords) {
+        zone = await detectZoneFromAddress(form.pickup_address);
+      }
+
+      // Último recurso: geocodificar el texto y resolver por el polígono real.
+      if (!zone && !selectedCoords) {
+        const coords = await geocodeAddress(form.pickup_address);
         if (coords) {
           zone = await detectZoneFromCoords(coords.lat, coords.lng);
-          // Guardar las coordenadas geocodificadas si no las teníamos.
-          if (!form.pickup_lat || !form.pickup_lng) {
-            setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
-          }
+          setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
         }
       }
 
