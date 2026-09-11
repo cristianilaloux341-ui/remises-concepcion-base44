@@ -478,7 +478,10 @@ Deno.serve(async (req) => {
                    token: driver.fcm_token,
                    data: {
                      type: "cancelar",
-                     orderId: String(orderId) + "_att_" + currentAttempt,
+                     // Mantener el ID real del viaje. El intento viaja separado.
+                     // Así la APK actual crea y cancela EXACTAMENTE la misma alerta
+                     // sin depender de sufijos _att_N para apagar sonido/burbuja.
+                     orderId: String(orderId),
                      assignmentAttempt: String(currentAttempt),
                      sentAt: Date.now().toString()
                    },
@@ -499,34 +502,12 @@ Deno.serve(async (req) => {
              } else {
                console.log("FCM Cancel Success sent to", driver.id);
 
-               // La APK actual corta el aviso nativo con type=cancelar, pero ese camino
-               // retorna antes de pasar el mensaje a Capacitor. Enviamos además un segundo
-               // push de sincronización (tipo desconocido para Android nativo) para que
-               // llegue a la capa React existente, fuerce radiocab_reconnect y desaparezcan
-               // la plantilla/burbuja sin recompilar la APK.
-               const syncRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-                 method: 'POST',
-                 headers: { 'Authorization': `Bearer ${cachedAccessToken}`, 'Content-Type': 'application/json' },
-                 body: JSON.stringify({
-                   message: {
-                     token: driver.fcm_token,
-                     data: {
-                       type: "sync_after_cancel",
-                       orderId: String(orderId),
-                       assignmentAttempt: String(currentAttempt),
-                       sentAt: Date.now().toString()
-                     },
-                     android: { priority: "HIGH", ttl: "30s" }
-                   }
-                 })
-               }).catch(() => null);
-
                await base44.asServiceRole.entities.AuditLog.create({
                  action: "cancel_push_enviado",
                  user_type: "sistema",
                  user_name: "Sistema",
                  details: `FCM de cierre enviado a ${driver.name || driver.id}`,
-                 metadata: { orderId, driverId: driver.id, assignmentAttempt: currentAttempt, syncSent: !!syncRes?.ok }
+                 metadata: { orderId, driverId: driver.id, assignmentAttempt: currentAttempt, orderIdFormat: "base" }
                }).catch(() => {});
              }
            } catch(e) {
@@ -696,7 +677,9 @@ Deno.serve(async (req) => {
                    token: driver.fcm_token,
                    data: {
                      type: "ofrecido",
-                     orderId: String(orderId) + "_att_" + (orderData?.assignmentAttempt || "1"),
+                     // El ID del viaje se mantiene estable. assignmentAttempt lleva
+                     // la versión de la oferta por separado y ya es leída por las APK.
+                     orderId: String(orderId),
                      driverId: String(driverId),
                      driverName: String(driver.name || ""),
                      base: String(driver.current_base || ""),
