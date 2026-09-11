@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
 
     if (currentDriver) {
       await b44.entities.Driver.updateMany({id:currentDriver.id,reserved_order_id:order.id,reservation_token:order.reservation_token},{ $set:{status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_order_id:null,active_ride_id:null,reservation_token:null,manual_reservation_token:null,driver_reservation_key:null,queue_entered_at:new Date().toISOString()} }).catch(()=>{});
-      b44.functions.invoke('sendPushNotification',{action:'cancel_multiple',orderId:order.id,driversToCancel:[currentDriver.id],internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')}).catch(e=>console.error('Cancel push:',e));
+      b44.functions.invoke('sendPushNotification',{action:'cancel_multiple',orderId:order.id,driversToCancel:[currentDriver.id],orderData:{assignmentAttempt},internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')}).catch(e=>console.error('Cancel push:',e));
     }
 
     const {findNextDriverInZone}=await import('../../shared/driverSelection.ts');
