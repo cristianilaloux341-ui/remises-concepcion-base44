@@ -1,6 +1,5 @@
 {
   "name": "Deep Dispatch Reconciler",
-  "description": "",
   "trigger": {
     "condition": "${ (.trigger.changed_fields | index(\"queue_entered_at\") != null) }",
     "config": {
@@ -31,7 +30,8 @@
       }
     ]
   },
+  "description": "",
   "x-base44-migrated-from-automation": {
-    "legacy_payload_function": "dispatchPendingOnDriverQueueEntry"
+    "legacy_payload_function": "dispatchReconciler"
   }
 }
