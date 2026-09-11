@@ -1,4 +1,4 @@
-export async function findNextDriverInZone(b44: any, order: any, excludeDriverId: string | null) {
+export async function findNextDriverInZone(b44: any, order: any, excludeDriverId: string | Set<string> | null) {
   const targetZone = order.zone;
   if (!targetZone) return null;
 
@@ -56,7 +56,9 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const offeredDriverIds = order.offered_driver_ids || [];
   
   const available = zoneDrivers.filter((d: any) => {
-    const isExcluded = excludeDriverId && d.id === excludeDriverId;
+    const isExcluded = excludeDriverId instanceof Set
+      ? excludeDriverId.has(d.id)
+      : Boolean(excludeDriverId && d.id === excludeDriverId);
     const isAlreadyOffered = offeredDriverIds.includes(d.id);
     return isDriverWorking(d) && 
            !d.active_order_id && 
