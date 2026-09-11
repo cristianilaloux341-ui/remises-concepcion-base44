@@ -130,19 +130,23 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
   const { data: moviles = [] } = useQuery({
     queryKey: ["moviles_order_form", availableDriverIds.join(","), availableDriverMobileIds.join(","), availableDriverMobileNumbers.join(",")],
-    queryFn: () => {
+    queryFn: async () => {
       const clauses = [];
-      if (availableDriverMobileIds.length) clauses.push({ id: { $in: availableDriverMobileIds } });
       if (availableDriverMobileNumbers.length) clauses.push({ numero_movil: { $in: availableDriverMobileNumbers } });
       if (availableDriverIds.length) {
         clauses.push({ driver_id: { $in: availableDriverIds } });
         clauses.push({ driver_ids: { $in: availableDriverIds } });
       }
-      return clauses.length ? base44.entities.Movil.filter({ $or: clauses }) : Promise.resolve([]);
+      const [byId, fallback] = await Promise.all([
+        Promise.all(availableDriverMobileIds.map(id => base44.entities.Movil.get(id).catch(() => null))),
+        clauses.length ? base44.entities.Movil.filter({ $or: clauses }).catch(() => []) : Promise.resolve([])
+      ]);
+      return [...byId.filter(Boolean), ...fallback]
+        .filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i);
     },
     enabled: drivers.length > 0,
-    staleTime: 60_000,
-    refetchInterval: 60_000,
+    staleTime: 10_000,
+    refetchInterval: 10_000,
     refetchOnWindowFocus: true,
   });
 
