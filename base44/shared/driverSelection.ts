@@ -24,9 +24,15 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   }
   if (plates.length) movilOr.push({ dominio: { $in: plates } });
 
-  const allMoviles = movilOr.length
-    ? await b44.entities.Movil.filter({ $or: movilOr })
-    : [];
+  // Base44 no resuelve de forma fiable `id: { $in: [...] }` sobre el ID nativo.
+  // `vehicle_model` ya guarda ese ID: resolver esos móviles por get() en paralelo
+  // y conservar el filter sólo como fallback para vínculos/numero/patente.
+  const [movilesById, movilesByFallback] = await Promise.all([
+    Promise.all(mobileIds.map((id: string) => b44.entities.Movil.get(id).catch(() => null))),
+    movilOr.length ? b44.entities.Movil.filter({ $or: movilOr }).catch(() => []) : Promise.resolve([])
+  ]);
+  const allMoviles = [...movilesById.filter(Boolean), ...movilesByFallback]
+    .filter((m: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === m.id) === i);
 
   const isDriverWorking = (d: any) => {
     if (d.status !== 'disponible' || !d.current_base) return false;
