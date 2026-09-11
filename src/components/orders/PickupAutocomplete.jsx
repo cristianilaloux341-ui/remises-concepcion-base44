@@ -101,7 +101,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
         id: p.place_id,
         full_address: p.description,
         place_id: p.place_id,
-        type: "google",
+        type: "geoapify",
         usage_count: 0,
       }));
 
@@ -121,8 +121,8 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
 
     let coords = s.lat && s.lng ? { lat: s.lat, lng: s.lng } : null;
 
-    // Para resultados de Google, obtener coords exactas desde Place Details
-    if (s.type === "google" && s.place_id) {
+    // Para resultados externos de Geoapify, recuperar las coordenadas exactas.
+    if (s.type === "geoapify" && s.place_id) {
       try {
         const details = await getPlaceDetails(s.place_id);
         if (details?.lat && details?.lng) {
@@ -171,7 +171,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelect(s)}
             >
-              {s.type === "google" || s.type === "osm"
+              {s.type === "geoapify" || s.type === "osm"
                 ? <Globe className={cn("w-4 h-4 shrink-0", s.type === "osm" ? "text-green-500" : "text-blue-400")} />
                 : <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
               }
@@ -191,13 +191,13 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
                   </p>
                 )}
               </div>
-              {s.type === "google" && (
-                <span className="text-xs text-blue-400 shrink-0">Google</span>
+              {s.type === "geoapify" && (
+                <span className="text-xs text-blue-400 shrink-0">Geoapify</span>
               )}
               {s.type === "osm" && (
                 <span className="text-xs text-green-600 font-medium shrink-0">OSM</span>
               )}
-              {s.type !== "google" && s.type !== "osm" && (s.usage_count || 0) > 1 && (!restrictToClient || s.type === "client") && (
+              {s.type !== "geoapify" && s.type !== "osm" && (s.usage_count || 0) > 1 && (!restrictToClient || s.type === "client") && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                   <Clock className="w-3 h-3" />
                   {s.usage_count}x
