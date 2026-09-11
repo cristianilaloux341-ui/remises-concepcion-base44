@@ -25,10 +25,12 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'MISSING_DRIVER_ID' });
     }
 
-    // En el workflow solo consideramos una entrada/cambio REAL de base. Cambios
-    // de estado, heartbeat, rechazo o reserva no deben volver a disparar Pendientes.
-    if (eventData && oldData && eventData.current_base === oldData.current_base) {
-      return Response.json({ success: true, skipped: true, reason: 'BASE_DID_NOT_CHANGE' });
+    // La entrada REAL a la lista se identifica por queue_entered_at. El móvil puede
+    // volver a entrar en la misma base que ya tenía guardada, por lo que mirar solo
+    // current_base deja pasar exactamente ese caso sin disparar Pendientes.
+    // Heartbeats y otros cambios no modifican queue_entered_at.
+    if (eventData && oldData && eventData.queue_entered_at === oldData.queue_entered_at) {
+      return Response.json({ success: true, skipped: true, reason: 'QUEUE_ENTRY_DID_NOT_CHANGE' });
     }
 
     const triggerDriver = await b44.entities.Driver.get(driverId).catch(() => null);
