@@ -38,51 +38,56 @@ Deno.serve(async (req) => {
        }
     }
 
-    // ── 1. Autocomplete (Google Places API) ────────────────────────────────
+    // ── 1. Autocomplete (Geoapify) ─────────────────────────────────────────
     if (action === "autocomplete") {
       const { input } = body;
-      if (!input || input.length < 2) return Response.json({ predictions: [] });
+      if (!input || input.length < 3) return Response.json({ predictions: [] });
 
-      // Google Places: enviar exactamente lo que escribe el operador.
-      // La ubicación/radio sesgan los resultados hacia Concepción del Uruguay sin deformar la consulta.
-      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&key=${GOOGLE_API_KEY}&language=es&components=country:ar&location=-32.4853,-58.2375&radius=15000`;
-      const r = await fetch(url);
-      const data = await r.json();
-
-      if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-        console.error("Google Places autocomplete error:", data.status, data.error_message);
-        return Response.json({ error: data.status, message: data.error_message }, { status: 400 });
+      const GEOAPIFY_API_KEY = Deno.env.get("GEOAPIFY_API_KEY");
+      if (!GEOAPIFY_API_KEY) {
+        return Response.json({ error: "GEOAPIFY_API_KEY no configurada" }, { status: 500 });
       }
 
-      const predictions = (data.predictions || []).map((p) => ({
-        place_id: p.place_id,
-        description: p.description,
-        structured_formatting: p.structured_formatting,
+      const filter = "circle:-58.2375,-32.4853,15000";
+      const bias = "proximity:-58.2375,-32.4853";
+      const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(input)}&format=json&lang=es&filter=${encodeURIComponent(filter)}&bias=${encodeURIComponent(bias)}&limit=8&apiKey=${GEOAPIFY_API_KEY}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) {
+        console.error("Geoapify autocomplete HTTP:", r.status);
+        return Response.json({ error: "Geoapify autocomplete no disponible" }, { status: 502 });
+      }
+      const data = await r.json();
+
+      const predictions = (data.results || []).map((p, i) => ({
+        place_id: `geoapify_${p.lat}_${p.lon}_${i}`,
+        description: p.formatted || [p.address_line1, p.address_line2].filter(Boolean).join(", "),
+        structured_formatting: {
+          main_text: p.address_line1 || p.street || p.formatted || "",
+          secondary_text: p.address_line2 || "",
+        },
+        _lat: p.lat,
+        _lng: p.lon,
       }));
 
       return Response.json({ predictions });
     }
 
-    // ── 2. Place Details → lat/lng (Google Place Details API) ──────────────
+    // ── 2. Place Details → lat/lng ─────────────────────────────────────────
     if (action === "placedetails") {
       const { place_id, description } = body;
       if (!place_id) return Response.json({ error: "place_id required" }, { status: 400 });
 
-      // Compatibilidad con place_ids legacy de OSM
-      if (place_id.startsWith("photon_") || place_id.startsWith("osm_")) {
-        const parts = place_id.replace("photon_", "").replace("osm_", "").split("_");
+      if (place_id.startsWith("geoapify_") || place_id.startsWith("photon_") || place_id.startsWith("osm_")) {
+        const parts = place_id.replace("geoapify_", "").replace("photon_", "").replace("osm_", "").split("_");
         return Response.json({ lat: parseFloat(parts[0]), lng: parseFloat(parts[1]), formatted_address: description || "" });
       }
 
       const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place_id}&fields=geometry,formatted_address&key=${GOOGLE_API_KEY}&language=es`;
       const r = await fetch(url);
       const data = await r.json();
-
       if (data.status !== "OK") {
-        console.error("Google Place Details error:", data.status, data.error_message);
         return Response.json({ error: data.status, message: data.error_message }, { status: 400 });
       }
-
       const loc = data.result.geometry.location;
       return Response.json({ lat: loc.lat, lng: loc.lng, formatted_address: data.result.formatted_address });
     }
