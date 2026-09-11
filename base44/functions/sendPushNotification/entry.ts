@@ -256,17 +256,13 @@ Deno.serve(async (req) => {
       ? (body.old_data.driver_id || body.old_data.reserved_driver_id || body.old_data.preassigned_driver_id)
       : null;
 
+    // Las ofertas `ofrecido` se envían exclusivamente por el camino directo del
+    // despacho (DispatchLogic / rechazo / timeout). Si la automatización también
+    // las enviara, el mismo assignment_attempt podría generar dos FCM y dos avisos
+    // en el teléfono. La automatización se conserva para aceptación, cancelación,
+    // vuelta a pendiente y las protecciones de compatibilidad de APK viejos.
     if (body.data.status === "ofrecido" && targetDriverId && isStatusChanged) {
-      body.action = "send";
-      body.driverId = targetDriverId;
-      body.orderId = body.data.id;
-      body.orderData = {
-        pickup_address: body.data.pickup_address,
-        dropoff_address: body.data.dropoff_address,
-        fare: body.data.fare,
-        notes: body.data.notes,
-        assignmentAttempt: body.data.assignment_attempt || 1
-      };
+      return Response.json({ ok: true, reason: 'offer_push_handled_by_direct_dispatch' });
     } else if (isStatusChanged && (body.data.status === "aceptado" || body.data.status === "cancelado" || body.data.status === "pendiente")) {
       body.action = "cancel_multiple";
       body.orderId = body.data.id;
