@@ -35,7 +35,7 @@ public class RideAlertController {
         return instance;
     }
 
-    public synchronized void startAlert(final Context context, final String orderId, String title, String body, Intent acceptIntent, Intent rejectIntent, final Intent openAppIntent) {
+    public synchronized void startAlert(final Context context, final String orderId, String title, String body, Intent acceptIntent, Intent rejectIntent, final Intent openAppIntent, final long alertTimeoutMs) {
         currentAlertInstanceId = java.util.UUID.randomUUID().toString();
         Log.e(TAG, "==== START ALERT INVOCADO ====\n" +
                 "Instancia: " + currentAlertInstanceId + "\n" +
@@ -97,6 +97,7 @@ public class RideAlertController {
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setOngoing(true)
                 .setAutoCancel(false)
+                .setTimeoutAfter(Math.max(1000L, alertTimeoutMs))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setContentIntent(openAppPendingIntent)
                 .setFullScreenIntent(openAppPendingIntent, true)
@@ -137,7 +138,7 @@ public class RideAlertController {
                 stopAlert(context, orderId, "Vencimiento");
             }
         };
-        timeoutHandler.postDelayed(timeoutRunnable, 60000);
+        timeoutHandler.postDelayed(timeoutRunnable, Math.max(1000L, alertTimeoutMs));
     }
 
     private String currentAlertInstanceId;
