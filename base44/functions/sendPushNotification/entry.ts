@@ -498,12 +498,35 @@ Deno.serve(async (req) => {
                }
              } else {
                console.log("FCM Cancel Success sent to", driver.id);
+
+               // La APK actual corta el aviso nativo con type=cancelar, pero ese camino
+               // retorna antes de pasar el mensaje a Capacitor. Enviamos además un segundo
+               // push de sincronización (tipo desconocido para Android nativo) para que
+               // llegue a la capa React existente, fuerce radiocab_reconnect y desaparezcan
+               // la plantilla/burbuja sin recompilar la APK.
+               const syncRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+                 method: 'POST',
+                 headers: { 'Authorization': `Bearer ${cachedAccessToken}`, 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+                   message: {
+                     token: driver.fcm_token,
+                     data: {
+                       type: "sync_after_cancel",
+                       orderId: String(orderId),
+                       assignmentAttempt: String(currentAttempt),
+                       sentAt: Date.now().toString()
+                     },
+                     android: { priority: "HIGH", ttl: "30s" }
+                   }
+                 })
+               }).catch(() => null);
+
                await base44.asServiceRole.entities.AuditLog.create({
                  action: "cancel_push_enviado",
                  user_type: "sistema",
                  user_name: "Sistema",
                  details: `FCM de cierre enviado a ${driver.name || driver.id}`,
-                 metadata: { orderId, driverId: driver.id, assignmentAttempt: currentAttempt }
+                 metadata: { orderId, driverId: driver.id, assignmentAttempt: currentAttempt, syncSent: !!syncRes?.ok }
                }).catch(() => {});
              }
            } catch(e) {
