@@ -1,7 +1,7 @@
 {
   "name": "Deep Dispatch Reconciler",
   "trigger": {
-    "condition": "${ (.trigger.changed_fields | index(\"queue_entered_at\") != null) }",
+    "condition": "${ ((.trigger.changed_fields | index(\"queue_entered_at\") != null) or (.trigger.changed_fields | index(\"dispatch_status\") != null) or (.trigger.changed_fields | index(\"reserved_order_id\") != null) or (.trigger.changed_fields | index(\"reservation_token\") != null) or (.trigger.changed_fields | index(\"active_order_id\") != null) or (.trigger.changed_fields | index(\"active_ride_id\") != null) or (.trigger.changed_fields | index(\"status\") != null) or (.trigger.changed_fields | index(\"current_base\") != null)) }",
     "config": {
       "trigger_type": "entity",
       "events": [
