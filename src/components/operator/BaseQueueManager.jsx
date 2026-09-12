@@ -65,23 +65,56 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
 
   const moveMutation = useMutation({
     mutationFn: async ({ driverId, newPosition }) => {
-      // Recalculate queue_entered_at to reflect new position
-      const currentQueue = [...queue];
+      // Nunca reordenar usando la copia local del modal: con dos PCs puede estar
+      // atrasada y una operación válida terminar reescribiendo una cola vieja.
+      // Traer la cola fresca del servidor justo antes de mover.
+      const freshDrivers = await base44.entities.Driver.filter({
+        current_base: baseName,
+        status: "disponible"
+      });
+      const currentQueue = getBaseQueue(freshDrivers, baseName);
       const idx = currentQueue.findIndex(d => d.id === driverId);
-      if (idx === -1) return;
-      
-      const [driverToMove] = currentQueue.splice(idx, 1);
-      currentQueue.splice(newPosition, 0, driverToMove);
+      if (idx === -1) throw new Error("El móvil ya no está en esa cola.");
 
-      // Reassign timestamps to maintain order
-      const baseTime = new Date();
-      await Promise.all(
-        currentQueue.map((d, i) =>
-          base44.entities.Driver.update(d.id, {
-            queue_entered_at: new Date(baseTime.getTime() + i * 1000).toISOString(),
-          })
-        )
-      );
+      const driverToMove = currentQueue[idx];
+      if (driverToMove.dispatch_status !== "normal" || driverToMove.reserved_order_id || driverToMove.active_order_id || driverToMove.active_ride_id) {
+        throw new Error("El móvil tiene una reserva/viaje y no puede reordenarse ahora.");
+      }
+
+      currentQueue.splice(idx, 1);
+      const boundedPosition = Math.max(0, Math.min(newPosition, currentQueue.length));
+      currentQueue.splice(boundedPosition, 0, driverToMove);
+
+      // Conservar los timestamps que YA tenía la cola, solo reasignándolos según
+      // el nuevo orden. Así no se manda toda la base al final ni se pierde antigüedad.
+      const timestampSlots = currentQueue
+        .map(d => d.queue_entered_at)
+        .filter(Boolean)
+        .map(v => new Date(v).getTime())
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
+      const fallbackStart = Date.now() - currentQueue.length * 1000;
+
+      await Promise.all(currentQueue.map((d, i) => {
+        const nextTs = new Date(timestampSlots[i] ?? (fallbackStart + i * 1000)).toISOString();
+        return base44.entities.Driver.updateMany(
+          {
+            id: d.id,
+            current_base: baseName,
+            status: "disponible",
+            queue_entered_at: d.queue_entered_at ?? null
+          },
+          { $set: { queue_entered_at: nextTs } }
+        );
+      }));
+
+      await base44.entities.AuditLog.create({
+        action: "QUEUE_MANUAL_REORDER",
+        user_type: "operador",
+        user_name: "Central",
+        details: `Reordenó móvil ${driverToMove.name || driverId} en ${baseName}`,
+        metadata: { driverId, baseName, from: idx + 1, to: boundedPosition + 1 }
+      }).catch(() => {});
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["drivers"] }),
   });
@@ -306,10 +339,10 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       return;
     }
 
-    // Nunca completar automáticamente un viaje por escribir móvil.base o móvil.0.
-    // Si hay un viaje activo, bloquear la orden para no hacer desaparecer el pasaje.
-    if (["en_viaje", "aceptado", "en_camino"].includes(driver.status) || driver.active_order_id || driver.active_ride_id) {
-      alert(`El móvil ${movilNum} tiene un viaje activo. Finalizalo antes de cambiarlo de base o sacarlo de servicio.`);
+    // Nunca completar ni borrar una reserva por escribir móvil.base o móvil.0.
+    // También bloquear una oferta pendiente de respuesta, no solo un viaje aceptado.
+    if (["en_viaje", "aceptado", "en_camino"].includes(driver.status) || driver.active_order_id || driver.active_ride_id || driver.reserved_order_id || driver.dispatch_status === "automatic_pending" || driver.dispatch_status === "manual_pending") {
+      alert(`El móvil ${movilNum} tiene un viaje u oferta activa. Esperá a que termine antes de cambiarlo de base o sacarlo de servicio.`);
       setIsProcessing(false);
       return;
     }
@@ -344,8 +377,17 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     }
 
     try {
-      // Como drivers no está actualizado con el driver nuevo si recién se creó, la cola se calcula normal
-      const queue = getBaseQueue(drivers, baseName);
+      // Repetir "98.2" cuando el 98 YA está libre en Plaza no significa volver a
+      // entrar a la cola. Antes lo mandaba al final silenciosamente. Ahora es idempotente.
+      if (driver.current_base === baseName && driver.status === "disponible" && driver.dispatch_status === "normal" && !driver.reserved_order_id && !driver.active_order_id && !driver.active_ride_id) {
+        window.dispatchEvent(new Event("force-driver-refresh"));
+        setIsProcessing(false);
+        return;
+      }
+
+      // Como drivers puede estar atrasado en otra PC, contar sobre datos frescos.
+      const freshBaseDrivers = await base44.entities.Driver.filter({ current_base: baseName, status: "disponible" });
+      const queue = getBaseQueue(freshBaseDrivers, baseName);
       await base44.entities.Driver.update(driver.id, {
         current_base: baseName,
         status: "disponible",
