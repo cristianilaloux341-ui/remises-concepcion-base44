@@ -117,7 +117,74 @@ Deno.serve(async (req) => {
           internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
         });
         const timeoutData = timeoutRes?.data || timeoutRes;
-        if (timeoutData?.success) count++;
+        if (timeoutData?.success) {
+          count++;
+        } else if (timeoutData?.reason === 'STALE_OR_EXPIRED') {
+          // Failsafe para oferta huérfana vencida: puede ocurrir que el Driver ya
+          // haya perdido su reserved_order_id/token y haya vuelto a normal, mientras
+          // el RideOrder todavía conserva la oferta. rejectRide, correctamente,
+          // no puede liberar un Driver que ya no posee esa reserva; pero en ese caso
+          // sí debemos cerrar la oferta huérfana de forma CAS y devolverla a pendiente.
+          const orphanOrder = await b44.entities.RideOrder.get(freshOrder.id).catch(() => null);
+          const orphanDriver = await b44.entities.Driver.get(driverToExpire).catch(() => null);
+          const stillExpired = orphanOrder?.offerExpiresAt != null && Number(orphanOrder.offerExpiresAt) <= Date.now();
+          const driverOwnsOffer = Boolean(
+            orphanDriver &&
+            orphanDriver.reserved_order_id === orphanOrder?.id &&
+            orphanDriver.reservation_token === orphanOrder?.reservation_token &&
+            orphanDriver.dispatch_status === 'automatic_pending'
+          );
+
+          if (
+            orphanOrder &&
+            orphanOrder.status === 'ofrecido' &&
+            orphanOrder.reserved_driver_id === driverToExpire &&
+            Number(orphanOrder.assignment_attempt) === Number(freshOrder.assignment_attempt) &&
+            stillExpired &&
+            !driverOwnsOffer &&
+            !(orphanOrder.processingOwnerId && Number(orphanOrder.processingLeaseExpiresAt || 0) > Date.now())
+          ) {
+            const orphanRes = await b44.entities.RideOrder.updateMany(
+              {
+                id: orphanOrder.id,
+                status: 'ofrecido',
+                reserved_driver_id: driverToExpire,
+                reservation_token: orphanOrder.reservation_token,
+                assignment_attempt: orphanOrder.assignment_attempt,
+                offerExpiresAt: orphanOrder.offerExpiresAt
+              },
+              {
+                $set: {
+                  status: 'pendiente',
+                  driver_id: null,
+                  driver_name: null,
+                  reserved_driver_id: null,
+                  reservation_token: null,
+                  manual_reservation_token: null,
+                  assigned_at: null,
+                  offerExpiresAt: null,
+                  assigned_base: null,
+                  processingAction: null,
+                  processingOperationKey: null,
+                  processingOwnerId: null,
+                  processingLeaseExpiresAt: null,
+                  processingPhase: null
+                }
+              }
+            ).catch(() => ({ matchedCount: 0, updated: 0 }));
+            const repaired = (orphanRes?.matchedCount ?? orphanRes?.modifiedCount ?? orphanRes?.updated ?? 0) === 1;
+            if (repaired) {
+              count++;
+              await b44.entities.AuditLog.create({
+                action: 'ORPHAN_EXPIRED_OFFER_RECOVERED',
+                user_type: 'sistema',
+                user_name: 'autoReassignCron',
+                details: `Oferta vencida huérfana ${orphanOrder.id} devuelta a pendiente`,
+                metadata: { orderId: orphanOrder.id, driverId: driverToExpire, assignmentAttempt: orphanOrder.assignment_attempt }
+              }).catch(() => {});
+            }
+          }
+        }
       } catch(e) {
         console.error("Error procesando oferta vencida por motor único", freshOrder.id, e);
       }
