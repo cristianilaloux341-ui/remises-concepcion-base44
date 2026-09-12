@@ -1738,6 +1738,33 @@ export default function DriverApp() {
   const handleStatusChange = (newStatus) => {
     updateOrder.mutate({ id: activeOrder.id, data: { status: newStatus } });
   };
+
+  // Cambios operativos (base / entrar-salir de servicio) jamás pueden borrar una
+  // reserva concurrente. El CAS exige que el móvil siga libre y sin vínculos justo
+  // en el instante de escribir; si entretanto recibió un pasaje, la operación falla.
+  const updateOperationalStateIfIdle = async (expectedStatus, data) => {
+    const res = await base44.entities.Driver.updateMany(
+      {
+        id: myDriverId,
+        status: expectedStatus,
+        dispatch_status: "normal",
+        reserved_order_id: null,
+        active_order_id: null,
+        active_ride_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
+      },
+      { $set: data }
+    );
+    const changed = res?.updated ?? res?.modifiedCount ?? res?.matchedCount ?? 0;
+    if (changed < 1) {
+      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+      throw new Error("DRIVER_BUSY_OR_STATE_CHANGED");
+    }
+    return res;
+  };
+
   const handleEnterBase = async (base = selectedBase) => {
     if (!base) return;
     const ts = new Date().toISOString();
