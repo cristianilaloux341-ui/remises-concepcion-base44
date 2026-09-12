@@ -145,7 +145,7 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
   // Auto-detect zone y calcular tarifa con debounce
   useEffect(() => {
     clearTimeout(debounceTimer.current);
-    if (!form.pickup_address || !form.dropoff_address) {
+    if (!form.pickup_address) {
       return;
     }
     
