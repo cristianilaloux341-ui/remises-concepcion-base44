@@ -1420,25 +1420,11 @@ export default function DriverApp() {
             checkedGhostRef.current = null;
          });
       } else if (!ghostOrderId) {
-         // Si solo tenia dispatch_status = 'automatic_pending'
-         const offeredLocal = safeOrders.find(o => 
-           (o.driver_id === myDriverId || o.reserved_driver_id === myDriverId) && 
-           o.status === "ofrecido"
-         );
-         if (!offeredLocal && !activeOrderLocal) {
-            updateDriver.mutate({
-              id: myDriverId,
-              data: {
-                status: "disponible",
-                dispatch_status: "normal",
-                reserved_order_id: null,
-                active_ride_id: null,
-                reservation_token: null,
-                manual_reservation_token: null,
-                driver_reservation_key: null
-              }
-            });
-         }
+         // No usar la caché local para decidir que una reserva desapareció.
+         // Puede faltar el RideOrder por atraso de realtime aunque la oferta siga
+         // viva en Central. El cron/reconciliador server-side valida ambas entidades
+         // y es quien libera un automatic_pending realmente huérfano.
+         window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       }
     } else {
       checkedGhostRef.current = null;
