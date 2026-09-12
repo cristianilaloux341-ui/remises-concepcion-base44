@@ -1,0 +1,33 @@
+{
+  "name": "Renew Offer Window On Push Ack",
+  "description": "Da al chofer la ventana completa de respuesta desde que su app confirma recepci\u00f3n del push.",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "create"
+      ],
+      "entity_name": "AuditLog"
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "renew_offer_window_on_push_ack",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "renewOfferWindowOnPushAck",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  }
+}
