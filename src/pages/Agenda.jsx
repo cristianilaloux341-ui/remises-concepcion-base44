@@ -398,7 +398,7 @@ export default function Agenda() {
 
   const { data: rides = [] } = useQuery({
     queryKey: ["scheduled"],
-    queryFn: () => base44.entities.ScheduledRide.list("-scheduled_datetime", 200),
+    queryFn: () => base44.entities.ScheduledRide.list("scheduled_datetime", 200),
     refetchInterval: 10000,
   });
 
