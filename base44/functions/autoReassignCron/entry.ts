@@ -175,6 +175,13 @@ Deno.serve(async (req) => {
             const repaired = (orphanRes?.matchedCount ?? orphanRes?.modifiedCount ?? orphanRes?.updated ?? 0) === 1;
             if (repaired) {
               count++;
+              await b44.functions.invoke('sendPushNotification', {
+                action: 'cancel_multiple',
+                orderId: orphanOrder.id,
+                driversToCancel: [driverToExpire],
+                orderData: { assignmentAttempt: Number(orphanOrder.assignment_attempt) },
+                internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+              }).catch(() => {});
               await b44.entities.AuditLog.create({
                 action: 'ORPHAN_EXPIRED_OFFER_RECOVERED',
                 user_type: 'sistema',
