@@ -140,7 +140,6 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
 
   const addMutation = useMutation({
     mutationFn: async (inputValue) => {
-      const existingCount = queue.length;
       const inputTrimmed = inputValue.trim();
       
       // Buscar si el chofer ya existe (por ID, modelo/número, o nombre)
@@ -170,11 +169,17 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
         throw new Error(`El móvil tiene un viaje activo. Finalizalo antes de ponerlo en ${baseName}.`);
       }
 
+      // Entrar a una base solo modifica al móvil que entra. La hora real de entrada
+      // garantiza FIFO; nunca se empuja la hora hacia el futuro según el tamaño de
+      // la cola, porque otro móvil que entre un instante después podría colarse delante.
+      if (driver.current_base === baseName && driver.status === "disponible" && driver.dispatch_status === "normal" && !driver.reserved_order_id && !driver.active_order_id && !driver.active_ride_id) {
+        return driver;
+      }
       return base44.entities.Driver.update(driver.id, {
         current_base: baseName,
         status: "disponible",
         dispatch_status: "normal",
-        queue_entered_at: new Date(Date.now() + existingCount * 1000).toISOString(),
+        queue_entered_at: new Date().toISOString(),
         active_order_id: null,
         active_ride_id: null,
         reserved_order_id: null,
@@ -385,14 +390,13 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
         return;
       }
 
-      // Como drivers puede estar atrasado en otra PC, contar sobre datos frescos.
-      const freshBaseDrivers = await base44.entities.Driver.filter({ current_base: baseName, status: "disponible" });
-      const queue = getBaseQueue(freshBaseDrivers, baseName);
+      // El nuevo móvil recibe su hora REAL de entrada. No se toca ni recalcula ningún
+      // queue_entered_at existente, por lo que entrar último no puede mover la lista.
       await base44.entities.Driver.update(driver.id, {
         current_base: baseName,
         status: "disponible",
         dispatch_status: "normal",
-        queue_entered_at: new Date(Date.now() + queue.length * 1000).toISOString(),
+        queue_entered_at: new Date().toISOString(),
         active_order_id: null,
         active_ride_id: null,
         reserved_order_id: null,
