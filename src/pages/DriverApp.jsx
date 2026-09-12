@@ -1589,11 +1589,11 @@ export default function DriverApp() {
         });
       } catch (e) {
         console.error("No se pudo invocar rejectRide", e);
-        // Fallback local en caso de error de red
-        base44.entities.Driver.updateMany(
-          { id: myDriverId, reservation_token: offeredOrder?.reservation_token, $or: [{ reserved_order_id: realId }, { active_order_id: realId }, { active_ride_id: realId }] },
-          { $set: { status: "disponible", dispatch_status: "normal", active_order_id: null, active_ride_id: null, reserved_order_id: null, reservation_token: null, queue_entered_at: new Date().toISOString() } }
-        ).catch(()=>{});
+        // IMPORTANTE: nunca liberar el Driver desde el teléfono si falla la red.
+        // El RideOrder puede seguir legítimamente en `ofrecido`; limpiar solo el
+        // Driver crea exactamente una oferta huérfana. El backend (rejectRide /
+        // timeout / reconciliador) es la única autoridad para cerrar la oferta.
+        checkedGhostRef.current = null;
       }
     }
 
