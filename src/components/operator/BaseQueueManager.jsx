@@ -83,30 +83,48 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
 
       currentQueue.splice(idx, 1);
       const boundedPosition = Math.max(0, Math.min(newPosition, currentQueue.length));
-      currentQueue.splice(boundedPosition, 0, driverToMove);
 
-      // Conservar los timestamps que YA tenía la cola, solo reasignándolos según
-      // el nuevo orden. Así no se manda toda la base al final ni se pierde antigüedad.
-      const timestampSlots = currentQueue
-        .map(d => d.queue_entered_at)
-        .filter(Boolean)
-        .map(v => new Date(v).getTime())
-        .filter(Number.isFinite)
-        .sort((a, b) => a - b);
-      const fallbackStart = Date.now() - currentQueue.length * 1000;
+      // MUY IMPORTANTE: un reordenamiento manual modifica SOLO al móvil movido.
+      // Nunca más reescribir la hora de toda la base. Calculamos una hora entre sus
+      // nuevos vecinos; con esto ningún móvil ajeno cambia de posición por efecto lateral.
+      const before = boundedPosition > 0 ? currentQueue[boundedPosition - 1] : null;
+      const after = boundedPosition < currentQueue.length ? currentQueue[boundedPosition] : null;
+      const beforeMs = before?.queue_entered_at ? new Date(before.queue_entered_at).getTime() : NaN;
+      const afterMs = after?.queue_entered_at ? new Date(after.queue_entered_at).getTime() : NaN;
+      let nextMs;
 
-      await Promise.all(currentQueue.map((d, i) => {
-        const nextTs = new Date(timestampSlots[i] ?? (fallbackStart + i * 1000)).toISOString();
-        return base44.entities.Driver.updateMany(
-          {
-            id: d.id,
-            current_base: baseName,
-            status: "disponible",
-            queue_entered_at: d.queue_entered_at ?? null
-          },
-          { $set: { queue_entered_at: nextTs } }
-        );
-      }));
+      if (before && after) {
+        if (!Number.isFinite(beforeMs) || !Number.isFinite(afterMs) || afterMs - beforeMs < 2) {
+          throw new Error("No hay espacio seguro entre esas posiciones. Cerrá y volvé a abrir la cola antes de reintentar.");
+        }
+        nextMs = Math.floor((beforeMs + afterMs) / 2);
+      } else if (!before && after) {
+        if (!Number.isFinite(afterMs)) throw new Error("La primera posición no tiene una hora válida.");
+        nextMs = afterMs - 1;
+      } else if (before && !after) {
+        if (!Number.isFinite(beforeMs)) throw new Error("La última posición no tiene una hora válida.");
+        nextMs = Math.max(Date.now(), beforeMs + 1);
+      } else {
+        nextMs = Date.now();
+      }
+
+      const moved = await base44.entities.Driver.updateMany(
+        {
+          id: driverToMove.id,
+          current_base: baseName,
+          status: "disponible",
+          dispatch_status: "normal",
+          reserved_order_id: null,
+          active_order_id: null,
+          active_ride_id: null,
+          queue_entered_at: driverToMove.queue_entered_at ?? null
+        },
+        { $set: { queue_entered_at: new Date(nextMs).toISOString() } }
+      );
+      const changed = moved?.updated ?? moved?.modifiedCount ?? moved?.matchedCount ?? 0;
+      if (changed < 1) {
+        throw new Error("La cola cambió en otra PC mientras la estabas moviendo. Se recargó sin modificarla.");
+      }
 
       await base44.entities.AuditLog.create({
         action: "QUEUE_MANUAL_REORDER",
