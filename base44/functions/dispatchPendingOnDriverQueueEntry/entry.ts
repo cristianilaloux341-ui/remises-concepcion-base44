@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
     // Primero proteger la integridad Driver ↔ RideOrder. Este chequeo corre también
     // cuando queue_entered_at no cambió, porque una APK vieja puede borrar la reserva
     // desde un heartbeat GPS sin tocar la posición de cola.
-    const guardResult = await guardOfferedReservationIntegrity(b44, driverId);
+    await guardOfferedReservationIntegrity(b44, driverId);
 
     // La entrada REAL a la lista se identifica por queue_entered_at. El móvil puede
     // volver a entrar en la misma base que ya tenía guardada, por lo que mirar solo
