@@ -1769,20 +1769,17 @@ export default function DriverApp() {
     if (!base) return;
     const ts = new Date().toISOString();
     try {
-      await updateDriver.mutateAsync({
-        id: myDriverId,
-        data: {
-          current_base: base,
-          status: "disponible",
-          dispatch_status: "normal",
-          queue_entered_at: ts,
-          active_order_id: null,
-          active_ride_id: null,
-          reserved_order_id: null,
-          reservation_token: null,
-          manual_reservation_token: null,
-          driver_reservation_key: null
-        },
+      await updateOperationalStateIfIdle("disponible", {
+        current_base: base,
+        status: "disponible",
+        dispatch_status: "normal",
+        queue_entered_at: ts,
+        active_order_id: null,
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
       });
       setSelectedBase(base);
       setLocalOverride({ current_base: base, status: "disponible", queue_entered_at: ts });
@@ -1795,20 +1792,17 @@ export default function DriverApp() {
   const handleChangeBase = async (newBase) => {
     const ts = new Date().toISOString();
     try {
-      await updateDriver.mutateAsync({
-        id: myDriverId,
-        data: { 
-          current_base: newBase, 
-          status: "disponible", 
-          dispatch_status: "normal",
-          queue_entered_at: ts,
-          active_order_id: null,
-          active_ride_id: null,
-          reserved_order_id: null,
-          reservation_token: null,
-          manual_reservation_token: null,
-          driver_reservation_key: null
-        },
+      await updateOperationalStateIfIdle("disponible", { 
+        current_base: newBase, 
+        status: "disponible", 
+        dispatch_status: "normal",
+        queue_entered_at: ts,
+        active_order_id: null,
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
       });
       setLocalOverride({ current_base: newBase, status: "disponible", queue_entered_at: ts });
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
@@ -1859,19 +1853,16 @@ export default function DriverApp() {
   const handleGoOffService = async () => {
     if (libreBlockedSegs > 0) return; // bloqueado
     try {
-      await updateDriver.mutateAsync({
-        id: myDriverId,
-        data: {
-          status: "no_disponible",
-          dispatch_status: "normal",
-          current_base: null,
-          active_order_id: null,
-          active_ride_id: null,
-          reserved_order_id: null,
-          reservation_token: null,
-          manual_reservation_token: null,
-          driver_reservation_key: null
-        }
+      await updateOperationalStateIfIdle("disponible", {
+        status: "no_disponible",
+        dispatch_status: "normal",
+        current_base: null,
+        active_order_id: null,
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null
       });
       setLocalOverride({ status: "no_disponible", current_base: null });
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
@@ -1968,21 +1959,18 @@ export default function DriverApp() {
 
   const handleGoOnService = async () => {
     try {
-      await updateDriver.mutateAsync({
-        id: myDriverId,
-        data: {
-          status: "disponible",
-          dispatch_status: "normal",
-          current_base: null,
-          queue_entered_at: null,
-          active_order_id: null,
-          active_ride_id: null,
-          reserved_order_id: null,
-          reservation_token: null,
-          manual_reservation_token: null,
-          driver_reservation_key: null,
-          last_active: new Date().toISOString()
-        }
+      await updateOperationalStateIfIdle("no_disponible", {
+        status: "disponible",
+        dispatch_status: "normal",
+        current_base: null,
+        queue_entered_at: null,
+        active_order_id: null,
+        active_ride_id: null,
+        reserved_order_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null,
+        last_active: new Date().toISOString()
       });
       setLocalOverride({ status: "disponible", current_base: null });
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
