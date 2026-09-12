@@ -1759,6 +1759,11 @@ export default function DriverApp() {
 
   const handleEnterBase = async (base = selectedBase) => {
     if (!base) return;
+    // Si ya está libre en esa misma base, volver a tocar "entrar" no reingresa
+    // al móvil ni cambia su antigüedad.
+    if (myDriver?.current_base === base && myDriver?.status === "disponible" && myDriver?.dispatch_status === "normal" && !myDriver?.reserved_order_id && !myDriver?.active_order_id && !myDriver?.active_ride_id) {
+      return;
+    }
     const ts = new Date().toISOString();
     try {
       await updateOperationalStateIfIdle("disponible", {
@@ -1782,6 +1787,9 @@ export default function DriverApp() {
     }
   };
   const handleChangeBase = async (newBase) => {
+    if (myDriver?.current_base === newBase && myDriver?.status === "disponible" && myDriver?.dispatch_status === "normal" && !myDriver?.reserved_order_id && !myDriver?.active_order_id && !myDriver?.active_ride_id) {
+      return;
+    }
     const ts = new Date().toISOString();
     try {
       await updateOperationalStateIfIdle("disponible", { 
