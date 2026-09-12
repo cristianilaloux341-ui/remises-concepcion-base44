@@ -119,6 +119,85 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
     }
   }
 
+  // Case 4B: RideOrder ofrecido vencido cuyo Driver ya no posee la reserva.
+  // Esta es la imagen espejo del Case 4: evita que la orden quede eternamente
+  // "ofrecida" cuando el móvil ya volvió a normal o tomó otro estado legítimo.
+  for (const order of activeOrders.filter(o => o.status === 'ofrecido')) {
+    const expiresAt = Number(order.offerExpiresAt);
+    if (!Number.isFinite(expiresAt) || expiresAt > now) continue;
+    if (order.processingOwnerId && Number(order.processingLeaseExpiresAt || 0) > now) continue;
+
+    const reservedDriverId = order.reserved_driver_id || order.driver_id;
+    if (!reservedDriverId) continue;
+    const driver = drivers.find(d => d.id === reservedDriverId);
+    const driverOwnsOffer = Boolean(
+      driver &&
+      driver.dispatch_status === 'automatic_pending' &&
+      driver.reserved_order_id === order.id &&
+      driver.reservation_token === order.reservation_token
+    );
+    if (driverOwnsOffer) continue;
+
+    try {
+      const res = await b44.entities.RideOrder.updateMany(
+        {
+          id: order.id,
+          status: 'ofrecido',
+          reserved_driver_id: order.reserved_driver_id,
+          reservation_token: order.reservation_token,
+          assignment_attempt: order.assignment_attempt,
+          offerExpiresAt: order.offerExpiresAt
+        },
+        {
+          $set: {
+            status: 'pendiente',
+            driver_id: null,
+            driver_name: null,
+            reserved_driver_id: null,
+            reservation_token: null,
+            manual_reservation_token: null,
+            assigned_at: null,
+            offerExpiresAt: null,
+            assigned_base: null,
+            processingAction: null,
+            processingOperationKey: null,
+            processingOwnerId: null,
+            processingLeaseExpiresAt: null,
+            processingPhase: null
+          }
+        }
+      );
+      const matched = res.matchedCount ?? res.modifiedCount ?? res.updated ?? 0;
+      if (matched && b44.functions?.invoke) {
+        await b44.functions.invoke('sendPushNotification', {
+          action: 'cancel_multiple',
+          orderId: order.id,
+          driversToCancel: [reservedDriverId],
+          orderData: { assignmentAttempt: Number(order.assignment_attempt) },
+          internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch(() => {});
+      }
+      await pushResult({
+        status: matched ? 'repaired' : 'concurrent_change',
+        issueType: 'ORPHAN_EXPIRED_OFFER',
+        orderId: order.id,
+        driverIds: [reservedDriverId],
+        actions: matched ? ['Oferta vencida devuelta a pendiente'] : [],
+        correlationId,
+        matchedCount: matched
+      });
+    } catch (e) {
+      await pushResult({
+        status: 'persistence_error',
+        issueType: 'ORPHAN_EXPIRED_OFFER',
+        orderId: order.id,
+        driverIds: [reservedDriverId],
+        actions: [],
+        correlationId
+      });
+    }
+  }
+
   // Case 5: RideOrder aceptado con Base bloqueada
   for (const order of activeOrders.filter(o => o.status === 'aceptado')) {
     const base = activeBases.find(b => b.active_order_id === order.id);
