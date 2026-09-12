@@ -10,15 +10,37 @@ export function useRealtimeDrivers({ refreshIntervalMs = 10000 } = {}) {
   const unsubRef = useRef(null);
   const realtimeBufferRef = useRef(new Map());
   const flushTimeoutRef = useRef(null);
+  const fetchSeqRef = useRef(0);
+  const realtimeSeqRef = useRef(0);
 
   const fetchAll = useCallback(() => {
     if (!mountedRef.current) return;
+    const requestSeq = ++fetchSeqRef.current;
+    const realtimeSeqAtStart = realtimeSeqRef.current;
     console.log("[Realtime-Background] Ejecutando fetchAll() en Drivers...");
     return withRetry(() => base44.entities.Driver.list('-created_date', 500)).then((data) => {
-      if (mountedRef.current) {
+      if (mountedRef.current && requestSeq === fetchSeqRef.current) {
         const arr = Array.isArray(data) ? data : [];
         console.log(`[Realtime-Background] Fetch Drivers OK - ${arr.length} choferes`);
-        setDrivers(arr);
+
+        // Un fetch puede arrancar antes que un evento realtime y terminar después.
+        // No permitimos que una respuesta vieja haga retroceder queue_entered_at/base
+        // en pantalla. Si hubo realtime durante el fetch, se conserva por registro el
+        // estado con updated_date más nuevo.
+        if (realtimeSeqRef.current !== realtimeSeqAtStart) {
+          setDrivers(prev => {
+            const prevById = new Map((Array.isArray(prev) ? prev : []).map(d => [d.id, d]));
+            return arr.map(fresh => {
+              const current = prevById.get(fresh.id);
+              if (!current) return fresh;
+              const freshMs = new Date(fresh.updated_date || 0).getTime();
+              const currentMs = new Date(current.updated_date || 0).getTime();
+              return currentMs > freshMs ? current : fresh;
+            });
+          });
+        } else {
+          setDrivers(arr);
+        }
         setIsLoading(false);
         setErrorInfo(null);
       }
@@ -55,6 +77,7 @@ export function useRealtimeDrivers({ refreshIntervalMs = 10000 } = {}) {
     // el mismo segundo, conservar solo el último evento de ese móvil.
     unsubRef.current = base44.entities.Driver.subscribe((event) => {
       if (!mountedRef.current || !event.data) return;
+      realtimeSeqRef.current += 1;
       const eventId = event.data.id || event.id;
       if (!eventId) return;
       realtimeBufferRef.current.set(eventId, event);
