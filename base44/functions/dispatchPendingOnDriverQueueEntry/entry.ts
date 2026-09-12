@@ -4,6 +4,108 @@ import { findNextDriverInZone } from '../../shared/driverSelection.ts';
 const CENTRAL_REVIEW_MARKER = '[REVISION_CENTRAL_CANCELADO_CHOFER]';
 const PROTECTED_ACTIONS = new Set(['ACCEPT', 'START', 'FINISH']);
 
+// Defensa para APK instaladas que todavía contienen lógica vieja de limpieza local.
+// Si un Driver pierde su reserva mientras el RideOrder sigue `ofrecido`, restauramos
+// el vínculo desde la autoridad server-side. Si la oferta ya venció, la cerramos de
+// forma CAS. Así nunca queda el estado partido Driver libre / RideOrder ofrecido.
+async function guardOfferedReservationIntegrity(b44:any, driverId:string) {
+  const driver = await b44.entities.Driver.get(driverId).catch(() => null);
+  if (!driver) return { repaired:false, reason:'DRIVER_NOT_FOUND' };
+
+  const offers = await b44.entities.RideOrder.filter({
+    reserved_driver_id: driverId,
+    status: 'ofrecido'
+  }).catch(() => []);
+  if (!offers.length) return { repaired:false, reason:'NO_ACTIVE_OFFER' };
+
+  const exact = offers.find((o:any) =>
+    driver.dispatch_status === 'automatic_pending' &&
+    driver.reserved_order_id === o.id &&
+    driver.reservation_token === o.reservation_token
+  );
+  if (exact) return { repaired:false, reason:'ALREADY_CONSISTENT' };
+
+  const order = [...offers].sort((a:any,b:any) =>
+    new Date(b.assigned_at || b.updated_date || 0).getTime() - new Date(a.assigned_at || a.updated_date || 0).getTime()
+  )[0];
+  const now = Date.now();
+  const expiresAt = Number(order.offerExpiresAt);
+  const expired = Number.isFinite(expiresAt) && expiresAt <= now;
+  const driverBusyElsewhere =
+    driver.status === 'en_viaje' ||
+    Boolean(driver.active_order_id) ||
+    Boolean(driver.active_ride_id) ||
+    Boolean(driver.reserved_order_id && driver.reserved_order_id !== order.id);
+
+  if (expired || driverBusyElsewhere) {
+    const closed = await b44.entities.RideOrder.updateMany(
+      {
+        id: order.id,
+        status: 'ofrecido',
+        reserved_driver_id: driverId,
+        reservation_token: order.reservation_token,
+        assignment_attempt: order.assignment_attempt,
+        offerExpiresAt: order.offerExpiresAt
+      },
+      { $set: {
+        status:'pendiente', driver_id:null, driver_name:null, reserved_driver_id:null,
+        reservation_token:null, manual_reservation_token:null, assigned_at:null,
+        offerExpiresAt:null, assigned_base:null, processingOwnerId:null,
+        processingAction:null, processingOperationKey:null, processingLeaseExpiresAt:null,
+        processingPhase:null
+      } }
+    ).catch(() => ({ updated:0 }));
+    if ((closed.updated ?? closed.matchedCount ?? closed.modifiedCount ?? 0) === 1) {
+      await b44.functions.invoke('sendPushNotification', {
+        action:'cancel_multiple', orderId:order.id, driversToCancel:[driverId],
+        orderData:{ assignmentAttempt:Number(order.assignment_attempt) },
+        internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+      }).catch(() => {});
+      await b44.entities.AuditLog.create({
+        action:'ORPHAN_OFFER_CLOSED_BY_DRIVER_GUARD', user_type:'sistema', user_name:'DriverStateGuard',
+        details:`Oferta ${order.id} cerrada al detectar vínculo roto con ${driverId}`,
+        metadata:{ orderId:order.id, driverId, expired, driverBusyElsewhere }
+      }).catch(() => {});
+      return { repaired:true, action:'ORDER_TO_PENDING' };
+    }
+    return { repaired:false, reason:'CONCURRENT_CHANGE' };
+  }
+
+  // Oferta todavía vigente y móvil sin otro viaje: el RideOrder es la autoridad.
+  // Restauramos exactamente su orderId/token. El filtro usa el snapshot fresco del
+  // Driver, por lo que una asignación/aceptación concurrente hace fallar el CAS.
+  const restored = await b44.entities.Driver.updateMany(
+    {
+      id: driverId,
+      status: driver.status,
+      dispatch_status: driver.dispatch_status,
+      reserved_order_id: driver.reserved_order_id ?? null,
+      active_order_id: driver.active_order_id ?? null,
+      active_ride_id: driver.active_ride_id ?? null,
+      reservation_token: driver.reservation_token ?? null
+    },
+    { $set: {
+      status:'disponible',
+      dispatch_status:'automatic_pending',
+      reserved_order_id:order.id,
+      active_order_id:null,
+      active_ride_id:null,
+      reservation_token:order.reservation_token,
+      manual_reservation_token:null,
+      current_base:order.assigned_base || driver.current_base
+    } }
+  ).catch(() => ({ updated:0 }));
+  if ((restored.updated ?? restored.matchedCount ?? restored.modifiedCount ?? 0) === 1) {
+    await b44.entities.AuditLog.create({
+      action:'DRIVER_OFFER_LINK_RESTORED', user_type:'sistema', user_name:'DriverStateGuard',
+      details:`Restaurado vínculo del móvil ${driverId} con oferta vigente ${order.id}`,
+      metadata:{ orderId:order.id, driverId, assignmentAttempt:order.assignment_attempt }
+    }).catch(() => {});
+    return { repaired:true, action:'DRIVER_RESERVATION_RESTORED' };
+  }
+  return { repaired:false, reason:'CONCURRENT_CHANGE' };
+}
+
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
