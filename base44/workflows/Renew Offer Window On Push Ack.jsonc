@@ -1,7 +1,6 @@
 {
-  "name": "Renew Offer Window On Push Ack",
-  "description": "Da al chofer la ventana completa de respuesta desde que su app confirma recepci\u00f3n del push.",
   "trigger": {
+    "condition": null,
     "config": {
       "trigger_type": "entity",
       "events": [
@@ -29,5 +28,7 @@
         }
       }
     ]
-  }
+  },
+  "description": "Da al chofer la ventana completa de respuesta desde que su app confirma recepci\u00f3n del push.",
+  "name": "Renew Offer Window On Push Ack"
 }
