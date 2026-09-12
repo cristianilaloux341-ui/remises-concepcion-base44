@@ -155,21 +155,16 @@ export function LoginScreen({ drivers, driversError, onSelect, savedDriverId, on
             <button
               disabled={loading}
               className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-base py-3.5 rounded-xl transition-all disabled:opacity-50"
-              onClick={async () => { 
-                setLoading(true);
-                try {
-                  const sessionToken = getSessionToken ? getSessionToken() : null;
-                  await base44.entities.Driver.update(savedDriver.id, { current_session_token: sessionToken });
-                  if (unlockAudio) unlockAudio(); 
-                  onSelect(savedDriver.id, false); 
-                } catch (e) {
-                  setError("Error de red.");
-                }
-                setLoading(false);
+              onClick={() => {
+                setFoundDriver(savedDriver);
+                setPin("");
+                setError("");
+                setShowChangeUser(true);
+                setStep(savedDriver.pin ? "enter_pin" : "create_pin");
               }}
             >
               <LogIn className="inline w-4 h-4 mr-2" />
-              Entrar como {(savedDriver.name || "Chofer").split(" ")[0]}
+              Continuar como {(savedDriver.name || "Chofer").split(" ")[0]}
             </button>
             <button
               className="w-full text-gray-500 text-sm underline py-1"
