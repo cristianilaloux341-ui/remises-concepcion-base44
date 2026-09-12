@@ -148,11 +148,28 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
   };
 
   const removeMutation = useMutation({
-    mutationFn: (driver) => base44.entities.Driver.update(driver.id, {
-      current_base: null, status: "no_disponible", queue_entered_at: null,
-      dispatch_status: "normal", active_ride_id: null, reserved_order_id: null,
-      reservation_token: null, manual_reservation_token: null, driver_reservation_key: null
-    }),
+    mutationFn: async (driver) => {
+      const res = await base44.entities.Driver.updateMany(
+        {
+          id: driver.id,
+          current_base: baseName,
+          status: "disponible",
+          dispatch_status: "normal",
+          reserved_order_id: null,
+          active_order_id: null,
+          active_ride_id: null
+        },
+        { $set: {
+          current_base: null, status: "no_disponible", queue_entered_at: null,
+          dispatch_status: "normal", active_order_id: null, active_ride_id: null,
+          reserved_order_id: null, reservation_token: null,
+          manual_reservation_token: null, driver_reservation_key: null
+        } }
+      );
+      const changed = res?.updated ?? res?.modifiedCount ?? res?.matchedCount ?? 0;
+      if (changed < 1) throw new Error("El móvil cambió de estado o recibió un pasaje. No se lo sacó de la lista.");
+      return res;
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["drivers"] }),
   });
 
@@ -180,11 +197,10 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
          throw new Error(`No se encontró un chofer válido con el número/nombre: ${inputTrimmed}`);
       }
 
-      // Nunca completar un viaje por el solo hecho de mover el móvil de base.
-      // Si tiene un viaje activo, bloquear la operación: el viaje debe finalizarse
-      // por su circuito normal antes de volver a posicionar el móvil.
-      if (["en_viaje", "aceptado", "en_camino"].includes(driver.status) || driver.active_order_id || driver.active_ride_id) {
-        throw new Error(`El móvil tiene un viaje activo. Finalizalo antes de ponerlo en ${baseName}.`);
+      // Nunca borrar una oferta/viaje por agregar el móvil a una base desde el editor.
+      // Solo un móvil realmente libre puede ingresar o cambiar de cola.
+      if (["en_viaje", "aceptado", "en_camino"].includes(driver.status) || driver.active_order_id || driver.active_ride_id || driver.reserved_order_id || driver.dispatch_status === "automatic_pending" || driver.dispatch_status === "manual_pending") {
+        throw new Error(`El móvil tiene un viaje u oferta activa. Esperá a que termine antes de ponerlo en ${baseName}.`);
       }
 
       // Entrar a una base solo modifica al móvil que entra. La hora real de entrada
