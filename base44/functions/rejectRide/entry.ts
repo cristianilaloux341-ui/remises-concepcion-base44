@@ -81,9 +81,8 @@ Deno.serve(async (req) => {
         $set: {
           status:'disponible',
           dispatch_status:'normal',
-          // Rechazar o dejar vencer una oferta NO cambia la antigüedad en la cola.
-          // Solo se libera la reserva de este pasaje. El móvil conserva exactamente
-          // su queue_entered_at para que no pase de 1.º a 3.º/último por un rechazo.
+          // Regla operativa: rechazo o timeout manda al móvil al último de su zona.
+          queue_entered_at:new Date().toISOString(),
           active_order_id:null,
           active_ride_id:null,
           reserved_order_id:null,
