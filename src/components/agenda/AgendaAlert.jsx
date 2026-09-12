@@ -102,14 +102,18 @@ export default function AgendaAlert() {
 
   useEffect(() => {
     const check = () => {
-      rides.filter(r => r.status === "pendiente").forEach(r => {
+      rides.filter(r => ["pendiente", "notificado"].includes(r.status)).forEach(r => {
         const mins = minutesUntil(r.scheduled_datetime);
         const threshold = r.notify_minutes_before ?? 10;
         if (mins <= threshold && mins >= -5 && !notifiedRef.current.has(r.id)) {
           notifiedRef.current.add(r.id);
 
-          base44.entities.ScheduledRide.update(r.id, { status: "notificado" });
-          queryClient.invalidateQueries({ queryKey: ["scheduled"] });
+          // El estado "notificado" es global, pero cada PC mantiene su propio
+          // notifiedRef. Así una PC no silencia la alerta en las demás centrales.
+          if (r.status === "pendiente") {
+            base44.entities.ScheduledRide.update(r.id, { status: "notificado" });
+            queryClient.invalidateQueries({ queryKey: ["scheduled"] });
+          }
 
           // Sonido inmediato
           playSound();
