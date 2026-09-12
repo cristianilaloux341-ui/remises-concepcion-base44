@@ -939,19 +939,11 @@ export default function DriverApp() {
           current_lat: result.point.latitude,
           current_lng: result.point.longitude,
         };
-        
-        // Si está reportando posición como "disponible" pero quedó con un estado pendiente colgado en el backend,
-        // lo limpiamos aprovechando el latido de GPS.
-        if (myDriverRef.current?.status === "disponible" && (myDriverRef.current?.dispatch_status === "automatic_pending" || myDriverRef.current?.reserved_order_id)) {
-          if (!offeredOrderRef.current) {
-            dataToUpdate.dispatch_status = "normal";
-            dataToUpdate.reserved_order_id = null;
-            dataToUpdate.active_ride_id = null;
-            dataToUpdate.reservation_token = null;
-            dataToUpdate.driver_reservation_key = null;
-          }
-        }
 
+        // El heartbeat GPS SOLO publica coordenadas. Nunca puede corregir estados de
+        // despacho usando `offeredOrderRef`, porque realtime puede llegar unos segundos
+        // tarde y hacer parecer que no hay oferta cuando Central ya reservó el móvil.
+        // Toda recuperación de reservas huérfanas queda exclusivamente en backend.
         withRetry(() => base44.entities.Driver.update(myDriverId, dataToUpdate)).catch(() => {});
       }
     };
