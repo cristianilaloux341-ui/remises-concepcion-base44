@@ -1,6 +1,6 @@
 {
   "trigger": {
-    "condition": null,
+    "condition": "${ .trigger.data.action == \"push_ack_recibido\" }",
     "config": {
       "trigger_type": "entity",
       "events": [
