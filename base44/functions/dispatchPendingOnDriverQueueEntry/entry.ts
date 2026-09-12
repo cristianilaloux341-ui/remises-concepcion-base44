@@ -140,6 +140,29 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'QUEUE_ENTRY_DID_NOT_CHANGE' });
     }
 
+    // Trazabilidad de cola: registrar toda modificación REAL de antigüedad. Esto no
+    // cambia posiciones; solo permite saber si vino de una entrada, rechazo, timeout
+    // o una acción manual y detectar cualquier escritura inesperada en producción.
+    if (eventData && oldData && eventData.queue_entered_at !== oldData.queue_entered_at) {
+      await b44.entities.AuditLog.create({
+        action: 'QUEUE_TIMESTAMP_CHANGED',
+        user_type: 'sistema',
+        user_name: eventData.name || oldData.name || 'Driver',
+        details: `Cambió antigüedad de cola de ${eventData.name || oldData.name || driverId}`,
+        metadata: {
+          driverId,
+          oldQueueEnteredAt: oldData.queue_entered_at ?? null,
+          newQueueEnteredAt: eventData.queue_entered_at ?? null,
+          oldBase: oldData.current_base ?? null,
+          newBase: eventData.current_base ?? null,
+          oldStatus: oldData.status ?? null,
+          newStatus: eventData.status ?? null,
+          oldDispatchStatus: oldData.dispatch_status ?? null,
+          newDispatchStatus: eventData.dispatch_status ?? null
+        }
+      }).catch(() => {});
+    }
+
     const triggerDriver = await b44.entities.Driver.get(driverId).catch(() => null);
     if (!triggerDriver) {
       return Response.json({ success: true, skipped: true, reason: 'DRIVER_NOT_FOUND' });
