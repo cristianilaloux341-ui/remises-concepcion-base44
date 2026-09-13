@@ -30,6 +30,22 @@ export default function OrderDetail() {
     staleTime: 60000,
   });
 
+  // El detalle no puede depender de que el pasaje siga dentro de los últimos 100.
+  // Un viaje viejo/enganchado debe poder abrirse siempre por su ID para que Central
+  // pueda revisarlo, cancelarlo o resolverlo manualmente.
+  const {
+    data: fetchedOrder,
+    isLoading: isOrderLoading,
+    isError: isOrderError,
+    refetch: refetchOrder,
+  } = useQuery({
+    queryKey: ["order-detail", orderId],
+    queryFn: () => base44.entities.RideOrder.get(orderId),
+    enabled: Boolean(orderId),
+    staleTime: 5000,
+    refetchOnWindowFocus: true,
+  });
+
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => base44.entities.Driver.list(),
@@ -37,7 +53,8 @@ export default function OrderDetail() {
     refetchOnWindowFocus: true,
   });
 
-  const order = orders.find(o => o.id === orderId);
+  // Si realtime ya tiene una versión más nueva, usarla; si no, usar la búsqueda directa.
+  const order = orders.find(o => o.id === orderId) || fetchedOrder;
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.RideOrder.update(id, data),
@@ -115,7 +132,7 @@ export default function OrderDetail() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
-      const orderToDelete = orders.find(o => o.id === id);
+      const orderToDelete = (order?.id === id ? order : null) || orders.find(o => o.id === id);
       if (orderToDelete) {
         const toCancel = [...new Set([orderToDelete.driver_id, orderToDelete.reserved_driver_id])].filter(Boolean);
         if (orderToDelete.preassigned_driver_id) {
@@ -155,10 +172,27 @@ export default function OrderDetail() {
     },
   });
 
-  if (!order) {
+  if (!order && isOrderLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="max-w-xl mx-auto py-16 px-4 text-center space-y-4">
+        <p className="font-semibold text-lg">No se pudo cargar este pasaje.</p>
+        <p className="text-sm text-muted-foreground">
+          {isOrderError
+            ? "La Central no pudo consultar el pasaje por su ID."
+            : "El pasaje no existe o ya no está disponible."}
+        </p>
+        <div className="flex gap-2 justify-center">
+          <Button variant="outline" onClick={() => navigate("/orders")}>Volver</Button>
+          <Button onClick={() => refetchOrder()}>Reintentar</Button>
+        </div>
       </div>
     );
   }
