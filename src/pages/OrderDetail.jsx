@@ -7,7 +7,7 @@ import { useRealtimeOrders } from "@/lib/useRealtimeOrders";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Phone, MapPin, User, DollarSign, Trash2, Loader2, XCircle, RefreshCw } from "lucide-react";
+import { ArrowLeft, Phone, MapPin, User, DollarSign, Trash2, Loader2, XCircle, RefreshCw, CheckCircle2 } from "lucide-react";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
 import RideTicket from "@/components/orders/RideTicket";
 import RideMap from "@/components/map/RideMap";
@@ -69,6 +69,41 @@ export default function OrderDetail() {
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] }),
   });
+
+  const manualCompleteMutation = useMutation({
+    mutationFn: async () => {
+      let localOperator = null;
+      try { localOperator = JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch {}
+      const response = await base44.functions.invoke("manualCompleteRide", {
+        orderId: order.id,
+        sessionToken: sessionStorage.getItem("local_operator_token"),
+        operatorName: localOperator?.nombre || localOperator?.name || localOperator?.usuario || "Central"
+      });
+      if (!response.data?.success) {
+        throw new Error(response.data?.reason || "No se pudo terminar el pasaje");
+      }
+      return response.data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["order-detail", orderId] }),
+        queryClient.invalidateQueries({ queryKey: ["drivers"] })
+      ]);
+    }
+  });
+
+  const manualCompleteRide = async () => {
+    const confirmed = window.confirm(
+      "¿Marcar este pasaje como TERMINADO?\n\nUsá esta opción sólo si el viaje ya finalizó y quedó enganchado en el sistema."
+    );
+    if (!confirmed) return;
+    try {
+      await manualCompleteMutation.mutateAsync();
+    } catch (error) {
+      alert(error?.message || "No se pudo terminar el pasaje manualmente.");
+    }
+  };
 
   // When cancelling an active order, put the assigned driver first in queue
   const cancelOrder = async () => {
@@ -324,6 +359,19 @@ export default function OrderDetail() {
               )}
               {order.status === "completado" && (
                 <RideTicket order={order} />
+              )}
+              {["aceptado", "en_camino", "en_viaje"].includes(order.status) && (
+                <Button
+                  size="sm"
+                  className="gap-2 bg-green-600 hover:bg-green-700"
+                  onClick={manualCompleteRide}
+                  disabled={manualCompleteMutation.isPending}
+                >
+                  {manualCompleteMutation.isPending
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <CheckCircle2 className="w-4 h-4" />}
+                  {manualCompleteMutation.isPending ? "Terminando..." : "Terminar pasaje"}
+                </Button>
               )}
               <Button
                 variant="outline"
