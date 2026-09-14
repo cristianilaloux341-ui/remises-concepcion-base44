@@ -192,7 +192,11 @@ Deno.serve(async (req) => {
     }).catch(()=>{});
 
     const config = (await b44.entities.TarifaConfig.list())[0] || {};
-    const timeoutSeconds = config.tiempo_maximo_respuesta_segundos ?? 60;
+    // Regla comercial: cada NUEVA oferta tiene 30 s desde que llega al teléfono.
+    // El valor inicial sólo protege el tránsito hasta el ACK; native_ack lo vuelve
+    // a fijar a 30 s completos desde la recepción real del nuevo móvil.
+    const configuredSeconds = Number(config.tiempo_maximo_respuesta_segundos ?? 30);
+    const timeoutSeconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     const excluded = new Set<string>([...(order.offered_driver_ids || []), driverId].filter(Boolean));
 
@@ -213,6 +217,9 @@ Deno.serve(async (req) => {
         const newAttempt = Number(assignmentAttempt) + 1;
         const assignedAt = new Date().toISOString();
         const expiresAt = Date.now() + timeoutSeconds*1000;
+        // Cada salto es una oferta NUEVA. offered_driver_ids queda sólo como historial
+        // para no volver a ofrecer a quienes ya pasaron; la identidad activa se
+        // reemplaza por completo con nextDriver + token + newAttempt.
         const offeredIds = [...new Set([...(order.offered_driver_ids || []), driverId, nextDriver.id].filter(Boolean))];
         const commit = await b44.entities.RideOrder.updateMany(
           {
