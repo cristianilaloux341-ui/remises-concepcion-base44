@@ -375,25 +375,49 @@ Deno.serve(async (req) => {
           return Response.json({ success:true, repaired:count === 1, reason:'QUEUE_AUTHORITY_RESTORED_BASE' });
         }
 
-        // Cambio A->B: es una entrada real a otra base. No bloquearla ni devolver al
-        // móvil a la base anterior: las APK actualmente en circulación no escriben
-        // todas los campos de autoridad en la misma operación. Adoptamos la nueva
-        // base y su queue_entered_at tal como venía funcionando antes del blindaje.
+        // Cambio A->B: las APK instaladas hacen el cambio voluntario escribiendo
+        // current_base Y una nueva queue_entered_at en la misma acción. Esa pareja
+        // es nuestra señal compatible de intención sin exigir campos nuevos al APK.
+        // Un heartbeat/reconexión/cache que sólo haga oscilar current_base NO puede
+        // mover al chofer ni renovar su posición: se revierte a la autoridad previa.
         if (authoritativeBase && currentBase && authoritativeBase !== currentBase) {
-          const newAuthoritativeAt = currentAt || new Date().toISOString();
-          await b44.entities.Driver.updateMany(
-            { id:driverId, status:'disponible', current_base:currentBase },
-            { $set:{
-              queue_authoritative_base:currentBase,
-              queue_authoritative_at:newAuthoritativeAt
-            } }
-          ).catch(()=>{});
-          await b44.entities.AuditLog.create({
-            action:'QUEUE_AUTHORITY_BASE_CHANGED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
-            details:`Cambio de base adoptado para ${freshQueueDriver.name || driverId}: ${authoritativeBase} → ${currentBase}`,
-            metadata:{ driverId, oldBase:authoritativeBase, newBase:currentBase, queueAt:newAuthoritativeAt }
-          }).catch(()=>{});
-          // No retornar: una entrada real de base sí puede habilitar un pendiente.
+          const explicitDriverBaseEntry = Boolean(
+            eventData && oldData &&
+            oldData.current_base === authoritativeBase &&
+            eventData.current_base === currentBase &&
+            eventData.queue_entered_at &&
+            eventData.queue_entered_at !== oldData.queue_entered_at
+          );
+
+          if (explicitDriverBaseEntry) {
+            const newAuthoritativeAt = currentAt || eventData.queue_entered_at;
+            await b44.entities.Driver.updateMany(
+              { id:driverId, status:'disponible', current_base:currentBase, queue_entered_at:currentAt },
+              { $set:{
+                queue_authoritative_base:currentBase,
+                queue_authoritative_at:newAuthoritativeAt
+              } }
+            ).catch(()=>{});
+            await b44.entities.AuditLog.create({
+              action:'QUEUE_AUTHORITY_BASE_CHANGED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
+              details:`Entrada voluntaria de base aceptada para ${freshQueueDriver.name || driverId}: ${authoritativeBase} → ${currentBase}`,
+              metadata:{ driverId, oldBase:authoritativeBase, newBase:currentBase, queueAt:newAuthoritativeAt }
+            }).catch(()=>{});
+          } else {
+            const restored = await b44.entities.Driver.updateMany(
+              { id:driverId, status:'disponible', current_base:currentBase, reserved_order_id:null, active_order_id:null, active_ride_id:null },
+              { $set:{ current_base:authoritativeBase, queue_entered_at:authoritativeAt } }
+            ).catch(()=>({updated:0}));
+            const count = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
+            if (count === 1) {
+              await b44.entities.AuditLog.create({
+                action:'QUEUE_GHOST_BASE_CHANGE_REVERTED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
+                details:`Cambio técnico de base revertido para ${freshQueueDriver.name || driverId}; posición preservada`,
+                metadata:{ driverId, attemptedBase:currentBase, restoredBase:authoritativeBase, restoredQueueAt:authoritativeAt }
+              }).catch(()=>{});
+            }
+            return Response.json({ success:true, repaired:count === 1, reason:'GHOST_BASE_CHANGE_REVERTED' });
+          }
         } else if (authoritativeBase && currentBase === authoritativeBase) {
           // Movimiento explícito del operador: queue_position cambia y queda como
           // marcador auditable. Adoptar la nueva hora como autoridad.
