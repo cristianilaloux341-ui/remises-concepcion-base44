@@ -2,10 +2,15 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const targetZone = order.zone;
   if (!targetZone) return null;
 
-  // Traer únicamente los choferes de la zona objetivo.
+  // Traer los choferes de la zona por base visible O por base autoritativa.
+  // Esto evita que una escritura legacy que ponga current_base=null saque al móvil
+  // de la selección antes de que el reconciliador la restaure.
   const zoneDrivers = await b44.entities.Driver.filter({
     status: "disponible",
-    current_base: targetZone
+    $or: [
+      { current_base: targetZone },
+      { queue_authoritative_base: targetZone }
+    ]
   });
 
   // Driver.vehicle_model guarda el ID del móvil. No descargar toda la flota:
@@ -34,8 +39,18 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const allMoviles = [...movilesById.filter(Boolean), ...movilesByFallback]
     .filter((m: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === m.id) === i);
 
+  const getEffectiveBase = (d:any) => d.current_base || d.queue_authoritative_base || null;
+  const getEffectiveQueueAt = (d:any) => {
+    const currentBase = d.current_base || null;
+    const authoritativeBase = d.queue_authoritative_base || null;
+    if (currentBase && authoritativeBase && currentBase !== authoritativeBase) {
+      return d.queue_entered_at || null;
+    }
+    return d.queue_authoritative_at || d.queue_entered_at || null;
+  };
+
   const isDriverWorking = (d: any) => {
-    if (d.status !== 'disponible' || !d.current_base) return false;
+    if (d.status !== 'disponible' || !getEffectiveBase(d)) return false;
     const mobileId = String(d.vehicle_model || '');
     const mobileNumber = parseInt(mobileId, 10);
     const driverPlate = String(d.vehicle_plate || '').replace(/\s+/g, '').toUpperCase();
@@ -70,10 +85,12 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   });
 
   const sameBaseQueue = available
-    .filter((d: any) => d.current_base === targetZone)
+    .filter((d: any) => getEffectiveBase(d) === targetZone)
     .sort((a: any, b: any) => {
-      const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
-      const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : Infinity;
+      const queueA = getEffectiveQueueAt(a);
+      const queueB = getEffectiveQueueAt(b);
+      const timeA = queueA ? new Date(queueA).getTime() : Infinity;
+      const timeB = queueB ? new Date(queueB).getTime() : Infinity;
       const tA = isNaN(timeA) ? Infinity : timeA;
       const tB = isNaN(timeB) ? Infinity : timeB;
       if (tA !== tB) return tA - tB;
