@@ -228,19 +228,18 @@ const getSessionToken = () => {
 import { LoginScreen } from "@/components/driver/LoginScreen";
 
 // ── Idle / waiting screen ─────────────────────────────────────────────────────
-function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onChangeBase, onGoOffService, driverId, libreBlockedSegs = 0, onPanic }) {
+function IdleScreen({ driver, drivers, driversLoading = false, selectedBase, onBaseChange, onEnter, onChangeBase, onGoOffService, driverId, libreBlockedSegs = 0, onPanic }) {
   const [changingBase, setChangingBase] = useState(false);
   const [newBase, setNewBase] = useState("");
 
   const isInBase = driver.current_base && driver.status === "disponible";
 
-  // Queue for current base. Include the locally-confirmed driver immediately:
-  // the realtime collection can arrive a moment after entering/changing base.
+  // La posición se calcula SOLO con la colección confirmada por servidor.
+  // Antes inyectábamos el `driver` local mientras realtime todavía estaba llegando;
+  // eso mostraba posiciones provisorias (1° -> 3° -> 5°) que parecían cambios reales.
   const driverList = debugArray(drivers, 'drivers_in_IdleScreen');
-  const queueSource = driverList.some(d => d.id === driver.id)
-    ? driverList.map(d => d.id === driver.id ? { ...d, ...driver } : d)
-    : [...driverList, driver];
-  const baseQueue = queueSource
+  const serverSelf = driverList.find(d => d.id === driver.id);
+  const baseQueue = driverList
     .filter(d => d.current_base === driver.current_base && d.status === "disponible")
     .sort((a, b) => {
       const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
@@ -251,6 +250,12 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
       return (a.id || "").localeCompare(b.id || "");
     });
   const myPosition = debugArray(baseQueue, 'baseQueue').findIndex(d => d.id === driver.id) + 1;
+  const positionReady = !driversLoading && Boolean(
+    serverSelf &&
+    serverSelf.current_base === driver.current_base &&
+    serverSelf.status === "disponible" &&
+    myPosition > 0
+  );
 
   if (changingBase) {
     return (
@@ -316,8 +321,8 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
               </div>
             </div>
             <div className="text-right shrink-0 ml-3">
-              <p className="text-4xl md:text-5xl font-black text-white">{myPosition}°</p>
-              <p className="text-sm md:text-base text-gray-500">en cola</p>
+              <p className="text-4xl md:text-5xl font-black text-white">{positionReady ? `${myPosition}°` : "…"}</p>
+              <p className="text-sm md:text-base text-gray-500">{positionReady ? "en cola" : "sincronizando"}</p>
             </div>
           </div>
 
@@ -355,7 +360,9 @@ function IdleScreen({ driver, drivers, selectedBase, onBaseChange, onEnter, onCh
           <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
             <p className="text-sm text-gray-400 font-semibold mb-3">Compañeros en la cola:</p>
             <div className="flex gap-2 flex-wrap">
-              {baseQueue.map((d, i) => {
+              {!positionReady ? (
+                <span className="text-sm text-gray-500">Sincronizando lista de la base…</span>
+              ) : baseQueue.map((d, i) => {
                 return (
                   <span
                     key={d.id}
@@ -2281,6 +2288,7 @@ export default function DriverApp() {
           <IdleScreen
             driver={myDriver}
             drivers={safeDrivers}
+            driversLoading={driversLoading}
             selectedBase={selectedBase}
             onBaseChange={setSelectedBase}
             onEnter={handleEnterBase}
