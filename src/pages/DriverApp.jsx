@@ -1764,16 +1764,26 @@ export default function DriverApp() {
     return res;
   };
 
-  const handleEnterBase = async (base = selectedBase) => {
-    if (!base) return;
-    // Si ya está libre en esa misma base, volver a tocar "entrar" no reingresa
-    // al móvil ni cambia su antigüedad.
-    if (myDriver?.current_base === base && myDriver?.status === "disponible" && myDriver?.dispatch_status === "normal" && !myDriver?.reserved_order_id && !myDriver?.active_order_id && !myDriver?.active_ride_id) {
-      return;
-    }
+  // Entrada/cambio de base autoritativo: la decisión de si el móvil YA estaba en
+  // esa base se toma contra el servidor, no contra la copia local de la APK.
+  // Así una reconexión o estado atrasado jamás puede renovar queue_entered_at y
+  // mandar al móvil al final sin haber salido realmente de la base.
+  const enterBaseServerSafe = async (base) => {
     const ts = new Date().toISOString();
-    try {
-      await updateOperationalStateIfIdle("disponible", {
+    const res = await base44.entities.Driver.updateMany(
+      {
+        id: myDriverId,
+        status: "disponible",
+        dispatch_status: "normal",
+        reserved_order_id: null,
+        active_order_id: null,
+        active_ride_id: null,
+        reservation_token: null,
+        manual_reservation_token: null,
+        driver_reservation_key: null,
+        current_base: { $ne: base }
+      },
+      { $set: {
         current_base: base,
         status: "disponible",
         dispatch_status: "normal",
@@ -1784,9 +1794,28 @@ export default function DriverApp() {
         reservation_token: null,
         manual_reservation_token: null,
         driver_reservation_key: null
-      });
+      } }
+    );
+    const changed = res?.updated ?? res?.modifiedCount ?? res?.matchedCount ?? 0;
+    if (changed > 0) return ts;
+
+    // Un CAS en cero puede significar simplemente que el servidor ya lo tenía en
+    // esa misma base. En ese caso conservar su antigüedad real; no es un error.
+    const fresh = await base44.entities.Driver.get(myDriverId);
+    const alreadyThere = fresh?.current_base === base &&
+      fresh?.status === "disponible" &&
+      (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
+      !fresh?.reserved_order_id && !fresh?.active_order_id && !fresh?.active_ride_id;
+    if (alreadyThere) return fresh.queue_entered_at || ts;
+    throw new Error("DRIVER_BUSY_OR_STATE_CHANGED");
+  };
+
+  const handleEnterBase = async (base = selectedBase) => {
+    if (!base) return;
+    try {
+      const authoritativeTs = await enterBaseServerSafe(base);
       setSelectedBase(base);
-      setLocalOverride({ current_base: base, status: "disponible", queue_entered_at: ts });
+      setLocalOverride({ current_base: base, status: "disponible", queue_entered_at: authoritativeTs });
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       window.dispatchEvent(new CustomEvent("force-driver-refresh"));
     } catch (error) {
@@ -1794,24 +1823,9 @@ export default function DriverApp() {
     }
   };
   const handleChangeBase = async (newBase) => {
-    if (myDriver?.current_base === newBase && myDriver?.status === "disponible" && myDriver?.dispatch_status === "normal" && !myDriver?.reserved_order_id && !myDriver?.active_order_id && !myDriver?.active_ride_id) {
-      return;
-    }
-    const ts = new Date().toISOString();
     try {
-      await updateOperationalStateIfIdle("disponible", { 
-        current_base: newBase, 
-        status: "disponible", 
-        dispatch_status: "normal",
-        queue_entered_at: ts,
-        active_order_id: null,
-        active_ride_id: null,
-        reserved_order_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null
-      });
-      setLocalOverride({ current_base: newBase, status: "disponible", queue_entered_at: ts });
+      const authoritativeTs = await enterBaseServerSafe(newBase);
+      setLocalOverride({ current_base: newBase, status: "disponible", queue_entered_at: authoritativeTs });
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       window.dispatchEvent(new CustomEvent("force-driver-refresh"));
     } catch (error) {
