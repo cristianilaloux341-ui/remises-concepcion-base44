@@ -82,7 +82,7 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
           const d = linkedDrivers[0];
           await failureInjector.hit('DURING_RECONCILIATION_UPDATE');
           const dRes = await b44.entities.Driver.updateMany({ id: d.id, manual_reservation_token: order.manual_reservation_token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, manual_reservation_token: null } });
-          const oRes = await b44.entities.RideOrder.updateMany({ id: order.id, status: 'esperando_confirmacion_manual' }, { $set: { status: 'pendiente', reserved_driver_id: null, manual_reservation_token: null } });
+          const oRes = await b44.entities.RideOrder.updateMany({ id: order.id, status: 'esperando_confirmacion_manual' }, { $set: { status: 'pendiente', driver_id: null, driver_name: null, reserved_driver_id: null, manual_reservation_token: null } });
           
           const matched = (dRes.matchedCount ?? dRes.modifiedCount ?? 0) + (oRes.matchedCount ?? oRes.modifiedCount ?? 0);
           await pushResult({ status: matched === 2 ? 'repaired' : 'concurrent_change', issueType: 'ORPHAN_MANUAL_ORDER', orderId: order.id, driverIds: [d.id], actions: ['Driver liberado', 'Orden a pendiente'], correlationId, matchedCount: matched });
@@ -116,6 +116,54 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
         const matched = res.matchedCount ?? res.modifiedCount ?? 0;
         await pushResult({ status: matched ? 'repaired' : 'concurrent_change', issueType: 'ORPHAN_AUTOMATIC_DRIVER', driverIds: [d.id], actions: ['Driver liberado'], correlationId, matchedCount: matched });
       } catch (e) {}
+    }
+  }
+
+  // Case 4A: identidad partida en una oferta vigente.
+  // Invariante: todo RideOrder `ofrecido` debe tener driver_id === reserved_driver_id.
+  // Si el Driver reservado posee exactamente order/token, reserved_driver_id es la
+  // autoridad y podemos reparar driver_id con CAS sin interferir con aceptar/rechazar.
+  for (const order of activeOrders.filter(o => o.status === 'ofrecido' && o.reserved_driver_id && o.driver_id !== o.reserved_driver_id)) {
+    if (order.processingOwnerId && Number(order.processingLeaseExpiresAt || 0) > now) continue;
+    const reservedDriver = drivers.find(d => d.id === order.reserved_driver_id);
+    const exactOwner = Boolean(
+      reservedDriver &&
+      reservedDriver.dispatch_status === 'automatic_pending' &&
+      reservedDriver.reserved_order_id === order.id &&
+      reservedDriver.reservation_token === order.reservation_token
+    );
+    if (!exactOwner) continue;
+
+    try {
+      const staleDriverId = order.driver_id ?? null;
+      const res = await b44.entities.RideOrder.updateMany(
+        {
+          id: order.id,
+          status: 'ofrecido',
+          driver_id: staleDriverId,
+          reserved_driver_id: order.reserved_driver_id,
+          reservation_token: order.reservation_token,
+          assignment_attempt: order.assignment_attempt,
+          $or: [
+            { processingOwnerId: null },
+            { processingOwnerId: { $exists: false } },
+            { processingLeaseExpiresAt: { $lt: now } }
+          ]
+        },
+        { $set: { driver_id: order.reserved_driver_id } }
+      );
+      const matched = res.matchedCount ?? res.modifiedCount ?? res.updated ?? 0;
+      await pushResult({
+        status: matched ? 'repaired' : 'concurrent_change',
+        issueType: 'OFFER_IDENTITY_DIVERGENCE',
+        orderId: order.id,
+        driverIds: [staleDriverId, order.reserved_driver_id].filter(Boolean),
+        actions: matched ? ['driver_id alineado con reserved_driver_id'] : [],
+        correlationId,
+        matchedCount: matched
+      });
+    } catch (e) {
+      await pushResult({ status:'persistence_error', issueType:'OFFER_IDENTITY_DIVERGENCE', orderId:order.id, driverIds:[order.reserved_driver_id], actions:[], correlationId });
     }
   }
 
@@ -256,7 +304,7 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
            // Nunca permitir que en_camino/en_viaje/completado/cancelado retrocedan por reconciliación.
            const r = await b44.entities.RideOrder.updateMany(
              { id: o.id, status: { $in: ['procesando_despacho', 'esperando_confirmacion_manual', 'ofrecido'] } },
-             { $set: { status: 'pendiente', reserved_driver_id: null, reservation_token: null, manual_reservation_token: null } }
+             { $set: { status: 'pendiente', driver_id: null, driver_name: null, reserved_driver_id: null, reservation_token: null, manual_reservation_token: null } }
            );
            mCount += r.matchedCount ?? r.modifiedCount ?? 0;
         }
@@ -273,7 +321,7 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
       const base = activeBases.find(b => b.active_order_id === order.id);
       const driver = activeDrivers.find(d => d.reserved_order_id === order.id);
       if (!base && !driver) {
-        const res = await b44.entities.RideOrder.updateMany({ id: order.id, status: 'procesando_despacho', reservation_token: order.reservation_token }, { $set: { status: 'pendiente', reservation_token: null } });
+        const res = await b44.entities.RideOrder.updateMany({ id: order.id, status: 'procesando_despacho', reservation_token: order.reservation_token }, { $set: { status: 'pendiente', driver_id: null, driver_name: null, reserved_driver_id: null, reservation_token: null } });
         const matched = res.matchedCount ?? res.modifiedCount ?? 0;
         await pushResult({ status: matched ? 'repaired' : 'concurrent_change', issueType: 'ORPHAN_PROCESSING_ORDER', orderId: order.id, actions: ['Viaje devuelto a pendiente'], correlationId, matchedCount: matched });
       }
