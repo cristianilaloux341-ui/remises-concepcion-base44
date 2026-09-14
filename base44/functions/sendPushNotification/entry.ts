@@ -189,6 +189,67 @@ Deno.serve(async (req) => {
   if (body.event && body.event.entity_name === "RideOrder" && body.data) {
     const isStatusChanged = !body.old_data || body.data.status !== body.old_data.status;
 
+    // Otra defensa para v12.27/v12.29: al fallar su reasignación local, esas APK
+    // todavía pueden ejecutar un `ofrecido -> pendiente` directo con una copia vieja.
+    // Si el móvil que figura en old_data SIGUE poseyendo la reserva exacta, esa
+    // escritura es obsoleta y no puede borrar una oferta válida recién asignada.
+    const isLegacyOfferedRollback =
+      isStatusChanged &&
+      body.old_data?.status === 'ofrecido' &&
+      body.data.status === 'pendiente';
+
+    if (isLegacyOfferedRollback) {
+      const orderId = body.data.id;
+      const ownerDriverId = body.old_data.reserved_driver_id || body.old_data.driver_id;
+      const ownerDriver = ownerDriverId
+        ? await base44.asServiceRole.entities.Driver.get(ownerDriverId).catch(() => null)
+        : null;
+      const ownerStillOwnsExactOffer = Boolean(
+        ownerDriver &&
+        ownerDriver.dispatch_status === 'automatic_pending' &&
+        ownerDriver.reserved_order_id === orderId &&
+        ownerDriver.reservation_token === body.old_data.reservation_token
+      );
+
+      if (ownerStillOwnsExactOffer) {
+        const restoreOffer = {
+          status: 'ofrecido',
+          driver_id: ownerDriverId,
+          reserved_driver_id: ownerDriverId,
+          driver_name: body.old_data.driver_name,
+          assigned_base: body.old_data.assigned_base,
+          reservation_token: body.old_data.reservation_token,
+          manual_reservation_token: body.old_data.manual_reservation_token,
+          assigned_at: body.old_data.assigned_at,
+          offerExpiresAt: body.old_data.offerExpiresAt,
+          assignment_attempt: body.old_data.assignment_attempt,
+          offered_driver_ids: body.old_data.offered_driver_ids
+        };
+
+        const restored = await base44.asServiceRole.entities.RideOrder.updateMany(
+          {
+            id: orderId,
+            status: 'pendiente',
+            driver_id: body.data.driver_id ?? null,
+            reserved_driver_id: body.data.reserved_driver_id ?? null,
+            assignment_attempt: body.data.assignment_attempt ?? body.old_data.assignment_attempt
+          },
+          { $set: restoreOffer }
+        ).catch(() => null);
+
+        if ((restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0) === 1) {
+          await base44.asServiceRole.entities.AuditLog.create({
+            action:'LEGACY_OFFER_TO_PENDING_ROLLBACK_BLOCKED',
+            user_type:'sistema',
+            user_name:body.old_data.driver_name || 'Chofer',
+            details:`Se restauró oferta ${orderId}: una APK vieja intentó devolverla a pendiente con dueño vigente`,
+            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:body.old_data.assignment_attempt }
+          }).catch(()=>{});
+          return Response.json({ ok:true, reason:'legacy_offered_rollback_blocked' });
+        }
+      }
+    }
+
     // Traba definitiva para APK viejos: esos clientes todavía intentan devolver
     // directamente a `pendiente` un viaje que ya fue aceptado. La Central y el
     // cliente cancelan mediante `cancelado`, por lo que sus cancelaciones siguen normales.
