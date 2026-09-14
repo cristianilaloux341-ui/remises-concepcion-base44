@@ -221,43 +221,90 @@ Deno.serve(async (req) => {
       );
 
       if (stillSameOffer) {
-        const rejectRes = await b44.functions.invoke('rejectRide', {
+        const expiresAt = Number(legacyOrder.offerExpiresAt);
+        const offerStillLive = !Number.isFinite(expiresAt) || Date.now() < expiresAt;
+
+        if (offerStillLive) {
+          // Una APK legacy puede liberar el Driver por lógica local vieja aunque el
+          // chofer NO haya rechazado. Mientras la oferta siga vigente, esa escritura
+          // jamás es autoridad para reasignar: restauramos exactamente la reserva.
+          const restored = await b44.entities.Driver.updateMany(
+            {
+              id: driverId,
+              status: 'disponible',
+              $or: [
+                { dispatch_status: 'normal' },
+                { dispatch_status: null },
+                { dispatch_status: { $exists:false } }
+              ],
+              reserved_order_id: null,
+              active_order_id: null,
+              active_ride_id: null
+            },
+            { $set: {
+              dispatch_status: 'automatic_pending',
+              reserved_order_id: legacyOrder.id,
+              reservation_token: legacyOrder.reservation_token,
+              current_base: legacyOrder.assigned_base || oldData.current_base || eventData.current_base || null,
+              queue_entered_at: oldData.queue_entered_at || eventData.queue_entered_at || null
+            } }
+          ).catch(() => ({ updated:0 }));
+          const restoredCount = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
+
+          await b44.entities.AuditLog.create({
+            action:'LEGACY_PREMATURE_RELEASE_RESTORED',
+            user_type:'sistema',
+            user_name:eventData.name || oldData.name || 'Driver',
+            details:`Se bloqueó una liberación legacy antes de vencer la oferta ${legacyOrder.id}`,
+            metadata:{
+              orderId:legacyOrder.id,
+              driverId,
+              assignmentAttempt:legacyOrder.assignment_attempt,
+              offerExpiresAt:legacyOrder.offerExpiresAt ?? null,
+              remainingMs:Number.isFinite(expiresAt) ? Math.max(0, expiresAt - Date.now()) : null,
+              restored:restoredCount === 1
+            }
+          }).catch(()=>{});
+
+          return Response.json({
+            success:true,
+            repaired:restoredCount === 1,
+            reason:'LEGACY_PREMATURE_RELEASE_RESTORED'
+          });
+        }
+
+        // Si ya venció de verdad, primero restauramos la propiedad exacta y luego
+        // dejamos que el motor server-side procese el timeout. Así la APK nunca
+        // decide por sí sola cuándo saltar al siguiente móvil.
+        await b44.entities.Driver.updateMany(
+          { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
+          { $set:{
+            dispatch_status:'automatic_pending',
+            reserved_order_id:legacyOrder.id,
+            reservation_token:legacyOrder.reservation_token,
+            current_base:legacyOrder.assigned_base || oldData.current_base || eventData.current_base || null,
+            queue_entered_at:oldData.queue_entered_at || eventData.queue_entered_at || null
+          } }
+        ).catch(()=>{});
+
+        const timeoutRes = await b44.functions.invoke('rejectRide', {
           orderId: legacyOrder.id,
           driverId,
           assignmentAttempt: Number(legacyOrder.assignment_attempt || 1),
-          source: 'legacy_client',
-          legacyQueueEnteredAt: eventData.queue_entered_at,
+          source: 'timeout',
           internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
         }).catch((error:any) => ({ data:{ success:false, reason:error?.message || 'INVOKE_FAILED' } }));
-        const rejectData = rejectRes?.data || rejectRes;
-
-        if (rejectData?.success) {
-          await b44.entities.AuditLog.create({
-            action:'LEGACY_REJECT_SERVER_HANDLED',
-            user_type:'sistema',
-            user_name:eventData.name || oldData.name || 'Driver',
-            details:`Rechazo de APK vieja procesado atómicamente por Central para ${legacyOrder.id}`,
-            metadata:{ orderId:legacyOrder.id, driverId, assignmentAttempt:legacyOrder.assignment_attempt }
-          }).catch(()=>{});
-          return Response.json({ success:true, repaired:true, reason:'LEGACY_REJECT_SERVER_HANDLED' });
-        }
-
-        // Si otra operación ganó la carrera, no restaurar la reserva vieja. Releer
-        // y dejar que la autoridad que ya posee el viaje termine la transición.
-        const freshOrder = await b44.entities.RideOrder.get(legacyOrder.id).catch(() => null);
-        await b44.entities.AuditLog.create({
-          action:'LEGACY_REJECT_DEFERRED',
-          user_type:'sistema',
-          user_name:eventData.name || oldData.name || 'Driver',
-          details:`Rechazo legacy no restaurado; Central detectó carrera controlada (${rejectData?.reason || 'sin detalle'})`,
-          metadata:{ orderId:legacyOrder.id, driverId, reason:rejectData?.reason || null, freshStatus:freshOrder?.status || null, freshReservedDriverId:freshOrder?.reserved_driver_id || null }
-        }).catch(()=>{});
-        return Response.json({ success:true, skipped:true, reason:'LEGACY_REJECT_DEFERRED' });
+        const timeoutData = timeoutRes?.data || timeoutRes;
+        return Response.json({
+          success:timeoutData?.success !== false,
+          repaired:true,
+          reason:'LEGACY_RELEASE_CONVERTED_TO_SERVER_TIMEOUT',
+          timeoutResult:timeoutData
+        });
       }
 
       // La oferta ya cambió de dueño/estado antes de que corriera el workflow.
-      // Es exactamente el caso seguro: jamás restaurar la reserva anterior.
-      return Response.json({ success:true, skipped:true, reason:'LEGACY_REJECT_ALREADY_ADVANCED' });
+      return Response.json({ success:true, skipped:true, reason:'LEGACY_RELEASE_ALREADY_ADVANCED' });
     }
 
     // AUTORIDAD SERVER-SIDE DE COLA.
