@@ -13,7 +13,12 @@
           "call": "invoke_backend_function",
           "with": {
             "function_name": "dispatchPendingOnDriverQueueEntry",
-            "args": {}
+            "args": {
+              "event": "${ .trigger }",
+              "data": "${ .trigger.data }",
+              "old_data": "${ .trigger.old_data }",
+              "driverId": "${ .trigger.data.id }"
+            }
           },
           "then": "end"
         }
