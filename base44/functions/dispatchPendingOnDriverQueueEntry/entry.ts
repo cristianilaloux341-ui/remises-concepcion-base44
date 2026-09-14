@@ -375,61 +375,23 @@ Deno.serve(async (req) => {
           return Response.json({ success:true, repaired:count === 1, reason:'QUEUE_AUTHORITY_RESTORED_BASE' });
         }
 
-        // Cambio A->B: sólo es válido si la MISMA escritura ya trajo la nueva
-        // autoridad de cola. La app nueva y la Central hacen esto al cambiar de base
-        // manualmente. Una APK vieja/reconexión que modifica únicamente current_base
-        // NO tiene autoridad para mover al móvil ni cambiar su antigüedad.
+        // Cambio A->B: es una entrada real a otra base. No bloquearla ni devolver al
+        // móvil a la base anterior: las APK actualmente en circulación no escriben
+        // todas los campos de autoridad en la misma operación. Adoptamos la nueva
+        // base y su queue_entered_at tal como venía funcionando antes del blindaje.
         if (authoritativeBase && currentBase && authoritativeBase !== currentBase) {
-          const eventAuthBase = eventData?.queue_authoritative_base || null;
-          const eventAuthAt = eventData?.queue_authoritative_at || null;
-          const explicitAuthorizedBaseChange = Boolean(
-            eventData && oldData &&
-            eventAuthBase === currentBase &&
-            eventAuthBase !== oldData.queue_authoritative_base &&
-            eventAuthAt &&
-            eventAuthAt === currentAt
-          );
-
-          if (!explicitAuthorizedBaseChange) {
-            const restored = await b44.entities.Driver.updateMany(
-              {
-                id:driverId,
-                status:'disponible',
-                current_base:currentBase,
-                reserved_order_id:null,
-                active_order_id:null,
-                active_ride_id:null
-              },
-              { $set:{
-                current_base:authoritativeBase,
-                queue_entered_at:authoritativeAt
-              } }
-            ).catch(()=>({updated:0}));
-            const count = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
-            if (count === 1) {
-              await b44.entities.AuditLog.create({
-                action:'QUEUE_UNAUTHORIZED_BASE_CHANGE_REVERTED',
-                user_type:'sistema',
-                user_name:freshQueueDriver.name || 'Driver',
-                details:`Cambio fantasma de base revertido para ${freshQueueDriver.name || driverId}: ${currentBase} → ${authoritativeBase}`,
-                metadata:{
-                  driverId,
-                  attemptedBase:currentBase,
-                  restoredBase:authoritativeBase,
-                  attemptedQueueAt:currentAt,
-                  restoredQueueAt:authoritativeAt
-                }
-              }).catch(()=>{});
-            }
-            return Response.json({ success:true, repaired:count === 1, reason:'UNAUTHORIZED_BASE_CHANGE_REVERTED' });
-          }
-
-          // Cambio manual explícito: la autoridad ya vino escrita por el cliente
-          // moderno/Central, por lo que sólo lo auditamos. No recalculamos tiempos.
+          const newAuthoritativeAt = currentAt || new Date().toISOString();
+          await b44.entities.Driver.updateMany(
+            { id:driverId, status:'disponible', current_base:currentBase },
+            { $set:{
+              queue_authoritative_base:currentBase,
+              queue_authoritative_at:newAuthoritativeAt
+            } }
+          ).catch(()=>{});
           await b44.entities.AuditLog.create({
             action:'QUEUE_AUTHORITY_BASE_CHANGED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
-            details:`Cambio manual de base confirmado para ${freshQueueDriver.name || driverId}: ${authoritativeBase} → ${currentBase}`,
-            metadata:{ driverId, oldBase:authoritativeBase, newBase:currentBase, queueAt:currentAt }
+            details:`Cambio de base adoptado para ${freshQueueDriver.name || driverId}: ${authoritativeBase} → ${currentBase}`,
+            metadata:{ driverId, oldBase:authoritativeBase, newBase:currentBase, queueAt:newAuthoritativeAt }
           }).catch(()=>{});
           // No retornar: una entrada real de base sí puede habilitar un pendiente.
         } else if (authoritativeBase && currentBase === authoritativeBase) {
