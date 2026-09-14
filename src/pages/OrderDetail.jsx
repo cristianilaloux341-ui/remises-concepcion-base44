@@ -16,7 +16,7 @@ import { formatTimeBA } from "@/lib/utils";
 
 export default function OrderDetail() {
   const { user } = useAuth();
-  const canEmergencyAssign = ["admin", "supervisor"].includes(getEffectiveRole(user));
+  const canEmergencyAssign = ["admin", "supervisor", "operador"].includes(getEffectiveRole(user));
   const urlParams = new URLSearchParams(window.location.search);
   const orderId = window.location.pathname.split("/").pop();
   const navigate = useNavigate();
@@ -243,7 +243,7 @@ export default function OrderDetail() {
       return;
     }
     try {
-      await assignDriverToOrder(order, driver, { requireDriverConfirmation: true });
+      await assignDriverToOrder(order, driver, { requireDriverConfirmation: true, forceManual: true });
       queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
     } catch (err) {
       alert(err?.message || "No se pudo asignar el pasaje");
