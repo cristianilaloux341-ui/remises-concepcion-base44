@@ -72,6 +72,8 @@ Deno.serve(async (req) => {
 
     // El móvil anterior queda al final de SU zona. Esta liberación también es CAS:
     // solo toca la reserva exacta que acabamos de bloquear arriba.
+    const queueNow = new Date().toISOString();
+    const queueBase = order.assigned_base || order.zone || null;
     const releasedCurrent = await b44.entities.Driver.updateMany(
       {
         id: driverId,
@@ -85,7 +87,9 @@ Deno.serve(async (req) => {
           status:'disponible',
           dispatch_status:'normal',
           // Regla operativa: rechazo o timeout manda al móvil al último de su zona.
-          queue_entered_at:new Date().toISOString(),
+          queue_entered_at:queueNow,
+          queue_authoritative_base:queueBase,
+          queue_authoritative_at:queueNow,
           active_order_id:null,
           active_ride_id:null,
           reserved_order_id:null,
@@ -118,6 +122,12 @@ Deno.serve(async (req) => {
 
       if (legacyAlreadyReleased) {
         currentReleased = true;
+        const legacyQueueAt = currentDriver.queue_entered_at || queueNow;
+        const legacyQueueBase = currentDriver.current_base || queueBase;
+        await b44.entities.Driver.updateMany(
+          { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
+          { $set:{ queue_authoritative_base:legacyQueueBase, queue_authoritative_at:legacyQueueAt } }
+        ).catch(()=>{});
         await b44.entities.AuditLog.create({
           action:'LEGACY_DRIVER_RELEASE_ADOPTED',
           user_type:'sistema',
