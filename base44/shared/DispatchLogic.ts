@@ -116,10 +116,24 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
       { 
         id: order.id,
         status: { $in: ['pendiente', 'procesando_despacho', 'ofrecido'] },
-        $or: [
-          { reservation_token: null },
-          { reservation_token: { $exists: false } },
-          { reservation_token: order.reservation_token || null }
+        $and: [
+          {
+            $or: [
+              { reservation_token: null },
+              { reservation_token: { $exists: false } },
+              { reservation_token: order.reservation_token || null }
+            ]
+          },
+          {
+            // No reasignar mientras ACEPTAR / RECHAZAR / TIMEOUT posee el viaje.
+            // Sin esta barrera una asignación de Central podía entrar en mitad del
+            // rechazo anterior y dejar driver_id de un móvil y reserved_driver_id de otro.
+            $or: [
+              { processingOwnerId: null },
+              { processingOwnerId: { $exists: false } },
+              { processingLeaseExpiresAt: { $lt: Date.now() } }
+            ]
+          }
         ]
       },
       { $set: offerSet }
