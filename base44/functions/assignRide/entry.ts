@@ -65,6 +65,22 @@ Deno.serve(async (req) => {
     return Response.json({ success: false, reason: 'ORDER_ALREADY_ACTIVE_OR_FINAL' });
   }
 
+  // PREVENCIÓN DE COLISIÓN (DOBLE DISPARO) AL MISMO TIEMPO:
+  // Si la orden ya está "ofrecida" o "procesando_despacho" a alguien más (o incluso al mismo),
+  // y la reserva no ha expirado, rechazar instantáneamente para no correr motores de empuje ni solapar cronómetros.
+  if ((orderReq.status === 'ofrecido' || orderReq.status === 'procesando_despacho' || orderReq.status === 'esperando_confirmacion_manual') && orderReq.driver_id) {
+    if (orderReq.offerExpiresAt && Date.now() < orderReq.offerExpiresAt) {
+      await b44.entities.AuditLog.create({
+        action: 'CONCURRENT_ASSIGN_BLOCKED',
+        user_type: 'sistema',
+        user_name: 'assignRide',
+        details: `Rechazado intento de asignar ${orderId} a ${driverId}: el viaje ya está en proceso/ofrecido a ${orderReq.driver_id}`,
+        metadata: { orderId, currentAssigned: orderReq.driver_id, attemptDriver: driverId }
+      }).catch(() => {});
+      return Response.json({ success: false, reason: 'CONCURRENT_ASSIGNMENT_BLOCKED' });
+    }
+  }
+
   // Defensa adicional ante un retroceso ya ocurrido: si quedó "pendiente" pero
   // el historial confirma que había sido aceptado o iniciado, no redistribuirlo.
   if (orderReq.status === 'pendiente' && ['ACCEPT', 'START', 'FINISH'].includes(orderReq.lastCompletedAction)) {

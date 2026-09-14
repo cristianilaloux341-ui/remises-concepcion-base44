@@ -1,16 +1,4 @@
 {
-  "name": "Deep Dispatch Reconciler",
-  "description": "",
-  "trigger": {
-    "condition": "${ ((.trigger.changed_fields | index(\"queue_entered_at\") != null) or (.trigger.changed_fields | index(\"dispatch_status\") != null) or (.trigger.changed_fields | index(\"reserved_order_id\") != null) or (.trigger.changed_fields | index(\"reservation_token\") != null) or (.trigger.changed_fields | index(\"active_order_id\") != null) or (.trigger.changed_fields | index(\"active_ride_id\") != null) or (.trigger.changed_fields | index(\"status\") != null) or (.trigger.changed_fields | index(\"current_base\") != null)) }",
-    "config": {
-      "trigger_type": "entity",
-      "events": [
-        "update"
-      ],
-      "entity_name": "Driver"
-    }
-  },
   "definition": {
     "document": {
       "dsl": "1.0.0",
@@ -28,14 +16,30 @@
               "event": "${ .trigger }",
               "data": "${ .trigger.data }",
               "old_data": "${ .trigger.old_data }",
-              "driverId": "${ .trigger.data.id }"
+              "driverId": "${ .trigger.entity_id }"
             }
           },
-          "then": "end"
+          "then": "end",
+          "x-base44": {
+            "title": "Reconciliar Despacho",
+            "description": "Verifica cola y pendientes"
+          }
         }
       }
     ]
   },
+  "name": "Deep Dispatch Reconciler",
+  "trigger": {
+    "condition": "${ ((.trigger.changed_fields | index(\"queue_entered_at\") != null) or (.trigger.changed_fields | index(\"dispatch_status\") != null) or (.trigger.changed_fields | index(\"reserved_order_id\") != null) or (.trigger.changed_fields | index(\"reservation_token\") != null) or (.trigger.changed_fields | index(\"active_order_id\") != null) or (.trigger.changed_fields | index(\"active_ride_id\") != null) or (.trigger.changed_fields | index(\"status\") != null) or (.trigger.changed_fields | index(\"current_base\") != null)) }",
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "update"
+      ],
+      "entity_name": "Driver"
+    }
+  },
+  "description": "",
   "x-base44-migrated-from-automation": {
     "legacy_payload_function": "dispatchReconciler"
   }
