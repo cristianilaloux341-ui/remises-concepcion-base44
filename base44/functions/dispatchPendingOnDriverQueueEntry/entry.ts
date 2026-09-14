@@ -260,6 +260,128 @@ Deno.serve(async (req) => {
       return Response.json({ success:true, skipped:true, reason:'LEGACY_REJECT_ALREADY_ADVANCED' });
     }
 
+    // AUTORIDAD SERVER-SIDE DE COLA.
+    // queue_entered_at/current_base siguen existiendo por compatibilidad con APK viejas,
+    // pero ya no son autoridad suficiente para cambiar una posición. La pareja
+    // queue_authoritative_base + queue_authoritative_at conserva el orden real.
+    const freshQueueDriver = await b44.entities.Driver.get(driverId).catch(() => null);
+    if (freshQueueDriver) {
+      const currentBase = freshQueueDriver.current_base || null;
+      const authoritativeBase = freshQueueDriver.queue_authoritative_base || null;
+      const currentAt = freshQueueDriver.queue_entered_at || null;
+      const authoritativeAt = freshQueueDriver.queue_authoritative_at || null;
+      const marker = freshQueueDriver.queue_position ?? null;
+      const acceptedMarker = freshQueueDriver.queue_authority_marker ?? null;
+      const explicitManualMove = marker != null && String(marker) !== String(acceptedMarker);
+      const queueIdle =
+        freshQueueDriver.status === 'disponible' &&
+        (freshQueueDriver.dispatch_status == null || freshQueueDriver.dispatch_status === 'normal') &&
+        !freshQueueDriver.reserved_order_id &&
+        !freshQueueDriver.active_order_id &&
+        !freshQueueDriver.active_ride_id;
+
+      // Salir de servicio sí abandona la cola: borrar la autoridad para que al volver
+      // a servicio tenga que elegir/entrar de nuevo a una base.
+      if (freshQueueDriver.status === 'no_disponible' && (authoritativeBase || authoritativeAt)) {
+        await b44.entities.Driver.updateMany(
+          { id:driverId, status:'no_disponible' },
+          { $set:{ queue_authoritative_base:null, queue_authoritative_at:null } }
+        ).catch(()=>{});
+        return Response.json({ success:true, repaired:true, reason:'QUEUE_AUTHORITY_CLEARED_OFF_SERVICE' });
+      }
+
+      if (queueIdle) {
+        // Primera migración: congelar exactamente la posición que ya tiene, sin moverla.
+        if (!authoritativeBase && currentBase) {
+          const seedAt = currentAt || new Date().toISOString();
+          await b44.entities.Driver.updateMany(
+            { id:driverId, status:'disponible', current_base:currentBase },
+            { $set:{
+              queue_authoritative_base:currentBase,
+              queue_authoritative_at:seedAt,
+              queue_authority_marker:marker
+            } }
+          ).catch(()=>{});
+          await b44.entities.AuditLog.create({
+            action:'QUEUE_AUTHORITY_INITIALIZED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
+            details:`Se congeló la posición actual de ${freshQueueDriver.name || driverId} sin modificar su orden`,
+            metadata:{ driverId, baseName:currentBase, queueAt:seedAt }
+          }).catch(()=>{});
+          return Response.json({ success:true, repaired:true, reason:'QUEUE_AUTHORITY_INITIALIZED' });
+        }
+
+        // Cierre/reconexión/estado atrasado: un móvil libre no puede salir solo de
+        // una base en la que conserva autoridad. Restaurar base y hora exactas.
+        if (authoritativeBase && !currentBase) {
+          const restored = await b44.entities.Driver.updateMany(
+            { id:driverId, status:'disponible', current_base:null, reserved_order_id:null, active_order_id:null, active_ride_id:null },
+            { $set:{ current_base:authoritativeBase, queue_entered_at:authoritativeAt } }
+          ).catch(()=>({updated:0}));
+          const count = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
+          if (count === 1) {
+            await b44.entities.AuditLog.create({
+              action:'QUEUE_AUTHORITY_RESTORED_BASE', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
+              details:`Se restauró ${freshQueueDriver.name || driverId} a ${authoritativeBase} sin perder posición`,
+              metadata:{ driverId, baseName:authoritativeBase, queueAt:authoritativeAt }
+            }).catch(()=>{});
+          }
+          return Response.json({ success:true, repaired:count === 1, reason:'QUEUE_AUTHORITY_RESTORED_BASE' });
+        }
+
+        // Cambio REAL A->B: el móvil eligió otra base. Adoptar esa nueva entrada como
+        // autoridad. Una simple reconexión en la misma base nunca cae acá.
+        if (authoritativeBase && currentBase && authoritativeBase !== currentBase) {
+          const adoptedAt = currentAt || new Date().toISOString();
+          await b44.entities.Driver.updateMany(
+            { id:driverId, status:'disponible', current_base:currentBase, reserved_order_id:null, active_order_id:null, active_ride_id:null },
+            { $set:{
+              queue_authoritative_base:currentBase,
+              queue_authoritative_at:adoptedAt,
+              queue_authority_marker:marker
+            } }
+          ).catch(()=>{});
+          await b44.entities.AuditLog.create({
+            action:'QUEUE_AUTHORITY_BASE_CHANGED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
+            details:`Cambio real de base adoptado para ${freshQueueDriver.name || driverId}: ${authoritativeBase} → ${currentBase}`,
+            metadata:{ driverId, oldBase:authoritativeBase, newBase:currentBase, queueAt:adoptedAt }
+          }).catch(()=>{});
+          // No retornar: una entrada real de base sí puede habilitar un pendiente.
+        } else if (authoritativeBase && currentBase === authoritativeBase) {
+          // Movimiento explícito del operador: queue_position cambia y queda como
+          // marcador auditable. Adoptar la nueva hora como autoridad.
+          if (explicitManualMove && currentAt) {
+            await b44.entities.Driver.updateMany(
+              { id:driverId, status:'disponible', current_base:currentBase, queue_position:marker },
+              { $set:{ queue_authoritative_at:currentAt, queue_authority_marker:marker } }
+            ).catch(()=>{});
+            await b44.entities.AuditLog.create({
+              action:'QUEUE_AUTHORITY_MANUAL_MOVE_ACCEPTED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
+              details:`Movimiento manual de cola aceptado para ${freshQueueDriver.name || driverId}`,
+              metadata:{ driverId, baseName:currentBase, queueAt:currentAt, marker }
+            }).catch(()=>{});
+            return Response.json({ success:true, repaired:true, reason:'QUEUE_AUTHORITY_MANUAL_MOVE_ACCEPTED' });
+          }
+
+          // Mismo móvil, misma base, sin acción de operador: la antigüedad NO cambia.
+          if (authoritativeAt && currentAt !== authoritativeAt) {
+            const restored = await b44.entities.Driver.updateMany(
+              { id:driverId, status:'disponible', current_base:currentBase, queue_entered_at:currentAt },
+              { $set:{ queue_entered_at:authoritativeAt } }
+            ).catch(()=>({updated:0}));
+            const count = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
+            if (count === 1) {
+              await b44.entities.AuditLog.create({
+                action:'QUEUE_AUTHORITY_TIMESTAMP_RESTORED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
+                details:`Se bloqueó un cambio no autorizado de posición de ${freshQueueDriver.name || driverId}`,
+                metadata:{ driverId, baseName:currentBase, attemptedQueueAt:currentAt, restoredQueueAt:authoritativeAt }
+              }).catch(()=>{});
+            }
+            return Response.json({ success:true, repaired:count === 1, reason:'QUEUE_AUTHORITY_TIMESTAMP_RESTORED' });
+          }
+        }
+      }
+    }
+
     // Primero proteger la integridad Driver ↔ RideOrder. Este chequeo corre también
     // cuando queue_entered_at no cambió, porque una APK vieja puede borrar la reserva
     // desde un heartbeat GPS sin tocar la posición de cola.
