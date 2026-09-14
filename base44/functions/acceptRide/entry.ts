@@ -6,6 +6,17 @@ import { verifyRequestAuth } from '../../shared/security.ts';
 // sin formar parte del camino crítico normal.
 const ENABLE_PROTOCOL_TRACE = Deno.env.get('ENABLE_PROTOCOL_TRACE') === 'true';
 
+// El SDK de Base44 puede exponer el resultado de updateMany como `updated`,
+// `modifiedCount` o `matchedCount` según el camino interno. Tomamos el mayor
+// contador informado para no tratar como fallo una escritura CAS que sí matcheó.
+function mutationCount(result: any): number {
+  return Math.max(
+    Number(result?.updated ?? 0),
+    Number(result?.modifiedCount ?? 0),
+    Number(result?.matchedCount ?? 0)
+  );
+}
+
 async function captureState(b44: any, rideOrderId: string, driverId: string) {
   if (!ENABLE_PROTOCOL_TRACE) return null;
   const [order, driver] = await Promise.all([
@@ -42,7 +53,7 @@ async function logStep(ctx: any, step: string, start: number, filterCAS: any, re
   const executionDurationMs = Date.now() - start;
   ctx.seq++;
   
-  const casUpdatedCount = resultObj ? resultObj.updated : 0;
+  const casUpdatedCount = mutationCount(resultObj);
   const casUpdateSucceeded = casUpdatedCount === 1;
   
   const executionResult = explicitResult || (errorMsg ? "FAILED" : (casUpdateSucceeded ? "SUCCESS" : "SKIPPED"));
@@ -107,7 +118,7 @@ async function releaseLeaseCAS(b44: any, rideOrderId: string, ownerId: string, a
     await logStep(ctx, "RELEASE_LEASE_AFTER", start, filter, release, null, snapshotBefore, snapshotAfter);
   }
 
-  return release.updated === 1 ? "RELEASED" : "STILL_OWNED_BUT_NOT_RELEASED";
+  return mutationCount(release) === 1 ? "RELEASED" : "STILL_OWNED_BUT_NOT_RELEASED";
 }
 
 async function compensateDriverCAS(b44: any, driverId: string, rideOrderId: string, reservationKey: string, reservedDriverVersion: number, correlationId: string, ctx?: any) {
@@ -161,6 +172,47 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   const ctx = { b44, correlationId, invocationId: invId, operationKey, seq: 0, driverId };
 
   let order = await b44.entities.RideOrder.get(rideOrderId);
+
+  // Defensa de compatibilidad con v12.27/v12.29: si una reasignación vieja dejó
+  // `driver_id` apuntando al móvil anterior pero `reserved_driver_id` ya pertenece
+  // al chofer que recibió ESTA oferta, la reserva vigente es la autoridad. Reparar
+  // sólo con CAS sobre el mismo intento y sin pisar otra operación en curso.
+  if (
+    order &&
+    order.status === 'ofrecido' &&
+    order.reserved_driver_id === driverId &&
+    order.driver_id &&
+    order.driver_id !== driverId &&
+    Number(order.assignment_attempt) === Number(assignmentAttempt)
+  ) {
+    const staleDriverId = order.driver_id;
+    const repair = await b44.entities.RideOrder.updateMany(
+      {
+        id: rideOrderId,
+        status: 'ofrecido',
+        reserved_driver_id: driverId,
+        driver_id: staleDriverId,
+        assignment_attempt: assignmentAttempt,
+        $or: [
+          { processingOwnerId: null },
+          { processingOwnerId: { $exists: false } },
+          { processingLeaseExpiresAt: { $lt: Date.now() } }
+        ]
+      },
+      { $set: { driver_id: driverId } }
+    ).catch(() => null);
+
+    if (mutationCount(repair) === 1) {
+      await b44.entities.AuditLog.create({
+        action: 'OFFER_DRIVER_ID_REPAIRED_BEFORE_ACCEPT',
+        user_type: 'sistema',
+        user_name: 'acceptRide',
+        details: `Reparado driver_id cruzado antes de aceptar ${rideOrderId}`,
+        metadata: { orderId: rideOrderId, staleDriverId, driverId, assignmentAttempt }
+      }).catch(() => {});
+      order = await b44.entities.RideOrder.get(rideOrderId);
+    }
+  }
 
   // 1. IDEMPOTENCIA
   if (!order) return { status: "ORDER_NOT_FOUND", correlationId };
@@ -245,7 +297,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   let snapshotAfter = await captureState(b44, rideOrderId, driverId);
   await logStep(ctx, "ACQUIRE_LEASE_AFTER", start, acquireFilter, acquired, null, snapshotBefore, snapshotAfter);
 
-  if (acquired.updated === 0) {
+  if (mutationCount(acquired) === 0) {
     let retSnap = await captureState(b44, rideOrderId, driverId);
     await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
     return { status: "OPERATION_IN_PROGRESS", correlationId };
@@ -304,7 +356,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     throw e;
   }
   
-  if (validated.updated === 0) {
+  if (mutationCount(validated) === 0) {
     const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
     let retSnap = await captureState(b44, rideOrderId, driverId);
     await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
@@ -362,7 +414,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   snapshotAfter = await captureState(b44, rideOrderId, driverId);
   await logStep(ctx, "RESERVE_DRIVER_AFTER", start, reserveDriverFilter, resDriver, null, snapshotBefore, snapshotAfter);
 
-  if (resDriver.updated === 0) {
+  if (mutationCount(resDriver) === 0) {
     const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
     let retSnap = await captureState(b44, rideOrderId, driverId);
     await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
@@ -397,12 +449,12 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   snapshotAfter = await captureState(b44, rideOrderId, driverId);
   await logStep(ctx, "DRIVER_RESERVED_TRANSITION_AFTER", start, driverResTransFilter, reservedPhase, null, snapshotBefore, snapshotAfter);
 
-  if (reservedPhase.updated === 0) {
+  if (mutationCount(reservedPhase) === 0) {
     const comp = await compensateDriverCAS(b44, driverId, rideOrderId, reservationKey, reservedDriverVersion, correlationId, ctx);
     const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
     let retSnap = await captureState(b44, rideOrderId, driverId);
     await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
-    return { status: "INTERNAL_INCONSISTENCY", compensationStatus: comp.updated === 1 ? "COMPENSATION_COMPLETED" : "COMPENSATION_REQUIRED", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
+    return { status: "INTERNAL_INCONSISTENCY", compensationStatus: mutationCount(comp) === 1 ? "COMPENSATION_COMPLETED" : "COMPENSATION_REQUIRED", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
 
   // 7. COMMIT COMERCIAL
@@ -466,7 +518,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   await logStep(ctx, "COMMERCIAL_COMMIT_AFTER", start, commitFilter, commit, null, snapshotBefore, snapshotAfter);
 
   // 8. FALLO Y CLASIFICACIÓN DEL COMMIT
-  if (commit.updated === 0) {
+  if (mutationCount(commit) === 0) {
     const check = await b44.entities.RideOrder.get(rideOrderId);
     
     if (!check) {
@@ -476,7 +528,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
       await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
       return { 
         status: "ORDER_NOT_FOUND", 
-        compensationStatus: comp.updated === 1 ? "COMPENSATION_COMPLETED" : "COMPENSATION_REQUIRED", 
+        compensationStatus: mutationCount(comp) === 1 ? "COMPENSATION_COMPLETED" : "COMPENSATION_REQUIRED", 
         leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", 
         correlationId 
       };
@@ -503,7 +555,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
     let retSnap = await captureState(b44, rideOrderId, driverId);
     await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
-    return { status: commercialStatus, compensationStatus: comp.updated === 1 ? "COMPENSATION_COMPLETED" : "COMPENSATION_REQUIRED", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
+    return { status: commercialStatus, compensationStatus: mutationCount(comp) === 1 ? "COMPENSATION_COMPLETED" : "COMPENSATION_REQUIRED", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
 
   // AUDIT LOG DE PRODUCCIÓN (EFECTO FINAL REAL)
