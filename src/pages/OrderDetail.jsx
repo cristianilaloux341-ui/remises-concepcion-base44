@@ -147,16 +147,31 @@ export default function OrderDetail() {
       );
 
       if (order.driver_id && !order.preassigned_driver_id) {
-        // Cancelación ajena al chofer: vuelve primero. La misma marca queda tanto en
-        // el campo legacy como en la autoridad server-side para que no haya rebote.
-        const firstAt = new Date(Date.now() - 31536000000).toISOString();
-        const marker = Date.now();
-        await base44.entities.Driver.update(order.driver_id, {
-          queue_entered_at: firstAt,
-          queue_authoritative_at: firstAt,
-          queue_position: marker,
-          queue_authority_marker: marker
-        });
+        // ÚNICA REINSERCIÓN AUTOMÁTICA DE COLA: cancelación hecha por Central.
+        // El móvil vuelve 1° a la base del pasaje. queue_entered_at se conserva
+        // únicamente como clave de orden compatible con las APK instaladas; no es
+        // un reloj de negocio ni dispara movimientos por sí solo.
+        const returnBase = order.assigned_base || order.zone || null;
+        if (returnBase) {
+          const baseDrivers = await base44.entities.Driver.filter({ current_base: returnBase, status: "disponible" }).catch(() => []);
+          const validTimes = baseDrivers
+            .filter(d => d.id !== order.driver_id && d.queue_entered_at)
+            .map(d => new Date(d.queue_entered_at).getTime())
+            .filter(Number.isFinite);
+          const firstMs = validTimes.length ? Math.min(...validTimes) - 1 : Date.now();
+          const firstAt = new Date(firstMs).toISOString();
+          const marker = Date.now();
+          await base44.entities.Driver.update(order.driver_id, {
+            status: "disponible",
+            dispatch_status: "normal",
+            current_base: returnBase,
+            queue_entered_at: firstAt,
+            queue_authoritative_base: returnBase,
+            queue_authoritative_at: firstAt,
+            queue_position: marker,
+            queue_authority_marker: marker
+          });
+        }
       }
       
       const sessionToken = sessionStorage.getItem("local_operator_token");
