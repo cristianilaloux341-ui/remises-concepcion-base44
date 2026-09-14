@@ -1,6 +1,5 @@
 {
   "name": "Push Auto Trigger",
-  "description": "",
   "trigger": {
     "condition": "${ ((.trigger.changed_fields | index(\"status\") != null) or (.trigger.changed_fields | index(\"reserved_driver_id\") != null) or (.trigger.changed_fields | index(\"offered_driver_ids\") != null)) }",
     "config": {
@@ -12,6 +11,7 @@
       "entity_name": "RideOrder"
     }
   },
+  "description": "",
   "definition": {
     "document": {
       "dsl": "1.0.0",
