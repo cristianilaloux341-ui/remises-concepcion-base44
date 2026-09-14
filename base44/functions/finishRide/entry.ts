@@ -1,6 +1,14 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 import { verifyRequestAuth } from '../../shared/security.ts';
 
+function mutationCount(result: any): number {
+  return Math.max(
+    Number(result?.updated ?? 0),
+    Number(result?.modifiedCount ?? 0),
+    Number(result?.matchedCount ?? 0)
+  );
+}
+
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
@@ -40,22 +48,44 @@ Deno.serve(async (req) => {
   }
 
   const checkAndRepairDriver = async (currentDriver) => {
-    if (['disponible', 'no_disponible'].includes(currentDriver.status) && !currentDriver.active_ride_id && !currentDriver.reserved_order_id && !currentDriver.reservation_token && !currentDriver.manual_reservation_token) {
+    // Releer antes de decidir: finishRide compite con workflows que pueden limpiar
+    // el Driver milisegundos después de completar el RideOrder. Un snapshot viejo
+    // no debe convertir un cierre correcto en PARTIAL_FAILURE.
+    const freshDriver = await b44.entities.Driver.get(driverId).catch(() => currentDriver);
+    const isClean = (d:any) => Boolean(
+      d &&
+      ['disponible', 'no_disponible'].includes(d.status) &&
+      !d.active_ride_id &&
+      !d.active_order_id &&
+      !d.reserved_order_id &&
+      !d.reservation_token &&
+      !d.manual_reservation_token
+    );
+
+    if (isClean(freshDriver)) {
       await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Already completed perfectly', metadata: { orderId, driverId } });
       return Response.json({ success: true, idempotent: true, reason: 'ALREADY_PROCESSED' });
-    } else {
-      const fixRes = await b44.entities.Driver.updateMany(
-        { id: driverId, $or: [{ reserved_order_id: orderId }, { active_order_id: orderId }, { active_ride_id: orderId }] },
-        { $set: { status: 'disponible', dispatch_status: 'normal', current_base: null, reserved_order_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null, active_order_id: null, active_ride_id: null } }
-      );
-      if (fixRes.updated >= 1) {
-         await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Repaired driver state', metadata: { orderId, driverId } });
-         return Response.json({ success: true, idempotent: true, note: 'repaired_driver', reason: 'ALREADY_PROCESSED' });
-      } else {
-         await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: `Failed to repair driver, raw: ${JSON.stringify(fixRes)}`, metadata: { orderId, driverId } });
-         return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION', db_result: fixRes });
-      }
     }
+
+    const fixRes = await b44.entities.Driver.updateMany(
+      { id: driverId, $or: [{ reserved_order_id: orderId }, { active_order_id: orderId }, { active_ride_id: orderId }] },
+      { $set: { status: 'disponible', dispatch_status: 'normal', current_base: null, reserved_order_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null, active_order_id: null, active_ride_id: null } }
+    );
+    if (mutationCount(fixRes) >= 1) {
+      await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Repaired driver state', metadata: { orderId, driverId } });
+      return Response.json({ success: true, idempotent: true, note: 'repaired_driver', reason: 'ALREADY_PROCESSED' });
+    }
+
+    // Si otra operación ganó la carrera y lo dejó limpio entre nuestra lectura y
+    // el CAS, eso también es éxito idempotente, no un error parcial.
+    const afterNoMatch = await b44.entities.Driver.get(driverId).catch(() => null);
+    if (isClean(afterNoMatch)) {
+      await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Driver was cleaned concurrently', metadata: { orderId, driverId } });
+      return Response.json({ success: true, idempotent: true, note: 'concurrent_cleanup', reason: 'ALREADY_PROCESSED' });
+    }
+
+    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: `Failed to repair driver, raw: ${JSON.stringify(fixRes)}`, metadata: { orderId, driverId } });
+    return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION', db_result: fixRes });
   };
 
   if (order.status === 'completado') {
@@ -85,7 +115,7 @@ Deno.serve(async (req) => {
         }
       );
 
-      if (repairOrder.updated === 1) {
+      if (mutationCount(repairOrder) === 1) {
         await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_REPAIRED', user_type: 'sistema', user_name: 'finishRide', details: 'Completed order had incomplete finish metadata and was repaired', metadata: { orderId, driverId } });
       } else {
         await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: `Could not repair completed order, raw: ${JSON.stringify(repairOrder)}`, metadata: { orderId, driverId } });
@@ -139,7 +169,7 @@ Deno.serve(async (req) => {
     }
   );
 
-  if (uOrder.updated !== 1) {
+  if (mutationCount(uOrder) !== 1) {
     const freshOrders = await b44.entities.RideOrder.filter({ id: orderId });
     const freshDrivers = await b44.entities.Driver.filter({ id: driverId });
     const fOrder = freshOrders[0];
@@ -158,7 +188,7 @@ Deno.serve(async (req) => {
     { $set: { status: 'disponible', dispatch_status: 'normal', current_base: null, reserved_order_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null, active_order_id: null, active_ride_id: null } }
   );
 
-  if (uDriver.updated < 1) {
+  if (mutationCount(uDriver) < 1) {
     await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: `Driver update failed, raw: ${JSON.stringify(uDriver)}`, metadata: { orderId, driverId } });
     return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION', db_result: uDriver });
   }
