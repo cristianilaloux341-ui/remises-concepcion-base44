@@ -54,6 +54,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
   const [distanciaCalculada, setDistanciaCalculada] = useState(null);
   const tarifa = useTarifaConfig();
   const submitLockRef = useRef(false);
+  const zoneDetectSeqRef = useRef(0);
+  const zoneManualOverrideRef = useRef(false);
 
   // Geocodifica una dirección de texto si no tiene coords, usando Google Places
   const geocodeAddress = async (address) => {
@@ -192,10 +194,19 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
   const availableDrivers = drivers.filter(d => isDriverWorking(d) && d.current_base);
 
-  // Auto-detect zone when pickup address changes
+  // Auto-detect zone when pickup address changes.
+  // Cada búsqueda lleva una secuencia: una respuesta vieja jamás puede pisar
+  // la dirección/zona que el operador ya cambió mientras esperaba al backend.
   useEffect(() => {
-    if (!form.pickup_address || form.pickup_address.length < 3) { setDetectedZone(null); return; }
+    const requestSeq = ++zoneDetectSeqRef.current;
+    if (!form.pickup_address || form.pickup_address.length < 3) {
+      setDetectedZone(null);
+      setDetectingZone(false);
+      return;
+    }
+
     const timeout = setTimeout(async () => {
+      const isCurrent = () => zoneDetectSeqRef.current === requestSeq;
       setDetectingZone(true);
       let zone = null;
       
@@ -208,33 +219,41 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
       if (selectedCoords) {
         zone = await detectZoneFromCoords(selectedCoords.lat, selectedCoords.lng);
+        if (!isCurrent()) return;
       }
 
       // Sin coordenadas seleccionadas, usar primero la memoria local para no hacer
       // consultas externas innecesarias en direcciones ya conocidas.
       if (!zone && !selectedCoords) {
         zone = await detectZoneFromAddress(form.pickup_address);
+        if (!isCurrent()) return;
       }
 
       // Último recurso: geocodificar el texto y resolver por el polígono real.
       if (!zone && !selectedCoords) {
         const coords = await geocodeAddress(form.pickup_address);
+        if (!isCurrent()) return;
         if (coords) {
           zone = await detectZoneFromCoords(coords.lat, coords.lng);
+          if (!isCurrent()) return;
           setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
         }
       }
 
+      if (!isCurrent() || zoneManualOverrideRef.current) return;
       setDetectingZone(false);
       if (zone) {
         setDetectedZone(zone);
-        // Auto-fill zone always, overriding any previous value
         setForm(prev => ({ ...prev, zone }));
       } else {
         setDetectedZone(null);
       }
     }, 600);
-    return () => clearTimeout(timeout);
+
+    return () => {
+      clearTimeout(timeout);
+      if (zoneDetectSeqRef.current === requestSeq) zoneDetectSeqRef.current += 1;
+    };
   }, [form.pickup_address, form.pickup_lat, form.pickup_lng]);
 
   // Sugerir únicamente el primero de la cola de la base exacta del pasaje.
@@ -275,7 +294,17 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     }
   }, [order]);
 
-  const handleChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+  const handleChange = (field, value) => {
+    // Si el operador corrige la zona manualmente, ninguna detección que estaba
+    // en vuelo puede volver a sobreescribir esa decisión.
+    if (field === "zone") {
+      zoneManualOverrideRef.current = true;
+      zoneDetectSeqRef.current += 1;
+      setDetectingZone(false);
+      setDetectedZone(null);
+    }
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
 
   const handleDriverChange = (driverId) => {
     if (driverId === "none" || !driverId) {
@@ -375,6 +404,18 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     data.segundos_tolerancia_espera_usados = 0;
     data.metros_taximetro = 0;
     data.taximetro_iniciado = false;
+
+    // Barrera final antes de despachar: si tenemos coordenadas exactas del origen,
+    // recalcular la zona con el polígono autoritativo. Una corrección manual del
+    // operador siempre tiene prioridad sobre el automático.
+    if (!zoneManualOverrideRef.current && data.pickup_lat && data.pickup_lng) {
+      try {
+        const authoritativeZone = await detectZoneFromCoords(Number(data.pickup_lat), Number(data.pickup_lng));
+        if (authoritativeZone) data.zone = authoritativeZone;
+      } catch (_) {
+        // Si falla la lectura de polígonos, conservar la zona visible del operador.
+      }
+    }
 
     // El operador común nunca puede inyectar una asignación manual, aunque llegue un dato viejo.
     if (!allowManualAssignment) {
@@ -518,12 +559,15 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
               <Label>Recogida</Label>
               <PickupAutocomplete
                 value={form.pickup_address}
-                onChange={(v, coords) => setForm(prev => ({ 
-                  ...prev, 
-                  pickup_address: v, 
-                  pickup_lat: coords !== undefined ? (coords?.lat || null) : null, 
-                  pickup_lng: coords !== undefined ? (coords?.lng || null) : null 
-                }))}
+                onChange={(v, coords) => {
+                  zoneManualOverrideRef.current = false;
+                  setForm(prev => ({ 
+                    ...prev, 
+                    pickup_address: v, 
+                    pickup_lat: coords !== undefined ? (coords?.lat || null) : null, 
+                    pickup_lng: coords !== undefined ? (coords?.lng || null) : null 
+                  }));
+                }}
                 onClientSelect={handleAddressClientSelect}
                 required
                 autoFocus
