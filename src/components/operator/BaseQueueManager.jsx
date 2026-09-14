@@ -208,24 +208,43 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
         throw new Error(`El móvil tiene un viaje u oferta activa. Esperá a que termine antes de ponerlo en ${baseName}.`);
       }
 
-      // Entrar a una base solo modifica al móvil que entra. La hora real de entrada
-      // garantiza FIFO; nunca se empuja la hora hacia el futuro según el tamaño de
-      // la cola, porque otro móvil que entre un instante después podría colarse delante.
-      if (driver.current_base === baseName && driver.status === "disponible" && driver.dispatch_status === "normal" && !driver.reserved_order_id && !driver.active_order_id && !driver.active_ride_id) {
-        return driver;
+      // Entrada autoritativa: la copia `driver` del modal puede estar atrasada.
+      // El servidor decide si realmente cambia de base; si YA estaba aquí, el CAS
+      // no escribe y conserva intacta su antigüedad.
+      const ts = new Date().toISOString();
+      const entered = await base44.entities.Driver.updateMany(
+        {
+          id: driver.id,
+          status: "disponible",
+          dispatch_status: "normal",
+          reserved_order_id: null,
+          active_order_id: null,
+          active_ride_id: null,
+          current_base: { $ne: baseName }
+        },
+        { $set: {
+          current_base: baseName,
+          status: "disponible",
+          dispatch_status: "normal",
+          queue_entered_at: ts,
+          active_order_id: null,
+          active_ride_id: null,
+          reserved_order_id: null,
+          reservation_token: null,
+          manual_reservation_token: null,
+          driver_reservation_key: null
+        } }
+      );
+      const changed = entered?.updated ?? entered?.modifiedCount ?? entered?.matchedCount ?? 0;
+      if (changed > 0) return base44.entities.Driver.get(driver.id);
+
+      const fresh = await base44.entities.Driver.get(driver.id);
+      if (fresh?.current_base === baseName && fresh?.status === "disponible" &&
+          (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
+          !fresh?.reserved_order_id && !fresh?.active_order_id && !fresh?.active_ride_id) {
+        return fresh;
       }
-      return base44.entities.Driver.update(driver.id, {
-        current_base: baseName,
-        status: "disponible",
-        dispatch_status: "normal",
-        queue_entered_at: new Date().toISOString(),
-        active_order_id: null,
-        active_ride_id: null,
-        reserved_order_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null
-      });
+      throw new Error(`El móvil cambió de estado. No se modificó su posición en ${baseName}.`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
@@ -421,28 +440,41 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     }
 
     try {
-      // Repetir "98.2" cuando el 98 YA está libre en Plaza no significa volver a
-      // entrar a la cola. Antes lo mandaba al final silenciosamente. Ahora es idempotente.
-      if (driver.current_base === baseName && driver.status === "disponible" && driver.dispatch_status === "normal" && !driver.reserved_order_id && !driver.active_order_id && !driver.active_ride_id) {
-        window.dispatchEvent(new Event("force-driver-refresh"));
-        setIsProcessing(false);
-        return;
+      // La Central también valida contra estado fresco del servidor. Repetir
+      // "98.2" cuando el 98 YA está en Plaza no renueva su hora ni lo manda último,
+      // aunque esta PC tenga una copia atrasada del Driver.
+      const ts = new Date().toISOString();
+      const entered = await base44.entities.Driver.updateMany(
+        {
+          id: driver.id,
+          status: "disponible",
+          dispatch_status: "normal",
+          reserved_order_id: null,
+          active_order_id: null,
+          active_ride_id: null,
+          current_base: { $ne: baseName }
+        },
+        { $set: {
+          current_base: baseName,
+          status: "disponible",
+          dispatch_status: "normal",
+          queue_entered_at: ts,
+          active_order_id: null,
+          active_ride_id: null,
+          reserved_order_id: null,
+          reservation_token: null,
+          manual_reservation_token: null,
+          driver_reservation_key: null
+        } }
+      );
+      const changed = entered?.updated ?? entered?.modifiedCount ?? entered?.matchedCount ?? 0;
+      if (changed < 1) {
+        const fresh = await base44.entities.Driver.get(driver.id);
+        const alreadyThere = fresh?.current_base === baseName && fresh?.status === "disponible" &&
+          (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
+          !fresh?.reserved_order_id && !fresh?.active_order_id && !fresh?.active_ride_id;
+        if (!alreadyThere) throw new Error("El móvil cambió de estado; no se modificó su posición.");
       }
-
-      // El nuevo móvil recibe su hora REAL de entrada. No se toca ni recalcula ningún
-      // queue_entered_at existente, por lo que entrar último no puede mover la lista.
-      await base44.entities.Driver.update(driver.id, {
-        current_base: baseName,
-        status: "disponible",
-        dispatch_status: "normal",
-        queue_entered_at: new Date().toISOString(),
-        active_order_id: null,
-        active_ride_id: null,
-        reserved_order_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null
-      });
       
       // Forzar recarga rápida de la UI, ya que mutation invalidaría react-query pero acá no estamos usando el useMutation de BaseQueueManager sino update directo
       window.dispatchEvent(new Event("force-driver-refresh"));
