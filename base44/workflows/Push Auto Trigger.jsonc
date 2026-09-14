@@ -25,7 +25,11 @@
           "call": "invoke_backend_function",
           "with": {
             "function_name": "sendPushNotification",
-            "args": {}
+            "args": {
+              "source": "ride_order_workflow",
+              "data": "${ .trigger.data }",
+              "old_data": "${ .trigger.old_data }"
+            }
           },
           "then": "end"
         }
