@@ -15,11 +15,32 @@ export function getDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Fuente autoritativa de cola. Las APK legacy todavía pueden escribir
+// queue_entered_at/current_base; por eso despacho y Central no deben confiar
+// ciegamente en esos campos. Si hay autoridad server-side, manda siempre.
+export function getEffectiveQueueBase(driver) {
+  if (!driver) return null;
+  return driver.current_base || driver.queue_authoritative_base || null;
+}
+
+export function getEffectiveQueueEnteredAt(driver) {
+  if (!driver) return null;
+  const currentBase = driver.current_base || null;
+  const authoritativeBase = driver.queue_authoritative_base || null;
+  // Cambio REAL de base todavía no reconciliado: usar la hora nueva de entrada.
+  if (currentBase && authoritativeBase && currentBase !== authoritativeBase) {
+    return driver.queue_entered_at || null;
+  }
+  return driver.queue_authoritative_at || driver.queue_entered_at || null;
+}
+
 // Helper to safely and stably sort a queue
 export function sortQueue(driversArray) {
   return driversArray.sort((a, b) => {
-    const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
-    const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : Infinity;
+    const queueA = getEffectiveQueueEnteredAt(a);
+    const queueB = getEffectiveQueueEnteredAt(b);
+    const timeA = queueA ? new Date(queueA).getTime() : Infinity;
+    const timeB = queueB ? new Date(queueB).getTime() : Infinity;
     const tA = isNaN(timeA) ? Infinity : timeA;
     const tB = isNaN(timeB) ? Infinity : timeB;
     if (tA !== tB) return tA - tB;
@@ -34,7 +55,7 @@ export function sortQueue(driversArray) {
 // espera) durante esos segundos y hasta puede volver a sugerirlo para otro viaje.
 export function getBaseQueue(drivers, baseName) {
   return sortQueue(drivers.filter(d =>
-    d.current_base === baseName &&
+    getEffectiveQueueBase(d) === baseName &&
     d.status === "disponible" &&
     (d.dispatch_status == null || d.dispatch_status === "normal") &&
     !d.reserved_order_id &&
@@ -206,7 +227,7 @@ export async function reassignAfterReject(order, drivers, bases) {
   // Siguiente móvil exclusivamente en la zona del pasaje (FIFO).
   const targetZone = order.zone;
   const sameBaseQueue = targetZone
-    ? sortQueue(available.filter(d => d.current_base === targetZone))
+    ? sortQueue(available.filter(d => getEffectiveQueueBase(d) === targetZone))
     : [];
 
   for (const driver of sameBaseQueue) {
