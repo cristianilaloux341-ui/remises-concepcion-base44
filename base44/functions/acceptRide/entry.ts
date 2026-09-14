@@ -413,8 +413,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
       // el estado visual antes de que este commit terminara. La reserva del móvil,
       // el intento y el lease siguen validando que sea el mismo ofrecimiento.
       status: isNowBroadcast ? "pendiente" : { $in: ["ofrecido", "aceptado", "en_camino", "en_viaje"] },
-      driver_id: isNowBroadcast ? null : { $in: [null, driverId] },
-      reserved_driver_id: isNowBroadcast ? null : driverId, 
+      ...(isNowBroadcast ? { driver_id: null, reserved_driver_id: null } : { reserved_driver_id: driverId }), 
       assignment_attempt: isNowBroadcast ? order.assignment_attempt : assignmentAttempt, 
       processingOwnerId: ownerId, 
       processingPhase: "DRIVER_RESERVED", 
