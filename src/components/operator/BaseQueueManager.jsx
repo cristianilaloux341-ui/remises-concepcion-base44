@@ -439,6 +439,8 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
         dispatch_status: "normal",
         reserved_order_id: null,
         queue_entered_at: null,
+        queue_authoritative_base: null,
+        queue_authoritative_at: null,
         active_order_id: null,
         active_ride_id: null,
         reservation_token: null,
