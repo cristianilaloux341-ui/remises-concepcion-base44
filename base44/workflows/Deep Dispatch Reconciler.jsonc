@@ -1,6 +1,6 @@
 {
   "trigger": {
-    "condition": "${ ((.trigger.data.queue_entered_at != .trigger.old_data.queue_entered_at) or (.trigger.data.dispatch_status != .trigger.old_data.dispatch_status) or (.trigger.data.reserved_order_id != .trigger.old_data.reserved_order_id) or (.trigger.data.reservation_token != .trigger.old_data.reservation_token) or (.trigger.data.active_order_id != .trigger.old_data.active_order_id) or (.trigger.data.active_ride_id != .trigger.old_data.active_ride_id) or (.trigger.data.status != .trigger.old_data.status) or (.trigger.data.current_base != .trigger.old_data.current_base) or (.trigger.data.queue_position != .trigger.old_data.queue_position)) }",
+    "condition": "${ ((.trigger.changed_fields | index(\"queue_entered_at\") != null) or (.trigger.changed_fields | index(\"dispatch_status\") != null) or (.trigger.changed_fields | index(\"reserved_order_id\") != null) or (.trigger.changed_fields | index(\"reservation_token\") != null) or (.trigger.changed_fields | index(\"active_order_id\") != null) or (.trigger.changed_fields | index(\"active_ride_id\") != null) or (.trigger.changed_fields | index(\"status\") != null) or (.trigger.changed_fields | index(\"current_base\") != null)) }",
     "config": {
       "trigger_type": "entity",
       "events": [
