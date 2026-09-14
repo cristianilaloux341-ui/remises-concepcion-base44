@@ -36,7 +36,8 @@ Deno.serve(async (req) => {
         (nativeAssignmentAttempt == null || order.assignment_attempt === nativeAssignmentAttempt)
       ) {
         const configs = await b44.entities.TarifaConfig.list();
-        const responseSeconds = configs[0]?.tiempo_maximo_respuesta_segundos ?? 30;
+        const configuredSeconds = Number(configs[0]?.tiempo_maximo_respuesta_segundos ?? 30);
+        const responseSeconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
         const receivedAt = new Date().toISOString();
         const receivedOfferExpiresAt = Date.now() + (responseSeconds * 1000);
         const extended = await b44.entities.RideOrder.updateMany(
