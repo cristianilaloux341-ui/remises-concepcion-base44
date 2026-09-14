@@ -64,18 +64,19 @@ Deno.serve(async (req) => {
   ]);
 
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
+  const effectiveDriverBase = driverReq.current_base || driverReq.queue_authoritative_base || null;
 
   // Invariante de servicio: ningún móvil sin base activa puede recibir pasajes,
   // tampoco por asignación manual. `status=disponible` con current_base=null es
   // un estado intermedio/fantasma (por ejemplo app cerrada o antes de elegir base),
   // no significa que esté en posición para trabajar.
-  if (driverReq.status !== 'disponible' || !driverReq.current_base) {
+  if (driverReq.status !== 'disponible' || !effectiveDriverBase) {
     await b44.entities.AuditLog.create({
       action: 'OFF_SERVICE_ASSIGN_BLOCKED',
       user_type: 'sistema',
       user_name: 'assignRide',
       details: `Bloqueada asignación de ${orderId} a ${driverReq.name || driverId}: móvil fuera de servicio o sin base`,
-      metadata: { orderId, driverId, status: driverReq.status ?? null, current_base: driverReq.current_base ?? null }
+      metadata: { orderId, driverId, status: driverReq.status ?? null, current_base: driverReq.current_base ?? null, queue_authoritative_base: driverReq.queue_authoritative_base ?? null }
     }).catch(() => {});
     return Response.json({ success: false, reason: 'DRIVER_OFF_SERVICE_OR_NO_BASE' });
   }
@@ -206,8 +207,8 @@ Deno.serve(async (req) => {
 
   // La selección automática jamás cruza zonas. Solamente una asignación manual
   // autenticada de Central puede elegir otro móvil como excepción de emergencia.
-  if (orderReq.zone && driverReq.current_base !== orderReq.zone && !isManualAuthorized) {
-    console.warn(`[STRICT ZONE] Rechazado assign de Viaje ${orderId} (Zona: ${orderReq.zone}) a Móvil ${driverId} (Base: ${driverReq.current_base}). ManualAuth: ${isManualAuthorized}`);
+  if (orderReq.zone && effectiveDriverBase !== orderReq.zone && !isManualAuthorized) {
+    console.warn(`[STRICT ZONE] Rechazado assign de Viaje ${orderId} (Zona: ${orderReq.zone}) a Móvil ${driverId} (Base: ${effectiveDriverBase}). ManualAuth: ${isManualAuthorized}`);
     
     // Limpiamos devolviendo a pendiente de forma 100% ATÓMICA.
     // Solo si el pasaje sigue exactamente en el mismo estado en que lo leímos.
@@ -226,7 +227,7 @@ Deno.serve(async (req) => {
     
     return Response.json({
       success: false,
-      reason: `Asignación denegada: el móvil está en ${driverReq.current_base || 'ninguna base'} y el pasaje es de zona ${orderReq.zone}. Debe quedar pendiente.`
+      reason: `Asignación denegada: el móvil está en ${effectiveDriverBase || 'ninguna base'} y el pasaje es de zona ${orderReq.zone}. Debe quedar pendiente.`
     });
   }
 
@@ -286,7 +287,7 @@ Deno.serve(async (req) => {
     // Update memory object for Push payload
     orderReq.assignment_attempt = newAttempt;
     orderReq.offered_driver_ids = offeredIds;
-    orderReq.assigned_base = driverReq.current_base;
+    orderReq.assigned_base = effectiveDriverBase;
     orderReq.driver_name = driverReq.name;
     orderReq.assigned_at = assignedAt;
     orderReq.offerExpiresAt = offerExpiresAt;
@@ -339,7 +340,7 @@ Deno.serve(async (req) => {
           reserved_driver_id: driverId,
           offered_driver_ids: offeredIds,
           assignment_attempt: newAttempt,
-          assigned_base: driverReq.current_base,
+          assigned_base: effectiveDriverBase,
           driver_name: driverReq.name,
           assigned_at: assignedAt,
           offerExpiresAt: offerExpiresAt
