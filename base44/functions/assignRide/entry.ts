@@ -23,6 +23,40 @@ Deno.serve(async (req) => {
   const orderReq = await b44.entities.RideOrder.get(orderId);
   if (!orderReq) return Response.json({ success: false, reason: 'Order not found' });
 
+  // Barrera absoluta contra reasignación anticipada. Mientras una oferta siga
+  // vigente para un móvil, ningún assignRide directo puede cambiarla de dueño.
+  // Rechazo explícito y timeout se procesan por rejectRide, que es la única ruta
+  // autorizada para mover una oferta activa al siguiente móvil.
+  const currentOfferOwner = orderReq.reserved_driver_id || orderReq.driver_id || null;
+  const offerExpiry = Number(orderReq.offerExpiresAt);
+  const offerStillLive = orderReq.status === 'ofrecido' &&
+    currentOfferOwner &&
+    currentOfferOwner !== driverId &&
+    (!Number.isFinite(offerExpiry) || Date.now() < offerExpiry);
+
+  if (offerStillLive) {
+    const remainingMs = Number.isFinite(offerExpiry) ? Math.max(0, offerExpiry - Date.now()) : null;
+    await b44.entities.AuditLog.create({
+      action: 'PREMATURE_REASSIGN_BLOCKED',
+      user_type: 'sistema',
+      user_name: 'assignRide',
+      details: `Bloqueada reasignación anticipada de ${orderId}: la oferta sigue vigente para ${currentOfferOwner}`,
+      metadata: {
+        orderId,
+        currentDriverId: currentOfferOwner,
+        requestedDriverId: driverId,
+        assignmentAttempt: orderReq.assignment_attempt ?? null,
+        offerExpiresAt: orderReq.offerExpiresAt ?? null,
+        remainingMs
+      }
+    }).catch(() => {});
+    return Response.json({
+      success: false,
+      reason: 'OFFER_STILL_ACTIVE_ON_OTHER_DRIVER',
+      remainingMs
+    });
+  }
+
   // Barrera de ciclo de vida: una orden que ya fue aceptada/iniciada/finalizada
   // nunca vuelve a entrar al motor de asignación. Esto protege contra timeouts,
   // cron/reconciliadores atrasados y pantallas viejas.
