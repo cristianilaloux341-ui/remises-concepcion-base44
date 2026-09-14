@@ -113,6 +113,8 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
         nextMs = Date.now();
       }
 
+      const authorityMarker = Date.now();
+      const authoritativeAt = new Date(nextMs).toISOString();
       const moved = await base44.entities.Driver.updateMany(
         {
           id: driverToMove.id,
@@ -125,10 +127,12 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
           queue_entered_at: driverToMove.queue_entered_at ?? null
         },
         { $set: {
-          queue_entered_at: new Date(nextMs).toISOString(),
+          queue_entered_at: authoritativeAt,
+          queue_authoritative_base: baseName,
+          queue_authoritative_at: authoritativeAt,
           // Marca explícitamente que este cambio de antigüedad fue manual/intencional.
-          // El guard del backend usa este valor para distinguirlo de un reingreso stale.
-          queue_position: Date.now()
+          queue_position: authorityMarker,
+          queue_authority_marker: authorityMarker
         } }
       );
       const changed = moved?.updated ?? moved?.modifiedCount ?? moved?.matchedCount ?? 0;
