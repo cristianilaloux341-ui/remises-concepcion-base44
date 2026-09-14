@@ -84,6 +84,11 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
       currentQueue.splice(idx, 1);
       const boundedPosition = Math.max(0, Math.min(newPosition, currentQueue.length));
 
+      // Si la cola cambió entre lo que veía la pantalla y esta lectura fresca, el
+      // destino pedido puede haber quedado siendo exactamente la posición actual.
+      // En ese caso NO escribir nada: evita movimientos/falsos reordenamientos.
+      if (idx === boundedPosition) return { skipped: true, reason: "SAME_EFFECTIVE_POSITION" };
+
       // MUY IMPORTANTE: un reordenamiento manual modifica SOLO al móvil movido.
       // Nunca más reescribir la hora de toda la base. Calculamos una hora entre sus
       // nuevos vecinos; con esto ningún móvil ajeno cambia de posición por efecto lateral.
@@ -145,6 +150,14 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
   const handleDragEnd = (result) => {
     if (!result.destination) return;
     if (result.source.index === result.destination.index) return;
+
+    // El drag ya no puede alterar la cola por un roce/scroll accidental. Toda
+    // modificación manual requiere una confirmación explícita del operador.
+    const driver = queue.find(d => d.id === result.draggableId);
+    const from = result.source.index + 1;
+    const to = result.destination.index + 1;
+    const ok = window.confirm(`Mover ${driver?.name || "este móvil"} de ${from}° a ${to}° en ${baseName}?`);
+    if (!ok) return;
     
     moveMutation.mutate({ 
       driverId: result.draggableId, 
