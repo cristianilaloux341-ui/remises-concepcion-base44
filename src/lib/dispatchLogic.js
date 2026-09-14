@@ -27,9 +27,20 @@ export function sortQueue(driversArray) {
   });
 }
 
-// Get ordered queue for a base (FIFO by queue_entered_at)
+// Get ordered queue for a base (FIFO by queue_entered_at).
+// Una oferta ya reservada deja de pertenecer visual y operativamente a la cola
+// aunque `status` siga en "disponible" hasta que el chofer toque Aceptar.
+// Si no filtramos la reserva, Central sigue mostrando al móvil (y su tiempo de
+// espera) durante esos segundos y hasta puede volver a sugerirlo para otro viaje.
 export function getBaseQueue(drivers, baseName) {
-  return sortQueue(drivers.filter(d => d.current_base === baseName && d.status === "disponible"));
+  return sortQueue(drivers.filter(d =>
+    d.current_base === baseName &&
+    d.status === "disponible" &&
+    (d.dispatch_status == null || d.dispatch_status === "normal") &&
+    !d.reserved_order_id &&
+    !d.active_order_id &&
+    !d.active_ride_id
+  ));
 }
 
 // Invariante de despacho: un Driver solo puede ser candidato si su Movil real está habilitado.
