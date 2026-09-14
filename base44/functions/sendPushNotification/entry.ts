@@ -462,7 +462,10 @@ Deno.serve(async (req) => {
                   reservation_token: null,
                   manual_reservation_token: null,
                   driver_reservation_key: null,
-                  queue_entered_at: new Date("2000-01-01T00:00:00.000Z").toISOString()
+                  queue_entered_at: new Date("2000-01-01T00:00:00.000Z").toISOString(),
+                  // Cambio intencional: cancelación ajena devuelve al móvil primero.
+                  // Marca la escritura para que el guard anti-reingreso no la revierta.
+                  queue_position: Date.now()
               } }
             ).catch(() => {});
           }
