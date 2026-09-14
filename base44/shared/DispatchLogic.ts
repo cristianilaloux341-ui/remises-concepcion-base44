@@ -104,6 +104,7 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
     const offerSet: any = {
       status: 'ofrecido',
       reservation_token: token,
+      driver_id: driver.id,
       reserved_driver_id: driver.id,
       manual_reservation_token: null
     };
