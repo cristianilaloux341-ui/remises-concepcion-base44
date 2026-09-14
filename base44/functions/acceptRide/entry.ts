@@ -461,11 +461,12 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   const commitNow = Date.now();
   const commitFilter = { 
       id: rideOrderId, 
-      // Compatibilidad defensiva con APK anteriores: algunas versiones adelantaban
-      // el estado visual antes de que este commit terminara. La reserva del móvil,
-      // el intento y el lease siguen validando que sea el mismo ofrecimiento.
-      status: isNowBroadcast ? "pendiente" : { $in: ["ofrecido", "aceptado", "en_camino", "en_viaje"] },
-      ...(isNowBroadcast ? { driver_id: null, reserved_driver_id: null } : { reserved_driver_id: driverId }), 
+      // Aceptación única absoluta: el commit final sólo puede ganar mientras la
+      // orden siga exactamente OFRECIDA al mismo móvil e intento. Una vez que
+      // cualquier aceptación cambia el estado, ningún segundo móvil puede
+      // confirmar esa misma orden aunque conserve una pantalla/notificación vieja.
+      status: isNowBroadcast ? "pendiente" : "ofrecido",
+      ...(isNowBroadcast ? { driver_id: null, reserved_driver_id: null } : { driver_id: driverId, reserved_driver_id: driverId }), 
       assignment_attempt: isNowBroadcast ? order.assignment_attempt : assignmentAttempt, 
       processingOwnerId: ownerId, 
       processingPhase: "DRIVER_RESERVED", 
