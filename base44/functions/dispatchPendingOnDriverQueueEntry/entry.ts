@@ -132,6 +132,68 @@ Deno.serve(async (req) => {
     // desde un heartbeat GPS sin tocar la posición de cola.
     await guardOfferedReservationIntegrity(b44, driverId);
 
+    // BLINDAJE DE COLA: una reconexión, una copia local atrasada o una APK vieja no
+    // puede "reingresar" a un móvil que YA estaba libre en la misma base. Ese falso
+    // reingreso solo cambia queue_entered_at y lo manda al final sin motivo.
+    //
+    // Los cambios intencionales de orden (drag de Central / cancelación ajena) marcan
+    // queue_position en la MISMA escritura. Rechazo/timeout también quedan afuera de
+    // esta condición porque cambian dispatch_status/reserva al liberar la oferta.
+    const oldDispatch = oldData?.dispatch_status ?? 'normal';
+    const newDispatch = eventData?.dispatch_status ?? 'normal';
+    const duplicateSameBaseEntry = Boolean(
+      eventData && oldData &&
+      eventData.queue_entered_at !== oldData.queue_entered_at &&
+      eventData.current_base &&
+      eventData.current_base === oldData.current_base &&
+      eventData.status === 'disponible' && oldData.status === 'disponible' &&
+      newDispatch === 'normal' && oldDispatch === 'normal' &&
+      !eventData.reserved_order_id && !oldData.reserved_order_id &&
+      !eventData.active_order_id && !oldData.active_order_id &&
+      !eventData.active_ride_id && !oldData.active_ride_id &&
+      eventData.queue_position === oldData.queue_position
+    );
+
+    if (duplicateSameBaseEntry) {
+      const marker = Date.now();
+      const reverted = await b44.entities.Driver.updateMany(
+        {
+          id: driverId,
+          current_base: eventData.current_base,
+          status: 'disponible',
+          dispatch_status: 'normal',
+          reserved_order_id: null,
+          active_order_id: null,
+          active_ride_id: null,
+          queue_entered_at: eventData.queue_entered_at
+        },
+        { $set: {
+          queue_entered_at: oldData.queue_entered_at ?? null,
+          // Marcador técnico para que el evento de restauración no se interprete
+          // a sí mismo como otro reingreso y genere un bucle.
+          queue_position: marker
+        } }
+      );
+      const changed = reverted?.updated ?? reverted?.modifiedCount ?? reverted?.matchedCount ?? 0;
+      if (changed === 1) {
+        await b44.entities.AuditLog.create({
+          action: 'QUEUE_DUPLICATE_ENTRY_REVERTED',
+          user_type: 'sistema',
+          user_name: eventData.name || oldData.name || 'Driver',
+          details: `Se restauró la antigüedad de ${eventData.name || oldData.name || driverId} en ${eventData.current_base}`,
+          metadata: {
+            driverId,
+            baseName: eventData.current_base,
+            attemptedQueueEnteredAt: eventData.queue_entered_at ?? null,
+            restoredQueueEnteredAt: oldData.queue_entered_at ?? null
+          }
+        }).catch(() => {});
+        return Response.json({ success:true, repaired:true, reason:'DUPLICATE_SAME_BASE_ENTRY_REVERTED' });
+      }
+      // Si el CAS no matcheó, otra operación legítima ganó la carrera: no tocarla.
+      return Response.json({ success:true, skipped:true, reason:'QUEUE_CHANGED_DURING_DUPLICATE_GUARD' });
+    }
+
     // La entrada REAL a la lista se identifica por queue_entered_at. El móvil puede
     // volver a entrar en la misma base que ya tenía guardada, por lo que mirar solo
     // current_base deja pasar exactamente ese caso sin disparar Pendientes.
