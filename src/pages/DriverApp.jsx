@@ -1788,6 +1788,8 @@ export default function DriverApp() {
         status: "disponible",
         dispatch_status: "normal",
         queue_entered_at: ts,
+        queue_authoritative_base: base,
+        queue_authoritative_at: ts,
         active_order_id: null,
         active_ride_id: null,
         reserved_order_id: null,
@@ -1806,7 +1808,7 @@ export default function DriverApp() {
       fresh?.status === "disponible" &&
       (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
       !fresh?.reserved_order_id && !fresh?.active_order_id && !fresh?.active_ride_id;
-    if (alreadyThere) return fresh.queue_entered_at || ts;
+    if (alreadyThere) return fresh.queue_authoritative_at || fresh.queue_entered_at || ts;
     throw new Error("DRIVER_BUSY_OR_STATE_CHANGED");
   };
 
