@@ -314,7 +314,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
                         {driver.queue_entered_at && (
                           <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {formatDistanceToNow(new Date(driver.queue_entered_at), { locale: es })}
+                            {formatDistanceToNow(new Date(driver.queue_authoritative_at || driver.queue_entered_at), { locale: es })}
                           </span>
                         )}
                         <div className="flex gap-1 ml-auto">
