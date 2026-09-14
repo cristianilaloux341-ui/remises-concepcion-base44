@@ -505,32 +505,11 @@ Deno.serve(async (req) => {
         const driver = drivers[0];
         if (!driver) continue;
 
-        // Regla operativa: si Central/cliente cancela un viaje, el móvil vuelve
-        // primero en su base porque la cancelación no fue responsabilidad del chofer.
-        // No tocarlo si ya quedó ligado a OTRO viaje o si salió de servicio.
-        if (currentOrder?.status === "cancelado" && driver.status !== "no_disponible") {
-          const links = [driver.reserved_order_id, driver.active_order_id, driver.active_ride_id].filter(Boolean);
-          const linkedToOtherRide = links.some(id => String(id) !== String(orderId));
-          if (!linkedToOtherRide) {
-            await base44.asServiceRole.entities.Driver.updateMany(
-              { id: driver.id, status: { $ne: "no_disponible" } },
-              { $set: {
-                  status: "disponible",
-                  dispatch_status: "normal",
-                  reserved_order_id: null,
-                  active_order_id: null,
-                  active_ride_id: null,
-                  reservation_token: null,
-                  manual_reservation_token: null,
-                  driver_reservation_key: null,
-                  queue_entered_at: new Date("2000-01-01T00:00:00.000Z").toISOString(),
-                  // Cambio intencional: cancelación ajena devuelve al móvil primero.
-                  // Marca la escritura para que el guard anti-reingreso no la revierta.
-                  queue_position: Date.now()
-              } }
-            ).catch(() => {});
-          }
-        }
+        // IMPORTANTE: enviar/cancelar una notificación NUNCA modifica la cola.
+        // `cancel_multiple` puede incluir móviles que recibieron la oferta en intentos
+        // anteriores; tocar queue_entered_at acá desordena posiciones sin una orden
+        // operativa real. La liberación/reubicación de un móvil pertenece al flujo
+        // atómico de reject/timeout/cancel correspondiente, no al transporte push.
 
         // Native FCM Cancel (Prioritize over Web Push)
         if (driver.fcm_token && cachedAccessToken) {
