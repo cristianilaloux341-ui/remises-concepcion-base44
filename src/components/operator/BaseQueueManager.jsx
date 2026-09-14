@@ -183,6 +183,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
         },
         { $set: {
           current_base: null, status: "no_disponible", queue_entered_at: null,
+          queue_authoritative_base: null, queue_authoritative_at: null,
           dispatch_status: "normal", active_order_id: null, active_ride_id: null,
           reserved_order_id: null, reservation_token: null,
           manual_reservation_token: null, driver_reservation_key: null
@@ -244,6 +245,8 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
           status: "disponible",
           dispatch_status: "normal",
           queue_entered_at: ts,
+          queue_authoritative_base: baseName,
+          queue_authoritative_at: ts,
           active_order_id: null,
           active_ride_id: null,
           reserved_order_id: null,
@@ -476,6 +479,8 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
           status: "disponible",
           dispatch_status: "normal",
           queue_entered_at: ts,
+          queue_authoritative_base: baseName,
+          queue_authoritative_at: ts,
           active_order_id: null,
           active_ride_id: null,
           reserved_order_id: null,
