@@ -185,8 +185,11 @@ Deno.serve(async (req) => {
 
   const body = await req.json();
   
-  // Interceptar payload de automación de entidad (RideOrder)
-  if (body.event && body.event.entity_name === "RideOrder" && body.data) {
+  // Interceptar payload de automación de entidad (RideOrder). El workflow nuevo
+  // pasa source+data+old_data explícitamente para no depender de argumentos
+  // implícitos del motor de workflows.
+  const isRideOrderWorkflow = body?.event?.entity_name === "RideOrder" || body?.source === "ride_order_workflow";
+  if (isRideOrderWorkflow && body.data) {
     const isStatusChanged = !body.old_data || body.data.status !== body.old_data.status;
 
     // Otra defensa para v12.27/v12.29: al fallar su reasignación local, esas APK
@@ -352,10 +355,21 @@ Deno.serve(async (req) => {
           toCancel.push(recipient);
         }
       } else {
-        // Para aceptado (por otro móvil) o pendiente (rechazo/timeout), silenciamos al oldTargetDriverId
+        // Para pendiente (rechazo/timeout), silenciamos al oldTargetDriverId.
         if (oldTargetDriverId) toCancel.push(oldTargetDriverId);
         
         if (body.data.status === "aceptado" && targetDriverId) {
+          // Al ganar un móvil, cerrar visualmente ESA orden en todos los móviles
+          // que la recibieron en intentos anteriores. offered_driver_ids se usa
+          // sólo como historial de destinatarios del push: NO libera estados,
+          // NO toca cola y NO modifica otros viajes de esos choferes.
+          const historicalRecipients = [
+            ...(Array.isArray(body.old_data?.offered_driver_ids) ? body.old_data.offered_driver_ids : []),
+            ...(Array.isArray(body.data?.offered_driver_ids) ? body.data.offered_driver_ids : [])
+          ];
+          for (const historicalDriverId of historicalRecipients) {
+            if (historicalDriverId && historicalDriverId !== targetDriverId) toCancel.push(historicalDriverId);
+          }
           toCancel = toCancel.filter(id => id !== targetDriverId);
         }
       }
