@@ -405,18 +405,6 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     data.metros_taximetro = 0;
     data.taximetro_iniciado = false;
 
-    // Barrera final antes de despachar: si tenemos coordenadas exactas del origen,
-    // recalcular la zona con el polígono autoritativo. Una corrección manual del
-    // operador siempre tiene prioridad sobre el automático.
-    if (!zoneManualOverrideRef.current && data.pickup_lat && data.pickup_lng) {
-      try {
-        const authoritativeZone = await detectZoneFromCoords(Number(data.pickup_lat), Number(data.pickup_lng));
-        if (authoritativeZone) data.zone = authoritativeZone;
-      } catch (_) {
-        // Si falla la lectura de polígonos, conservar la zona visible del operador.
-      }
-    }
-
     // El operador común nunca puede inyectar una asignación manual, aunque llegue un dato viejo.
     if (!allowManualAssignment) {
       delete data.driver_id;
