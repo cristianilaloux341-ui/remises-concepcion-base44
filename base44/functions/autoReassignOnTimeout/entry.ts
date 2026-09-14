@@ -30,10 +30,23 @@ Deno.serve(async (req) => {
 
     let expiresAt = Number(order.offerExpiresAt);
     if (!Number.isFinite(expiresAt)) {
+      // Nunca inventar un vencimiento corto si falta la autoridad de tiempo.
+      // Recuperamos una ventana completa (30 s configurados) desde este instante;
+      // si llega el ACK del teléfono, native_ack vuelve a fijar 30 s desde recepción.
       const config = (await b44.entities.TarifaConfig.list())[0] || {};
-      const seconds = config.tiempo_maximo_respuesta_segundos ?? 60;
-      const assignedAtMs = order.assigned_at ? new Date(order.assigned_at).getTime() : Date.now();
-      expiresAt = assignedAtMs + seconds * 1000;
+      const configuredSeconds = Number(config.tiempo_maximo_respuesta_segundos ?? 30);
+      const seconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
+      expiresAt = Date.now() + seconds * 1000;
+      await b44.entities.RideOrder.updateMany(
+        {
+          id: orderId,
+          status: 'ofrecido',
+          reserved_driver_id: driverId,
+          assignment_attempt: assignmentAttempt,
+          $or: [{ offerExpiresAt:null }, { offerExpiresAt:{ $exists:false } }]
+        },
+        { $set:{ offerExpiresAt:expiresAt } }
+      ).catch(()=>{});
     }
 
     const remainingMs = expiresAt - Date.now();
@@ -52,9 +65,9 @@ Deno.serve(async (req) => {
       return Response.json({ ok:true, chained:true, remainingMs:Math.max(0, remainingMs - waitMs) });
     }
 
-    // Venció en Central: se procesa como el MISMO rechazo atómico que usa el botón
-    // RECHAZAR. Esa rutina apaga el móvil anterior, lo manda al final de su cola,
-    // y recién después asigna al siguiente de la misma zona.
+    // Venció en Central: se procesa con EXACTAMENTE el mismo motor atómico que usa
+    // el botón RECHAZAR. La oferta anterior se cierra y el siguiente recibe una
+    // oferta nueva, con nuevo intento/token y su propia ventana de 30 s desde ACK.
     const result = await b44.functions.invoke('rejectRide', {
       orderId,
       driverId,
