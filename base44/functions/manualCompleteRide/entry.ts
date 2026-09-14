@@ -90,15 +90,17 @@ Deno.serve(async (req) => {
             status: 'disponible',
             dispatch_status: 'normal',
             current_base: null,
+            queue_entered_at: null,
             queue_authoritative_base: null,
             queue_authoritative_at: null,
+            queue_authority_marker: null,
+            queue_position: null,
             active_order_id: null,
             active_ride_id: null,
             reserved_order_id: null,
             reservation_token: null,
             manual_reservation_token: null,
-            driver_reservation_key: null,
-            queue_entered_at: now.toISOString()
+            driver_reservation_key: null
           }
         }
       ).catch(() => ({ updated: 0 }));
