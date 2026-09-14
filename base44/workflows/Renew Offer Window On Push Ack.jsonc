@@ -22,7 +22,9 @@
           "call": "invoke_backend_function",
           "with": {
             "function_name": "renewOfferWindowOnPushAck",
-            "args": {}
+            "args": {
+              "data": "${ .trigger.data }"
+            }
           },
           "then": "end"
         }
