@@ -375,22 +375,61 @@ Deno.serve(async (req) => {
           return Response.json({ success:true, repaired:count === 1, reason:'QUEUE_AUTHORITY_RESTORED_BASE' });
         }
 
-        // Cambio REAL A->B: el móvil eligió otra base. Adoptar esa nueva entrada como
-        // autoridad. Una simple reconexión en la misma base nunca cae acá.
+        // Cambio A->B: sólo es válido si la MISMA escritura ya trajo la nueva
+        // autoridad de cola. La app nueva y la Central hacen esto al cambiar de base
+        // manualmente. Una APK vieja/reconexión que modifica únicamente current_base
+        // NO tiene autoridad para mover al móvil ni cambiar su antigüedad.
         if (authoritativeBase && currentBase && authoritativeBase !== currentBase) {
-          const adoptedAt = currentAt || new Date().toISOString();
-          await b44.entities.Driver.updateMany(
-            { id:driverId, status:'disponible', current_base:currentBase, reserved_order_id:null, active_order_id:null, active_ride_id:null },
-            { $set:{
-              queue_authoritative_base:currentBase,
-              queue_authoritative_at:adoptedAt,
-              queue_authority_marker:marker
-            } }
-          ).catch(()=>{});
+          const eventAuthBase = eventData?.queue_authoritative_base || null;
+          const eventAuthAt = eventData?.queue_authoritative_at || null;
+          const explicitAuthorizedBaseChange = Boolean(
+            eventData && oldData &&
+            eventAuthBase === currentBase &&
+            eventAuthBase !== oldData.queue_authoritative_base &&
+            eventAuthAt &&
+            eventAuthAt === currentAt
+          );
+
+          if (!explicitAuthorizedBaseChange) {
+            const restored = await b44.entities.Driver.updateMany(
+              {
+                id:driverId,
+                status:'disponible',
+                current_base:currentBase,
+                reserved_order_id:null,
+                active_order_id:null,
+                active_ride_id:null
+              },
+              { $set:{
+                current_base:authoritativeBase,
+                queue_entered_at:authoritativeAt
+              } }
+            ).catch(()=>({updated:0}));
+            const count = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
+            if (count === 1) {
+              await b44.entities.AuditLog.create({
+                action:'QUEUE_UNAUTHORIZED_BASE_CHANGE_REVERTED',
+                user_type:'sistema',
+                user_name:freshQueueDriver.name || 'Driver',
+                details:`Cambio fantasma de base revertido para ${freshQueueDriver.name || driverId}: ${currentBase} → ${authoritativeBase}`,
+                metadata:{
+                  driverId,
+                  attemptedBase:currentBase,
+                  restoredBase:authoritativeBase,
+                  attemptedQueueAt:currentAt,
+                  restoredQueueAt:authoritativeAt
+                }
+              }).catch(()=>{});
+            }
+            return Response.json({ success:true, repaired:count === 1, reason:'UNAUTHORIZED_BASE_CHANGE_REVERTED' });
+          }
+
+          // Cambio manual explícito: la autoridad ya vino escrita por el cliente
+          // moderno/Central, por lo que sólo lo auditamos. No recalculamos tiempos.
           await b44.entities.AuditLog.create({
             action:'QUEUE_AUTHORITY_BASE_CHANGED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
-            details:`Cambio real de base adoptado para ${freshQueueDriver.name || driverId}: ${authoritativeBase} → ${currentBase}`,
-            metadata:{ driverId, oldBase:authoritativeBase, newBase:currentBase, queueAt:adoptedAt }
+            details:`Cambio manual de base confirmado para ${freshQueueDriver.name || driverId}: ${authoritativeBase} → ${currentBase}`,
+            metadata:{ driverId, oldBase:authoritativeBase, newBase:currentBase, queueAt:currentAt }
           }).catch(()=>{});
           // No retornar: una entrada real de base sí puede habilitar un pendiente.
         } else if (authoritativeBase && currentBase === authoritativeBase) {
