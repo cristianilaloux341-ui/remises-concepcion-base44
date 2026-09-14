@@ -127,6 +127,69 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'MISSING_DRIVER_ID' });
     }
 
+    // BLINDAJE ABSOLUTO DE POSICIÓN: un móvil LIBRE no puede salir solo de su base.
+    // Cierres de app, reconexiones, heartbeats, refrescos o estados locales atrasados
+    // pueden llegar a escribir current_base=null sin que el chofer haya perdido turno.
+    // Esa transición NO es operativa y se revierte conservando exactamente base + antigüedad.
+    // Las salidas legítimas no caen acá: cambio real de base es A->B; salir de servicio
+    // cambia status a no_disponible; aceptar/finalizar/rechazar tienen sus propios estados.
+    const technicalBaseDrop = Boolean(
+      eventData && oldData &&
+      oldData.status === 'disponible' &&
+      eventData.status === 'disponible' &&
+      oldData.current_base &&
+      !eventData.current_base &&
+      (oldData.dispatch_status == null || oldData.dispatch_status === 'normal') &&
+      (eventData.dispatch_status == null || eventData.dispatch_status === 'normal') &&
+      !oldData.reserved_order_id && !eventData.reserved_order_id &&
+      !oldData.active_order_id && !eventData.active_order_id &&
+      !oldData.active_ride_id && !eventData.active_ride_id &&
+      oldData.queue_entered_at
+    );
+
+    if (technicalBaseDrop) {
+      const restoreQuery:any = {
+        id: driverId,
+        status: 'disponible',
+        current_base: eventData.current_base ?? null,
+        dispatch_status: eventData.dispatch_status ?? 'normal',
+        reserved_order_id: eventData.reserved_order_id ?? null,
+        active_order_id: eventData.active_order_id ?? null,
+        active_ride_id: eventData.active_ride_id ?? null
+      };
+      // Si la escritura técnica también tocó la antigüedad, exigimos ese mismo valor
+      // en el CAS para no pisar una operación válida concurrente.
+      if (eventData.queue_entered_at !== undefined) {
+        restoreQuery.queue_entered_at = eventData.queue_entered_at ?? null;
+      }
+
+      const restored = await b44.entities.Driver.updateMany(
+        restoreQuery,
+        { $set: {
+          current_base: oldData.current_base,
+          queue_entered_at: oldData.queue_entered_at
+        } }
+      ).catch(() => ({ updated:0 }));
+      const restoredCount = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
+      if (restoredCount === 1) {
+        await b44.entities.AuditLog.create({
+          action:'QUEUE_TECHNICAL_BASE_DROP_REVERTED',
+          user_type:'sistema',
+          user_name:eventData.name || oldData.name || 'Driver',
+          details:`Salida técnica de base revertida para ${eventData.name || oldData.name || driverId}; se preservó su posición`,
+          metadata:{
+            driverId,
+            restoredBase:oldData.current_base,
+            restoredQueueEnteredAt:oldData.queue_entered_at,
+            attemptedBase:eventData.current_base ?? null,
+            attemptedQueueEnteredAt:eventData.queue_entered_at ?? null
+          }
+        }).catch(()=>{});
+        return Response.json({ success:true, repaired:true, reason:'TECHNICAL_BASE_DROP_REVERTED' });
+      }
+      return Response.json({ success:true, skipped:true, reason:'BASE_CHANGED_DURING_TECHNICAL_DROP_GUARD' });
+    }
+
     // Compatibilidad v12.27/v12.29: esas APK todavía implementan RECHAZAR liberando
     // primero el Driver directamente y pidiendo la reasignación después. Ese cambio
     // NO es una limpieza fantasma: si lo restauramos desde el guard, Central y el
