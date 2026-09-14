@@ -127,6 +127,25 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'MISSING_DRIVER_ID' });
     }
 
+    // CORTE DE CONSUMO: este workflow recibe también heartbeats/GPS de todos los
+    // móviles. Si no cambió ningún campo operativo de cola/oferta, salir ANTES de
+    // hacer Driver.get, consultas de RideOrder o reconciliaciones. Con ~50 móviles
+    // evita que cada latido dispare trabajo de despacho innecesario.
+    if (eventData && oldData) {
+      const operationalFields = [
+        'status', 'dispatch_status', 'current_base', 'queue_entered_at',
+        'queue_position', 'queue_authoritative_base', 'queue_authoritative_at',
+        'queue_authority_marker', 'reserved_order_id', 'reservation_token',
+        'active_order_id', 'active_ride_id'
+      ];
+      const operationalChange = operationalFields.some((field) =>
+        String(eventData?.[field] ?? '') !== String(oldData?.[field] ?? '')
+      );
+      if (!operationalChange) {
+        return Response.json({ success:true, skipped:true, reason:'NON_OPERATIONAL_DRIVER_UPDATE' });
+      }
+    }
+
     // BLINDAJE ABSOLUTO DE POSICIÓN: un móvil LIBRE no puede salir solo de su base.
     // Cierres de app, reconexiones, heartbeats, refrescos o estados locales atrasados
     // pueden llegar a escribir current_base=null sin que el chofer haya perdido turno.
