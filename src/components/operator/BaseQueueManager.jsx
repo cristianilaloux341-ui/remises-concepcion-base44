@@ -119,7 +119,12 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
           active_ride_id: null,
           queue_entered_at: driverToMove.queue_entered_at ?? null
         },
-        { $set: { queue_entered_at: new Date(nextMs).toISOString() } }
+        { $set: {
+          queue_entered_at: new Date(nextMs).toISOString(),
+          // Marca explícitamente que este cambio de antigüedad fue manual/intencional.
+          // El guard del backend usa este valor para distinguirlo de un reingreso stale.
+          queue_position: Date.now()
+        } }
       );
       const changed = moved?.updated ?? moved?.modifiedCount ?? moved?.matchedCount ?? 0;
       if (changed < 1) {
