@@ -150,6 +150,9 @@ export default function OrderDetail() {
         // Set queue_entered_at far in the past so driver appears first
         await base44.entities.Driver.update(order.driver_id, {
           queue_entered_at: new Date(Date.now() - 31536000000).toISOString(),
+          // Cancelación desde Central: este retorno a primera posición es intencional.
+          // Marca la escritura para que el guard anti-reingreso no la revierta.
+          queue_position: Date.now()
         });
       }
       
