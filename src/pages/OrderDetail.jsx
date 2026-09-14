@@ -147,12 +147,15 @@ export default function OrderDetail() {
       );
 
       if (order.driver_id && !order.preassigned_driver_id) {
-        // Set queue_entered_at far in the past so driver appears first
+        // Cancelación ajena al chofer: vuelve primero. La misma marca queda tanto en
+        // el campo legacy como en la autoridad server-side para que no haya rebote.
+        const firstAt = new Date(Date.now() - 31536000000).toISOString();
+        const marker = Date.now();
         await base44.entities.Driver.update(order.driver_id, {
-          queue_entered_at: new Date(Date.now() - 31536000000).toISOString(),
-          // Cancelación desde Central: este retorno a primera posición es intencional.
-          // Marca la escritura para que el guard anti-reingreso no la revierta.
-          queue_position: Date.now()
+          queue_entered_at: firstAt,
+          queue_authoritative_at: firstAt,
+          queue_position: marker,
+          queue_authority_marker: marker
         });
       }
       
