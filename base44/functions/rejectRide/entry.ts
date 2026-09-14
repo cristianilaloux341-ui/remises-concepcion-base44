@@ -14,7 +14,10 @@ Deno.serve(async (req) => {
     b44 = base44.asServiceRole;
     const payload = await req.json();
     const { orderId, driverId, assignmentAttempt } = payload;
-    const source = payload.source === 'timeout' ? 'timeout' : 'driver';
+    const source = payload.source === 'timeout'
+      ? 'timeout'
+      : (payload.source === 'legacy_client' ? 'legacy_client' : 'driver');
+    const legacyQueueEnteredAt = payload.legacyQueueEnteredAt || null;
 
     if (!orderId || !driverId || assignmentAttempt == null) {
       return Response.json({ success:false, reason:'missing_params' }, { status:400 });
@@ -92,15 +95,47 @@ Deno.serve(async (req) => {
         }
       }
     );
-    if ((releasedCurrent.matchedCount ?? releasedCurrent.modifiedCount ?? releasedCurrent.updated ?? 0) !== 1) {
-      await b44.entities.RideOrder.updateMany(
-        { id:orderId, processingOwnerId:lockOwner },
-        { $set:{ processingOwnerId:null, processingAction:null, processingOperationKey:null, processingLeaseExpiresAt:null, processingPhase:null } }
-      ).catch(()=>{});
-      lockOwner = null;
-      return Response.json({ success:false, reason:'STALE_OR_EXPIRED' });
+    const releasedCount = releasedCurrent.matchedCount ?? releasedCurrent.modifiedCount ?? releasedCurrent.updated ?? 0;
+    if (releasedCount !== 1) {
+      // Compatibilidad con v12.27/v12.29: esas APK primero liberan el Driver y
+      // recién después piden la reasignación. Si el workflow nos trae exactamente
+      // ese evento, adoptamos la liberación ya hecha en vez de restaurarla y competir
+      // con el teléfono. La validación exige que el Driver siga libre, sin otro viaje
+      // y con el mismo queue_entered_at observado en el evento que disparó esta llamada.
+      const currentDriver = source === 'legacy_client'
+        ? await b44.entities.Driver.get(driverId).catch(() => null)
+        : null;
+      const legacyAlreadyReleased = Boolean(
+        source === 'legacy_client' &&
+        currentDriver &&
+        currentDriver.status === 'disponible' &&
+        (currentDriver.dispatch_status == null || currentDriver.dispatch_status === 'normal') &&
+        !currentDriver.reserved_order_id &&
+        !currentDriver.active_order_id &&
+        !currentDriver.active_ride_id &&
+        (!legacyQueueEnteredAt || String(currentDriver.queue_entered_at || '') === String(legacyQueueEnteredAt))
+      );
+
+      if (legacyAlreadyReleased) {
+        currentReleased = true;
+        await b44.entities.AuditLog.create({
+          action:'LEGACY_DRIVER_RELEASE_ADOPTED',
+          user_type:'sistema',
+          user_name:'rejectRide',
+          details:`Central adoptó liberación previa de APK vieja para ${driverId} / ${orderId}`,
+          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), legacyQueueEnteredAt }
+        }).catch(()=>{});
+      } else {
+        await b44.entities.RideOrder.updateMany(
+          { id:orderId, processingOwnerId:lockOwner },
+          { $set:{ processingOwnerId:null, processingAction:null, processingOperationKey:null, processingLeaseExpiresAt:null, processingPhase:null } }
+        ).catch(()=>{});
+        lockOwner = null;
+        return Response.json({ success:false, reason:'STALE_OR_EXPIRED' });
+      }
+    } else {
+      currentReleased = true;
     }
-    currentReleased = true;
 
     // Primero apagar/cerrar la oferta anterior. La cancelación conserva el intento
     // exacto que recibió ese teléfono, aunque el RideOrder cambie después.
