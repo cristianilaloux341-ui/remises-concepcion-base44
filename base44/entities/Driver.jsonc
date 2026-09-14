@@ -161,6 +161,28 @@
     "queue_entered_at": {
       "type": "string"
     },
+    "queue_authoritative_base": {
+      "type": "string",
+      "enum": [
+        "1-Puerto",
+        "2-Plaza",
+        "3-Columna",
+        "4-Base",
+        "5-Cementerio",
+        "6-D\u00edaz V\u00e9lez",
+        "7-Don Bosco",
+        "8-Monumento"
+      ],
+      "description": "Base autoritativa de cola mantenida por servidor; APK legacy no debe modificarla"
+    },
+    "queue_authoritative_at": {
+      "type": "string",
+      "description": "Antig\u00fcedad autoritativa de cola usada por despacho y Central"
+    },
+    "queue_authority_marker": {
+      "type": "number",
+      "description": "\u00daltimo marcador manual de cola aceptado por el servidor"
+    },
     "current_lat": {
       "type": "number"
     },
