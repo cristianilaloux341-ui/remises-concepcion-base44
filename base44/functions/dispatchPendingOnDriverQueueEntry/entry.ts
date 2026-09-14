@@ -127,6 +127,76 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'MISSING_DRIVER_ID' });
     }
 
+    // Compatibilidad v12.27/v12.29: esas APK todavía implementan RECHAZAR liberando
+    // primero el Driver directamente y pidiendo la reasignación después. Ese cambio
+    // NO es una limpieza fantasma: si lo restauramos desde el guard, Central y el
+    // teléfono compiten por la misma oferta y pueden dejar driver_id/reserved_driver_id
+    // cruzados. Reconocemos únicamente la transición exacta de rechazo viejo.
+    const legacyDirectReject = Boolean(
+      eventData && oldData &&
+      oldData.status === 'disponible' &&
+      oldData.dispatch_status === 'automatic_pending' &&
+      oldData.reserved_order_id &&
+      oldData.reservation_token &&
+      eventData.status === 'disponible' &&
+      (eventData.dispatch_status == null || eventData.dispatch_status === 'normal') &&
+      !eventData.reserved_order_id &&
+      !eventData.active_order_id &&
+      !eventData.active_ride_id &&
+      eventData.queue_entered_at &&
+      eventData.queue_entered_at !== oldData.queue_entered_at
+    );
+
+    if (legacyDirectReject) {
+      const legacyOrderId = oldData.reserved_order_id;
+      const legacyOrder = await b44.entities.RideOrder.get(legacyOrderId).catch(() => null);
+      const stillSameOffer = Boolean(
+        legacyOrder &&
+        legacyOrder.status === 'ofrecido' &&
+        legacyOrder.reserved_driver_id === driverId &&
+        legacyOrder.reservation_token === oldData.reservation_token
+      );
+
+      if (stillSameOffer) {
+        const rejectRes = await b44.functions.invoke('rejectRide', {
+          orderId: legacyOrder.id,
+          driverId,
+          assignmentAttempt: Number(legacyOrder.assignment_attempt || 1),
+          source: 'legacy_client',
+          legacyQueueEnteredAt: eventData.queue_entered_at,
+          internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch((error:any) => ({ data:{ success:false, reason:error?.message || 'INVOKE_FAILED' } }));
+        const rejectData = rejectRes?.data || rejectRes;
+
+        if (rejectData?.success) {
+          await b44.entities.AuditLog.create({
+            action:'LEGACY_REJECT_SERVER_HANDLED',
+            user_type:'sistema',
+            user_name:eventData.name || oldData.name || 'Driver',
+            details:`Rechazo de APK vieja procesado atómicamente por Central para ${legacyOrder.id}`,
+            metadata:{ orderId:legacyOrder.id, driverId, assignmentAttempt:legacyOrder.assignment_attempt }
+          }).catch(()=>{});
+          return Response.json({ success:true, repaired:true, reason:'LEGACY_REJECT_SERVER_HANDLED' });
+        }
+
+        // Si otra operación ganó la carrera, no restaurar la reserva vieja. Releer
+        // y dejar que la autoridad que ya posee el viaje termine la transición.
+        const freshOrder = await b44.entities.RideOrder.get(legacyOrder.id).catch(() => null);
+        await b44.entities.AuditLog.create({
+          action:'LEGACY_REJECT_DEFERRED',
+          user_type:'sistema',
+          user_name:eventData.name || oldData.name || 'Driver',
+          details:`Rechazo legacy no restaurado; Central detectó carrera controlada (${rejectData?.reason || 'sin detalle'})`,
+          metadata:{ orderId:legacyOrder.id, driverId, reason:rejectData?.reason || null, freshStatus:freshOrder?.status || null, freshReservedDriverId:freshOrder?.reserved_driver_id || null }
+        }).catch(()=>{});
+        return Response.json({ success:true, skipped:true, reason:'LEGACY_REJECT_DEFERRED' });
+      }
+
+      // La oferta ya cambió de dueño/estado antes de que corriera el workflow.
+      // Es exactamente el caso seguro: jamás restaurar la reserva anterior.
+      return Response.json({ success:true, skipped:true, reason:'LEGACY_REJECT_ALREADY_ADVANCED' });
+    }
+
     // Primero proteger la integridad Driver ↔ RideOrder. Este chequeo corre también
     // cuando queue_entered_at no cambió, porque una APK vieja puede borrar la reserva
     // desde un heartbeat GPS sin tocar la posición de cola.
