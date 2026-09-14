@@ -1,6 +1,14 @@
 {
-  "description": "",
-  "name": "Deep Dispatch Reconciler",
+  "trigger": {
+    "condition": "${ ((.trigger.data.queue_entered_at != .trigger.old_data.queue_entered_at) or (.trigger.data.dispatch_status != .trigger.old_data.dispatch_status) or (.trigger.data.reserved_order_id != .trigger.old_data.reserved_order_id) or (.trigger.data.reservation_token != .trigger.old_data.reservation_token) or (.trigger.data.active_order_id != .trigger.old_data.active_order_id) or (.trigger.data.active_ride_id != .trigger.old_data.active_ride_id) or (.trigger.data.status != .trigger.old_data.status) or (.trigger.data.current_base != .trigger.old_data.current_base) or (.trigger.data.queue_position != .trigger.old_data.queue_position)) }",
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "update"
+      ],
+      "entity_name": "Driver"
+    }
+  },
   "definition": {
     "document": {
       "dsl": "1.0.0",
@@ -21,16 +29,8 @@
       }
     ]
   },
-  "trigger": {
-    "condition": "${ ((.trigger.data.queue_entered_at != .trigger.old_data.queue_entered_at) or (.trigger.data.dispatch_status != .trigger.old_data.dispatch_status) or (.trigger.data.reserved_order_id != .trigger.old_data.reserved_order_id) or (.trigger.data.reservation_token != .trigger.old_data.reservation_token) or (.trigger.data.active_order_id != .trigger.old_data.active_order_id) or (.trigger.data.active_ride_id != .trigger.old_data.active_ride_id) or (.trigger.data.status != .trigger.old_data.status) or (.trigger.data.current_base != .trigger.old_data.current_base) or (.trigger.data.queue_position != .trigger.old_data.queue_position)) }",
-    "config": {
-      "trigger_type": "entity",
-      "events": [
-        "update"
-      ],
-      "entity_name": "Driver"
-    }
-  },
+  "name": "Deep Dispatch Reconciler",
+  "description": "",
   "x-base44-migrated-from-automation": {
     "legacy_payload_function": "dispatchReconciler"
   }
