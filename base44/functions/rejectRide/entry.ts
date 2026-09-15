@@ -295,12 +295,13 @@ Deno.serve(async (req) => {
           internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
         }).catch(e=>console.error('AutoReassign Trigger Error:',e));
 
+        const deliveryUnconfirmed = source === 'delivery_unconfirmed';
         await b44.entities.AuditLog.create({
-          action: source === 'timeout' ? 'timeout_viaje' : 'rechazar_viaje',
-          user_type: source === 'timeout' ? 'sistema' : 'chofer',
-          user_name: source === 'timeout' ? 'Sistema' : 'Chofer',
-          details: `${source === 'timeout' ? 'Venció el tiempo' : 'Rechazó'}. Reasignado a ${nextDriver.name}`,
-          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), nextDriverId:nextDriver.id }
+          action: deliveryUnconfirmed ? 'DELIVERY_UNCONFIRMED_REASSIGNED' : (source === 'timeout' ? 'timeout_viaje' : 'rechazar_viaje'),
+          user_type: (source === 'timeout' || deliveryUnconfirmed) ? 'sistema' : 'chofer',
+          user_name: (source === 'timeout' || deliveryUnconfirmed) ? 'Sistema' : 'Chofer',
+          details: `${deliveryUnconfirmed ? 'Teléfono sin ACK; chofer conservó su posición' : (source === 'timeout' ? 'Venció el tiempo' : 'Rechazó')}. Reasignado a ${nextDriver.name}`,
+          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), nextDriverId:nextDriver.id, queuePreserved:deliveryUnconfirmed }
         }).catch(()=>{});
         return Response.json({ success:true, reassigned_to:nextDriver.name, source });
       }
@@ -343,12 +344,13 @@ Deno.serve(async (req) => {
     }
 
     lockOwner = null;
+    const deliveryUnconfirmed = source === 'delivery_unconfirmed';
     await b44.entities.AuditLog.create({
-      action: source === 'timeout' ? 'timeout_viaje' : 'rechazar_viaje',
-      user_type: source === 'timeout' ? 'sistema' : 'chofer',
-      user_name: source === 'timeout' ? 'Sistema' : 'Chofer',
-      details: `${source === 'timeout' ? 'Venció el tiempo' : 'Rechazó'}. Sin candidatos válidos en la zona, quedó pendiente.`,
-      metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt) }
+      action: deliveryUnconfirmed ? 'DELIVERY_UNCONFIRMED_PENDING' : (source === 'timeout' ? 'timeout_viaje' : 'rechazar_viaje'),
+      user_type: (source === 'timeout' || deliveryUnconfirmed) ? 'sistema' : 'chofer',
+      user_name: (source === 'timeout' || deliveryUnconfirmed) ? 'Sistema' : 'Chofer',
+      details: `${deliveryUnconfirmed ? 'Teléfono sin ACK; chofer conservó su posición' : (source === 'timeout' ? 'Venció el tiempo' : 'Rechazó')}. Sin candidatos válidos en la zona, quedó pendiente.`,
+      metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), queuePreserved:deliveryUnconfirmed }
     }).catch(()=>{});
     return Response.json({ success:true, reassigned_to:null, source });
   } catch (error:any) {
