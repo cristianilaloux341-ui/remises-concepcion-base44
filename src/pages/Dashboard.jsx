@@ -12,7 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatCard from "@/components/dashboard/StatCard";
 import RideMap from "@/components/map/RideMap";
 import BaseQueueManager, { QuickAssignInput } from "@/components/operator/BaseQueueManager";
-import { reassignAfterReject } from "@/lib/dispatchLogic";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -79,12 +78,10 @@ export default function Dashboard() {
   const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 4000 });
   const { drivers } = useRealtimeDrivers({ refreshIntervalMs: 30000 });
 
-  // Alarma + reasignación automática cuando un chofer rechaza
-  useRejectionAlert(orders, async (rejectedOrder) => {
-    // drivers puede estar desactualizado en el closure, obtener frescos
-    const freshDrivers = await base44.entities.Driver.list();
-    await reassignAfterReject(rejectedOrder, freshDrivers, []);
-  });
+  // La Central sólo observa/muestra el rechazo. NO reasigna desde el navegador.
+  // rejectRide es la única autoridad server-side para cerrar el intento anterior
+  // y crear la oferta nueva al siguiente móvil de la misma cola.
+  useRejectionAlert();
 
   const { data: bases = [] } = useQuery({
     queryKey: ["bases"],
