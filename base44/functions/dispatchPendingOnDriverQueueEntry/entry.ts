@@ -732,7 +732,7 @@ Deno.serve(async (req) => {
           } else {
             const restored = await b44.entities.Driver.updateMany(
               { id:driverId, status:'disponible', current_base:currentBase, reserved_order_id:null, active_order_id:null, active_ride_id:null },
-              { $set:{ current_base:authoritativeBase, queue_entered_at:authoritativeAt } }
+              { $set:{ current_base:authoritativeBase, queue_entered_at:oldData?.queue_entered_at ?? currentAt } }
             ).catch(()=>({updated:0}));
             const count = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
             if (count === 1) {
@@ -743,23 +743,6 @@ Deno.serve(async (req) => {
               }).catch(()=>{});
             }
             return Response.json({ success:true, repaired:count === 1, reason:'GHOST_BASE_CHANGE_REVERTED' });
-          }
-        } else if (!normalizedExplicitQueueEntry && authoritativeBase && currentBase === authoritativeBase) {
-          // Mismo móvil, misma base, sin acción de operador: la antigüedad NO cambia.
-          if (authoritativeAt && currentAt !== authoritativeAt) {
-            const restored = await b44.entities.Driver.updateMany(
-              { id:driverId, status:'disponible', current_base:currentBase, queue_entered_at:currentAt },
-              { $set:{ queue_entered_at:authoritativeAt, queue_left_at:null } }
-            ).catch(()=>({updated:0}));
-            const count = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
-            if (count === 1) {
-              await b44.entities.AuditLog.create({
-                action:'QUEUE_AUTHORITY_TIMESTAMP_RESTORED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
-                details:`Se bloqueó un cambio no autorizado de posición de ${freshQueueDriver.name || driverId}`,
-                metadata:{ driverId, baseName:currentBase, attemptedQueueAt:currentAt, restoredQueueAt:authoritativeAt }
-              }).catch(()=>{});
-            }
-            return Response.json({ success:true, repaired:count === 1, reason:'QUEUE_AUTHORITY_TIMESTAMP_RESTORED' });
           }
         }
       }
