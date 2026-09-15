@@ -590,20 +590,14 @@ Deno.serve(async (req) => {
           oldData.status !== 'disponible' && eventData.status === 'disponible'
         );
         if (enteredService) {
-          const serviceEntryAt = await getNextQueueTailAt(b44, currentBase, driverId);
-          const nextPos = await getNextQueuePosition(b44, currentBase, driverId);
-          const serviceEntry = await b44.entities.Driver.updateMany(
+          const placed = await placeDriverLastLocked(
+            currentBase,
+            driverId,
             { id:driverId, status:'disponible', current_base:currentBase },
-            { $set:{
-              queue_entered_at:serviceEntryAt,
-              queue_authoritative_base:currentBase,
-              queue_authoritative_at:serviceEntryAt,
-              queue_authority_marker:null,
-              queue_position:nextPos,
-              queue_left_at:null
-            } }
-          ).catch(()=>({updated:0}));
-          const serviceEntryCount = serviceEntry?.updated ?? serviceEntry?.modifiedCount ?? serviceEntry?.matchedCount ?? 0;
+            { queue_authority_marker:null }
+          );
+          const serviceEntryAt = placed.queueAt;
+          const serviceEntryCount = placed.count;
           if (serviceEntryCount !== 1) {
             return Response.json({ success:true, repaired:false, reason:'QUEUE_SERVICE_ENTRY_CHANGED_CONCURRENTLY' });
           }
