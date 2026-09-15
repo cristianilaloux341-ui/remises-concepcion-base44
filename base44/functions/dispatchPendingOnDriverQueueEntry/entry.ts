@@ -37,7 +37,54 @@ async function guardOfferedReservationIntegrity(b44:any, driverId:string) {
     Boolean(driver.active_ride_id) ||
     Boolean(driver.reserved_order_id && driver.reserved_order_id !== order.id);
 
-  if (expired || driverBusyElsewhere) {
+  // Si la oferta venció y el móvil simplemente perdió su vínculo local (caso
+  // compatible con v12.27), NO mandarla directo a Pendiente: eso salteaba el
+  // motor único rejectRide y podía omitir al siguiente móvil válido de la zona.
+  // Restauramos primero la reserva exacta por CAS y dejamos que rejectRide procese
+  // el timeout, con su selección FIFO, nuevo attempt/token y exclusiones.
+  if (expired && !driverBusyElsewhere) {
+    const restoredForTimeout = await b44.entities.Driver.updateMany(
+      {
+        id: driverId,
+        status: driver.status,
+        dispatch_status: driver.dispatch_status,
+        reserved_order_id: driver.reserved_order_id ?? null,
+        active_order_id: driver.active_order_id ?? null,
+        active_ride_id: driver.active_ride_id ?? null,
+        reservation_token: driver.reservation_token ?? null
+      },
+      { $set: {
+        status:'disponible',
+        dispatch_status:'automatic_pending',
+        reserved_order_id:order.id,
+        reservation_token:order.reservation_token,
+        active_order_id:null,
+        active_ride_id:null,
+        current_base:order.assigned_base || driver.current_base
+      } }
+    ).catch(() => ({ updated:0 }));
+    const restoredCount = restoredForTimeout?.updated ?? restoredForTimeout?.matchedCount ?? restoredForTimeout?.modifiedCount ?? 0;
+    if (restoredCount !== 1) return { repaired:false, reason:'CONCURRENT_CHANGE' };
+
+    const timeoutRes = await b44.functions.invoke('rejectRide', {
+      orderId:order.id,
+      driverId,
+      assignmentAttempt:Number(order.assignment_attempt || 1),
+      source:'timeout',
+      internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+    }).catch((error:any) => ({ data:{ success:false, reason:error?.message || 'INVOKE_FAILED' } }));
+    const timeoutData = timeoutRes?.data || timeoutRes;
+    await b44.entities.AuditLog.create({
+      action:'ORPHAN_EXPIRED_OFFER_ROUTED_TO_REJECT_ENGINE',
+      user_type:'sistema',
+      user_name:'DriverStateGuard',
+      details:`Oferta vencida ${order.id} enviada al motor único de timeout/reasignación`,
+      metadata:{ orderId:order.id, driverId, assignmentAttempt:order.assignment_attempt, timeoutResult:timeoutData?.reason || null }
+    }).catch(()=>{});
+    return { repaired:true, action:'EXPIRED_OFFER_ROUTED_TO_REJECT_ENGINE', timeoutResult:timeoutData };
+  }
+
+  if (driverBusyElsewhere) {
     const closed = await b44.entities.RideOrder.updateMany(
       {
         id: order.id,
