@@ -338,14 +338,20 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
   const handleAutoAssign = async () => {
     setAutoAssigning(true);
+    // AUTO real: nunca fijar driver_id en el navegador. El candidato que se muestra
+    // es sólo una vista previa de la cola; al crear el pasaje, NewOrder debe entrar
+    // por clientCreateAndDispatchRide y el servidor vuelve a leer la zona/cola fresca.
+    // Así evitamos convertir accidentalmente "Auto" en forceManual y también evitamos
+    // despachar con una sugerencia vieja si la cola cambió entre pantalla y submit.
     const driver = form.zone ? (getBaseQueue(availableDrivers, form.zone)[0] || null) : null;
-    if (driver) {
-      setForm(prev => ({ ...prev, driver_id: driver.id, driver_name: driver.name, status: "ofrecido" }));
-      setSuggestedDriver(driver);
-    } else {
-      setSuggestedDriver(null);
-      setForm(prev => ({ ...prev, driver_id: "", driver_name: "", status: "pendiente" }));
-    }
+    setSuggestedDriver(driver);
+    setManualDriverInput("");
+    setForm(prev => ({
+      ...prev,
+      driver_id: "",
+      driver_name: "",
+      status: "pendiente"
+    }));
     setAutoAssigning(false);
   };
 
