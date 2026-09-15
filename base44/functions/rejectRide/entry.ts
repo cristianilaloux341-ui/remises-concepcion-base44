@@ -72,25 +72,26 @@ Deno.serve(async (req) => {
     }
     lockedOrder = order;
 
-    // REGLA DE COLA MANUAL: rechazo o timeout NO reinsertan al móvil en ninguna
-    // posición. Se libera la oferta y el móvil queda sin base/posición hasta que
-    // el propio chofer vuelva a entrar a una base o el operador lo acomode.
-    // Conservamos queueNow/queueBase sólo para auditoría/compatibilidad del flujo legacy.
+    // Rechazo o timeout confirmado mantienen la lógica estable existente. En cambio,
+    // `delivery_unconfirmed` significa que el teléfono NUNCA confirmó recepción:
+    // se libera solamente la oferta y el chofer conserva base/posición exactas.
     const queueNow = new Date().toISOString();
     const queueBase = order.assigned_base || order.zone || null;
-    const releasedCurrent = await b44.entities.Driver.updateMany(
-      {
-        id: driverId,
-        status: 'disponible',
-        dispatch_status: 'automatic_pending',
-        reserved_order_id: orderId,
-        reservation_token: order.reservation_token
-      },
-      {
-        $set: {
+    const releaseSet:any = source === 'delivery_unconfirmed'
+      ? {
           status:'disponible',
           dispatch_status:'normal',
-          // Rechazo/timeout: fuera de cola. No existe reingreso automático.
+          active_order_id:null,
+          active_ride_id:null,
+          reserved_order_id:null,
+          reservation_token:null,
+          manual_reservation_token:null,
+          driver_reservation_key:null
+        }
+      : {
+          status:'disponible',
+          dispatch_status:'normal',
+          // Rechazo/timeout real: conservar exactamente la lógica estable actual.
           current_base:null,
           queue_entered_at:null,
           queue_authoritative_base:null,
@@ -103,8 +104,16 @@ Deno.serve(async (req) => {
           reservation_token:null,
           manual_reservation_token:null,
           driver_reservation_key:null
-        }
-      }
+        };
+    const releasedCurrent = await b44.entities.Driver.updateMany(
+      {
+        id: driverId,
+        status: 'disponible',
+        dispatch_status: 'automatic_pending',
+        reserved_order_id: orderId,
+        reservation_token: order.reservation_token
+      },
+      { $set: releaseSet }
     );
     const releasedCount = releasedCurrent.matchedCount ?? releasedCurrent.modifiedCount ?? releasedCurrent.updated ?? 0;
     if (releasedCount !== 1) {
