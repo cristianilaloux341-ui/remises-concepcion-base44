@@ -183,6 +183,14 @@
       "type": "number",
       "description": "\u00daltimo marcador manual de cola aceptado por el servidor"
     },
+    "manual_reorder_token": {
+      "type": "string",
+      "description": "Firma HMAC server-side del \u00faltimo reordenamiento manual autorizado por manualReorderDriverQueue. Null para escrituras t\u00e9cnicas."
+    },
+    "manual_reorder_at": {
+      "type": "string",
+      "description": "ISO timestamp del \u00faltimo reorden manual autorizado."
+    },
     "current_lat": {
       "type": "number"
     },
