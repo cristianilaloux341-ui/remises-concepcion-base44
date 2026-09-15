@@ -595,14 +595,19 @@ Deno.serve(async (req) => {
       oldDispatch !== 'normal' &&
       newDispatch === 'normal'
     );
+    // IMPORTANTE v12.27: perder/rechazar/vencer una oferta NO autoriza una nueva
+    // antigüedad de cola. La APK legacy escribe queue_entered_at al liberar, pero
+    // esa hora es un efecto técnico de su código viejo, no una entrada voluntaria.
+    // El caso se procesa arriba por legacyDirectReject/rejectRide y queda fuera de
+    // cola hasta una entrada explícita posterior. Por eso lostOffer NO se exceptúa
+    // del guard de misma base.
     const unauthorizedSameBaseMove = Boolean(
       queueTimestampChanged &&
       sameBase &&
       oldData?.queue_entered_at &&
       oldData?.status === 'disponible' &&
       eventData?.status === 'disponible' &&
-      !explicitOperatorMove &&
-      !lostOffer
+      !explicitOperatorMove
     );
 
     if (unauthorizedSameBaseMove) {
