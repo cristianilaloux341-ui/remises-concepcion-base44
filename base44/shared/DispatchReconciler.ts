@@ -187,6 +187,46 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
     if (driverOwnsOffer) continue;
 
     try {
+      // Recuperación preferida: NO cortar la cadena automática. Si el watcher normal
+      // se perdió pero la oferta realmente venció, entregamos el MISMO intento al
+      // motor atómico de timeout/rechazo para que continúe con el siguiente chofer.
+      if (b44.functions?.invoke) {
+        const recovered = await b44.functions.invoke('rejectRide', {
+          orderId: order.id,
+          driverId: reservedDriverId,
+          assignmentAttempt: Number(order.assignment_attempt),
+          source: 'timeout',
+          internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch((e:any) => ({ data:{ success:false, reason:e?.message || 'RECONCILER_REJECT_INVOKE_FAILED' } }));
+        const recoveredData = recovered?.data || recovered;
+        if (recoveredData?.success === true) {
+          await pushResult({
+            status:'repaired',
+            issueType:'ORPHAN_EXPIRED_OFFER_CHAIN_RECOVERED',
+            orderId:order.id,
+            driverIds:[reservedDriverId],
+            actions:[recoveredData?.reassigned_to ? `Cadena automática continuada a ${recoveredData.reassigned_to}` : 'Cadena agotada; orden enviada a pendiente por motor automático'],
+            correlationId,
+            matchedCount:1
+          });
+          continue;
+        }
+        if (recoveredData?.reason === 'PROCESSING_IN_PROGRESS' || recoveredData?.reason === 'STALE_OR_EXPIRED' || recoveredData?.reason === 'OFFER_STILL_LIVE') {
+          await pushResult({
+            status:'concurrent_change',
+            issueType:'ORPHAN_EXPIRED_OFFER_CHAIN_RECOVERY_RACED',
+            orderId:order.id,
+            driverIds:[reservedDriverId],
+            actions:[`Motor automático respondió ${recoveredData.reason}`],
+            correlationId,
+            matchedCount:0
+          });
+          continue;
+        }
+      }
+
+      // Último fallback de seguridad: sólo si el motor automático no pudo ejecutarse.
+      // Evita dejar una oferta huérfana eternamente activa.
       const res = await b44.entities.RideOrder.updateMany(
         {
           id: order.id,
@@ -227,10 +267,10 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
       }
       await pushResult({
         status: matched ? 'repaired' : 'concurrent_change',
-        issueType: 'ORPHAN_EXPIRED_OFFER',
+        issueType: 'ORPHAN_EXPIRED_OFFER_FALLBACK_PENDING',
         orderId: order.id,
         driverIds: [reservedDriverId],
-        actions: matched ? ['Oferta vencida devuelta a pendiente'] : [],
+        actions: matched ? ['Fallback: oferta huérfana devuelta a pendiente'] : [],
         correlationId,
         matchedCount: matched
       });
