@@ -25,6 +25,12 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'NOT_PUSH_ACK' });
     }
 
+    // Una sola autoridad temporal: handleNativePushAction/native_ack ya fija
+    // offerExpiresAt = instante real de recepción + 30 s. Este workflow de AuditLog
+    // puede ejecutarse varios segundos más tarde y antes volvía a extender la oferta
+    // una segunda vez. No renovar nuevamente acá.
+    return Response.json({ success: true, skipped: true, reason: 'NATIVE_ACK_IS_TIME_AUTHORITY' });
+
     const orderId = eventData?.metadata?.orderId || body?.orderId || null;
     const driverId = eventData?.metadata?.driverId || body?.driverId || null;
     if (!orderId || !driverId) {
