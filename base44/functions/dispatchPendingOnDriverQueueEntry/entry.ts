@@ -615,20 +615,14 @@ Deno.serve(async (req) => {
           !normalizedExplicitQueueEntry && currentBase && oldData && !oldData.current_base
         );
         if (returnedFromNoBase) {
-          const newEntryAt = await getNextQueueTailAt(b44, currentBase, driverId);
-          const nextPos = await getNextQueuePosition(b44, currentBase, driverId);
-          const reset = await b44.entities.Driver.updateMany(
+          const placed = await placeDriverLastLocked(
+            currentBase,
+            driverId,
             { id:driverId, status:'disponible', current_base:currentBase },
-            { $set:{
-              queue_entered_at:newEntryAt,
-              queue_authoritative_base:currentBase,
-              queue_authoritative_at:newEntryAt,
-              queue_authority_marker:null,
-              queue_position:nextPos,
-              queue_left_at:null
-            } }
-          ).catch(()=>({updated:0}));
-          const resetCount = reset?.updated ?? reset?.modifiedCount ?? reset?.matchedCount ?? 0;
+            { queue_authority_marker:null }
+          );
+          const newEntryAt = placed.queueAt;
+          const resetCount = placed.count;
           if (resetCount === 1) {
             await b44.entities.AuditLog.create({
               action:'QUEUE_REENTRY_AT_TAIL',
