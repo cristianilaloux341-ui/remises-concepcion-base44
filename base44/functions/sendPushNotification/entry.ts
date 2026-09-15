@@ -277,31 +277,42 @@ Deno.serve(async (req) => {
 
       // CAS: solamente se revierte si la orden continúa en el estado ilegal que
       // produjo el móvil. Si la Central ya actuó, no se pisa su decisión.
-      await base44.asServiceRole.entities.RideOrder.updateMany(
+      const restoredAccepted = await base44.asServiceRole.entities.RideOrder.updateMany(
         { id: orderId, status: 'pendiente', driver_id: body.data.driver_id ?? null },
         { $set: restoreOrder }
-      );
+      ).catch(() => ({ updated:0 }));
+      const restoredAcceptedCount = restoredAccepted?.updated ?? restoredAccepted?.modifiedCount ?? restoredAccepted?.matchedCount ?? 0;
 
-      // Los APK viejos liberan el registro Driver inmediatamente después. Esperamos
-      // ese segundo paso y restauramos el vínculo con el viaje aceptado.
-      if (previousDriverId) {
+      // Sólo restaurar Driver si PRIMERO logramos restaurar exactamente el RideOrder.
+      // Antes este bloque podía marcar al chofer en_viaje aunque el CAS del pasaje
+      // hubiese perdido contra una cancelación/avance legítimo concurrente, creando
+      // el estado partido que luego deja al móvil trabado.
+      if (previousDriverId && restoredAcceptedCount === 1) {
         await new Promise(resolve => setTimeout(resolve, 750));
-        await base44.asServiceRole.entities.Driver.updateMany(
-          {
-            id: previousDriverId,
-            $or: [
-              { active_ride_id: null },
-              { active_ride_id: orderId },
-              { active_ride_id: { $exists: false } }
-            ]
-          },
-          { $set: {
-            status: 'en_viaje',
-            dispatch_status: 'normal',
-            active_ride_id: orderId,
-            reserved_order_id: orderId
-          } }
+        const freshAcceptedOrder = await base44.asServiceRole.entities.RideOrder.get(orderId).catch(() => null);
+        const stillAcceptedBySameDriver = Boolean(
+          freshAcceptedOrder &&
+          protectedAcceptedStatuses.has(freshAcceptedOrder.status) &&
+          (freshAcceptedOrder.driver_id === previousDriverId || freshAcceptedOrder.reserved_driver_id === previousDriverId)
         );
+        if (stillAcceptedBySameDriver) {
+          await base44.asServiceRole.entities.Driver.updateMany(
+            {
+              id: previousDriverId,
+              $or: [
+                { active_ride_id: null },
+                { active_ride_id: orderId },
+                { active_ride_id: { $exists: false } }
+              ]
+            },
+            { $set: {
+              status: 'en_viaje',
+              dispatch_status: 'normal',
+              active_ride_id: orderId,
+              reserved_order_id: orderId
+            } }
+          );
+        }
       }
 
       await base44.asServiceRole.entities.AuditLog.create({
