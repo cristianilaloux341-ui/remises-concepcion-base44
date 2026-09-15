@@ -177,14 +177,14 @@
     },
     "queue_authoritative_at": {
       "type": "string",
-      "description": "Antig\u00fcedad autoritativa de cola usada por despacho y Central"
+      "description": "Timestamp hist\u00f3rico/proyecci\u00f3n legacy para APK v12.27/v12.29; no decide prioridad ni despacho"
     },
     "queue_left_at": {
       "type": [
         "string",
         "null"
       ],
-      "description": "Hora de servidor en que el m\u00f3vil sali\u00f3 de toda lista de base; conserva su posici\u00f3n como m\u00e1ximo 20 segundos"
+      "description": "Hora hist\u00f3rica de salida de la base. No conserva posici\u00f3n ni prioridad; la cola operativa se define \u00fanicamente por current_base + queue_position del servidor."
     },
     "queue_authority_marker": {
       "type": "number",
