@@ -204,6 +204,55 @@ Deno.serve(async (req) => {
     if (isLegacyOfferedRollback) {
       const orderId = body.data.id;
       const ownerDriverId = body.old_data.reserved_driver_id || body.old_data.driver_id;
+
+      // v12.27/v12.29 expresan RECHAZO (y su cierre local por timeout) escribiendo
+      // ofrecido -> pendiente. No dejar ese viaje en Pendientes: reconstruimos por CAS
+      // la oferta exacta anterior y la entregamos al motor único rejectRide, que busca
+      // inmediatamente el siguiente móvil de la MISMA zona. `legacy_client` permite
+      // además adoptar que la APK ya haya liberado al Driver unos milisegundos antes.
+      if (orderId && ownerDriverId && body.old_data.reservation_token) {
+        const restoredForReassign = await base44.asServiceRole.entities.RideOrder.updateMany(
+          {
+            id:orderId,
+            status:'pendiente',
+            assignment_attempt:body.data.assignment_attempt ?? body.old_data.assignment_attempt
+          },
+          { $set:{
+            status:'ofrecido',
+            driver_id:ownerDriverId,
+            reserved_driver_id:ownerDriverId,
+            driver_name:body.old_data.driver_name,
+            assigned_base:body.old_data.assigned_base,
+            reservation_token:body.old_data.reservation_token,
+            manual_reservation_token:body.old_data.manual_reservation_token,
+            assigned_at:body.old_data.assigned_at,
+            offerExpiresAt:body.old_data.offerExpiresAt,
+            assignment_attempt:body.old_data.assignment_attempt,
+            offered_driver_ids:body.old_data.offered_driver_ids
+          } }
+        ).catch(() => null);
+
+        if ((restoredForReassign?.updated ?? restoredForReassign?.modifiedCount ?? restoredForReassign?.matchedCount ?? 0) === 1) {
+          const legacyReassign = await base44.asServiceRole.functions.invoke('rejectRide', {
+            orderId,
+            driverId:ownerDriverId,
+            assignmentAttempt:Number(body.old_data.assignment_attempt || 1),
+            source:'legacy_client',
+            legacyQueueEnteredAt:body.data.queue_entered_at || null,
+            internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+          }).catch((e:any) => ({ data:{ success:false, reason:e?.message || 'LEGACY_REASSIGN_INVOKE_FAILED' } }));
+          const legacyData = legacyReassign?.data || legacyReassign;
+          await base44.asServiceRole.entities.AuditLog.create({
+            action:'LEGACY_OFFER_TO_PENDING_REASSIGNED',
+            user_type:'sistema',
+            user_name:body.old_data.driver_name || 'Chofer',
+            details:`Cierre legacy ${orderId} enviado al motor de reasignación automática`,
+            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:body.old_data.assignment_attempt, result:legacyData }
+          }).catch(()=>{});
+          return Response.json({ ok:legacyData?.success !== false, reason:'legacy_offered_rollback_reassigned', result:legacyData });
+        }
+      }
+
       const ownerDriver = ownerDriverId
         ? await base44.asServiceRole.entities.Driver.get(ownerDriverId).catch(() => null)
         : null;
