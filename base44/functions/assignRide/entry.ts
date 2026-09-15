@@ -342,6 +342,9 @@ Deno.serve(async (req) => {
     orderReq.driver_name = driverReq.name;
     orderReq.assigned_at = assignedAt;
     orderReq.offerExpiresAt = offerExpiresAt;
+    orderReq.push_ack_at = null;
+    orderReq.push_ack_assignment_attempt = null;
+    orderReq.delivery_retry_count = 0;
     if (requestedManual) {
       orderReq.notes = String(orderReq.notes || '')
         .replace(/\s*\[REVISION_CENTRAL_CANCELADO_CHOFER\]\s*/g, ' ')
@@ -394,7 +397,10 @@ Deno.serve(async (req) => {
           assigned_base: effectiveDriverBase,
           driver_name: driverReq.name,
           assigned_at: assignedAt,
-          offerExpiresAt: offerExpiresAt
+          offerExpiresAt: offerExpiresAt,
+          push_ack_at: null,
+          push_ack_assignment_attempt: null,
+          delivery_retry_count: 0
         });
       }
 
