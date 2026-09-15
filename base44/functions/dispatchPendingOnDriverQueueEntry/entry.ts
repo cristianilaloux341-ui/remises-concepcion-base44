@@ -650,12 +650,34 @@ Deno.serve(async (req) => {
       return Response.json({ success:true, skipped:true, reason:'QUEUE_CHANGED_DURING_STRICT_GUARD' });
     }
 
-    // La entrada REAL a la lista se identifica por queue_entered_at. El móvil puede
-    // volver a entrar en la misma base que ya tenía guardada, por lo que mirar solo
-    // current_base deja pasar exactamente ese caso sin disparar Pendientes.
-    // Heartbeats y otros cambios no modifican queue_entered_at.
-    if (eventData && oldData && eventData.queue_entered_at === oldData.queue_entered_at) {
-      return Response.json({ success: true, skipped: true, reason: 'QUEUE_ENTRY_DID_NOT_CHANGE' });
+    // CORTE OPERATIVO URGENTE: este workflow NO debe despachar Pendientes a partir
+    // de una simple escritura de queue_entered_at. Las APK legacy/reconexiones pueden
+    // tocar esa proyección y eso estaba creando capacidad falsa, moviendo posiciones
+    // y entregando un pendiente a un móvil que no correspondía. Sólo una entrada o
+    // cambio REAL de base, o un movimiento manual explícito del operador, habilita
+    // el drenaje automático de un pendiente. El despacho normal/rechazo/timeout
+    // sigue siendo autoridad de assignRide/rejectRide y no depende de este trigger.
+    const explicitQueueEntryOrMove = Boolean(
+      eventData && oldData && (
+        (
+          eventData.status === 'disponible' &&
+          eventData.current_base &&
+          eventData.current_base !== oldData.current_base &&
+          eventData.queue_entered_at &&
+          eventData.queue_entered_at !== oldData.queue_entered_at
+        ) ||
+        (
+          eventData.status === 'disponible' &&
+          eventData.current_base &&
+          eventData.current_base === oldData.current_base &&
+          eventData.queue_position !== oldData.queue_position &&
+          eventData.queue_entered_at &&
+          eventData.queue_entered_at !== oldData.queue_entered_at
+        )
+      )
+    );
+    if (!explicitQueueEntryOrMove) {
+      return Response.json({ success: true, skipped: true, reason: 'NO_EXPLICIT_QUEUE_ENTRY_FOR_PENDING_DISPATCH' });
     }
 
     // Trazabilidad de cola: registrar toda modificación REAL de antigüedad. Esto no
