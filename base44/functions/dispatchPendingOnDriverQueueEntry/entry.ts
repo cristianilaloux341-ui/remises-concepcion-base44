@@ -644,20 +644,14 @@ Deno.serve(async (req) => {
         // la APK (puede ser viejo y meter al móvil primero). La entrada nace detrás
         // del último snapshot autoritativo de la base.
         if (!normalizedExplicitQueueEntry && !authoritativeBase && currentBase) {
-          const seedAt = await getNextQueueTailAt(b44, currentBase, driverId);
-          const nextPos = await getNextQueuePosition(b44, currentBase, driverId);
-          const seeded = await b44.entities.Driver.updateMany(
+          const placed = await placeDriverLastLocked(
+            currentBase,
+            driverId,
             { id:driverId, status:'disponible', current_base:currentBase },
-            { $set:{
-              queue_entered_at:seedAt,
-              queue_authoritative_base:currentBase,
-              queue_authoritative_at:seedAt,
-              queue_position:nextPos,
-              queue_authority_marker:null,
-              queue_left_at:null
-            } }
-          ).catch(()=>({updated:0}));
-          const seededCount = seeded?.updated ?? seeded?.modifiedCount ?? seeded?.matchedCount ?? 0;
+            { queue_authority_marker:null }
+          );
+          const seedAt = placed.queueAt;
+          const seededCount = placed.count;
           if (seededCount !== 1) {
             return Response.json({ success:true, repaired:false, reason:'QUEUE_AUTHORITY_INITIALIZE_CHANGED_CONCURRENTLY' });
           }
