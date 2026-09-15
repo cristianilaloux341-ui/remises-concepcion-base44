@@ -65,88 +65,17 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
 
   const moveMutation = useMutation({
     mutationFn: async ({ driverId, newPosition }) => {
-      // Nunca reordenar usando la copia local del modal: con dos PCs puede estar
-      // atrasada y una operación válida terminar reescribiendo una cola vieja.
-      // Traer la cola fresca del servidor justo antes de mover.
-      const freshDrivers = await base44.entities.Driver.filter({
-        current_base: baseName,
-        status: "disponible"
+      const sessionToken = sessionStorage.getItem('local_operator_token') || null;
+      const res = await base44.functions.invoke('manualReorderDriverQueue', {
+        driverId, baseName, newPosition, sessionToken
       });
-      const currentQueue = getBaseQueue(freshDrivers, baseName);
-      const idx = currentQueue.findIndex(d => d.id === driverId);
-      if (idx === -1) throw new Error("El móvil ya no está en esa cola.");
-
-      const driverToMove = currentQueue[idx];
-      if (driverToMove.dispatch_status !== "normal" || driverToMove.reserved_order_id || driverToMove.active_order_id || driverToMove.active_ride_id) {
-        throw new Error("El móvil tiene una reserva/viaje y no puede reordenarse ahora.");
+      if (!res?.data?.success) {
+        if (res?.data?.skipped) return res.data;
+        throw new Error(res?.data?.reason === 'unauthorized'
+          ? 'Sesión de operador expirada. Volvé a ingresar.'
+          : (res?.data?.reason || 'No se pudo reordenar la cola.'));
       }
-
-      currentQueue.splice(idx, 1);
-      const boundedPosition = Math.max(0, Math.min(newPosition, currentQueue.length));
-
-      // Si la cola cambió entre lo que veía la pantalla y esta lectura fresca, el
-      // destino pedido puede haber quedado siendo exactamente la posición actual.
-      // En ese caso NO escribir nada: evita movimientos/falsos reordenamientos.
-      if (idx === boundedPosition) return { skipped: true, reason: "SAME_EFFECTIVE_POSITION" };
-
-      // MUY IMPORTANTE: un reordenamiento manual modifica SOLO al móvil movido.
-      // Nunca más reescribir la hora de toda la base. Calculamos una hora entre sus
-      // nuevos vecinos; con esto ningún móvil ajeno cambia de posición por efecto lateral.
-      const before = boundedPosition > 0 ? currentQueue[boundedPosition - 1] : null;
-      const after = boundedPosition < currentQueue.length ? currentQueue[boundedPosition] : null;
-      const beforeMs = before?.queue_entered_at ? new Date(before.queue_entered_at).getTime() : NaN;
-      const afterMs = after?.queue_entered_at ? new Date(after.queue_entered_at).getTime() : NaN;
-      let nextMs;
-
-      if (before && after) {
-        if (!Number.isFinite(beforeMs) || !Number.isFinite(afterMs) || afterMs - beforeMs < 2) {
-          throw new Error("No hay espacio seguro entre esas posiciones. Cerrá y volvé a abrir la cola antes de reintentar.");
-        }
-        nextMs = Math.floor((beforeMs + afterMs) / 2);
-      } else if (!before && after) {
-        if (!Number.isFinite(afterMs)) throw new Error("La primera posición no tiene una hora válida.");
-        nextMs = afterMs - 1;
-      } else if (before && !after) {
-        if (!Number.isFinite(beforeMs)) throw new Error("La última posición no tiene una hora válida.");
-        nextMs = Math.max(Date.now(), beforeMs + 1);
-      } else {
-        nextMs = Date.now();
-      }
-
-      const authorityMarker = Date.now();
-      const authoritativeAt = new Date(nextMs).toISOString();
-      const moved = await base44.entities.Driver.updateMany(
-        {
-          id: driverToMove.id,
-          current_base: baseName,
-          status: "disponible",
-          dispatch_status: "normal",
-          reserved_order_id: null,
-          active_order_id: null,
-          active_ride_id: null,
-          queue_entered_at: driverToMove.queue_entered_at ?? null
-        },
-        { $set: {
-          queue_entered_at: authoritativeAt,
-          queue_authoritative_base: baseName,
-          queue_authoritative_at: authoritativeAt,
-          // Marca explícitamente que este cambio de antigüedad fue manual/intencional.
-          queue_position: authorityMarker,
-          queue_authority_marker: authorityMarker
-        } }
-      );
-      const changed = moved?.updated ?? moved?.modifiedCount ?? moved?.matchedCount ?? 0;
-      if (changed < 1) {
-        throw new Error("La cola cambió en otra PC mientras la estabas moviendo. Se recargó sin modificarla.");
-      }
-
-      await base44.entities.AuditLog.create({
-        action: "QUEUE_MANUAL_REORDER",
-        user_type: "operador",
-        user_name: "Central",
-        details: `Reordenó móvil ${driverToMove.name || driverId} en ${baseName}`,
-        metadata: { driverId, baseName, from: idx + 1, to: boundedPosition + 1 }
-      }).catch(() => {});
+      return res.data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["drivers"] }),
   });

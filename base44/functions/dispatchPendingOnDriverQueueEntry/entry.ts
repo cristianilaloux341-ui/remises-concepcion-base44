@@ -1,5 +1,6 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.48';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
+import { verifyReorderToken } from '../../shared/reorderToken.ts';
 
 const CENTRAL_REVIEW_MARKER = '[REVISION_CENTRAL_CANCELADO_CHOFER]';
 const PROTECTED_ACTIONS = new Set(['ACCEPT', 'START', 'FINISH']);
@@ -455,6 +456,88 @@ Deno.serve(async (req) => {
         return Response.json({ success:true, repaired:true, reason:'QUEUE_AUTHORITY_CLEARED_EXPLICIT_OFF_SERVICE' });
       }
 
+      if (freshQueueDriver && oldData && eventData) {
+        const hadValidAuthority = Boolean(
+          oldData.status === 'disponible' && oldData.current_base &&
+          oldData.queue_authoritative_base && oldData.queue_authoritative_at
+        );
+        const writeKeepsIdleInSameBase = Boolean(
+          eventData.status === 'disponible' && eventData.current_base &&
+          eventData.current_base === oldData.current_base &&
+          (eventData.dispatch_status == null || eventData.dispatch_status === 'normal') &&
+          !eventData.reserved_order_id && !eventData.active_order_id && !eventData.active_ride_id
+        );
+        const commercialAction = Boolean(
+          oldData.reserved_order_id || eventData.reserved_order_id ||
+          (oldData.dispatch_status && oldData.dispatch_status !== 'normal') ||
+          (eventData.dispatch_status && eventData.dispatch_status !== 'normal') ||
+          oldData.current_base !== eventData.current_base ||
+          oldData.status !== eventData.status
+        );
+
+        const attemptedAt = (eventData.queue_authoritative_at || eventData.queue_entered_at) ?? null;
+        const manualAuthorized = await verifyReorderToken(
+          eventData.manual_reorder_token ?? null,
+          driverId, eventData.current_base ?? null, attemptedAt
+        );
+
+        if (hadValidAuthority && writeKeepsIdleInSameBase && !commercialAction) {
+          if (manualAuthorized) {
+            return Response.json({ success:true, reason:'MANUAL_REORDER_AUTHORIZED' });
+          }
+
+          const restoreRes = await b44.entities.Driver.updateMany(
+            {
+              id: driverId,
+              status: 'disponible',
+              current_base: oldData.current_base,
+              $or: [
+                { queue_authoritative_base: null }, { queue_authoritative_base: { $exists:false } },
+                { queue_authoritative_at: null }, { queue_authoritative_at: { $exists:false } },
+                { queue_authoritative_at: { $ne: oldData.queue_authoritative_at } },
+                { queue_entered_at: { $ne: oldData.queue_authoritative_at } },
+                { manual_reorder_token: { $ne: oldData.manual_reorder_token ?? null } }
+              ]
+            },
+            { $set: {
+              current_base: oldData.current_base,
+              queue_entered_at: oldData.queue_authoritative_at,
+              queue_authoritative_base: oldData.queue_authoritative_base,
+              queue_authoritative_at: oldData.queue_authoritative_at,
+              queue_authority_marker: oldData.queue_authority_marker ?? null,
+              queue_position: oldData.queue_position ?? null,
+              manual_reorder_token: oldData.manual_reorder_token ?? null,
+              manual_reorder_at: oldData.manual_reorder_at ?? null
+            } }
+          ).catch(()=>({updated:0}));
+          const restoredCount = restoreRes?.updated ?? restoreRes?.modifiedCount ?? restoreRes?.matchedCount ?? 0;
+          
+          if (restoredCount === 1) {
+            await b44.entities.AuditLog.create({
+              action: 'QUEUE_AUTHORITY_IMMUTABLE_RESTORED',
+              user_type: 'sistema',
+              user_name: freshQueueDriver.name || oldData.name || 'Driver',
+              details: `Se preservó la antigüedad de ${freshQueueDriver.name || driverId} en ${oldData.current_base} frente a una escritura técnica`,
+              metadata: {
+                driverId, baseName: oldData.current_base,
+                preservedAuthoritativeAt: oldData.queue_authoritative_at,
+                attemptedAuthoritativeBase: freshQueueDriver.queue_authoritative_base ?? null,
+                attemptedAuthoritativeAt: freshQueueDriver.queue_authoritative_at ?? null,
+                attemptedQueueEnteredAt: freshQueueDriver.queue_entered_at ?? null,
+                attemptedQueuePosition: freshQueueDriver.queue_position ?? null,
+                oldDispatchStatus: oldData.dispatch_status ?? null,
+                newDispatchStatus: eventData.dispatch_status ?? null,
+                oldReservedOrderId: oldData.reserved_order_id ?? null,
+                newReservedOrderId: eventData.reserved_order_id ?? null,
+                hadManualReorderToken: Boolean(eventData.manual_reorder_token),
+                origin: eventData.device_id ? 'apk' : (eventData.fcm_token ? 'mobile' : 'unknown')
+              }
+            }).catch(()=>{});
+          }
+          return Response.json({ success:true, repaired: restoredCount===1, reason:'QUEUE_AUTHORITY_IMMUTABLE_RESTORED' });
+        }
+      }
+
       if (queueIdle) {
         // Primera migración: congelar exactamente la posición que ya tiene, sin moverla.
         if (!authoritativeBase && currentBase) {
@@ -537,21 +620,6 @@ Deno.serve(async (req) => {
             return Response.json({ success:true, repaired:count === 1, reason:'GHOST_BASE_CHANGE_REVERTED' });
           }
         } else if (authoritativeBase && currentBase === authoritativeBase) {
-          // Movimiento explícito del operador: queue_position cambia y queda como
-          // marcador auditable. Adoptar la nueva hora como autoridad.
-          if (explicitManualMove && currentAt) {
-            await b44.entities.Driver.updateMany(
-              { id:driverId, status:'disponible', current_base:currentBase, queue_position:marker },
-              { $set:{ queue_authoritative_at:currentAt, queue_authority_marker:marker } }
-            ).catch(()=>{});
-            await b44.entities.AuditLog.create({
-              action:'QUEUE_AUTHORITY_MANUAL_MOVE_ACCEPTED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
-              details:`Movimiento manual de cola aceptado para ${freshQueueDriver.name || driverId}`,
-              metadata:{ driverId, baseName:currentBase, queueAt:currentAt, marker }
-            }).catch(()=>{});
-            return Response.json({ success:true, repaired:true, reason:'QUEUE_AUTHORITY_MANUAL_MOVE_ACCEPTED' });
-          }
-
           // Mismo móvil, misma base, sin acción de operador: la antigüedad NO cambia.
           if (authoritativeAt && currentAt !== authoritativeAt) {
             const restored = await b44.entities.Driver.updateMany(
@@ -620,7 +688,6 @@ Deno.serve(async (req) => {
     );
 
     if (unauthorizedSameBaseMove) {
-      const marker = Date.now();
       const reverted = await b44.entities.Driver.updateMany(
         {
           id: driverId,
@@ -629,13 +696,7 @@ Deno.serve(async (req) => {
           queue_entered_at: eventData.queue_entered_at
         },
         { $set: {
-          queue_entered_at: oldData.queue_entered_at,
-          // Marcador técnico anti-bucle. Mantener ambos marcadores sincronizados:
-          // si sólo cambia queue_position, la siguiente ejecución lo interpreta
-          // erróneamente como movimiento manual del operador y termina adoptando
-          // como autoridad la hora espuria que justamente acabamos de revertir.
-          queue_position: marker,
-          queue_authority_marker: marker
+          queue_entered_at: oldData.queue_entered_at
         } }
       );
       const changed = reverted?.updated ?? reverted?.modifiedCount ?? reverted?.matchedCount ?? 0;
