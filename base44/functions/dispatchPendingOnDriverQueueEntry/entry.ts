@@ -200,6 +200,10 @@ Deno.serve(async (req) => {
     // esos 10 s sigue sin current_base, se borra toda autoridad de cola y cuando
     // vuelva a entrar recibirá una hora nueva de servidor (queda al final).
     const baseExitGraceMs = 10 * 1000;
+    // Marca una entrada NUEVA que ya fue normalizada con hora autoritativa del servidor.
+    // Debe seguir hasta el drenaje de Pendientes; antes estas ramas retornaban acá y
+    // la capacidad recién ingresada nunca disparaba la automatización.
+    let normalizedExplicitQueueEntry = false;
 
     const technicalBaseDrop = Boolean(
       eventData && oldData &&
@@ -633,7 +637,12 @@ Deno.serve(async (req) => {
               metadata:{ driverId, previousBase:authoritativeBase, newBase:currentBase, queueAt:newEntryAt, leftAt:leftAtRaw, withinGrace }
             }).catch(()=>{});
           }
-          return Response.json({ success:true, repaired:resetCount === 1, reason:'QUEUE_REENTRY_NEW_POSITION_AFTER_GRACE' });
+          if (resetCount !== 1) {
+            return Response.json({ success:true, repaired:false, reason:'QUEUE_REENTRY_CHANGED_CONCURRENTLY' });
+          }
+          normalizedExplicitQueueEntry = true;
+          // No retornar: esta entrada nueva creó capacidad real y debe intentar
+          // despachar un Pendiente de la misma zona en este mismo evento.
         }
 
         // Primera entrada sin autoridad: NUNCA confiar en queue_entered_at enviado por
@@ -641,7 +650,7 @@ Deno.serve(async (req) => {
         // del servidor, por lo que queda detrás de todos los que ya estaban en la base.
         if (!authoritativeBase && currentBase) {
           const seedAt = new Date().toISOString();
-          await b44.entities.Driver.updateMany(
+          const seeded = await b44.entities.Driver.updateMany(
             { id:driverId, status:'disponible', current_base:currentBase },
             { $set:{
               queue_entered_at:seedAt,
@@ -650,20 +659,26 @@ Deno.serve(async (req) => {
               queue_authority_marker:marker,
               queue_left_at:null
             } }
-          ).catch(()=>{});
+          ).catch(()=>({updated:0}));
+          const seededCount = seeded?.updated ?? seeded?.modifiedCount ?? seeded?.matchedCount ?? 0;
+          if (seededCount !== 1) {
+            return Response.json({ success:true, repaired:false, reason:'QUEUE_AUTHORITY_INITIALIZE_CHANGED_CONCURRENTLY' });
+          }
           await b44.entities.AuditLog.create({
             action:'QUEUE_AUTHORITY_INITIALIZED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
             details:`Entrada de ${freshQueueDriver.name || driverId} registrada al final de ${currentBase} con hora autoritativa del servidor`,
             metadata:{ driverId, baseName:currentBase, queueAt:seedAt }
           }).catch(()=>{});
-          return Response.json({ success:true, repaired:true, reason:'QUEUE_AUTHORITY_INITIALIZED' });
+          normalizedExplicitQueueEntry = true;
+          // No retornar: la misma entrada autoritativa debe continuar hasta el motor
+          // de Pendientes en lugar de depender de un segundo evento realtime.
         }
 
         // Si por compatibilidad llegamos acá con autoridad pero sin base visible,
         // nunca restauramos la base vieja. Se aplica la misma gracia de 10 s usando
         // queue_left_at. Si no existía marca (dato viejo anterior a esta regla), la
         // creamos ahora y damos una única gracia corta antes de cortar la antigüedad.
-        if (authoritativeBase && !currentBase) {
+        if (!normalizedExplicitQueueEntry && authoritativeBase && !currentBase) {
           let leftAtRaw = freshQueueDriver.queue_left_at || null;
           if (!leftAtRaw) {
             leftAtRaw = new Date().toISOString();
@@ -732,7 +747,7 @@ Deno.serve(async (req) => {
         // es nuestra señal compatible de intención sin exigir campos nuevos al APK.
         // Un heartbeat/reconexión/cache que sólo haga oscilar current_base NO puede
         // mover al chofer ni renovar su posición: se revierte a la autoridad previa.
-        if (authoritativeBase && currentBase && authoritativeBase !== currentBase) {
+        if (!normalizedExplicitQueueEntry && authoritativeBase && currentBase && authoritativeBase !== currentBase) {
           const explicitDriverBaseEntry = Boolean(
             eventData && oldData &&
             oldData.current_base === authoritativeBase &&
@@ -774,7 +789,7 @@ Deno.serve(async (req) => {
             }
             return Response.json({ success:true, repaired:count === 1, reason:'GHOST_BASE_CHANGE_REVERTED' });
           }
-        } else if (authoritativeBase && currentBase === authoritativeBase) {
+        } else if (!normalizedExplicitQueueEntry && authoritativeBase && currentBase === authoritativeBase) {
           // Mismo móvil, misma base, sin acción de operador: la antigüedad NO cambia.
           if (authoritativeAt && currentAt !== authoritativeAt) {
             const restored = await b44.entities.Driver.updateMany(
@@ -877,7 +892,8 @@ Deno.serve(async (req) => {
     // el drenaje automático de un pendiente. El despacho normal/rechazo/timeout
     // sigue siendo autoridad de assignRide/rejectRide y no depende de este trigger.
     const explicitQueueEntryOrMove = Boolean(
-      eventData && oldData && (
+      normalizedExplicitQueueEntry ||
+      (eventData && oldData && (
         (
           eventData.status === 'disponible' &&
           eventData.current_base &&
@@ -893,7 +909,7 @@ Deno.serve(async (req) => {
           eventData.queue_entered_at &&
           eventData.queue_entered_at !== oldData.queue_entered_at
         )
-      )
+      ))
     );
     if (!explicitQueueEntryOrMove) {
       return Response.json({ success: true, skipped: true, reason: 'NO_EXPLICIT_QUEUE_ENTRY_FOR_PENDING_DISPATCH' });
