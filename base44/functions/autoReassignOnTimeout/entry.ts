@@ -49,6 +49,11 @@ Deno.serve(async (req) => {
       ).catch(()=>{});
     }
 
+    const ackedThisAttempt = Boolean(
+      order.push_ack_at &&
+      Number(order.push_ack_assignment_attempt) === Number(assignmentAttempt)
+    );
+
     const remainingMs = expiresAt - Date.now();
     if (remainingMs > 0) {
       // Las funciones serverless no deben dormir demasiado. Esperamos como máximo
@@ -62,12 +67,107 @@ Deno.serve(async (req) => {
         assignmentAttempt,
         internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
       }).catch(e=>console.error('Timeout chain error:',e));
-      return Response.json({ ok:true, chained:true, remainingMs:Math.max(0, remainingMs - waitMs) });
+      return Response.json({ ok:true, chained:true, remainingMs:Math.max(0, remainingMs - waitMs), ackedThisAttempt });
     }
 
-    // Venció en Central: se procesa con EXACTAMENTE el mismo motor atómico que usa
-    // el botón RECHAZAR. La oferta anterior se cierra y el siguiente recibe una
-    // oferta nueva, con nuevo intento/token y su propia ventana de 30 s desde ACK.
+    // Si el teléfono NUNCA confirmó recepción, esto no es un timeout del chofer.
+    // Reintentamos la MISMA oferta (mismo assignment_attempt) hasta dos veces. El
+    // primer ACK que llegue fija los 30 s reales y detiene esta rama automáticamente.
+    if (!ackedThisAttempt) {
+      const retryCount = Number(order.delivery_retry_count || 0);
+      const MAX_DELIVERY_RETRIES = 2;
+      const DELIVERY_RETRY_WAIT_MS = 10000;
+
+      if (retryCount < MAX_DELIVERY_RETRIES) {
+        const nextRetryCount = retryCount + 1;
+        const retryExpiresAt = Date.now() + DELIVERY_RETRY_WAIT_MS;
+        const retryFilter:any = {
+          id:orderId,
+          status:'ofrecido',
+          reserved_driver_id:driverId,
+          reservation_token:order.reservation_token,
+          assignment_attempt:Number(assignmentAttempt),
+          offerExpiresAt:order.offerExpiresAt,
+          $and:[
+            { $or:[
+              { push_ack_assignment_attempt:null },
+              { push_ack_assignment_attempt:{ $exists:false } },
+              { push_ack_assignment_attempt:{ $ne:Number(assignmentAttempt) } }
+            ] }
+          ]
+        };
+        if (retryCount === 0) {
+          retryFilter.$and.push({ $or:[
+            { delivery_retry_count:0 },
+            { delivery_retry_count:null },
+            { delivery_retry_count:{ $exists:false } }
+          ] });
+        } else {
+          retryFilter.delivery_retry_count = retryCount;
+        }
+
+        const retryCas = await b44.entities.RideOrder.updateMany(
+          retryFilter,
+          { $set:{ delivery_retry_count:nextRetryCount, offerExpiresAt:retryExpiresAt } }
+        ).catch(()=>({updated:0}));
+        const retryChanged = retryCas?.updated ?? retryCas?.matchedCount ?? retryCas?.modifiedCount ?? 0;
+
+        if (retryChanged === 1) {
+          const retryPush = await b44.functions.invoke('sendPushNotification', {
+            action:'send',
+            driverId,
+            orderId,
+            orderData:{
+              pickup_address:order.pickup_address,
+              dropoff_address:order.dropoff_address,
+              fare:order.fare,
+              notes:order.notes,
+              assignmentAttempt:Number(assignmentAttempt)
+            },
+            internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+          }).catch((e:any)=>({ data:{ ok:false, error:e?.message || String(e) } }));
+
+          await b44.entities.AuditLog.create({
+            action:'OFFER_DELIVERY_RETRY_SENT',
+            user_type:'sistema',
+            user_name:'autoReassignOnTimeout',
+            details:`Sin ACK del teléfono; reintento ${nextRetryCount}/${MAX_DELIVERY_RETRIES} de la misma oferta ${orderId}`,
+            metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), retryCount:nextRetryCount, retryPushOk:(retryPush?.data || retryPush)?.ok !== false }
+          }).catch(()=>{});
+
+          b44.functions.invoke('autoReassignOnTimeout', {
+            orderId,
+            driverId,
+            assignmentAttempt:Number(assignmentAttempt),
+            internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+          }).catch(e=>console.error('Delivery retry timeout chain error:',e));
+          return Response.json({ ok:true, deliveryRetry:true, retryCount:nextRetryCount });
+        }
+
+        // ACK o alguna transición ganó la carrera. Releer sin tocar nada.
+        b44.functions.invoke('autoReassignOnTimeout', {
+          orderId,
+          driverId,
+          assignmentAttempt:Number(assignmentAttempt),
+          internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch(()=>{});
+        return Response.json({ ok:true, skipped:true, reason:'delivery_state_changed' });
+      }
+
+      // Dos reintentos sin ACK: el teléfono no confirmó recepción. Se pasa al
+      // siguiente sin penalizar la posición de cola de este chofer.
+      const deliveryResult = await b44.functions.invoke('rejectRide', {
+        orderId,
+        driverId,
+        assignmentAttempt:Number(assignmentAttempt),
+        source:'delivery_unconfirmed',
+        internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+      });
+      return Response.json({ ok:(deliveryResult?.data || deliveryResult)?.success !== false, deliveryUnconfirmed:true, result:deliveryResult?.data || deliveryResult });
+    }
+
+    // ACK confirmado: recién ahora el vencimiento significa que el chofer tuvo sus
+    // 30 s completos y no respondió. Se usa el motor normal de timeout/reasignación.
     const result = await b44.functions.invoke('rejectRide', {
       orderId,
       driverId,
