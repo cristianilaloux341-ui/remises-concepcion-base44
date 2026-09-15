@@ -36,7 +36,9 @@ Deno.serve(async (req) => {
       const config = (await b44.entities.TarifaConfig.list())[0] || {};
       const configuredSeconds = Number(config.tiempo_maximo_respuesta_segundos ?? 30);
       const seconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
-      expiresAt = Date.now() + seconds * 1000;
+      // Oferta legacy sin vencimiento persistido: proteger también el tiempo de
+      // transporte al teléfono. El ACK, si llega, vuelve a anclar los 30 s reales.
+      expiresAt = Date.now() + seconds * 1000 + 15000;
       await b44.entities.RideOrder.updateMany(
         {
           id: orderId,
