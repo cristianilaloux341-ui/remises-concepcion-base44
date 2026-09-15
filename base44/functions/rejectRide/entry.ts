@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
             queue_entered_at:queueAt,
             queue_authoritative_base:queueBase,
             queue_authoritative_at:queueAt,
-            queue_authority_marker:null,
+            queue_authority_marker:nextPos,
             queue_position:nextPos,
             queue_left_at:null,
             active_order_id:null,
@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
               queue_entered_at:adoptedQueueAt,
               queue_authoritative_base:adoptedQueueBase,
               queue_authoritative_at:adoptedQueueAt,
-              queue_authority_marker:null,
+              queue_authority_marker:adoptedNextPos,
               queue_position:adoptedNextPos,
               queue_left_at:null
             } }
