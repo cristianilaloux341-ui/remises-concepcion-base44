@@ -158,7 +158,15 @@ export default function OrderDetail() {
             .filter(d => d.id !== order.driver_id && d.queue_entered_at)
             .map(d => new Date(d.queue_entered_at).getTime())
             .filter(Number.isFinite);
-          const firstMs = validTimes.length ? Math.min(...validTimes) - 1 : Date.now();
+          // Si el móvil ya estaba 1° (su antigüedad es anterior a todos), no
+          // adelantar su reloj hacia una hora más nueva al cancelar. Central sólo
+          // puede conservarlo o llevarlo hacia adelante en la cola, nunca hacerlo
+          // perder antigüedad por la propia reinserción.
+          const currentQueueMs = order.driver_id
+            ? new Date((await base44.entities.Driver.get(order.driver_id).catch(() => null))?.queue_entered_at || '').getTime()
+            : NaN;
+          const targetFirstMs = validTimes.length ? Math.min(...validTimes) - 1 : Date.now();
+          const firstMs = Number.isFinite(currentQueueMs) ? Math.min(currentQueueMs, targetFirstMs) : targetFirstMs;
           const firstAt = new Date(firstMs).toISOString();
           const marker = Date.now();
           await base44.entities.Driver.update(order.driver_id, {
