@@ -647,11 +647,13 @@ Deno.serve(async (req) => {
 
     // BLINDAJE ESTRICTO DE COLA.
     // Una vez que un móvil está DISPONIBLE dentro de una base, su antigüedad es
-    // INMUTABLE salvo tres casos explícitos:
-    //   1) el operador lo reordena (queue_position cambia en la misma escritura),
-    //   2) el móvil pierde/rechaza/vence una oferta (se libera una reserva real),
-    //   3) el móvil sale/cambia/entra de base (cambia base o estado; no cae aquí).
-    // Cualquier otra escritura de queue_entered_at en la MISMA base se revierte.
+    // INMUTABLE. El operador sólo puede reordenarlo mediante el flujo firmado
+    // manualReorderDriverQueue, que fue validado arriba y retorna antes de llegar acá.
+    // Rechazos, vencimientos, reconexiones, GPS, heartbeat o cualquier escritura
+    // técnica de una APK legacy NO pueden cambiar su lugar dentro de la misma base.
+    // Salir/cambiar/entrar de base tampoco cae en este guard porque cambia base/estado.
+    // Por lo tanto, cualquier cambio de queue_entered_at que llegue hasta aquí mientras
+    // sigue disponible en la MISMA base se revierte sin excepciones.
     const oldDispatch = oldData?.dispatch_status ?? 'normal';
     const newDispatch = eventData?.dispatch_status ?? 'normal';
     const queueTimestampChanged = Boolean(
@@ -661,16 +663,6 @@ Deno.serve(async (req) => {
     const sameBase = Boolean(
       eventData?.current_base &&
       eventData.current_base === oldData?.current_base
-    );
-    const explicitOperatorMove = Boolean(
-      eventData && oldData &&
-      eventData.queue_position !== oldData.queue_position
-    );
-    const lostOffer = Boolean(
-      oldData?.reserved_order_id &&
-      !eventData?.reserved_order_id &&
-      oldDispatch !== 'normal' &&
-      newDispatch === 'normal'
     );
     // IMPORTANTE v12.27: perder/rechazar/vencer una oferta NO autoriza una nueva
     // antigüedad de cola. La APK legacy escribe queue_entered_at al liberar, pero
@@ -683,8 +675,7 @@ Deno.serve(async (req) => {
       sameBase &&
       oldData?.queue_entered_at &&
       oldData?.status === 'disponible' &&
-      eventData?.status === 'disponible' &&
-      !explicitOperatorMove
+      eventData?.status === 'disponible'
     );
 
     if (unauthorizedSameBaseMove) {
