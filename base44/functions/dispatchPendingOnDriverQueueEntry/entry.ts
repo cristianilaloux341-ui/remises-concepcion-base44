@@ -370,6 +370,7 @@ Deno.serve(async (req) => {
       // reinserción autoritativa, la completamos acá con cola fresca del servidor.
       const releasedDriver = await b44.entities.Driver.get(driverId).catch(()=>null);
       const queueBase = legacyOrder?.assigned_base || legacyOrder?.zone || oldData.current_base || eventData.current_base || null;
+      const previousAuthorityAt = oldData.queue_authoritative_at || oldData.queue_entered_at || null;
       const alreadyQueuedAtTailAuthority = Boolean(
         releasedDriver && queueBase &&
         releasedDriver.status === 'disponible' &&
@@ -377,7 +378,8 @@ Deno.serve(async (req) => {
         !releasedDriver.reserved_order_id && !releasedDriver.active_order_id && !releasedDriver.active_ride_id &&
         releasedDriver.current_base === queueBase &&
         releasedDriver.queue_authoritative_base === queueBase &&
-        releasedDriver.queue_authoritative_at
+        releasedDriver.queue_authoritative_at &&
+        (!previousAuthorityAt || String(releasedDriver.queue_authoritative_at) !== String(previousAuthorityAt))
       );
 
       let reconciled = alreadyQueuedAtTailAuthority;
