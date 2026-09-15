@@ -172,24 +172,31 @@ Deno.serve(async (req) => {
       if (alreadyReleasedAndIdle) {
         currentReleased = true;
         const adoptedQueueBase = queueBase || currentDriver.current_base || null;
-        const adoptedQueueAt = adoptedQueueBase
-          ? await getNextQueueTailAt(b44, adoptedQueueBase, driverId)
-          : queueAt;
-        const adoptedNextPos = adoptedQueueBase
-          ? await getNextQueuePosition(b44, adoptedQueueBase, driverId)
-          : nextPos;
-        await b44.entities.Driver.updateMany(
-          { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
-          { $set:{
-            current_base:adoptedQueueBase,
-            queue_entered_at:adoptedQueueAt,
-            queue_authoritative_base:adoptedQueueBase,
-            queue_authoritative_at:adoptedQueueAt,
-            queue_authority_marker:null,
-            queue_position:adoptedNextPos,
-            queue_left_at:null
-          } }
-        ).catch(()=>{});
+        let adoptedQueueAt = queueAt;
+        let adoptedNextPos = nextPos;
+        const adoptLegacyRelease = async () => {
+          if (adoptedQueueBase) {
+            adoptedQueueAt = await getNextQueueTailAt(b44, adoptedQueueBase, driverId);
+            adoptedNextPos = await getNextQueuePosition(b44, adoptedQueueBase, driverId);
+          }
+          const adopted = await b44.entities.Driver.updateMany(
+            { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
+            { $set:{
+              current_base:adoptedQueueBase,
+              queue_entered_at:adoptedQueueAt,
+              queue_authoritative_base:adoptedQueueBase,
+              queue_authoritative_at:adoptedQueueAt,
+              queue_authority_marker:null,
+              queue_position:adoptedNextPos,
+              queue_left_at:null
+            } }
+          ).catch(()=>({updated:0}));
+          const adoptedCount = adopted?.updated ?? adopted?.modifiedCount ?? adopted?.matchedCount ?? 0;
+          if (adoptedQueueBase && adoptedCount === 1) await compactQueueUnlocked(b44, adoptedQueueBase);
+          return adopted;
+        };
+        if (adoptedQueueBase) await withQueueLock(b44, adoptedQueueBase, adoptLegacyRelease);
+        else await adoptLegacyRelease();
         await b44.entities.AuditLog.create({
           action: source === 'timeout' ? 'TIMEOUT_DRIVER_RELEASE_ADOPTED' : 'LEGACY_DRIVER_RELEASE_ADOPTED',
           user_type:'sistema',
