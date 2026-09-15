@@ -749,7 +749,8 @@ Deno.serve(async (req) => {
               { $set:{
                 queue_entered_at:newAuthoritativeAt,
                 queue_authoritative_base:currentBase,
-                queue_authoritative_at:newAuthoritativeAt
+                queue_authoritative_at:newAuthoritativeAt,
+                queue_left_at:null
               } }
             ).catch(()=>{});
             await b44.entities.AuditLog.create({
@@ -777,7 +778,7 @@ Deno.serve(async (req) => {
           if (authoritativeAt && currentAt !== authoritativeAt) {
             const restored = await b44.entities.Driver.updateMany(
               { id:driverId, status:'disponible', current_base:currentBase, queue_entered_at:currentAt },
-              { $set:{ queue_entered_at:authoritativeAt } }
+              { $set:{ queue_entered_at:authoritativeAt, queue_left_at:null } }
             ).catch(()=>({updated:0}));
             const count = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
             if (count === 1) {
