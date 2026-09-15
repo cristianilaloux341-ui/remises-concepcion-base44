@@ -1,5 +1,5 @@
-const QUEUE_LOCK_TTL_MS = 5000;
-const QUEUE_LOCK_WAIT_MS = 2500;
+const QUEUE_LOCK_TTL_MS = 10000;
+const QUEUE_LOCK_WAIT_MS = 3000;
 
 function mutationCount(result: any): number {
   return Math.max(
