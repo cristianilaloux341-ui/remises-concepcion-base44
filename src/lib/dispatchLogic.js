@@ -38,27 +38,19 @@ export function getEffectiveQueueBase(driver) {
   const currentBase = driver.current_base || null;
   const authoritativeBase = driver.queue_authoritative_base || null;
   if (currentBase) {
-    if (!authoritativeBase || authoritativeBase !== currentBase || !driver.queue_authoritative_at) return null;
+    if (driver.queue_position == null) return null;
+    if (!authoritativeBase || authoritativeBase !== currentBase) return null;
     return currentBase;
   }
   return hasQueueExitGrace(driver) ? authoritativeBase : null;
 }
 
-export function getEffectiveQueueEnteredAt(driver) {
-  if (!driver || !getEffectiveQueueBase(driver)) return null;
-  return driver.queue_authoritative_at || null;
-}
-
 // Helper to safely and stably sort a queue
 export function sortQueue(driversArray) {
   return driversArray.sort((a, b) => {
-    const queueA = getEffectiveQueueEnteredAt(a);
-    const queueB = getEffectiveQueueEnteredAt(b);
-    const timeA = queueA ? new Date(queueA).getTime() : Infinity;
-    const timeB = queueB ? new Date(queueB).getTime() : Infinity;
-    const tA = isNaN(timeA) ? Infinity : timeA;
-    const tB = isNaN(timeB) ? Infinity : timeB;
-    if (tA !== tB) return tA - tB;
+    const posA = Number.isFinite(Number(a.queue_position)) && Number(a.queue_position) > 0 ? Number(a.queue_position) : Infinity;
+    const posB = Number.isFinite(Number(b.queue_position)) && Number(b.queue_position) > 0 ? Number(b.queue_position) : Infinity;
+    if (posA !== posB) return posA - posB;
     return (a.id || "").localeCompare(b.id || "");
   });
 }

@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
-import { getNextQueueTailAt } from '../../shared/queueOrder.ts';
+import { getNextQueueTailAt, getNextQueuePosition } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   let b44: any = null;
@@ -102,6 +102,9 @@ Deno.serve(async (req) => {
     const queueAt = queueBase
       ? await getNextQueueTailAt(b44, queueBase, driverId)
       : new Date().toISOString();
+    const nextPos = queueBase 
+      ? await getNextQueuePosition(b44, queueBase, driverId)
+      : null;
     const releasedCurrent = await b44.entities.Driver.updateMany(
       {
         id: driverId,
@@ -119,7 +122,7 @@ Deno.serve(async (req) => {
           queue_authoritative_base:queueBase,
           queue_authoritative_at:queueAt,
           queue_authority_marker:null,
-          queue_position:null,
+          queue_position:nextPos,
           queue_left_at:null,
           active_order_id:null,
           active_ride_id:null,
@@ -130,6 +133,9 @@ Deno.serve(async (req) => {
         }
       }
     );
+    if (queueBase) {
+      compactQueue(b44, queueBase).catch(e => console.error("Error compacting queue in rejectRide:", e));
+    }
     const releasedCount = releasedCurrent.matchedCount ?? releasedCurrent.modifiedCount ?? releasedCurrent.updated ?? 0;
     if (releasedCount !== 1) {
       // Compatibilidad con v12.27/v12.29: esas APK primero liberan el Driver y
@@ -161,6 +167,9 @@ Deno.serve(async (req) => {
         const adoptedQueueAt = adoptedQueueBase
           ? await getNextQueueTailAt(b44, adoptedQueueBase, driverId)
           : queueAt;
+        const adoptedNextPos = adoptedQueueBase
+          ? await getNextQueuePosition(b44, adoptedQueueBase, driverId)
+          : nextPos;
         await b44.entities.Driver.updateMany(
           { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
           { $set:{
@@ -169,7 +178,7 @@ Deno.serve(async (req) => {
             queue_authoritative_base:adoptedQueueBase,
             queue_authoritative_at:adoptedQueueAt,
             queue_authority_marker:null,
-            queue_position:null,
+            queue_position:adoptedNextPos,
             queue_left_at:null
           } }
         ).catch(()=>{});

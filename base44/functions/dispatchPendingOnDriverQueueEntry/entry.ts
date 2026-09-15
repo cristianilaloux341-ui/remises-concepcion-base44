@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.48';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
-import { getNextQueueTailAt } from '../../shared/queueOrder.ts';
+import { getNextQueueTailAt, getNextQueuePosition, compactQueue } from '../../shared/queueOrder.ts';
 import { verifyReorderToken } from '../../shared/reorderToken.ts';
 
 const CENTRAL_REVIEW_MARKER = '[REVISION_CENTRAL_CANCELADO_CHOFER]';
@@ -243,6 +243,7 @@ Deno.serve(async (req) => {
       const clearedCount = cleared?.updated ?? cleared?.modifiedCount ?? cleared?.matchedCount ?? 0;
 
       if (clearedCount === 1) {
+        if (previousBase) compactQueue(b44, previousBase).catch(()=>null);
         await b44.entities.AuditLog.create({
           action:'QUEUE_POSITION_CLEARED_ON_BASE_EXIT',
           user_type:'sistema',
@@ -394,6 +395,7 @@ Deno.serve(async (req) => {
           !releasedDriver.reserved_order_id && !releasedDriver.active_order_id && !releasedDriver.active_ride_id &&
           (!releasedDriver.current_base || releasedDriver.current_base === queueBase)) {
         queueAt = await getNextQueueTailAt(b44, queueBase, driverId);
+        const nextPos = await getNextQueuePosition(b44, queueBase, driverId);
         const requeued = await b44.entities.Driver.updateMany(
           {
             id:driverId,
@@ -408,7 +410,7 @@ Deno.serve(async (req) => {
             queue_entered_at:queueAt,
             queue_authoritative_base:queueBase,
             queue_authoritative_at:queueAt,
-            queue_position:null,
+            queue_position:nextPos,
             queue_authority_marker:null,
             queue_left_at:null
           } }
@@ -470,6 +472,7 @@ Deno.serve(async (req) => {
           { id:driverId, status:'no_disponible', current_base:null, queue_entered_at:null },
           { $set:{ queue_authoritative_base:null, queue_authoritative_at:null, queue_left_at:null } }
         ).catch(()=>{});
+        if (authoritativeBase) compactQueue(b44, authoritativeBase).catch(()=>null);
         return Response.json({ success:true, repaired:true, reason:'QUEUE_AUTHORITY_CLEARED_EXPLICIT_OFF_SERVICE' });
       }
 
@@ -564,6 +567,7 @@ Deno.serve(async (req) => {
         );
         if (enteredService) {
           const serviceEntryAt = await getNextQueueTailAt(b44, currentBase, driverId);
+          const nextPos = await getNextQueuePosition(b44, currentBase, driverId);
           const serviceEntry = await b44.entities.Driver.updateMany(
             { id:driverId, status:'disponible', current_base:currentBase },
             { $set:{
@@ -571,7 +575,7 @@ Deno.serve(async (req) => {
               queue_authoritative_base:currentBase,
               queue_authoritative_at:serviceEntryAt,
               queue_authority_marker:null,
-              queue_position:null,
+              queue_position:nextPos,
               queue_left_at:null
             } }
           ).catch(()=>({updated:0}));
@@ -594,6 +598,7 @@ Deno.serve(async (req) => {
         );
         if (returnedFromNoBase) {
           const newEntryAt = await getNextQueueTailAt(b44, currentBase, driverId);
+          const nextPos = await getNextQueuePosition(b44, currentBase, driverId);
           const reset = await b44.entities.Driver.updateMany(
             { id:driverId, status:'disponible', current_base:currentBase },
             { $set:{
@@ -601,7 +606,7 @@ Deno.serve(async (req) => {
               queue_authoritative_base:currentBase,
               queue_authoritative_at:newEntryAt,
               queue_authority_marker:null,
-              queue_position:null,
+              queue_position:nextPos,
               queue_left_at:null
             } }
           ).catch(()=>({updated:0}));
@@ -628,13 +633,15 @@ Deno.serve(async (req) => {
         // del último snapshot autoritativo de la base.
         if (!normalizedExplicitQueueEntry && !authoritativeBase && currentBase) {
           const seedAt = await getNextQueueTailAt(b44, currentBase, driverId);
+          const nextPos = await getNextQueuePosition(b44, currentBase, driverId);
           const seeded = await b44.entities.Driver.updateMany(
             { id:driverId, status:'disponible', current_base:currentBase },
             { $set:{
               queue_entered_at:seedAt,
               queue_authoritative_base:currentBase,
               queue_authoritative_at:seedAt,
-              queue_authority_marker:marker,
+              queue_position:nextPos,
+              queue_authority_marker:null,
               queue_left_at:null
             } }
           ).catch(()=>({updated:0}));
@@ -675,6 +682,7 @@ Deno.serve(async (req) => {
           ).catch(()=>({updated:0}));
           const clearedCount = cleared?.updated ?? cleared?.modifiedCount ?? cleared?.matchedCount ?? 0;
           if (clearedCount === 1) {
+            if (authoritativeBase) compactQueue(b44, authoritativeBase).catch(()=>null);
             await b44.entities.AuditLog.create({
               action:'STALE_QUEUE_AUTHORITY_CLEARED_OUTSIDE_BASE',
               user_type:'sistema',
@@ -704,12 +712,14 @@ Deno.serve(async (req) => {
             // Cambio/entrada real de base: la hora del teléfono NO define la posición.
             // El servidor sella la entrada ahora, garantizando que el móvil quede último.
             const newAuthoritativeAt = await getNextQueueTailAt(b44, currentBase, driverId);
+            const nextPos = await getNextQueuePosition(b44, currentBase, driverId);
             await b44.entities.Driver.updateMany(
               { id:driverId, status:'disponible', current_base:currentBase, queue_entered_at:currentAt },
               { $set:{
                 queue_entered_at:newAuthoritativeAt,
                 queue_authoritative_base:currentBase,
                 queue_authoritative_at:newAuthoritativeAt,
+                queue_position:nextPos,
                 queue_left_at:null
               } }
             ).catch(()=>{});

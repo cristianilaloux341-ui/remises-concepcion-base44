@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
+import { compactQueue } from '../../shared/queueOrder.ts';
 
 // ProtocolTrace fue útil para depurar el protocolo, pero en producción agregaba
 // muchas lecturas/escrituras ANTES de confirmar ACEPTAR. Queda activable por env
@@ -446,6 +447,9 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   let resDriver;
   try {
     resDriver = await b44.entities.Driver.updateMany(reserveDriverFilter, reserveDriverUpdate);
+    if (mutationCount(resDriver) > 0 && driver.current_base) {
+      compactQueue(b44, driver.current_base).catch((err) => console.error("Error compacting queue after accept:", err));
+    }
   } catch (e: any) { 
     await logStep(ctx, "RESERVE_DRIVER_AFTER", start, reserveDriverFilter, null, e.message, snapshotBefore, null, "FAILED");
     throw e;

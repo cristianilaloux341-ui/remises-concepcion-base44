@@ -60,16 +60,13 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
     }
     return authorityGraceActive(d) ? authoritativeBase : null;
   };
-  const getEffectiveQueueAt = (d:any) => {
+  const getEffectiveQueuePos = (d:any) => {
     const currentBase = d.current_base || null;
     const authoritativeBase = d.queue_authoritative_base || null;
-    if (!currentBase && !authorityGraceActive(d)) return null;
-    if (currentBase && authoritativeBase && currentBase !== authoritativeBase) {
-      // Cambio real aún no normalizado: esta marca local no define orden final, por lo
-      // que quedará atrás hasta que el servidor selle su cola nueva.
-      return null;
-    }
-    return d.queue_authoritative_at || d.queue_entered_at || null;
+    if (!currentBase && !authorityGraceActive(d)) return Infinity;
+    if (currentBase && authoritativeBase && currentBase !== authoritativeBase) return Infinity;
+    const pos = Number(d.queue_position);
+    return Number.isFinite(pos) && pos > 0 ? pos : Infinity;
   };
 
   const isDriverWorking = (d: any) => {
@@ -110,13 +107,9 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const sameBaseQueue = available
     .filter((d: any) => getEffectiveBase(d) === targetZone)
     .sort((a: any, b: any) => {
-      const queueA = getEffectiveQueueAt(a);
-      const queueB = getEffectiveQueueAt(b);
-      const timeA = queueA ? new Date(queueA).getTime() : Infinity;
-      const timeB = queueB ? new Date(queueB).getTime() : Infinity;
-      const tA = isNaN(timeA) ? Infinity : timeA;
-      const tB = isNaN(timeB) ? Infinity : timeB;
-      if (tA !== tB) return tA - tB;
+      const posA = getEffectiveQueuePos(a);
+      const posB = getEffectiveQueuePos(b);
+      if (posA !== posB) return posA - posB;
       return (a.id || "").localeCompare(b.id || "");
     });
 

@@ -23,7 +23,7 @@ if (!Capacitor.Plugins.ForegroundService) {
 }
 
 import RideMap from "@/components/map/RideMap";
-import { BASES, reassignAfterReject, getEffectiveQueueBase, getEffectiveQueueEnteredAt } from "@/lib/dispatchLogic";
+import { BASES, reassignAfterReject, getEffectiveQueueBase } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
 import DriverMessages from "@/components/driver/DriverMessages";
 import DriverMessageModal from "@/components/driver/DriverMessageModal";
@@ -242,13 +242,9 @@ function IdleScreen({ driver, drivers, driversLoading = false, selectedBase, onB
   const baseQueue = driverList
     .filter(d => getEffectiveQueueBase(d) === driver.current_base && d.status === "disponible")
     .sort((a, b) => {
-      const queueA = getEffectiveQueueEnteredAt(a);
-      const queueB = getEffectiveQueueEnteredAt(b);
-      const timeA = queueA ? new Date(queueA).getTime() : Infinity;
-      const timeB = queueB ? new Date(queueB).getTime() : Infinity;
-      const tA = isNaN(timeA) ? Infinity : timeA;
-      const tB = isNaN(timeB) ? Infinity : timeB;
-      if (tA !== tB) return tA - tB;
+      const posA = Number.isFinite(Number(a.queue_position)) && Number(a.queue_position) > 0 ? Number(a.queue_position) : Infinity;
+      const posB = Number.isFinite(Number(b.queue_position)) && Number(b.queue_position) > 0 ? Number(b.queue_position) : Infinity;
+      if (posA !== posB) return posA - posB;
       return (a.id || "").localeCompare(b.id || "");
     });
   const myPosition = debugArray(baseQueue, 'baseQueue').findIndex(d => d.id === driver.id) + 1;
