@@ -175,6 +175,7 @@ Deno.serve(async (req) => {
         queue_authoritative_base:baseName,
         queue_authoritative_at:queueAt,
         queue_position:nextPos,
+        queue_authority_marker:nextPos,
         queue_left_at:null
       } }
     ).catch(()=>({updated:0}));
