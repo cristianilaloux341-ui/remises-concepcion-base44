@@ -50,8 +50,10 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
     );
   };
   const getEffectiveBase = (d:any) => {
-    if (d.current_base) return d.current_base;
-    return authorityGraceActive(d) ? (d.queue_authoritative_base || null) : null;
+    const currentBase = d.current_base || null;
+    const authoritativeBase = d.queue_authoritative_base || null;
+    if (currentBase) return authoritativeBase || currentBase;
+    return authorityGraceActive(d) ? authoritativeBase : null;
   };
   const getEffectiveQueueAt = (d:any) => {
     const currentBase = d.current_base || null;
