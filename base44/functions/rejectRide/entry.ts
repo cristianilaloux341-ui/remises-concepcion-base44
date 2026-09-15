@@ -190,6 +190,13 @@ Deno.serve(async (req) => {
       }
     } else {
       currentReleased = true;
+      await b44.entities.AuditLog.create({
+        action:'QUEUE_REINSERTED_LAST_AFTER_REJECT_OR_TIMEOUT',
+        user_type:'sistema',
+        user_name:'rejectRide',
+        details:`Móvil ${driverId} quedó último en ${queueBase || 'su cola'} después de ${source === 'timeout' ? 'timeout' : 'rechazo'}`,
+        metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), source, baseName:queueBase, queueAt }
+      }).catch(()=>{});
     }
 
     // Primero apagar/cerrar la oferta anterior. La cancelación conserva el intento
