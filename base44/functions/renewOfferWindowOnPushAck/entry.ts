@@ -25,12 +25,6 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'NOT_PUSH_ACK' });
     }
 
-    // Una sola autoridad temporal: handleNativePushAction/native_ack ya fija
-    // offerExpiresAt = instante real de recepción + 30 s. Este workflow de AuditLog
-    // puede ejecutarse varios segundos más tarde y antes volvía a extender la oferta
-    // una segunda vez. No renovar nuevamente acá.
-    return Response.json({ success: true, skipped: true, reason: 'NATIVE_ACK_IS_TIME_AUTHORITY' });
-
     const orderId = eventData?.metadata?.orderId || body?.orderId || null;
     const driverId = eventData?.metadata?.driverId || body?.driverId || null;
     if (!orderId || !driverId) {
@@ -59,24 +53,32 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'OFFER_NO_LONGER_OWNED' });
     }
 
+    // Idempotencia entre APK actuales (AuditLog) y futuras rutas native_ack: si ESTE
+    // assignment_attempt ya quedó confirmado, no volver a extender el reloj.
+    if (
+      order.push_ack_at &&
+      Number(order.push_ack_assignment_attempt) === Number(order.assignment_attempt)
+    ) {
+      return Response.json({ success: true, skipped: true, reason: 'ACK_ALREADY_RECORDED' });
+    }
+
     const now = Date.now();
     const currentExpiry = Number(order.offerExpiresAt || 0);
-    // Si el servidor ya consumó el vencimiento, no se resucita. Si todavía figura
-    // ofrecido pero la hora pasó por una carrera mínima, también se deja al timeout
-    // resolver; la renovación es únicamente para ACK recibido durante oferta vigente.
-    if (!Number.isFinite(currentExpiry) || currentExpiry <= now) {
-      return Response.json({ success: true, skipped: true, reason: 'OFFER_ALREADY_EXPIRED' });
+    if (!Number.isFinite(currentExpiry)) {
+      return Response.json({ success: true, skipped: true, reason: 'INVALID_OFFER_EXPIRY' });
     }
 
     const timeoutSeconds = Number(configs?.[0]?.tiempo_maximo_respuesta_segundos ?? 30);
     const safeTimeoutSeconds = Number.isFinite(timeoutSeconds) && timeoutSeconds > 0 ? timeoutSeconds : 30;
-    const ackMs = eventData?.created_date ? new Date(eventData.created_date).getTime() : now;
-    const ackBaseMs = Number.isFinite(ackMs) ? Math.max(ackMs, now - 5000) : now;
-    const renewedExpiry = ackBaseMs + safeTimeoutSeconds * 1000;
+    const rawAckMs = eventData?.created_date ? new Date(eventData.created_date).getTime() : now;
+    const ackMs = Number.isFinite(rawAckMs) ? Math.min(rawAckMs, now) : now;
+    const ackAt = new Date(ackMs).toISOString();
+    const targetExpiry = ackMs + safeTimeoutSeconds * 1000;
 
-    // Con ACK ya conocemos cuándo llegó al teléfono: desde acá rigen los 30 s reales.
-    // La gracia previa era sólo para transporte sin ACK y no debe sumarse a la ventana.
-    const targetExpiry = Math.max(renewedExpiry, now + safeTimeoutSeconds * 1000);
+    // Si el workflow se ejecutó tarde y ya pasaron incluso los 30 s desde el ACK,
+    // no inventamos tiempo extra. Mientras la MISMA oferta siga siendo propiedad de
+    // este móvil, registramos la recepción y dejamos al timeout resolver enseguida.
+    // Esto mantiene exactamente 30 s desde la recepción real, no desde el workflow.
 
     const updateRes = await b44.entities.RideOrder.updateMany(
       {
@@ -87,7 +89,11 @@ Deno.serve(async (req) => {
         assignment_attempt: order.assignment_attempt,
         offerExpiresAt: currentExpiry
       },
-      { $set: { offerExpiresAt: targetExpiry } }
+      { $set: {
+        offerExpiresAt: targetExpiry,
+        push_ack_at: ackAt,
+        push_ack_assignment_attempt: order.assignment_attempt
+      } }
     );
 
     const changed = updateRes?.updated ?? updateRes?.modifiedCount ?? updateRes?.matchedCount ?? 0;
