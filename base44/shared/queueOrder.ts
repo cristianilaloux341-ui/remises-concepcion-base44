@@ -157,7 +157,7 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
     if (Number(d.queue_position) !== expectedPos) {
       await b44.entities.Driver.updateMany(
         { id: d.id, current_base: baseName, status: 'disponible', queue_position: d.queue_position },
-        { $set: { queue_position: expectedPos } }
+        { $set: { queue_position: expectedPos, queue_authority_marker: expectedPos } }
       ).catch(() => null);
     }
     expectedPos++;
