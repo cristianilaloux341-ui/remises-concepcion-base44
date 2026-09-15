@@ -36,6 +36,29 @@ Deno.serve(async (req) => {
       return Response.json({ success:false, reason:'STALE_OR_EXPIRED' });
     }
 
+    // BLINDAJE DE TIEMPO EN LA ÚLTIMA AUTORIDAD: aunque cron, APK legacy o un
+    // watcher viejo invoquen rejectRide demasiado pronto, un TIMEOUT jamás puede
+    // tomar el lease mientras la ventana vigente del teléfono siga abierta.
+    // Esto es deliberadamente redundante con autoReassignOnTimeout: rejectRide es
+    // la puerta final y debe ser segura por sí sola ante carreras con el ACK.
+    if (source === 'timeout') {
+      const freshExpiresAt = Number(order.offerExpiresAt);
+      if (!Number.isFinite(freshExpiresAt)) {
+        return Response.json({ success:false, reason:'TIMEOUT_WITHOUT_EXPIRY_AUTHORITY' });
+      }
+      const remainingMs = freshExpiresAt - Date.now();
+      if (remainingMs > 0) {
+        await b44.entities.AuditLog.create({
+          action:'PREMATURE_TIMEOUT_BLOCKED_AT_REJECT',
+          user_type:'sistema',
+          user_name:'rejectRide',
+          details:`Timeout anticipado bloqueado para ${orderId}; la oferta del móvil ${driverId} sigue vigente`,
+          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), offerExpiresAt:freshExpiresAt, remainingMs }
+        }).catch(()=>{});
+        return Response.json({ success:false, reason:'OFFER_STILL_LIVE', remainingMs });
+      }
+    }
+
     // RECHAZAR y TIMEOUT usan exactamente el mismo motor. Primero tomamos un lease
     // atómico sobre ESTA oferta; así aceptar/rechazar/vencer nunca pueden procesarla
     // simultáneamente.
