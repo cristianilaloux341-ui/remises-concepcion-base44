@@ -205,11 +205,11 @@ Deno.serve(async (req) => {
       const orderId = body.data.id;
       const ownerDriverId = body.old_data.reserved_driver_id || body.old_data.driver_id;
 
-      // v12.27/v12.29 expresan RECHAZO (y su cierre local por timeout) escribiendo
-      // ofrecido -> pendiente. No dejar ese viaje en Pendientes: reconstruimos por CAS
-      // la oferta exacta anterior y la entregamos al motor único rejectRide, que busca
-      // inmediatamente el siguiente móvil de la MISMA zona. `legacy_client` permite
-      // además adoptar que la APK ya haya liberado al Driver unos milisegundos antes.
+      // v12.27/v12.29 pueden escribir ofrecido -> pendiente tanto durante ACEPTAR
+      // como durante un cierre/rechazo legacy. Ese cambio es AMBIGUO: por sí solo no
+      // autoriza a sacar al chofer mientras la oferta siga viva. Primero restauramos
+      // por CAS la oferta exacta anterior. Un rechazo explícito debe llegar por
+      // rejectRide; si una APK vieja no lo hace, el timeout normal resolverá al vencer.
       if (orderId && ownerDriverId && body.old_data.reservation_token) {
         const restoredForReassign = await base44.asServiceRole.entities.RideOrder.updateMany(
           {
@@ -238,81 +238,39 @@ Deno.serve(async (req) => {
           const offerStillLive = !Number.isFinite(previousExpiresAt) || previousExpiresAt > Date.now();
 
           // CRÍTICO: `ofrecido -> pendiente` en APK legacy NO prueba un rechazo.
-          // También aparece durante la secuencia vieja de ACEPTAR. Primero restauramos
-          // la oferta y, mientras siga viva, damos una ventana corta para que acceptRide
-          // adquiera su lease. Así ACEPTAR siempre gana contra la limpieza local vieja.
+          // Mientras la oferta siga viva, la restauramos y TERMINAMOS aquí. No hay
+          // período de gracia ni inferencia posterior: sólo ACEPTAR, RECHAZAR explícito
+          // o el vencimiento real de la oferta pueden resolverla.
           if (offerStillLive) {
             await base44.asServiceRole.entities.AuditLog.create({
-              action:'LEGACY_LIVE_OFFER_ROLLBACK_RESTORED',
+              action:'LEGACY_LIVE_PENDING_IGNORED_AS_REJECT',
               user_type:'sistema',
               user_name:body.old_data.driver_name || 'Chofer',
-              details:`Rollback legacy restaurado sin reasignar de inmediato: ${orderId}`,
+              details:`Pendiente legacy ignorado como rechazo; oferta viva restaurada para ${orderId}`,
               metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, offerExpiresAt:body.old_data.offerExpiresAt }
             }).catch(()=>{});
-
-            // Sólo corre en la anomalía legacy. Un rechazo real puede demorarse hasta
-            // 1.2 s; a cambio evitamos perder una aceptación que ya viene en vuelo.
-            await new Promise(resolve => setTimeout(resolve, 1200));
-
-            const freshOrder = await base44.asServiceRole.entities.RideOrder.get(orderId).catch(() => null);
-            const nowAfterGrace = Date.now();
-            const acceptAlreadyWon = Boolean(
-              freshOrder &&
-              freshOrder.status === 'aceptado' &&
-              freshOrder.driver_id === ownerDriverId
-            );
-            const acceptOwnsLease = Boolean(
-              freshOrder &&
-              freshOrder.status === 'ofrecido' &&
-              freshOrder.reserved_driver_id === ownerDriverId &&
-              Number(freshOrder.assignment_attempt) === previousAttempt &&
-              freshOrder.processingAction === 'ACCEPT' &&
-              freshOrder.processingOwnerId &&
-              Number(freshOrder.processingLeaseExpiresAt || 0) > nowAfterGrace
-            );
-
-            if (acceptAlreadyWon || acceptOwnsLease) {
-              await base44.asServiceRole.entities.AuditLog.create({
-                action:'LEGACY_ROLLBACK_YIELDED_TO_ACCEPT',
-                user_type:'sistema',
-                user_name:body.old_data.driver_name || 'Chofer',
-                details:`Se ignoró cierre legacy porque ACEPTAR ganó para ${orderId}`,
-                metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, accepted:acceptAlreadyWon, acceptLease:acceptOwnsLease }
-              }).catch(()=>{});
-              return Response.json({ ok:true, reason:'legacy_rollback_yielded_to_accept' });
-            }
-
-            // Si otra operación ya cambió el pasaje, esta copia legacy quedó vieja.
-            const stillSameOffer = Boolean(
-              freshOrder &&
-              freshOrder.status === 'ofrecido' &&
-              freshOrder.reserved_driver_id === ownerDriverId &&
-              Number(freshOrder.assignment_attempt) === previousAttempt
-            );
-            if (!stillSameOffer) {
-              return Response.json({ ok:true, reason:'legacy_rollback_state_already_advanced' });
-            }
+            return Response.json({ ok:true, reason:'legacy_live_offer_restored_waiting_explicit_resolution' });
           }
 
-          // Si no apareció una aceptación durante la gracia (o la oferta ya venció),
-          // recién ahora el cierre legacy puede entrar al motor único de rechazo/timeout.
+          // Sólo una oferta YA VENCIDA puede usar este rollback legacy como señal de
+          // timeout. En ese caso sí se entrega al motor único de reasignación.
           const legacyReassign = await base44.asServiceRole.functions.invoke('rejectRide', {
             orderId,
             driverId:ownerDriverId,
             assignmentAttempt:previousAttempt,
-            source:offerStillLive ? 'legacy_client' : 'timeout',
+            source:'timeout',
             legacyQueueEnteredAt:body.data.queue_entered_at || null,
             internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
           }).catch((e:any) => ({ data:{ success:false, reason:e?.message || 'LEGACY_REASSIGN_INVOKE_FAILED' } }));
           const legacyData = legacyReassign?.data || legacyReassign;
           await base44.asServiceRole.entities.AuditLog.create({
-            action:'LEGACY_OFFER_TO_PENDING_REASSIGNED',
+            action:'LEGACY_EXPIRED_OFFER_TO_TIMEOUT_REASSIGNED',
             user_type:'sistema',
             user_name:body.old_data.driver_name || 'Chofer',
-            details:`Cierre legacy ${orderId} enviado al motor de reasignación automática`,
-            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, result:legacyData, offerWasLive:offerStillLive }
+            details:`Cierre legacy vencido ${orderId} enviado al motor de timeout`,
+            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, result:legacyData, offerWasLive:false }
           }).catch(()=>{});
-          return Response.json({ ok:legacyData?.success !== false, reason:'legacy_offered_rollback_reassigned', result:legacyData });
+          return Response.json({ ok:legacyData?.success !== false, reason:'legacy_expired_offer_reassigned_as_timeout', result:legacyData });
         }
       }
 
