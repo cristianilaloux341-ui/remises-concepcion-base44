@@ -195,9 +195,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // REGLA OPERATIVA DE SALIDA DE BASE:
-    // un móvil puede salir momentáneamente de una lista para mirar otras bases sin
-    // perder su turno. La antigüedad se conserva SOLO 10 segundos. Si al cumplirse
+    // REGLA OPERATIVA ABSOLUTA DE SALIDA DE BASE:
+    // salir de una lista abandona inmediatamente esa posición. No hay memoria ni
+    // período de gracia. Cualquier reingreso posterior nace detrás del último.
     // REGLA ABSOLUTA DE COLA: salir de una base abandona la posición en ese mismo
     // instante. No existe gracia de 10 segundos ni memoria de antigüedad. Si vuelve
     // a entrar, incluso a la misma base, el servidor lo sella detrás del último.
@@ -534,37 +534,44 @@ Deno.serve(async (req) => {
       }
 
       if (queueIdle) {
-        // Reingreso desde "sin base". La posición anterior sólo sobrevive si vuelve
-        // a LA MISMA base dentro de los 10 s de gracia. Cualquier otra combinación
-        // (otra base, más de 10 s o autoridad vieja sin marca de salida) es una entrada
-        // nueva y recibe hora actual del servidor.
+        // Entrar en servicio también es una entrada NUEVA aunque la APK conserve
+        // current_base/queue_entered_at viejos en caché. Nunca se hereda antigüedad.
+        const enteredService = Boolean(
+          currentBase && oldData && eventData &&
+          oldData.status !== 'disponible' && eventData.status === 'disponible'
+        );
+        if (enteredService) {
+          const serviceEntryAt = await getNextQueueTailAt(b44, currentBase, driverId);
+          const serviceEntry = await b44.entities.Driver.updateMany(
+            { id:driverId, status:'disponible', current_base:currentBase },
+            { $set:{
+              queue_entered_at:serviceEntryAt,
+              queue_authoritative_base:currentBase,
+              queue_authoritative_at:serviceEntryAt,
+              queue_authority_marker:null,
+              queue_position:null,
+              queue_left_at:null
+            } }
+          ).catch(()=>({updated:0}));
+          const serviceEntryCount = serviceEntry?.updated ?? serviceEntry?.modifiedCount ?? serviceEntry?.matchedCount ?? 0;
+          if (serviceEntryCount !== 1) {
+            return Response.json({ success:true, repaired:false, reason:'QUEUE_SERVICE_ENTRY_CHANGED_CONCURRENTLY' });
+          }
+          await b44.entities.AuditLog.create({
+            action:'QUEUE_SERVICE_ENTRY_AT_TAIL', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
+            details:`${freshQueueDriver.name || driverId} entró en servicio y quedó último en ${currentBase}`,
+            metadata:{ driverId, baseName:currentBase, queueAt:serviceEntryAt }
+          }).catch(()=>{});
+          normalizedExplicitQueueEntry = true;
+        }
+
+        // Todo reingreso desde "sin base" es una entrada NUEVA. Aunque exista una
+        // autoridad vieja de una versión anterior, se descarta y se sella al final.
         const returnedFromNoBase = Boolean(
-          currentBase && oldData && !oldData.current_base && authoritativeBase
+          !normalizedExplicitQueueEntry && currentBase && oldData && !oldData.current_base
         );
         if (returnedFromNoBase) {
-          const leftAtRaw = freshQueueDriver.queue_left_at || oldData.queue_left_at || null;
-          const leftAtMs = leftAtRaw ? new Date(leftAtRaw).getTime() : NaN;
-          const withinGrace = Number.isFinite(leftAtMs) && (Date.now() - leftAtMs) <= baseExitGraceMs;
-
-          if (currentBase === authoritativeBase && withinGrace) {
-            const kept = await b44.entities.Driver.updateMany(
-              { id:driverId, status:'disponible', current_base:currentBase },
-              { $set:{ queue_entered_at:authoritativeAt, queue_left_at:null } }
-            ).catch(()=>({updated:0}));
-            const keptCount = kept?.updated ?? kept?.modifiedCount ?? kept?.matchedCount ?? 0;
-            if (keptCount === 1) {
-              await b44.entities.AuditLog.create({
-                action:'QUEUE_RETURNED_WITHIN_10S_POSITION_KEPT',
-                user_type:'sistema',
-                user_name:freshQueueDriver.name || 'Driver',
-                details:`${freshQueueDriver.name || driverId} volvió a ${currentBase} dentro de 10 segundos y conservó su posición`,
-                metadata:{ driverId, baseName:currentBase, queueAt:authoritativeAt, leftAt:leftAtRaw }
-              }).catch(()=>{});
-            }
-            return Response.json({ success:true, repaired:keptCount === 1, reason:'QUEUE_RETURNED_WITHIN_10S_POSITION_KEPT' });
-          }
-
-          const newEntryAt = new Date().toISOString();
+          const newEntryAt = await getNextQueueTailAt(b44, currentBase, driverId);
           const reset = await b44.entities.Driver.updateMany(
             { id:driverId, status:'disponible', current_base:currentBase },
             { $set:{
@@ -579,11 +586,11 @@ Deno.serve(async (req) => {
           const resetCount = reset?.updated ?? reset?.modifiedCount ?? reset?.matchedCount ?? 0;
           if (resetCount === 1) {
             await b44.entities.AuditLog.create({
-              action:'QUEUE_REENTRY_NEW_POSITION_AFTER_GRACE',
+              action:'QUEUE_REENTRY_AT_TAIL',
               user_type:'sistema',
               user_name:freshQueueDriver.name || 'Driver',
-              details:`${freshQueueDriver.name || driverId} reingresó y recibió una posición nueva al final de ${currentBase}`,
-              metadata:{ driverId, previousBase:authoritativeBase, newBase:currentBase, queueAt:newEntryAt, leftAt:leftAtRaw, withinGrace }
+              details:`${freshQueueDriver.name || driverId} reingresó y quedó último en ${currentBase}`,
+              metadata:{ driverId, previousBase:authoritativeBase, newBase:currentBase, queueAt:newEntryAt }
             }).catch(()=>{});
           }
           if (resetCount !== 1) {
@@ -595,10 +602,10 @@ Deno.serve(async (req) => {
         }
 
         // Primera entrada sin autoridad: NUNCA confiar en queue_entered_at enviado por
-        // la APK (puede ser viejo y meter al móvil primero). La entrada nace con hora
-        // del servidor, por lo que queda detrás de todos los que ya estaban en la base.
-        if (!authoritativeBase && currentBase) {
-          const seedAt = new Date().toISOString();
+        // la APK (puede ser viejo y meter al móvil primero). La entrada nace detrás
+        // del último snapshot autoritativo de la base.
+        if (!normalizedExplicitQueueEntry && !authoritativeBase && currentBase) {
+          const seedAt = await getNextQueueTailAt(b44, currentBase, driverId);
           const seeded = await b44.entities.Driver.updateMany(
             { id:driverId, status:'disponible', current_base:currentBase },
             { $set:{
@@ -623,48 +630,14 @@ Deno.serve(async (req) => {
           // de Pendientes en lugar de depender de un segundo evento realtime.
         }
 
-        // Si por compatibilidad llegamos acá con autoridad pero sin base visible,
-        // nunca restauramos la base vieja. Se aplica la misma gracia de 10 s usando
-        // queue_left_at. Si no existía marca (dato viejo anterior a esta regla), la
-        // creamos ahora y damos una única gracia corta antes de cortar la antigüedad.
+        // Compatibilidad con restos de la regla vieja: autoridad sin base visible no
+        // conserva ningún turno. Se limpia inmediatamente; al próximo ingreso será cola.
         if (!normalizedExplicitQueueEntry && authoritativeBase && !currentBase) {
-          let leftAtRaw = freshQueueDriver.queue_left_at || null;
-          if (!leftAtRaw) {
-            leftAtRaw = new Date().toISOString();
-            await b44.entities.Driver.updateMany(
-              { id:driverId, status:'disponible', current_base:null },
-              { $set:{ queue_left_at:leftAtRaw } }
-            ).catch(()=>{});
-          }
-
-          const leftAtMs = new Date(leftAtRaw).getTime();
-          const elapsedMs = Number.isFinite(leftAtMs) ? Math.max(0, Date.now() - leftAtMs) : baseExitGraceMs;
-          const remainingGraceMs = Math.max(0, baseExitGraceMs - elapsedMs);
-          if (remainingGraceMs > 0) {
-            await new Promise(r => setTimeout(r, remainingGraceMs + 250));
-          }
-
-          const afterFallbackGrace = await b44.entities.Driver.get(driverId).catch(()=>null);
-          const stillOutside = Boolean(
-            afterFallbackGrace &&
-            afterFallbackGrace.status === 'disponible' &&
-            !afterFallbackGrace.current_base &&
-            !afterFallbackGrace.reserved_order_id &&
-            !afterFallbackGrace.active_order_id &&
-            !afterFallbackGrace.active_ride_id &&
-            String(afterFallbackGrace.queue_left_at || '') === String(leftAtRaw)
-          );
-
-          if (!stillOutside) {
-            return Response.json({ success:true, repaired:false, reason:'QUEUE_RETURNED_DURING_10S_GRACE' });
-          }
-
           const cleared = await b44.entities.Driver.updateMany(
             {
               id:driverId,
               status:'disponible',
               current_base:null,
-              queue_left_at:leftAtRaw,
               reserved_order_id:null,
               active_order_id:null,
               active_ride_id:null
@@ -679,16 +652,7 @@ Deno.serve(async (req) => {
             } }
           ).catch(()=>({updated:0}));
           const clearedCount = cleared?.updated ?? cleared?.modifiedCount ?? cleared?.matchedCount ?? 0;
-          if (clearedCount === 1) {
-            await b44.entities.AuditLog.create({
-              action:'QUEUE_POSITION_EXPIRED_AFTER_10S_OUTSIDE_BASE',
-              user_type:'sistema',
-              user_name:freshQueueDriver.name || 'Driver',
-              details:`${freshQueueDriver.name || driverId} permaneció más de 10 segundos fuera de una base; antigüedad reiniciada`,
-              metadata:{ driverId, previousBase:authoritativeBase, previousQueueAt:authoritativeAt, leftAt:leftAtRaw }
-            }).catch(()=>{});
-          }
-          return Response.json({ success:true, repaired:clearedCount === 1, reason:'QUEUE_POSITION_EXPIRED_AFTER_10S_OUTSIDE_BASE' });
+          return Response.json({ success:true, repaired:clearedCount === 1, reason:'STALE_QUEUE_AUTHORITY_CLEARED_OUTSIDE_BASE' });
         }
 
         // Cambio A->B: las APK instaladas hacen el cambio voluntario escribiendo
@@ -708,7 +672,7 @@ Deno.serve(async (req) => {
           if (explicitDriverBaseEntry) {
             // Cambio/entrada real de base: la hora del teléfono NO define la posición.
             // El servidor sella la entrada ahora, garantizando que el móvil quede último.
-            const newAuthoritativeAt = new Date().toISOString();
+            const newAuthoritativeAt = await getNextQueueTailAt(b44, currentBase, driverId);
             await b44.entities.Driver.updateMany(
               { id:driverId, status:'disponible', current_base:currentBase, queue_entered_at:currentAt },
               { $set:{
