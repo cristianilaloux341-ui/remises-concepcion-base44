@@ -1,16 +1,13 @@
+import { getEffectiveQueueBase } from './queueOrder.ts';
+
 export async function findNextDriverInZone(b44: any, order: any, excludeDriverId: string | Set<string> | null) {
   const targetZone = order.zone;
   if (!targetZone) return null;
 
-  // Durante la gracia de 20 s un móvil puede estar mirando otras filas con
-  // current_base=null pero conservar todavía su lugar autoritativo en la zona.
-  // Por eso la selección trae base visible O base autoritativa y luego valida la gracia.
+  // Sin gracia: sólo pertenece a la cola quien está físicamente en la base actual.
   const zoneDrivers = await b44.entities.Driver.filter({
     status: "disponible",
-    $or: [
-      { current_base: targetZone },
-      { queue_authoritative_base: targetZone }
-    ]
+    current_base: targetZone
   });
 
   // Driver.vehicle_model guarda el ID del móvil. No descargar toda la flota:
@@ -39,32 +36,9 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const allMoviles = [...movilesById.filter(Boolean), ...movilesByFallback]
     .filter((m: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === m.id) === i);
 
-  const queueExitGraceMs = 20 * 1000;
-  const authorityGraceActive = (d:any) => {
-    if (d.current_base) return true;
-    const leftAtMs = d.queue_left_at ? new Date(d.queue_left_at).getTime() : NaN;
-    return Boolean(
-      d.queue_authoritative_base &&
-      Number.isFinite(leftAtMs) &&
-      (Date.now() - leftAtMs) <= queueExitGraceMs
-    );
-  };
-  const getEffectiveBase = (d:any) => {
-    const currentBase = d.current_base || null;
-    const authoritativeBase = d.queue_authoritative_base || null;
-    if (currentBase) {
-      // Mientras un cambio real A->B todavía se está sellando, no es candidato ni de
-      // la base vieja ni de la nueva. En milisegundos el servidor lo sella último en B.
-      if (!authoritativeBase || authoritativeBase !== currentBase) return null;
-      return currentBase;
-    }
-    return authorityGraceActive(d) ? authoritativeBase : null;
-  };
+  const getEffectiveBase = (d:any) => getEffectiveQueueBase(d);
   const getEffectiveQueuePos = (d:any) => {
-    const currentBase = d.current_base || null;
-    const authoritativeBase = d.queue_authoritative_base || null;
-    if (!currentBase && !authorityGraceActive(d)) return Infinity;
-    if (currentBase && authoritativeBase && currentBase !== authoritativeBase) return Infinity;
+    if (!getEffectiveQueueBase(d)) return Infinity;
     const pos = Number(d.queue_position);
     return Number.isFinite(pos) && pos > 0 ? pos : Infinity;
   };
