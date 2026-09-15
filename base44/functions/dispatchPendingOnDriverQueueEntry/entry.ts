@@ -370,7 +370,50 @@ Deno.serve(async (req) => {
       }
 
       // La oferta ya cambió de dueño/estado antes de que corriera el workflow.
-      return Response.json({ success:true, skipped:true, reason:'LEGACY_RELEASE_ALREADY_ADVANCED' });
+      // v12.27 puede haber escrito una queue_entered_at nueva al liberar/rechazar.
+      // Esa hora NO es una entrada de base y no debe contar para posiciones. Además,
+      // según la regla operativa actual, rechazo/timeout deja al móvil fuera de cola
+      // hasta una entrada explícita posterior. Limpiamos únicamente la proyección de
+      // cola que dejó la APK vieja; no tocamos el RideOrder ni la cola de otros móviles.
+      const staleLegacyQueueCleared = await b44.entities.Driver.updateMany(
+        {
+          id:driverId,
+          status:'disponible',
+          $or:[
+            { dispatch_status:'normal' },
+            { dispatch_status:null },
+            { dispatch_status:{ $exists:false } }
+          ],
+          reserved_order_id:null,
+          active_order_id:null,
+          active_ride_id:null,
+          queue_entered_at:eventData.queue_entered_at
+        },
+        { $set:{
+          current_base:null,
+          queue_entered_at:null,
+          queue_authoritative_base:null,
+          queue_authoritative_at:null,
+          queue_position:null,
+          queue_authority_marker:null
+        } }
+      ).catch(()=>({updated:0}));
+      const staleLegacyQueueClearedCount = staleLegacyQueueCleared?.updated ?? staleLegacyQueueCleared?.modifiedCount ?? staleLegacyQueueCleared?.matchedCount ?? 0;
+
+      await b44.entities.AuditLog.create({
+        action:'LEGACY_QUEUE_TIMESTAMP_IGNORED',
+        user_type:'sistema',
+        user_name:eventData.name || oldData.name || 'Driver',
+        details:`Se ignoró la nueva antigüedad escrita por APK legacy al cerrar la oferta`,
+        metadata:{
+          driverId,
+          oldQueueEnteredAt:oldData.queue_entered_at ?? null,
+          ignoredQueueEnteredAt:eventData.queue_entered_at ?? null,
+          clearedFromQueue:staleLegacyQueueClearedCount === 1
+        }
+      }).catch(()=>{});
+
+      return Response.json({ success:true, repaired:staleLegacyQueueClearedCount === 1, reason:'LEGACY_RELEASE_ALREADY_ADVANCED_QUEUE_IGNORED' });
     }
 
     // AUTORIDAD SERVER-SIDE DE COLA.
