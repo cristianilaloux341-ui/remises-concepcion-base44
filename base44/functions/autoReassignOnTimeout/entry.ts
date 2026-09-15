@@ -49,10 +49,71 @@ Deno.serve(async (req) => {
       ).catch(()=>{});
     }
 
-    const ackedThisAttempt = Boolean(
+    let ackedThisAttempt = Boolean(
       order.push_ack_at &&
       Number(order.push_ack_assignment_attempt) === Number(assignmentAttempt)
     );
+
+    // Compatibilidad v12.27/v12.29: el ACK llega primero como AuditLog y el workflow
+    // que lo copia al RideOrder puede demorarse unos instantes. Antes de declarar
+    // "sin ACK", recuperar directamente ese log para que el timeout nunca le gane
+    // a una recepción que el teléfono YA confirmó.
+    if (!ackedThisAttempt && expiresAt <= Date.now()) {
+      const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : 0;
+      const ackLogs = await b44.entities.AuditLog.filter(
+        {
+          action:'push_ack_recibido',
+          'metadata.orderId':orderId,
+          'metadata.driverId':driverId
+        },
+        '-created_date',
+        5
+      ).catch(()=>[]);
+      const matchingAck = (ackLogs || []).find((log:any) => {
+        const logMs = new Date(log.created_date || 0).getTime();
+        return Number.isFinite(logMs) && (!Number.isFinite(assignedMs) || assignedMs <= 0 || logMs >= assignedMs - 1000);
+      });
+
+      if (matchingAck) {
+        const config = (await b44.entities.TarifaConfig.list().catch(()=>[]))[0] || {};
+        const configuredSeconds = Number(config.tiempo_maximo_respuesta_segundos ?? 30);
+        const responseSeconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
+        const ackMs = new Date(matchingAck.created_date).getTime();
+        const ackAt = new Date(ackMs).toISOString();
+        const ackExpiry = ackMs + responseSeconds * 1000;
+        const adopted = await b44.entities.RideOrder.updateMany(
+          {
+            id:orderId,
+            status:'ofrecido',
+            reserved_driver_id:driverId,
+            reservation_token:order.reservation_token,
+            assignment_attempt:Number(assignmentAttempt),
+            $or:[
+              { push_ack_assignment_attempt:null },
+              { push_ack_assignment_attempt:{ $exists:false } },
+              { push_ack_assignment_attempt:{ $ne:Number(assignmentAttempt) } }
+            ]
+          },
+          { $set:{
+            push_ack_at:ackAt,
+            push_ack_assignment_attempt:Number(assignmentAttempt),
+            offerExpiresAt:ackExpiry
+          } }
+        ).catch(()=>({updated:0}));
+        const adoptedCount = adopted?.updated ?? adopted?.matchedCount ?? adopted?.modifiedCount ?? 0;
+        if (adoptedCount === 1) {
+          ackedThisAttempt = true;
+          expiresAt = ackExpiry;
+          await b44.entities.AuditLog.create({
+            action:'ACK_RECOVERED_BEFORE_TIMEOUT',
+            user_type:'sistema',
+            user_name:'autoReassignOnTimeout',
+            details:`ACK ya existente recuperado antes de vencer/reasignar ${orderId}`,
+            metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), ackAt, offerExpiresAt:ackExpiry }
+          }).catch(()=>{});
+        }
+      }
+    }
 
     const remainingMs = expiresAt - Date.now();
     if (remainingMs > 0) {
