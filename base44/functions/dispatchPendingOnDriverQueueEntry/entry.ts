@@ -198,10 +198,17 @@ Deno.serve(async (req) => {
     // Cierres de app, reconexiones, heartbeats, refrescos o estados locales atrasados
     // pueden llegar a escribir current_base=null sin que el chofer haya perdido turno.
     // Esa transición NO es operativa y se revierte conservando exactamente base + antigüedad.
+    const lastActiveCandidate = eventData?.last_active || oldData?.last_active || null;
+    const lastActiveCandidateMs = lastActiveCandidate ? new Date(lastActiveCandidate).getTime() : NaN;
+    const staleNoBaseThresholdMs = 10 * 60 * 1000;
+    const longInactiveBeforeBaseDrop = Number.isFinite(lastActiveCandidateMs) &&
+      (Date.now() - lastActiveCandidateMs) > staleNoBaseThresholdMs;
+
     // Las salidas legítimas no caen acá: cambio real de base es A->B; salir de servicio
     // cambia status a no_disponible; aceptar/finalizar/rechazar tienen sus propios estados.
     const technicalBaseDrop = Boolean(
       eventData && oldData &&
+      !longInactiveBeforeBaseDrop &&
       oldData.status === 'disponible' &&
       eventData.status === 'disponible' &&
       oldData.current_base &&
