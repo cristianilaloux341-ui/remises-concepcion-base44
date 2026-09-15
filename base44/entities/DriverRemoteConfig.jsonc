@@ -30,8 +30,7 @@
     },
     "safe_mode": {
       "type": "boolean",
-      "default": false,
-      "description": "Reduce funciones accesorias/carga sin desactivar recepci\u00f3n, aceptaci\u00f3n o finalizaci\u00f3n de viajes."
+      "default": false
     },
     "config_refresh_seconds": {
       "type": "number",
@@ -109,6 +108,14 @@
       "type": "number",
       "default": 5000
     },
+    "gps_web_retry_ms": {
+      "type": "number",
+      "default": 5000
+    },
+    "gps_native_restart_ms": {
+      "type": "number",
+      "default": 2500
+    },
     "gps_idle_distance_m": {
       "type": "number",
       "default": 12
@@ -185,6 +192,14 @@
       "type": "boolean",
       "default": true
     },
+    "native_ack_timeout_ms": {
+      "type": "number",
+      "default": 5000
+    },
+    "native_action_timeout_ms": {
+      "type": "number",
+      "default": 8000
+    },
     "queue_authority_confirm_attempts": {
       "type": "number",
       "default": 8
@@ -200,6 +215,14 @@
     "finish_ride_retry_base_delay_ms": {
       "type": "number",
       "default": 1200
+    },
+    "order_mutation_retry_count": {
+      "type": "number",
+      "default": 15
+    },
+    "driver_mutation_retry_count": {
+      "type": "number",
+      "default": 2
     },
     "accepted_cancel_guard_ms": {
       "type": "number",
