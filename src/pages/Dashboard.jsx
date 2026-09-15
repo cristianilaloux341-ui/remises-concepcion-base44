@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { resolvePanicAlert } from "@/lib/panicAlerts";
+import { getEffectiveQueueBase } from "@/lib/dispatchLogic";
 
 function RideAge({ createdDate }) {
   const [minutes, setMinutes] = useState(0);
@@ -253,7 +254,7 @@ export default function Dashboard() {
     }
     return true;
   };
-  const availableDrivers = drivers.filter(d => isDriverWorking(d) && d.current_base);
+  const availableDrivers = drivers.filter(d => isDriverWorking(d) && getEffectiveQueueBase(d));
 
   const handleDownloadReport = async () => {
     const start = new Date('2026-08-21T09:00:00Z'); 
@@ -405,7 +406,7 @@ export default function Dashboard() {
           </div>
           <div className="hidden xl:flex items-center gap-2 overflow-x-auto">
             {bases.map(b => {
-              const q = drivers.filter(d => d.current_base === b.name && isDriverWorking(d));
+              const q = drivers.filter(d => getEffectiveQueueBase(d) === b.name && isDriverWorking(d));
               return (
                 <div key={b.name} className="flex flex-col items-center justify-center bg-slate-800 rounded-lg px-2 py-1 min-w-[3rem]">
                   <span className="text-[10px] text-slate-400 truncate w-full text-center max-w-[4rem]">{b.name.split("-")[1]}</span>
