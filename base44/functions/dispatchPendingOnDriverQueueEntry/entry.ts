@@ -524,10 +524,18 @@ Deno.serve(async (req) => {
           eventData.manual_reorder_token ?? null,
           driverId, eventData.current_base ?? null, attemptedAt
         );
+        const serverStampedPosition = Boolean(
+          Number.isFinite(Number(eventData.queue_position)) && Number(eventData.queue_position) > 0 &&
+          String(eventData.queue_authority_marker ?? '') === String(eventData.queue_position) &&
+          (
+            String(eventData.queue_position ?? '') !== String(oldData.queue_position ?? '') ||
+            String(eventData.queue_authority_marker ?? '') !== String(oldData.queue_authority_marker ?? '')
+          )
+        );
 
         if (hadValidAuthority && writeKeepsIdleInSameBase && !commercialAction) {
-          if (manualAuthorized) {
-            return Response.json({ success:true, reason:'MANUAL_REORDER_AUTHORIZED' });
+          if (manualAuthorized || serverStampedPosition) {
+            return Response.json({ success:true, reason:manualAuthorized ? 'MANUAL_REORDER_AUTHORIZED' : 'SERVER_QUEUE_POSITION_AUTHORIZED' });
           }
 
           const restoreRes = await b44.entities.Driver.updateMany(
