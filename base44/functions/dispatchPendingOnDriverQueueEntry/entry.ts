@@ -658,61 +658,72 @@ Deno.serve(async (req) => {
           return Response.json({ success:true, repaired:true, reason:'QUEUE_AUTHORITY_INITIALIZED' });
         }
 
-        // Cierre/reconexión/estado atrasado: un móvil libre no puede salir solo de
-        // una base en la que conserva autoridad. Restaurar base y hora exactas.
+        // Si por compatibilidad llegamos acá con autoridad pero sin base visible,
+        // nunca restauramos la base vieja. Se aplica la misma gracia de 10 s usando
+        // queue_left_at. Si no existía marca (dato viejo anterior a esta regla), la
+        // creamos ahora y damos una única gracia corta antes de cortar la antigüedad.
         if (authoritativeBase && !currentBase) {
-          const lastActiveMs = freshQueueDriver.last_active
-            ? new Date(freshQueueDriver.last_active).getTime()
-            : NaN;
-          const prolongedNoBase = Number.isFinite(lastActiveMs) &&
-            (Date.now() - lastActiveMs) > staleNoBaseThresholdMs;
-
-          if (prolongedNoBase) {
-            const cleared = await b44.entities.Driver.updateMany(
-              {
-                id:driverId,
-                status:'disponible',
-                current_base:null,
-                reserved_order_id:null,
-                active_order_id:null,
-                active_ride_id:null,
-                queue_authoritative_base:authoritativeBase,
-                queue_authoritative_at:authoritativeAt
-              },
-              { $set:{
-                queue_entered_at:null,
-                queue_authoritative_base:null,
-                queue_authoritative_at:null,
-                queue_authority_marker:null,
-                queue_position:null
-              } }
-            ).catch(()=>({updated:0}));
-            const clearedCount = cleared?.updated ?? cleared?.modifiedCount ?? cleared?.matchedCount ?? 0;
-            if (clearedCount === 1) {
-              await b44.entities.AuditLog.create({
-                action:'QUEUE_STALE_AUTHORITY_CLEARED_ON_RETURN',
-                user_type:'sistema',
-                user_name:freshQueueDriver.name || 'Driver',
-                details:`Se descartó posición vieja de ${freshQueueDriver.name || driverId}; deberá ingresar de nuevo al final de la cola`,
-                metadata:{ driverId, staleBase:authoritativeBase, staleQueueAt:authoritativeAt, lastActive:freshQueueDriver.last_active || null }
-              }).catch(()=>{});
-            }
-            return Response.json({ success:true, repaired:clearedCount === 1, reason:'QUEUE_STALE_AUTHORITY_CLEARED_ON_RETURN' });
+          let leftAtRaw = freshQueueDriver.queue_left_at || null;
+          if (!leftAtRaw) {
+            leftAtRaw = new Date().toISOString();
+            await b44.entities.Driver.updateMany(
+              { id:driverId, status:'disponible', current_base:null },
+              { $set:{ queue_left_at:leftAtRaw } }
+            ).catch(()=>{});
           }
 
-          const restored = await b44.entities.Driver.updateMany(
-            { id:driverId, status:'disponible', current_base:null, reserved_order_id:null, active_order_id:null, active_ride_id:null },
-            { $set:{ current_base:authoritativeBase, queue_entered_at:authoritativeAt } }
+          const leftAtMs = new Date(leftAtRaw).getTime();
+          const elapsedMs = Number.isFinite(leftAtMs) ? Math.max(0, Date.now() - leftAtMs) : baseExitGraceMs;
+          const remainingGraceMs = Math.max(0, baseExitGraceMs - elapsedMs);
+          if (remainingGraceMs > 0) {
+            await new Promise(r => setTimeout(r, remainingGraceMs + 250));
+          }
+
+          const afterFallbackGrace = await b44.entities.Driver.get(driverId).catch(()=>null);
+          const stillOutside = Boolean(
+            afterFallbackGrace &&
+            afterFallbackGrace.status === 'disponible' &&
+            !afterFallbackGrace.current_base &&
+            !afterFallbackGrace.reserved_order_id &&
+            !afterFallbackGrace.active_order_id &&
+            !afterFallbackGrace.active_ride_id &&
+            String(afterFallbackGrace.queue_left_at || '') === String(leftAtRaw)
+          );
+
+          if (!stillOutside) {
+            return Response.json({ success:true, repaired:false, reason:'QUEUE_RETURNED_DURING_10S_GRACE' });
+          }
+
+          const cleared = await b44.entities.Driver.updateMany(
+            {
+              id:driverId,
+              status:'disponible',
+              current_base:null,
+              queue_left_at:leftAtRaw,
+              reserved_order_id:null,
+              active_order_id:null,
+              active_ride_id:null
+            },
+            { $set:{
+              queue_entered_at:null,
+              queue_authoritative_base:null,
+              queue_authoritative_at:null,
+              queue_authority_marker:null,
+              queue_position:null,
+              queue_left_at:null
+            } }
           ).catch(()=>({updated:0}));
-          const count = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
-          if (count === 1) {
+          const clearedCount = cleared?.updated ?? cleared?.modifiedCount ?? cleared?.matchedCount ?? 0;
+          if (clearedCount === 1) {
             await b44.entities.AuditLog.create({
-              action:'QUEUE_AUTHORITY_RESTORED_BASE', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
-              details:`Se restauró ${freshQueueDriver.name || driverId} a ${authoritativeBase} sin perder posición`,
-              metadata:{ driverId, baseName:authoritativeBase, queueAt:authoritativeAt }
+              action:'QUEUE_POSITION_EXPIRED_AFTER_10S_OUTSIDE_BASE',
+              user_type:'sistema',
+              user_name:freshQueueDriver.name || 'Driver',
+              details:`${freshQueueDriver.name || driverId} permaneció más de 10 segundos fuera de una base; antigüedad reiniciada`,
+              metadata:{ driverId, previousBase:authoritativeBase, previousQueueAt:authoritativeAt, leftAt:leftAtRaw }
             }).catch(()=>{});
           }
-          return Response.json({ success:true, repaired:count === 1, reason:'QUEUE_AUTHORITY_RESTORED_BASE' });
+          return Response.json({ success:true, repaired:clearedCount === 1, reason:'QUEUE_POSITION_EXPIRED_AFTER_10S_OUTSIDE_BASE' });
         }
 
         // Cambio A->B: las APK instaladas hacen el cambio voluntario escribiendo
