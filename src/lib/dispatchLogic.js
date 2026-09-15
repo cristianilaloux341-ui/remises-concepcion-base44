@@ -20,7 +20,13 @@ export function getDistance(lat1, lng1, lat2, lng2) {
 // ciegamente en esos campos. Si hay autoridad server-side, manda siempre.
 export function getEffectiveQueueBase(driver) {
   if (!driver) return null;
-  return driver.current_base || driver.queue_authoritative_base || null;
+  const currentBase = driver.current_base || null;
+  const authoritativeBase = driver.queue_authoritative_base || null;
+  // Para móviles que ya tienen autoridad server-side, la base autoritativa manda.
+  // Una APK 27/29 puede publicar transitoriamente un current_base viejo/equivocado;
+  // no debemos moverlo visual ni operativamente de zona hasta que el backend valide
+  // una entrada/cambio real y actualice queue_authoritative_base.
+  return authoritativeBase || currentBase || null;
 }
 
 export function getEffectiveQueueEnteredAt(driver) {
