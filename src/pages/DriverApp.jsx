@@ -23,7 +23,7 @@ if (!Capacitor.Plugins.ForegroundService) {
 }
 
 import RideMap from "@/components/map/RideMap";
-import { BASES, reassignAfterReject } from "@/lib/dispatchLogic";
+import { BASES, reassignAfterReject, getEffectiveQueueBase, getEffectiveQueueEnteredAt } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
 import DriverMessages from "@/components/driver/DriverMessages";
 import DriverMessageModal from "@/components/driver/DriverMessageModal";
@@ -240,10 +240,12 @@ function IdleScreen({ driver, drivers, driversLoading = false, selectedBase, onB
   const driverList = debugArray(drivers, 'drivers_in_IdleScreen');
   const serverSelf = driverList.find(d => d.id === driver.id);
   const baseQueue = driverList
-    .filter(d => d.current_base === driver.current_base && d.status === "disponible")
+    .filter(d => getEffectiveQueueBase(d) === driver.current_base && d.status === "disponible")
     .sort((a, b) => {
-      const timeA = a.queue_entered_at ? new Date(a.queue_entered_at).getTime() : Infinity;
-      const timeB = b.queue_entered_at ? new Date(b.queue_entered_at).getTime() : Infinity;
+      const queueA = getEffectiveQueueEnteredAt(a);
+      const queueB = getEffectiveQueueEnteredAt(b);
+      const timeA = queueA ? new Date(queueA).getTime() : Infinity;
+      const timeB = queueB ? new Date(queueB).getTime() : Infinity;
       const tA = isNaN(timeA) ? Infinity : timeA;
       const tB = isNaN(timeB) ? Infinity : timeB;
       if (tA !== tB) return tA - tB;
@@ -266,7 +268,7 @@ function IdleScreen({ driver, drivers, driversLoading = false, selectedBase, onB
         </div>
         <div className="space-y-2 flex-1">
           {BASES.filter(b => b !== driver.current_base).map(b => {
-            const count = drivers.filter(d => d.current_base === b && d.status === "disponible").length;
+            const count = drivers.filter(d => getEffectiveQueueBase(d) === b && d.status === "disponible").length;
             return (
               <button
                 key={b}
