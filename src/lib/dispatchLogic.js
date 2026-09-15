@@ -15,34 +15,17 @@ export function getDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Fuente autoritativa de cola. Al salir momentáneamente de una fila, el chofer
-// conserva su posición durante 20 segundos para poder mirar otras bases. Si vuelve
-// a la misma dentro de la gracia mantiene su antigüedad; si cambia de base, el
-// backend lo sella último en la nueva.
-const QUEUE_EXIT_GRACE_MS = 20 * 1000;
-
-function hasQueueExitGrace(driver) {
-  if (!driver) return false;
-  if (driver.current_base) return true;
-  const leftAtMs = driver.queue_left_at ? new Date(driver.queue_left_at).getTime() : NaN;
-  return Boolean(
-    driver.queue_authoritative_base &&
-    driver.queue_authoritative_at &&
-    Number.isFinite(leftAtMs) &&
-    (Date.now() - leftAtMs) <= QUEUE_EXIT_GRACE_MS
-  );
-}
-
+// Fuente autoritativa de cola: base actual + posición numérica del servidor.
+// Los timestamps quedan sólo como compatibilidad/historial para APK legacy.
 export function getEffectiveQueueBase(driver) {
   if (!driver) return null;
   const currentBase = driver.current_base || null;
   const authoritativeBase = driver.queue_authoritative_base || null;
-  if (currentBase) {
-    if (driver.queue_position == null) return null;
-    if (!authoritativeBase || authoritativeBase !== currentBase) return null;
-    return currentBase;
-  }
-  return hasQueueExitGrace(driver) ? authoritativeBase : null;
+  const pos = Number(driver.queue_position);
+  if (!currentBase) return null;
+  if (!authoritativeBase || authoritativeBase !== currentBase) return null;
+  if (!Number.isFinite(pos) || pos <= 0) return null;
+  return currentBase;
 }
 
 // Helper to safely and stably sort a queue
@@ -55,7 +38,7 @@ export function sortQueue(driversArray) {
   });
 }
 
-// Get ordered queue for a base (FIFO by queue_entered_at).
+// Get ordered queue for a base (posición numérica server-side).
 // Una oferta ya reservada deja de pertenecer visual y operativamente a la cola
 // aunque `status` siga en "disponible" hasta que el chofer toque Aceptar.
 // Si no filtramos la reserva, Central sigue mostrando al móvil (y su tiempo de
@@ -128,7 +111,7 @@ export async function findBestDriver(order, drivers, bases) {
   return null;
 }
 
-// Find first available driver in the exact zone (FIFO queue by queue_entered_at)
+// Find first available driver in the exact zone (menor queue_position)
 export async function findDriverInZone(zone, drivers) {
   if (!zone) return null;
   const availableDrivers = await filterDispatchEligibleDrivers(drivers);
