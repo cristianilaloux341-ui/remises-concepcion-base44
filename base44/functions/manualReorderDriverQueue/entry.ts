@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
 
   try {
     return await withQueueLock(b44, baseName, async () => {
-      const freshDrivers = await b44.entities.Driver.filter({ current_base: baseName, status: 'disponible' });
+      const freshDrivers = await b44.entities.Driver.filter({ status: 'disponible', $or:[{ current_base:baseName }, { queue_authoritative_base:baseName }] });
       const currentQueue = getBaseQueue(freshDrivers, baseName);
       const idx = currentQueue.findIndex((d: any) => d.id === driverId);
       if (idx === -1) return Response.json({ success:false, reason:'driver_not_in_base' });
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
         const updated = await b44.entities.Driver.updateMany(
           {
             id:d.id,
-            current_base:baseName,
+            queue_authoritative_base:baseName,
             status:'disponible',
             dispatch_status:'normal',
             reserved_order_id:null,

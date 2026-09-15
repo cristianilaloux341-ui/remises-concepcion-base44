@@ -17,13 +17,15 @@ function sleep(ms: number) {
 // Los timestamps se conservan únicamente como historial/proyección para APK legacy.
 export function getEffectiveQueueBase(driver: any) {
   if (!driver) return null;
-  const currentBase = driver.current_base || null;
   const authoritativeBase = driver.queue_authoritative_base || null;
   const pos = Number(driver.queue_position);
-  if (!currentBase) return null;
-  if (!authoritativeBase || authoritativeBase !== currentBase) return null;
+  // La membresía de cola la decide exclusivamente el servidor. Las APK v12.27/v12.29
+  // pueden publicar un current_base=null técnico durante heartbeat/reconexión; ese
+  // parpadeo no puede sacar al móvil de la cola ni alterar su prioridad. Una salida
+  // real ya limpia queue_authoritative_base + queue_position server-side.
+  if (!authoritativeBase) return null;
   if (!Number.isFinite(pos) || pos <= 0) return null;
-  return currentBase;
+  return authoritativeBase;
 }
 
 export function sortQueue(driversArray: any[]) {
@@ -106,7 +108,10 @@ export async function withQueueLock<T>(
 export async function getNextQueueTailAt(b44: any, baseName: string, excludeDriverId: string | null = null) {
   const drivers = await b44.entities.Driver.filter({
     status: "disponible",
-    current_base: baseName
+    $or: [
+      { current_base: baseName },
+      { queue_authoritative_base: baseName }
+    ]
   }).catch(() => []);
 
   let nextMs = Date.now();
@@ -124,7 +129,10 @@ export async function getNextQueueTailAt(b44: any, baseName: string, excludeDriv
 export async function getNextQueuePosition(b44: any, baseName: string, excludeDriverId: string | null = null) {
   const drivers = await b44.entities.Driver.filter({
     status: "disponible",
-    current_base: baseName
+    $or: [
+      { current_base: baseName },
+      { queue_authoritative_base: baseName }
+    ]
   }).catch(() => []);
 
   let maxPos = 0;
@@ -141,7 +149,10 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
   if (!baseName) return;
   const drivers = await b44.entities.Driver.filter({
     status: "disponible",
-    current_base: baseName
+    $or: [
+      { current_base: baseName },
+      { queue_authoritative_base: baseName }
+    ]
   }).catch(() => []);
 
   const queue = drivers.filter((d: any) =>
@@ -156,7 +167,7 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
   for (const d of queue) {
     if (Number(d.queue_position) !== expectedPos) {
       await b44.entities.Driver.updateMany(
-        { id: d.id, current_base: baseName, status: 'disponible', queue_position: d.queue_position },
+        { id: d.id, queue_authoritative_base: baseName, status: 'disponible', queue_position: d.queue_position },
         { $set: { queue_position: expectedPos, queue_authority_marker: expectedPos } }
       ).catch(() => null);
     }
