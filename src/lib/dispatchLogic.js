@@ -17,22 +17,38 @@ export function getDistance(lat1, lng1, lat2, lng2) {
 
 // Fuente autoritativa de cola. Las APK legacy todavía pueden escribir
 // queue_entered_at/current_base; por eso despacho y Central no deben confiar
-// ciegamente en esos campos. Si hay autoridad server-side, manda siempre.
+// ciegamente en esos campos. Al salir de toda base existe una gracia operativa de
+// 10 segundos: durante ella se conserva la posición; vencida, la autoridad deja de
+// contar aunque el backend todavía esté terminando de limpiar el registro.
+const QUEUE_EXIT_GRACE_MS = 10 * 1000;
+
+function hasQueueExitGrace(driver) {
+  if (!driver) return false;
+  if (driver.current_base) return true;
+  const leftAtMs = driver.queue_left_at ? new Date(driver.queue_left_at).getTime() : NaN;
+  return Boolean(
+    driver.queue_authoritative_base &&
+    Number.isFinite(leftAtMs) &&
+    (Date.now() - leftAtMs) <= QUEUE_EXIT_GRACE_MS
+  );
+}
+
 export function getEffectiveQueueBase(driver) {
   if (!driver) return null;
   const currentBase = driver.current_base || null;
   const authoritativeBase = driver.queue_authoritative_base || null;
-  // Para móviles que ya tienen autoridad server-side, la base autoritativa manda.
-  // Una APK 27/29 puede publicar transitoriamente un current_base viejo/equivocado;
-  // no debemos moverlo visual ni operativamente de zona hasta que el backend valide
-  // una entrada/cambio real y actualice queue_authoritative_base.
-  return authoritativeBase || currentBase || null;
+  // Mientras hay una base visible, la autoridad server-side sigue mandando para
+  // bloquear oscilaciones transitorias de APK vieja. Si no hay base visible, sólo
+  // se conserva la autoridad durante los 10 s de gracia.
+  if (currentBase) return authoritativeBase || currentBase;
+  return hasQueueExitGrace(driver) ? authoritativeBase : null;
 }
 
 export function getEffectiveQueueEnteredAt(driver) {
   if (!driver) return null;
   const currentBase = driver.current_base || null;
   const authoritativeBase = driver.queue_authoritative_base || null;
+  if (!currentBase && !hasQueueExitGrace(driver)) return null;
   // Cambio REAL de base todavía no reconciliado: usar la hora nueva de entrada.
   if (currentBase && authoritativeBase && currentBase !== authoritativeBase) {
     return driver.queue_entered_at || null;
