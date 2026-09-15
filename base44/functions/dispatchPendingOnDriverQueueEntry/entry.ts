@@ -454,9 +454,8 @@ Deno.serve(async (req) => {
     }
 
     // AUTORIDAD SERVER-SIDE DE COLA.
-    // queue_entered_at/current_base siguen existiendo por compatibilidad con APK viejas,
-    // pero ya no son autoridad suficiente para cambiar una posición. La pareja
-    // queue_authoritative_base + queue_authoritative_at conserva el orden real.
+    // queue_position decide el orden real. queue_entered_at/queue_authoritative_at
+    // quedan como historial/proyección para las APK v12.27/v12.29 y nunca dan prioridad.
     const freshQueueDriver = await b44.entities.Driver.get(driverId).catch(() => null);
     if (freshQueueDriver) {
       const currentBase = freshQueueDriver.current_base || null;
@@ -484,10 +483,16 @@ Deno.serve(async (req) => {
         !freshQueueDriver.current_base &&
         !freshQueueDriver.queue_entered_at
       );
-      if (explicitOffServiceExit && (authoritativeBase || authoritativeAt)) {
+      if (explicitOffServiceExit && (authoritativeBase || authoritativeAt || freshQueueDriver.queue_position != null)) {
         await b44.entities.Driver.updateMany(
           { id:driverId, status:'no_disponible', current_base:null, queue_entered_at:null },
-          { $set:{ queue_authoritative_base:null, queue_authoritative_at:null, queue_left_at:null } }
+          { $set:{
+            queue_authoritative_base:null,
+            queue_authoritative_at:null,
+            queue_authority_marker:null,
+            queue_position:null,
+            queue_left_at:null
+          } }
         ).catch(()=>{});
         if (authoritativeBase) compactQueue(b44, authoritativeBase).catch(()=>null);
         return Response.json({ success:true, repaired:true, reason:'QUEUE_AUTHORITY_CLEARED_EXPLICIT_OFF_SERVICE' });
@@ -496,7 +501,8 @@ Deno.serve(async (req) => {
       if (freshQueueDriver && oldData && eventData) {
         const hadValidAuthority = Boolean(
           oldData.status === 'disponible' && oldData.current_base &&
-          oldData.queue_authoritative_base && oldData.queue_authoritative_at
+          oldData.queue_authoritative_base === oldData.current_base &&
+          Number.isFinite(Number(oldData.queue_position)) && Number(oldData.queue_position) > 0
         );
         const writeKeepsIdleInSameBase = Boolean(
           eventData.status === 'disponible' && eventData.current_base &&
@@ -532,13 +538,14 @@ Deno.serve(async (req) => {
                 { queue_authoritative_base: null }, { queue_authoritative_base: { $exists:false } },
                 { queue_authoritative_at: null }, { queue_authoritative_at: { $exists:false } },
                 { queue_authoritative_at: { $ne: oldData.queue_authoritative_at } },
-                { queue_entered_at: { $ne: oldData.queue_authoritative_at } },
+                { queue_entered_at: { $ne: oldData.queue_entered_at } },
+                { queue_position: { $ne: oldData.queue_position } },
                 { manual_reorder_token: { $ne: oldData.manual_reorder_token ?? null } }
               ]
             },
             { $set: {
               current_base: oldData.current_base,
-              queue_entered_at: oldData.queue_authoritative_at,
+              queue_entered_at: oldData.queue_entered_at,
               queue_authoritative_base: oldData.queue_authoritative_base,
               queue_authoritative_at: oldData.queue_authoritative_at,
               queue_authority_marker: oldData.queue_authority_marker ?? null,
