@@ -237,15 +237,59 @@ Deno.serve(async (req) => {
           const previousExpiresAt = Number(body.old_data.offerExpiresAt);
           const offerStillLive = !Number.isFinite(previousExpiresAt) || previousExpiresAt > Date.now();
 
-          // CRÍTICO: `ofrecido -> pendiente` en APK legacy NO prueba un rechazo.
-          // Mientras la oferta siga viva, la restauramos y TERMINAMOS aquí. No hay
-          // período de gracia ni inferencia posterior: sólo ACEPTAR, RECHAZAR explícito
-          // o el vencimiento real de la oferta pueden resolverla.
+          // `ofrecido -> pendiente` solo es ambiguo. Las APK 12.27/12.29 hacen esa
+          // escritura tanto en caminos técnicos como al tocar RECHAZAR, pero el rechazo
+          // real deja inmediatamente un AuditLog anónimo `rechazar_viaje`. Esperamos una
+          // ventana corta únicamente para correlacionar ESA señal del mismo chofer.
+          // Si aparece, el rechazo avanza al siguiente ahora; si no aparece, se conserva
+          // la oferta viva y sus 30 s completos. Nunca inferimos rechazo por el rollback.
           if (offerStillLive) {
-            // La escritura legacy pudo hacer que el watcher original leyera `pendiente`
-            // y terminara con `offer_changed`. Cada vez que restauramos una oferta viva,
-            // rearmamos explícitamente el watcher sobre el MISMO intento/móvil para que
-            // el reloj nunca pueda llegar a cero sin ejecutar timeout/reasignación.
+            let explicitLegacyReject = false;
+            const rejectSince = new Date(Date.now() - 4000).toISOString();
+            for (let check = 0; check < 4 && !explicitLegacyReject; check++) {
+              await new Promise(r => setTimeout(r, 250));
+              const recentRejects = await base44.asServiceRole.entities.AuditLog.filter({
+                action:'rechazar_viaje',
+                user_name:body.old_data.driver_name || 'Chofer',
+                created_date:{ $gte:rejectSince }
+              }).catch(()=>[]);
+              explicitLegacyReject = (recentRejects || []).some((log:any) =>
+                log?.created_by_id === 'anonymous' || log?.created_by === 'anonymous'
+              );
+            }
+
+            if (explicitLegacyReject) {
+              const freshOffer = await base44.asServiceRole.entities.RideOrder.get(orderId).catch(()=>null);
+              const stillExactOffer = Boolean(
+                freshOffer &&
+                freshOffer.status === 'ofrecido' &&
+                freshOffer.reserved_driver_id === ownerDriverId &&
+                freshOffer.reservation_token === body.old_data.reservation_token &&
+                Number(freshOffer.assignment_attempt) === previousAttempt
+              );
+
+              if (stillExactOffer) {
+                const rejectRes = await base44.asServiceRole.functions.invoke('rejectRide', {
+                  orderId,
+                  driverId:ownerDriverId,
+                  assignmentAttempt:previousAttempt,
+                  source:'legacy_client',
+                  internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+                }).catch((e:any)=>({ data:{ success:false, reason:e?.message || 'LEGACY_REJECT_INVOKE_FAILED' } }));
+                const rejectData = rejectRes?.data || rejectRes;
+                await base44.asServiceRole.entities.AuditLog.create({
+                  action:'LEGACY_EXPLICIT_REJECT_CONFIRMED',
+                  user_type:'sistema',
+                  user_name:body.old_data.driver_name || 'Chofer',
+                  details:`Rechazo legacy confirmado para ${orderId}; enviado inmediatamente al motor secuencial`,
+                  metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, result:rejectData?.reason || rejectData?.reassigned_to || null }
+                }).catch(()=>{});
+                return Response.json({ ok:rejectData?.success !== false, reason:'legacy_explicit_reject_confirmed', result:rejectData });
+              }
+            }
+
+            // Sin rechazo explícito: puede ser una escritura técnica o una carrera de
+            // aceptación. La oferta exacta permanece viva y rearmamos su mismo watcher.
             base44.asServiceRole.functions.invoke('autoReassignOnTimeout', {
               orderId,
               driverId:ownerDriverId,
@@ -257,7 +301,7 @@ Deno.serve(async (req) => {
               action:'LEGACY_LIVE_PENDING_IGNORED_AS_REJECT',
               user_type:'sistema',
               user_name:body.old_data.driver_name || 'Chofer',
-              details:`Pendiente legacy ignorado como rechazo; oferta viva restaurada y timeout rearmado para ${orderId}`,
+              details:`Pendiente legacy sin rechazo explícito; oferta viva restaurada y timeout rearmado para ${orderId}`,
               metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, offerExpiresAt:body.old_data.offerExpiresAt, timeoutWatcherRearmed:true }
             }).catch(()=>{});
             return Response.json({ ok:true, reason:'legacy_live_offer_restored_timeout_rearmed' });
