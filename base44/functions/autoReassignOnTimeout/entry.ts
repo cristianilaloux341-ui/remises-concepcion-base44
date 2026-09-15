@@ -133,8 +133,40 @@ Deno.serve(async (req) => {
       return Response.json({ ok:true, chained:true, remainingMs:Math.max(0, remainingMs - waitMs) });
     }
 
-    const finalDeliveryState = await getDeliveryAckState();
-    if (!finalDeliveryState.ackConfirmed) {
+    // Última relectura antes de declarar timeout: un ACK puede haber entrado justo
+    // después de nuestra lectura inicial y haber renovado los 30 s. Si pasó, cederle
+    // siempre al teléfono y reprogramar el watcher con la nueva autoridad temporal.
+    const freshBeforeTimeout = await b44.entities.RideOrder.get(orderId).catch(()=>null);
+    if (
+      !freshBeforeTimeout ||
+      freshBeforeTimeout.status !== 'ofrecido' ||
+      freshBeforeTimeout.reserved_driver_id !== driverId ||
+      Number(freshBeforeTimeout.assignment_attempt) !== Number(assignmentAttempt)
+    ) {
+      return Response.json({ ok:true, skipped:true, reason:'offer_changed_before_timeout_commit' });
+    }
+    const freshExpiryBeforeTimeout = Number(freshBeforeTimeout.offerExpiresAt);
+    if (Number.isFinite(freshExpiryBeforeTimeout) && freshExpiryBeforeTimeout > Date.now()) {
+      b44.functions.invoke('autoReassignOnTimeout', {
+        orderId,
+        driverId,
+        assignmentAttempt:Number(assignmentAttempt),
+        internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+      }).catch(e=>console.error('ACK-renewed timeout chain error:',e));
+      return Response.json({ ok:true, deferred:true, reason:'ack_extended_offer_before_timeout' });
+    }
+
+    const configAtTimeout = (await b44.entities.TarifaConfig.list().catch(() => []))[0] || {};
+    const configuredAtTimeout = Number(configAtTimeout.tiempo_maximo_respuesta_segundos ?? 30);
+    const responseSecondsAtTimeout = Number.isFinite(configuredAtTimeout) && configuredAtTimeout > 0 ? configuredAtTimeout : 30;
+    const freshAssignedMs = freshBeforeTimeout.assigned_at ? new Date(freshBeforeTimeout.assigned_at).getTime() : NaN;
+    const freshOfferSpanMs = Number.isFinite(freshAssignedMs) && Number.isFinite(freshExpiryBeforeTimeout)
+      ? freshExpiryBeforeTimeout - freshAssignedMs
+      : NaN;
+    const finalAckConfirmed = Number.isFinite(freshOfferSpanMs) &&
+      freshOfferSpanMs <= (responseSecondsAtTimeout * 1000) + 5000;
+
+    if (!finalAckConfirmed) {
       await b44.entities.AuditLog.create({
         action:'OFFER_TIMEOUT_WITHOUT_ACK',
         user_type:'sistema',
@@ -144,9 +176,9 @@ Deno.serve(async (req) => {
           orderId,
           driverId,
           assignmentAttempt:Number(assignmentAttempt),
-          offerExpiresAt:expiresAt,
-          assignedAt:order.assigned_at || null,
-          offerSpanMs:Number.isFinite(finalDeliveryState.offerSpanMs) ? finalDeliveryState.offerSpanMs : null
+          offerExpiresAt:freshExpiryBeforeTimeout,
+          assignedAt:freshBeforeTimeout.assigned_at || null,
+          offerSpanMs:Number.isFinite(freshOfferSpanMs) ? freshOfferSpanMs : null
         }
       }).catch(()=>{});
     }
