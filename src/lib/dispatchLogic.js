@@ -313,11 +313,19 @@ function invalidateZoneMappingsCache() {
 
 export async function learnZoneMapping(address, zone) {
   if (!address || !zone || address.trim().length < 3) return;
+  if (!BASES.includes(zone)) return; // Validar que la zona exista estrictamente
 
   const parsed = parseAddress(address);
-  if (!parsed.street || parsed.street.length < 2) return;
+  if (!parsed.street || parsed.street.length < 3) return;
 
   const streetNorm = _normalize(parsed.street);
+  const stopwords = ["el", "la", "los", "las", "un", "una", "de", "del", "y", "a", "en", "boulevard", "calle", "av", "avenida"];
+  const invalidTokens = ["concepcion del uruguay", "entre rios", "argentina", "uruguay"];
+
+  // Evitar que el sistema aprenda basura administrativa o palabras vacías aisladas
+  if (stopwords.includes(streetNorm)) return;
+  if (invalidTokens.some(t => streetNorm.includes(t))) return;
+
   const mappings = await getZoneMappingsCached();
 
   // Check general street mapping
@@ -435,20 +443,9 @@ export async function detectZoneFromAddress(address) {
     }
   }
 
-  // Si no hubo coincidencia exacta de calle, probamos incluído genérico por las dudas
-  if (!bestMatch) {
-    const normalized = address.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    for (const m of mappings) {
-      const keyword = (m.keyword || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      if (keyword && normalized.includes(keyword)) {
-        const priority = m.priority || 1;
-        if (priority > bestPriority) {
-          bestPriority = priority;
-          bestMatch = m.zone;
-        }
-      }
-    }
-  }
+  // SE ELIMINÓ EL FALLBACK GENÉRICO (.includes)
+  // Si no hay coincidencia exacta de calle o manzana, delegamos obligatoriamente a
+  // la geocodificación y a los polígonos matemáticos. Un string no puede secuestrar la zona.
 
   return bestMatch || null;
 }
