@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
+import { getNextQueueTailAt } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   let b44: any = null;
@@ -102,7 +103,7 @@ Deno.serve(async (req) => {
     const queueBase = order.assigned_base || order.zone || null;
     requeueReleasedDriverAtEnd = async () => {
       if (!queueBase) return false;
-      const queueAt = new Date().toISOString();
+      const queueAt = await getNextQueueTailAt(b44, queueBase, driverId);
       const requeued = await b44.entities.Driver.updateMany(
         {
           id:driverId,
@@ -150,7 +151,8 @@ Deno.serve(async (req) => {
         $set: {
           status:'disponible',
           dispatch_status:'normal',
-          // Rechazo/timeout: fuera de cola. No existe reingreso automático.
+          // Liberación TRANSITORIA durante el cambio de dueño. Al cerrar este intento
+          // rejectRide lo reinsertará server-side al final de la misma base.
           current_base:null,
           queue_entered_at:null,
           queue_authoritative_base:null,
@@ -174,21 +176,25 @@ Deno.serve(async (req) => {
       // ese evento, adoptamos la liberación ya hecha en vez de restaurarla y competir
       // con el teléfono. La validación exige que el Driver siga libre, sin otro viaje
       // y con el mismo queue_entered_at observado en el evento que disparó esta llamada.
-      const currentDriver = source === 'legacy_client'
+      // Una APK vieja puede haber liberado el Driver antes de que llegue este motor.
+      // Para rechazo legacy Y para timeout aceptamos esa liberación únicamente si el
+      // móvil sigue completamente libre; jamás si ya tiene otra reserva/viaje.
+      const canAdoptPriorRelease = source === 'legacy_client' || source === 'timeout';
+      const currentDriver = canAdoptPriorRelease
         ? await b44.entities.Driver.get(driverId).catch(() => null)
         : null;
-      const legacyAlreadyReleased = Boolean(
-        source === 'legacy_client' &&
+      const alreadyReleasedAndIdle = Boolean(
+        canAdoptPriorRelease &&
         currentDriver &&
         currentDriver.status === 'disponible' &&
         (currentDriver.dispatch_status == null || currentDriver.dispatch_status === 'normal') &&
         !currentDriver.reserved_order_id &&
         !currentDriver.active_order_id &&
         !currentDriver.active_ride_id &&
-        (!legacyQueueEnteredAt || String(currentDriver.queue_entered_at || '') === String(legacyQueueEnteredAt))
+        (source === 'timeout' || !legacyQueueEnteredAt || String(currentDriver.queue_entered_at || '') === String(legacyQueueEnteredAt))
       );
 
-      if (legacyAlreadyReleased) {
+      if (alreadyReleasedAndIdle) {
         currentReleased = true;
         await b44.entities.Driver.updateMany(
           { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
@@ -203,11 +209,11 @@ Deno.serve(async (req) => {
           } }
         ).catch(()=>{});
         await b44.entities.AuditLog.create({
-          action:'LEGACY_DRIVER_RELEASE_ADOPTED',
+          action: source === 'timeout' ? 'TIMEOUT_DRIVER_RELEASE_ADOPTED' : 'LEGACY_DRIVER_RELEASE_ADOPTED',
           user_type:'sistema',
           user_name:'rejectRide',
           details:`Central adoptó liberación previa de APK vieja para ${driverId} / ${orderId}`,
-          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), legacyQueueEnteredAt }
+          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), source, legacyQueueEnteredAt }
         }).catch(()=>{});
       } else {
         await b44.entities.RideOrder.updateMany(
