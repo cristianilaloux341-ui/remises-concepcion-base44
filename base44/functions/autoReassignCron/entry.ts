@@ -102,6 +102,15 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // CRÍTICO: entre el list inicial y esta relectura pudo llegar el ACK del
+      // teléfono y renovar offerExpiresAt. Nunca decidir con el vencimiento del
+      // snapshot viejo. Revalidar la autoridad FRESCA inmediatamente antes de
+      // invocar rejectRide.
+      const freshExpiresAt = Number(freshOrder.offerExpiresAt);
+      if (!Number.isFinite(freshExpiresAt) || Date.now() < freshExpiresAt) {
+        continue;
+      }
+
       // Red de seguridad: el cron NO tiene un motor de reasignación propio.
       // Una oferta vencida entra al mismo rechazo atómico que usa el botón RECHAZAR
       // y autoReassignOnTimeout. Así hay una sola autoridad para cola, cancelación,
