@@ -242,14 +242,25 @@ Deno.serve(async (req) => {
           // período de gracia ni inferencia posterior: sólo ACEPTAR, RECHAZAR explícito
           // o el vencimiento real de la oferta pueden resolverla.
           if (offerStillLive) {
+            // La escritura legacy pudo hacer que el watcher original leyera `pendiente`
+            // y terminara con `offer_changed`. Cada vez que restauramos una oferta viva,
+            // rearmamos explícitamente el watcher sobre el MISMO intento/móvil para que
+            // el reloj nunca pueda llegar a cero sin ejecutar timeout/reasignación.
+            base44.asServiceRole.functions.invoke('autoReassignOnTimeout', {
+              orderId,
+              driverId:ownerDriverId,
+              assignmentAttempt:previousAttempt,
+              internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+            }).catch((e:any)=>console.error('Error rearmando timeout tras restore legacy:', e));
+
             await base44.asServiceRole.entities.AuditLog.create({
               action:'LEGACY_LIVE_PENDING_IGNORED_AS_REJECT',
               user_type:'sistema',
               user_name:body.old_data.driver_name || 'Chofer',
-              details:`Pendiente legacy ignorado como rechazo; oferta viva restaurada para ${orderId}`,
-              metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, offerExpiresAt:body.old_data.offerExpiresAt }
+              details:`Pendiente legacy ignorado como rechazo; oferta viva restaurada y timeout rearmado para ${orderId}`,
+              metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, offerExpiresAt:body.old_data.offerExpiresAt, timeoutWatcherRearmed:true }
             }).catch(()=>{});
-            return Response.json({ ok:true, reason:'legacy_live_offer_restored_waiting_explicit_resolution' });
+            return Response.json({ ok:true, reason:'legacy_live_offer_restored_timeout_rearmed' });
           }
 
           // Sólo una oferta YA VENCIDA puede usar este rollback legacy como señal de
@@ -311,14 +322,22 @@ Deno.serve(async (req) => {
         ).catch(() => null);
 
         if ((restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0) === 1) {
+          const restoredAttempt = Number(body.old_data.assignment_attempt || 1);
+          base44.asServiceRole.functions.invoke('autoReassignOnTimeout', {
+            orderId,
+            driverId:ownerDriverId,
+            assignmentAttempt:restoredAttempt,
+            internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+          }).catch((e:any)=>console.error('Error rearmando timeout tras rollback legacy:', e));
+
           await base44.asServiceRole.entities.AuditLog.create({
             action:'LEGACY_OFFER_TO_PENDING_ROLLBACK_BLOCKED',
             user_type:'sistema',
             user_name:body.old_data.driver_name || 'Chofer',
-            details:`Se restauró oferta ${orderId}: una APK vieja intentó devolverla a pendiente con dueño vigente`,
-            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:body.old_data.assignment_attempt }
+            details:`Se restauró oferta ${orderId}: una APK vieja intentó devolverla a pendiente con dueño vigente; timeout rearmado`,
+            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:restoredAttempt, timeoutWatcherRearmed:true }
           }).catch(()=>{});
-          return Response.json({ ok:true, reason:'legacy_offered_rollback_blocked' });
+          return Response.json({ ok:true, reason:'legacy_offered_rollback_blocked_timeout_rearmed' });
         }
       }
     }
