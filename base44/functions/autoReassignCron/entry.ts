@@ -7,7 +7,10 @@ Deno.serve(async (req) => {
 
   try {
     const tarifaConfigs = await b44.entities.TarifaConfig.list();
-    const tiempoMaximo = tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos || 60;
+    const configuredResponseSeconds = Number(tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos);
+    const tiempoMaximo = Number.isFinite(configuredResponseSeconds) && configuredResponseSeconds > 0
+      ? configuredResponseSeconds
+      : 30;
     const thresholdDate = new Date(Date.now() - (tiempoMaximo * 1000));
     const twoHoursAgoTime = Date.now() - (120 * 60 * 1000);
     const twoHoursAgoStr = new Date(twoHoursAgoTime).toISOString();
