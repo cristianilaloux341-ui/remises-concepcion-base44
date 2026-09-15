@@ -173,6 +173,46 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
 
   let order = await b44.entities.RideOrder.get(rideOrderId);
 
+  // Compatibilidad v12.27/v12.29: esas APK pueden escribir fugazmente
+  // `ofrecido -> pendiente` justo ANTES de invocar acceptRide. El workflow de
+  // RideOrder restaura la oferta por CAS, pero el ACEPTAR podía caer dentro de
+  // esa ventana y devolver INVALID_STATE. No aceptamos jamás un `pendiente`:
+  // sólo esperamos brevemente a que vuelva a existir la MISMA oferta autoritativa.
+  if (
+    order &&
+    order.status === 'pendiente' &&
+    Number(order.assignment_attempt) === Number(assignmentAttempt)
+  ) {
+    const transientPendingStartedAt = Date.now();
+    for (let retry = 0; retry < 7; retry++) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const refreshed = await b44.entities.RideOrder.get(rideOrderId).catch(() => null);
+      if (!refreshed) break;
+      order = refreshed;
+
+      if (
+        order.status === 'ofrecido' &&
+        order.reserved_driver_id === driverId &&
+        Number(order.assignment_attempt) === Number(assignmentAttempt)
+      ) {
+        await b44.entities.AuditLog.create({
+          action:'LEGACY_TRANSIENT_PENDING_RECOVERED_FOR_ACCEPT',
+          user_type:'sistema',
+          user_name:'acceptRide',
+          details:`Aceptar esperó una restauración legacy y recuperó la oferta ${rideOrderId}`,
+          metadata:{ orderId:rideOrderId, driverId, assignmentAttempt, waitedMs:Date.now() - transientPendingStartedAt }
+        }).catch(()=>{});
+        break;
+      }
+
+      // Si ya avanzó a un estado definitivo o cambió de intento, no esperar más.
+      if (
+        order.status !== 'pendiente' ||
+        Number(order.assignment_attempt) !== Number(assignmentAttempt)
+      ) break;
+    }
+  }
+
   // Defensa de compatibilidad con v12.27/v12.29: si una reasignación vieja dejó
   // `driver_id` apuntando al móvil anterior pero `reserved_driver_id` ya pertenece
   // al chofer que recibió ESTA oferta, la reserva vigente es la autoridad. Reparar
