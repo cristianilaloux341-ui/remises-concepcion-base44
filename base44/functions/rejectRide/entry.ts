@@ -14,9 +14,11 @@ Deno.serve(async (req) => {
     b44 = base44.asServiceRole;
     const payload = await req.json();
     const { orderId, driverId, assignmentAttempt } = payload;
-    const source = payload.source === 'timeout'
-      ? 'timeout'
-      : (payload.source === 'legacy_client' ? 'legacy_client' : 'driver');
+    const source = payload.source === 'delivery_unconfirmed'
+      ? 'delivery_unconfirmed'
+      : (payload.source === 'timeout'
+        ? 'timeout'
+        : (payload.source === 'legacy_client' ? 'legacy_client' : 'driver'));
     const legacyQueueEnteredAt = payload.legacyQueueEnteredAt || null;
 
     if (!orderId || !driverId || assignmentAttempt == null) {
