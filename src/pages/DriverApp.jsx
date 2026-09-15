@@ -1788,8 +1788,12 @@ export default function DriverApp() {
         status: "disponible",
         dispatch_status: "normal",
         queue_entered_at: ts,
-        queue_authoritative_base: base,
-        queue_authoritative_at: ts,
+        // La app sólo solicita la entrada. El servidor decide el puesto real y lo
+        // sella detrás del último; nunca publicar una posición provisoria local.
+        queue_authoritative_base: null,
+        queue_authoritative_at: null,
+        queue_authority_marker: null,
+        queue_position: null,
         active_order_id: null,
         active_ride_id: null,
         reserved_order_id: null,
@@ -1799,7 +1803,20 @@ export default function DriverApp() {
       } }
     );
     const changed = res?.updated ?? res?.modifiedCount ?? res?.matchedCount ?? 0;
-    if (changed > 0) return ts;
+    if (changed > 0) {
+      // Esperar únicamente el sello autoritativo de ESTA entrada. Hasta entonces la
+      // UI no debe asumir 1°, 2° ni ningún puesto por la hora del teléfono.
+      for (let attempt = 0; attempt < 8; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 250));
+        const fresh = await base44.entities.Driver.get(myDriverId).catch(() => null);
+        if (fresh?.current_base === base &&
+            fresh?.queue_authoritative_base === base &&
+            fresh?.queue_authoritative_at) {
+          return fresh.queue_authoritative_at;
+        }
+      }
+      throw new Error("QUEUE_AUTHORITY_NOT_CONFIRMED");
+    }
 
     // Un CAS en cero puede significar simplemente que el servidor ya lo tenía en
     // esa misma base. En ese caso conservar su antigüedad real; no es un error.
