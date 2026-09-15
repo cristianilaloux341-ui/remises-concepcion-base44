@@ -24,7 +24,7 @@ export function useGooglePlaces(inputValue) {
 
       setLoading(true);
       try {
-        const sessionToken = localStorage.getItem('client_token') || sessionStorage.getItem('local_operator_token') || 'client_demo_token';
+        const sessionToken = sessionStorage.getItem('local_operator_token') || localStorage.getItem('client_token') || 'client_demo_token';
         const res = await base44.functions.invoke("geocodeRoute", {
           action: "autocomplete",
           input: inputValue,
@@ -57,7 +57,7 @@ export function useGooglePlaces(inputValue) {
     }
 
     // Fallback al backend para identificadores legacy.
-    const sessionToken = localStorage.getItem('client_token') || sessionStorage.getItem('local_operator_token') || 'client_demo_token';
+    const sessionToken = sessionStorage.getItem('local_operator_token') || localStorage.getItem('client_token') || 'client_demo_token';
     const res = await base44.functions.invoke("geocodeRoute", {
       action: "placedetails",
       place_id,

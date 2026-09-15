@@ -299,7 +299,8 @@ const ZONE_MAPPING_CACHE_TTL_MS = 5 * 60 * 1000;
 async function getZoneMappingsCached(force = false) {
   const now = Date.now();
   if (!force && _zoneMappingsCache && (now - _zoneMappingsCacheAt) < ZONE_MAPPING_CACHE_TTL_MS) return _zoneMappingsCache;
-  const mappings = await base44.entities.ZoneMapping.list("-priority", 500);
+  // Aumentado a 2000 para evitar que el límite deje fuera mapeos guardados
+  const mappings = await base44.entities.ZoneMapping.list("-priority", 2000);
   _zoneMappingsCache = mappings || [];
   _zoneMappingsCacheAt = now;
   return _zoneMappingsCache;

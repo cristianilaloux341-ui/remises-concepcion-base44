@@ -60,7 +60,9 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
   // Geocodifica una dirección de texto si no tiene coords, usando Google Places
   const geocodeAddress = async (address) => {
     try {
-      const sessionToken = localStorage.getItem('client_token') || sessionStorage.getItem('local_operator_token') || 'client_demo_token';
+      // Priorizar SIEMPRE el token de operador. Si en la misma PC un cliente
+      // se logueó antes, localStorage retiene 'client_token' y deniega el acceso a la API.
+      const sessionToken = sessionStorage.getItem('local_operator_token') || localStorage.getItem('client_token') || 'client_demo_token';
       const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address, sessionToken });
       const predictions = res.data?.predictions;
       if (!predictions || predictions.length === 0) return null;
@@ -230,23 +232,38 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       }
 
       // Último recurso: geocodificar el texto y resolver por el polígono real.
+      let newCoords = null;
       if (!zone && !selectedCoords) {
-        const coords = await geocodeAddress(form.pickup_address);
+        newCoords = await geocodeAddress(form.pickup_address);
         if (!isCurrent()) return;
-        if (coords) {
-          zone = await detectZoneFromCoords(coords.lat, coords.lng);
+        if (newCoords) {
+          zone = await detectZoneFromCoords(newCoords.lat, newCoords.lng);
           if (!isCurrent()) return;
-          setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
         }
       }
 
       if (!isCurrent() || zoneManualOverrideRef.current) return;
       setDetectingZone(false);
+      
+      // Batch state updates to prevent intermediate re-renders and extra triggers
+      setForm(prev => {
+        const updates = {};
+        if (newCoords) {
+          updates.pickup_lat = newCoords.lat;
+          updates.pickup_lng = newCoords.lng;
+        }
+        if (zone) {
+          updates.zone = zone;
+        }
+        return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
+      });
+
       if (zone) {
         setDetectedZone(zone);
-        setForm(prev => ({ ...prev, zone }));
       } else {
         setDetectedZone(null);
+        // Si no detectó zona y ya no hay nada en form.zone (o era otra), lo dejamos así
+        // para forzar la selección manual
       }
     }, 600);
 
