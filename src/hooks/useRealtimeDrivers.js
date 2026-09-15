@@ -13,6 +13,15 @@ export function useRealtimeDrivers({ refreshIntervalMs = 10000 } = {}) {
   const fetchSeqRef = useRef(0);
   const realtimeSeqRef = useRef(0);
 
+  // Orden monotónico por registro: Base44 realtime puede entregar eventos del mismo
+  // Driver fuera de orden cuando una escritura de APK y una corrección server-side
+  // ocurren casi simultáneamente. Nunca permitir que un evento con updated_date más
+  // viejo pise en pantalla un estado más nuevo (especialmente la autoridad de cola).
+  const getRecordVersionMs = (record) => {
+    const ms = new Date(record?.updated_date || 0).getTime();
+    return Number.isFinite(ms) ? ms : 0;
+  };
+
   const fetchAll = useCallback(() => {
     if (!mountedRef.current) return;
     const requestSeq = ++fetchSeqRef.current;
@@ -80,6 +89,17 @@ export function useRealtimeDrivers({ refreshIntervalMs = 10000 } = {}) {
       realtimeSeqRef.current += 1;
       const eventId = event.data.id || event.id;
       if (!eventId) return;
+
+      const buffered = realtimeBufferRef.current.get(eventId);
+      if (buffered?.data) {
+        const incomingVersion = getRecordVersionMs(event.data);
+        const bufferedVersion = getRecordVersionMs(buffered.data);
+        // Si ambos eventos tienen versión conocida, conservar siempre el más nuevo,
+        // no simplemente el último que llegó por la red.
+        if (incomingVersion > 0 && bufferedVersion > 0 && incomingVersion < bufferedVersion) {
+          return;
+        }
+      }
       realtimeBufferRef.current.set(eventId, event);
 
       if (!flushTimeoutRef.current) {
@@ -105,6 +125,16 @@ export function useRealtimeDrivers({ refreshIntervalMs = 10000 } = {}) {
                 const idx = next.findIndex(d => d.id === eventDriver.id);
                 if (idx >= 0) {
                   const current = next[idx];
+                  const incomingVersion = getRecordVersionMs(eventDriver);
+                  const currentVersion = getRecordVersionMs(current);
+
+                  // Segunda barrera: aunque el buffer haya recibido un solo evento,
+                  // no dejar que éste haga retroceder un Driver que ya está más nuevo
+                  // en React por un fetch o por otro evento realtime.
+                  if (incomingVersion > 0 && currentVersion > 0 && incomingVersion < currentVersion) {
+                    continue;
+                  }
+
                   const hasDifference = Object.keys(eventDriver).some(k => current?.[k] !== eventDriver[k]);
                   if (hasDifference) {
                     next[idx] = { ...current, ...eventDriver };
