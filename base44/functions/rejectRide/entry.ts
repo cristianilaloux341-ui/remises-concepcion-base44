@@ -157,13 +157,17 @@ Deno.serve(async (req) => {
 
       if (alreadyReleasedAndIdle) {
         currentReleased = true;
+        const adoptedQueueBase = queueBase || currentDriver.current_base || null;
+        const adoptedQueueAt = adoptedQueueBase
+          ? await getNextQueueTailAt(b44, adoptedQueueBase, driverId)
+          : queueAt;
         await b44.entities.Driver.updateMany(
           { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
           { $set:{
-            current_base:null,
-            queue_entered_at:null,
-            queue_authoritative_base:null,
-            queue_authoritative_at:null,
+            current_base:adoptedQueueBase,
+            queue_entered_at:adoptedQueueAt,
+            queue_authoritative_base:adoptedQueueBase,
+            queue_authoritative_at:adoptedQueueAt,
             queue_authority_marker:null,
             queue_position:null,
             queue_left_at:null
@@ -173,8 +177,8 @@ Deno.serve(async (req) => {
           action: source === 'timeout' ? 'TIMEOUT_DRIVER_RELEASE_ADOPTED' : 'LEGACY_DRIVER_RELEASE_ADOPTED',
           user_type:'sistema',
           user_name:'rejectRide',
-          details:`Central adoptó liberación previa de APK vieja para ${driverId} / ${orderId}`,
-          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), source, legacyQueueEnteredAt }
+          details:`Central adoptó la liberación previa de APK vieja y dejó ${driverId} último en ${adoptedQueueBase || 'su cola'}`,
+          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), source, legacyQueueEnteredAt, baseName:adoptedQueueBase, queueAt:adoptedQueueAt }
         }).catch(()=>{});
       } else {
         await b44.entities.RideOrder.updateMany(
@@ -314,8 +318,6 @@ Deno.serve(async (req) => {
           internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
         }).catch(e=>console.error('AutoReassign Trigger Error:',e));
 
-        await requeueReleasedDriverAtEnd?.();
-
         await b44.entities.AuditLog.create({
           action: source === 'timeout' ? 'timeout_viaje' : 'rechazar_viaje',
           user_type: source === 'timeout' ? 'sistema' : 'chofer',
@@ -361,7 +363,6 @@ Deno.serve(async (req) => {
     }
 
     lockOwner = null;
-    await requeueReleasedDriverAtEnd?.();
     await b44.entities.AuditLog.create({
       action: source === 'timeout' ? 'timeout_viaje' : 'rechazar_viaje',
       user_type: source === 'timeout' ? 'sistema' : 'chofer',
@@ -405,7 +406,6 @@ Deno.serve(async (req) => {
             }
           }
         ).catch(()=>{});
-        await requeueReleasedDriverAtEnd?.().catch(()=>false);
       } else {
         await b44.entities.RideOrder.updateMany(
           { id:lockOrderId, processingOwnerId:lockOwner },
