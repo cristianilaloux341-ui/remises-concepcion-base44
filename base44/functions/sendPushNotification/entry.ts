@@ -245,7 +245,13 @@ Deno.serve(async (req) => {
           // la oferta viva y sus 30 s completos. Nunca inferimos rechazo por el rollback.
           if (offerStillLive) {
             let explicitLegacyReject = false;
-            const rejectSince = new Date(Date.now() - 4000).toISOString();
+            const expectedRejectDetails = body.old_data.client_name
+              ? `Rechazó el viaje de ${body.old_data.client_name}`
+              : null;
+            // El log legacy aparece prácticamente junto al rollback. Miramos sólo una
+            // ventana estrecha y, cuando conocemos el pasajero, exigimos además el
+            // detalle exacto para no confundir otro rechazo del mismo chofer.
+            const rejectSince = new Date(Date.now() - 1500).toISOString();
             for (let check = 0; check < 4 && !explicitLegacyReject; check++) {
               await new Promise(r => setTimeout(r, 250));
               const recentRejects = await base44.asServiceRole.entities.AuditLog.filter({
@@ -253,9 +259,11 @@ Deno.serve(async (req) => {
                 user_name:body.old_data.driver_name || 'Chofer',
                 created_date:{ $gte:rejectSince }
               }).catch(()=>[]);
-              explicitLegacyReject = (recentRejects || []).some((log:any) =>
-                log?.created_by_id === 'anonymous' || log?.created_by === 'anonymous'
-              );
+              explicitLegacyReject = (recentRejects || []).some((log:any) => {
+                const anonymousLegacy = log?.created_by_id === 'anonymous' || log?.created_by === 'anonymous';
+                const sameRideDetails = !expectedRejectDetails || String(log?.details || '') === expectedRejectDetails;
+                return anonymousLegacy && sameRideDetails;
+              });
             }
 
             if (explicitLegacyReject) {
