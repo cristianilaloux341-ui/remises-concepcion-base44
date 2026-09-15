@@ -2,15 +2,12 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const targetZone = order.zone;
   if (!targetZone) return null;
 
-  // Traer los choferes de la zona por base visible O por base autoritativa.
-  // Esto evita que una escritura legacy que ponga current_base=null saque al móvil
-  // de la selección antes de que el reconciliador la restaure.
+  // Para despacho automático el móvil debe estar VISIBLEMENTE dentro de la base.
+  // No existe gracia ni selección por una base autoritativa vieja: si current_base
+  // está vacío, salió de la fila; cuando vuelva el workflow lo ubicará último.
   const zoneDrivers = await b44.entities.Driver.filter({
     status: "disponible",
-    $or: [
-      { current_base: targetZone },
-      { queue_authoritative_base: targetZone }
-    ]
+    current_base: targetZone
   });
 
   // Driver.vehicle_model guarda el ID del móvil. No descargar toda la flota:
@@ -39,29 +36,17 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const allMoviles = [...movilesById.filter(Boolean), ...movilesByFallback]
     .filter((m: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === m.id) === i);
 
-  const queueExitGraceMs = 10 * 1000;
-  const authorityGraceActive = (d:any) => {
-    if (d.current_base) return true;
-    const leftAtMs = d.queue_left_at ? new Date(d.queue_left_at).getTime() : NaN;
-    return Boolean(
-      d.queue_authoritative_base &&
-      Number.isFinite(leftAtMs) &&
-      (Date.now() - leftAtMs) <= queueExitGraceMs
-    );
-  };
   const getEffectiveBase = (d:any) => {
     const currentBase = d.current_base || null;
     const authoritativeBase = d.queue_authoritative_base || null;
-    if (currentBase) return authoritativeBase || currentBase;
-    return authorityGraceActive(d) ? authoritativeBase : null;
+    if (!currentBase) return null;
+    // Si todavía hay una autoridad de otra base, el cambio está siendo normalizado.
+    // No despachar hasta que ambas coincidan para no meter un móvil a mitad de fila.
+    if (authoritativeBase && authoritativeBase !== currentBase) return null;
+    return currentBase;
   };
   const getEffectiveQueueAt = (d:any) => {
-    const currentBase = d.current_base || null;
-    const authoritativeBase = d.queue_authoritative_base || null;
-    if (!currentBase && !authorityGraceActive(d)) return null;
-    if (currentBase && authoritativeBase && currentBase !== authoritativeBase) {
-      return d.queue_entered_at || null;
-    }
+    if (!getEffectiveBase(d)) return null;
     return d.queue_authoritative_at || d.queue_entered_at || null;
   };
 
