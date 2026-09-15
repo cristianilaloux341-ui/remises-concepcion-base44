@@ -220,11 +220,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // REGLA OPERATIVA ABSOLUTA DE SALIDA/ENTRADA DE BASE:
-    // current_base=null significa que el móvil abandonó la cola EN ESE INSTANTE.
-    // No existe gracia ni conservación de antigüedad. Si luego entra a cualquier base
-    // —la misma, otra o al volver de fuera de servicio— el servidor le asigna una
-    // nueva autoridad detrás del último móvil existente.
+    // REGLA OPERATIVA DE SALIDA/ENTRADA DE BASE:
+    // una salida REAL (fuera de servicio, viaje, cambio de base o acción comercial)
+    // pierde la posición inmediatamente. Pero las APK v12.27/v12.29 publican a veces
+    // un current_base=null técnico de pocos segundos mientras siguen DISPONIBLES,
+    // sin viaje, sin rechazo y sin cambio real de estado. Ese null técnico NO es una
+    // salida de cola y debe revertirse server-side para no mover al móvil solo.
 
     // Marca una entrada NUEVA que ya fue normalizada con hora autoritativa del servidor.
     // Debe seguir hasta el drenaje de Pendientes; una entrada real crea capacidad.
@@ -236,49 +237,57 @@ Deno.serve(async (req) => {
       eventData.status === 'disponible' &&
       oldData.current_base &&
       !eventData.current_base &&
+      oldData.queue_authoritative_base === oldData.current_base &&
+      Number.isFinite(Number(oldData.queue_position)) && Number(oldData.queue_position) > 0 &&
       (oldData.dispatch_status == null || oldData.dispatch_status === 'normal') &&
       (eventData.dispatch_status == null || eventData.dispatch_status === 'normal') &&
       !oldData.reserved_order_id && !eventData.reserved_order_id &&
       !oldData.active_order_id && !eventData.active_order_id &&
-      !oldData.active_ride_id && !eventData.active_ride_id &&
-      (oldData.queue_authoritative_at || oldData.queue_entered_at)
+      !oldData.active_ride_id && !eventData.active_ride_id
     );
 
     if (technicalBaseDrop) {
-      const previousBase = oldData.queue_authoritative_base || oldData.current_base;
+      const previousBase = oldData.current_base;
       const previousAt = oldData.queue_authoritative_at || oldData.queue_entered_at || null;
-      const cleared = await b44.entities.Driver.updateMany(
+      const restored = await b44.entities.Driver.updateMany(
         {
           id:driverId,
           status:'disponible',
           current_base:null,
+          dispatch_status:eventData.dispatch_status ?? 'normal',
           reserved_order_id:null,
           active_order_id:null,
           active_ride_id:null
         },
         { $set:{
-          queue_entered_at:null,
-          queue_authoritative_base:null,
-          queue_authoritative_at:null,
-          queue_authority_marker:null,
-          queue_position:null,
+          current_base:previousBase,
+          queue_entered_at:oldData.queue_entered_at || previousAt,
+          queue_authoritative_base:previousBase,
+          queue_authoritative_at:previousAt,
+          queue_authority_marker:oldData.queue_authority_marker ?? oldData.queue_position,
+          queue_position:oldData.queue_position,
           queue_left_at:null
         } }
       ).catch(()=>({updated:0}));
-      const clearedCount = cleared?.updated ?? cleared?.modifiedCount ?? cleared?.matchedCount ?? 0;
+      const restoredCount = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
 
-      if (clearedCount === 1) {
-        if (previousBase) compactQueue(b44, previousBase).catch(()=>null);
+      if (restoredCount === 1) {
         await b44.entities.AuditLog.create({
-          action:'QUEUE_POSITION_CLEARED_ON_BASE_EXIT',
+          action:'LEGACY_TECHNICAL_BASE_NULL_RESTORED',
           user_type:'sistema',
           user_name:eventData.name || oldData.name || 'Driver',
-          details:`${eventData.name || oldData.name || driverId} salió de ${previousBase}; perdió la posición inmediatamente`,
-          metadata:{ driverId, previousBase, previousQueueAt:previousAt }
+          details:`Se ignoró current_base=null técnico de APK legacy y ${eventData.name || oldData.name || driverId} conservó posición ${oldData.queue_position} en ${previousBase}`,
+          metadata:{
+            driverId,
+            baseName:previousBase,
+            preservedQueuePosition:oldData.queue_position,
+            preservedQueueAt:previousAt,
+            apkCompatibility:true
+          }
         }).catch(()=>{});
       }
 
-      return Response.json({ success:true, repaired:clearedCount === 1, reason:'QUEUE_POSITION_CLEARED_ON_BASE_EXIT' });
+      return Response.json({ success:true, repaired:restoredCount === 1, reason:'LEGACY_TECHNICAL_BASE_NULL_RESTORED' });
     }
 
     // Compatibilidad v12.27/v12.29: esas APK todavía implementan RECHAZAR liberando
