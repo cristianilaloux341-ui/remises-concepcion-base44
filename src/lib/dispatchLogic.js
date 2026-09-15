@@ -15,45 +15,22 @@ export function getDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Fuente autoritativa de cola. Las APK legacy todavía pueden escribir
-// queue_entered_at/current_base; por eso despacho y Central no deben confiar
-// ciegamente en esos campos. Al salir de toda base existe una gracia operativa de
-// 10 segundos: durante ella se conserva la posición; vencida, la autoridad deja de
-// contar aunque el backend todavía esté terminando de limpiar el registro.
-const QUEUE_EXIT_GRACE_MS = 10 * 1000;
-
-function hasQueueExitGrace(driver) {
-  if (!driver) return false;
-  if (driver.current_base) return true;
-  const leftAtMs = driver.queue_left_at ? new Date(driver.queue_left_at).getTime() : NaN;
-  return Boolean(
-    driver.queue_authoritative_base &&
-    Number.isFinite(leftAtMs) &&
-    (Date.now() - leftAtMs) <= QUEUE_EXIT_GRACE_MS
-  );
-}
-
+// Fuente autoritativa de cola. Central no muestra ni despacha una posición hasta que
+// current_base y la autoridad server-side coinciden. No existe gracia al salir: si el
+// móvil deja la base, deja la fila; al reingresar el backend lo sella último.
 export function getEffectiveQueueBase(driver) {
   if (!driver) return null;
   const currentBase = driver.current_base || null;
   const authoritativeBase = driver.queue_authoritative_base || null;
-  // Mientras hay una base visible, la autoridad server-side sigue mandando para
-  // bloquear oscilaciones transitorias de APK vieja. Si no hay base visible, sólo
-  // se conserva la autoridad durante los 10 s de gracia.
-  if (currentBase) return authoritativeBase || currentBase;
-  return hasQueueExitGrace(driver) ? authoritativeBase : null;
+  if (!currentBase) return null;
+  if (!authoritativeBase || authoritativeBase !== currentBase) return null;
+  if (!driver.queue_authoritative_at) return null;
+  return currentBase;
 }
 
 export function getEffectiveQueueEnteredAt(driver) {
-  if (!driver) return null;
-  const currentBase = driver.current_base || null;
-  const authoritativeBase = driver.queue_authoritative_base || null;
-  if (!currentBase && !hasQueueExitGrace(driver)) return null;
-  // Cambio REAL de base todavía no reconciliado: usar la hora nueva de entrada.
-  if (currentBase && authoritativeBase && currentBase !== authoritativeBase) {
-    return driver.queue_entered_at || null;
-  }
-  return driver.queue_authoritative_at || driver.queue_entered_at || null;
+  if (!driver || !getEffectiveQueueBase(driver)) return null;
+  return driver.queue_authoritative_at || null;
 }
 
 // Helper to safely and stably sort a queue
