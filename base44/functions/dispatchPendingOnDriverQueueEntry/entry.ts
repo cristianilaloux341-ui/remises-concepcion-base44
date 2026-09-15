@@ -195,18 +195,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    // REGLA OPERATIVA ABSOLUTA DE SALIDA DE BASE:
-    // salir de una lista abandona inmediatamente esa posición. No hay memoria ni
-    // período de gracia. Cualquier reingreso posterior nace detrás del último.
-    // REGLA ABSOLUTA DE COLA: salir de una base abandona la posición en ese mismo
-    // instante. No existe gracia de 10 segundos ni memoria de antigüedad. Si vuelve
-    // a entrar, incluso a la misma base, el servidor lo sella detrás del último.
+    // REGLA OPERATIVA DE SALIDA DE BASE:
+    // un móvil que ya está trabajando puede salir momentáneamente de una fila para
+    // mirar otras posiciones sin perder su turno. Conserva SU MISMO lugar durante
+    // 20 segundos. Si vuelve a la misma base dentro de esa gracia, recupera exactamente
+    // la misma antigüedad. Si entra a otra base, entra último allí. Si pasan 20 s sin
+    // volver, pierde la posición y cualquier reingreso posterior será al final.
+    const baseExitGraceMs = 20 * 1000;
+
     // Marca una entrada NUEVA que ya fue normalizada con hora autoritativa del servidor.
-    // Debe seguir hasta el drenaje de Pendientes; antes estas ramas retornaban acá y
-    // la capacidad recién ingresada nunca disparaba la automatización.
+    // Debe seguir hasta el drenaje de Pendientes; una entrada real crea capacidad.
     let normalizedExplicitQueueEntry = false;
 
-    const explicitBaseExit = Boolean(
+    const technicalBaseDrop = Boolean(
       eventData && oldData &&
       oldData.status === 'disponible' &&
       eventData.status === 'disponible' &&
@@ -216,11 +217,16 @@ Deno.serve(async (req) => {
       (eventData.dispatch_status == null || eventData.dispatch_status === 'normal') &&
       !oldData.reserved_order_id && !eventData.reserved_order_id &&
       !oldData.active_order_id && !eventData.active_order_id &&
-      !oldData.active_ride_id && !eventData.active_ride_id
+      !oldData.active_ride_id && !eventData.active_ride_id &&
+      (oldData.queue_authoritative_at || oldData.queue_entered_at)
     );
 
-    if (explicitBaseExit) {
-      const cleared = await b44.entities.Driver.updateMany(
+    if (technicalBaseDrop) {
+      const leftAt = new Date().toISOString();
+      const preservedBase = oldData.queue_authoritative_base || oldData.current_base;
+      const preservedAt = oldData.queue_authoritative_at || oldData.queue_entered_at;
+
+      const marked = await b44.entities.Driver.updateMany(
         {
           id:driverId,
           status:'disponible',
@@ -230,25 +236,72 @@ Deno.serve(async (req) => {
           active_ride_id:null
         },
         { $set:{
-          queue_entered_at:null,
-          queue_authoritative_base:null,
-          queue_authoritative_at:null,
-          queue_authority_marker:null,
-          queue_position:null,
-          queue_left_at:null
+          queue_left_at:leftAt,
+          queue_authoritative_base:preservedBase,
+          queue_authoritative_at:preservedAt,
+          queue_entered_at:preservedAt
         } }
       ).catch(()=>({updated:0}));
-      const clearedCount = cleared?.updated ?? cleared?.modifiedCount ?? cleared?.matchedCount ?? 0;
-      if (clearedCount === 1) {
+      const markedCount = marked?.updated ?? marked?.modifiedCount ?? marked?.matchedCount ?? 0;
+
+      if (markedCount === 1) {
         await b44.entities.AuditLog.create({
-          action:'QUEUE_POSITION_CLEARED_ON_BASE_EXIT',
+          action:'QUEUE_BASE_EXIT_GRACE_STARTED',
           user_type:'sistema',
           user_name:eventData.name || oldData.name || 'Driver',
-          details:`${eventData.name || oldData.name || driverId} salió de ${oldData.current_base}; al volver entrará último`,
-          metadata:{ driverId, previousBase:oldData.current_base, previousQueueAt:oldData.queue_authoritative_at || oldData.queue_entered_at || null }
+          details:`${eventData.name || oldData.name || driverId} salió de ${preservedBase}; conserva su posición por 20 segundos`,
+          metadata:{ driverId, baseName:preservedBase, queueAt:preservedAt, leftAt, graceMs:baseExitGraceMs }
         }).catch(()=>{});
       }
-      return Response.json({ success:true, repaired:clearedCount === 1, reason:'QUEUE_POSITION_CLEARED_ON_BASE_EXIT' });
+
+      // Esta invocación queda como reloj de expiración. Si volvió antes, no toca nada.
+      // Si sigue afuera al cumplirse la gracia, recién ahí se borra la antigüedad.
+      await new Promise(r => setTimeout(r, baseExitGraceMs + 250));
+      const afterGrace = await b44.entities.Driver.get(driverId).catch(()=>null);
+      const stillOutside = Boolean(
+        afterGrace &&
+        afterGrace.status === 'disponible' &&
+        !afterGrace.current_base &&
+        !afterGrace.reserved_order_id &&
+        !afterGrace.active_order_id &&
+        !afterGrace.active_ride_id &&
+        String(afterGrace.queue_left_at || '') === leftAt
+      );
+
+      if (stillOutside) {
+        const cleared = await b44.entities.Driver.updateMany(
+          {
+            id:driverId,
+            status:'disponible',
+            current_base:null,
+            queue_left_at:leftAt,
+            reserved_order_id:null,
+            active_order_id:null,
+            active_ride_id:null
+          },
+          { $set:{
+            queue_entered_at:null,
+            queue_authoritative_base:null,
+            queue_authoritative_at:null,
+            queue_authority_marker:null,
+            queue_position:null,
+            queue_left_at:null
+          } }
+        ).catch(()=>({updated:0}));
+        const clearedCount = cleared?.updated ?? cleared?.modifiedCount ?? cleared?.matchedCount ?? 0;
+        if (clearedCount === 1) {
+          await b44.entities.AuditLog.create({
+            action:'QUEUE_POSITION_EXPIRED_AFTER_20S_OUTSIDE_BASE',
+            user_type:'sistema',
+            user_name:eventData.name || oldData.name || 'Driver',
+            details:`${eventData.name || oldData.name || driverId} permaneció más de 20 segundos fuera de ${preservedBase}; perdió su posición`,
+            metadata:{ driverId, previousBase:preservedBase, previousQueueAt:preservedAt, leftAt, graceMs:baseExitGraceMs }
+          }).catch(()=>{});
+        }
+        return Response.json({ success:true, repaired:clearedCount === 1, reason:'QUEUE_POSITION_EXPIRED_AFTER_20S_OUTSIDE_BASE' });
+      }
+
+      return Response.json({ success:true, repaired:markedCount === 1, reason:'QUEUE_BASE_EXIT_GRACE_COMPLETED_RETURNED_OR_CHANGED' });
     }
 
     // Compatibilidad v12.27/v12.29: esas APK todavía implementan RECHAZAR liberando
