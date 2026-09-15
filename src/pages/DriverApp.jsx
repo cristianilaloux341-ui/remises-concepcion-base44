@@ -407,7 +407,7 @@ function IdleScreen({ driver, drivers, driversLoading = false, selectedBase, onB
       </div>
       <div className="space-y-2 flex-1">
         {BASES.map(b => {
-          const count = drivers.filter(d => d.current_base === b && d.status === "disponible").length;
+          const count = drivers.filter(d => getEffectiveQueueBase(d) === b && d.status === "disponible").length;
           return (
             <button
               key={b}
