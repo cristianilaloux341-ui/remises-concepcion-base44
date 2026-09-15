@@ -314,7 +314,8 @@ Deno.serve(async (req) => {
 
     // 2. Config ya cargada en paralelo con las validaciones anteriores.
     const config = tarifaConfigs[0] || {};
-    const timeoutSeconds = config.tiempo_maximo_respuesta_segundos ?? 60;
+    const configuredSeconds = Number(config.tiempo_maximo_respuesta_segundos ?? 30);
+    const timeoutSeconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     // Una asignación manual siempre debe esperar la aceptación del chofer.
     const autoAceptarViajes = payload.requireDriverConfirmation === true
