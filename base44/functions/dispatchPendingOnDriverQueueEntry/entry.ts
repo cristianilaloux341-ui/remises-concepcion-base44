@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.48';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
-import { getNextQueueTailAt, getNextQueuePosition, compactQueue } from '../../shared/queueOrder.ts';
+import { getNextQueueTailAt, getNextQueuePosition, compactQueue, compactQueueUnlocked, withQueueLock } from '../../shared/queueOrder.ts';
 import { verifyReorderToken } from '../../shared/reorderToken.ts';
 
 const CENTRAL_REVIEW_MARKER = '[REVISION_CENTRAL_CANCELADO_CHOFER]';
@@ -158,6 +158,30 @@ async function guardOfferedReservationIntegrity(b44:any, driverId:string) {
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
+
+  const placeDriverLastLocked = async (
+    baseName:string,
+    targetDriverId:string,
+    filter:any,
+    extraSet:any = {}
+  ) => withQueueLock(b44, baseName, async () => {
+    const queueAt = await getNextQueueTailAt(b44, baseName, targetDriverId);
+    const nextPos = await getNextQueuePosition(b44, baseName, targetDriverId);
+    const result = await b44.entities.Driver.updateMany(
+      filter,
+      { $set:{
+        ...extraSet,
+        queue_entered_at:queueAt,
+        queue_authoritative_base:baseName,
+        queue_authoritative_at:queueAt,
+        queue_position:nextPos,
+        queue_left_at:null
+      } }
+    ).catch(()=>({updated:0}));
+    const count = result?.updated ?? result?.modifiedCount ?? result?.matchedCount ?? 0;
+    if (count === 1) await compactQueueUnlocked(b44, baseName);
+    return { result, count, queueAt, nextPos };
+  });
 
   try {
     const body = await req.json().catch(() => ({}));
