@@ -1,7 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
-import { getNextQueueTailAt, getNextQueuePosition, withQueueLock, compactQueueUnlocked } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   let b44: any = null;
@@ -35,29 +34,6 @@ Deno.serve(async (req) => {
       Number(order.assignment_attempt) !== Number(assignmentAttempt)
     ) {
       return Response.json({ success:false, reason:'STALE_OR_EXPIRED' });
-    }
-
-    // BLINDAJE DE TIEMPO EN LA ÚLTIMA AUTORIDAD: aunque cron, APK legacy o un
-    // watcher viejo invoquen rejectRide demasiado pronto, un TIMEOUT jamás puede
-    // tomar el lease mientras la ventana vigente del teléfono siga abierta.
-    // Esto es deliberadamente redundante con autoReassignOnTimeout: rejectRide es
-    // la puerta final y debe ser segura por sí sola ante carreras con el ACK.
-    if (source === 'timeout') {
-      const freshExpiresAt = Number(order.offerExpiresAt);
-      if (!Number.isFinite(freshExpiresAt)) {
-        return Response.json({ success:false, reason:'TIMEOUT_WITHOUT_EXPIRY_AUTHORITY' });
-      }
-      const remainingMs = freshExpiresAt - Date.now();
-      if (remainingMs > 0) {
-        await b44.entities.AuditLog.create({
-          action:'PREMATURE_TIMEOUT_BLOCKED_AT_REJECT',
-          user_type:'sistema',
-          user_name:'rejectRide',
-          details:`Timeout anticipado bloqueado para ${orderId}; la oferta del móvil ${driverId} sigue vigente`,
-          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), offerExpiresAt:freshExpiresAt, remainingMs }
-        }).catch(()=>{});
-        return Response.json({ success:false, reason:'OFFER_STILL_LIVE', remainingMs });
-      }
     }
 
     // RECHAZAR y TIMEOUT usan exactamente el mismo motor. Primero tomamos un lease
@@ -94,56 +70,40 @@ Deno.serve(async (req) => {
     }
     lockedOrder = order;
 
-    // Recuperamos el esquema estable: rechazo y timeout usan el mismo motor y el
-    // móvil anterior queda AL FINAL de la misma base en el mismo commit de liberación.
-    // No se lo saca de la cola para reinsertarlo después: eso evita carreras y mantiene
-    // una única secuencia automática 1 -> 2 -> 3 -> 4.
+    // REGLA DE COLA MANUAL: rechazo o timeout NO reinsertan al móvil en ninguna
+    // posición. Se libera la oferta y el móvil queda sin base/posición hasta que
+    // el propio chofer vuelva a entrar a una base o el operador lo acomode.
+    // Conservamos queueNow/queueBase sólo para auditoría/compatibilidad del flujo legacy.
+    const queueNow = new Date().toISOString();
     const queueBase = order.assigned_base || order.zone || null;
-    let queueAt = new Date().toISOString();
-    let nextPos: number | null = null;
-    let releasedCurrent: any = { updated: 0 };
-
-    const releaseCurrentDriver = async () => {
-      if (queueBase) {
-        queueAt = await getNextQueueTailAt(b44, queueBase, driverId);
-        nextPos = await getNextQueuePosition(b44, queueBase, driverId);
-      }
-      const result = await b44.entities.Driver.updateMany(
-        {
-          id: driverId,
-          status: 'disponible',
-          dispatch_status: 'automatic_pending',
-          reserved_order_id: orderId,
-          reservation_token: order.reservation_token
-        },
-        {
-          $set: {
-            status:'disponible',
-            dispatch_status:'normal',
-            current_base:queueBase,
-            queue_entered_at:queueAt,
-            queue_authoritative_base:queueBase,
-            queue_authoritative_at:queueAt,
-            queue_authority_marker:nextPos,
-            queue_position:nextPos,
-            queue_left_at:null,
-            active_order_id:null,
-            active_ride_id:null,
-            reserved_order_id:null,
-            reservation_token:null,
-            manual_reservation_token:null,
-            driver_reservation_key:null
-          }
+    const releasedCurrent = await b44.entities.Driver.updateMany(
+      {
+        id: driverId,
+        status: 'disponible',
+        dispatch_status: 'automatic_pending',
+        reserved_order_id: orderId,
+        reservation_token: order.reservation_token
+      },
+      {
+        $set: {
+          status:'disponible',
+          dispatch_status:'normal',
+          // Rechazo/timeout: fuera de cola. No existe reingreso automático.
+          current_base:null,
+          queue_entered_at:null,
+          queue_authoritative_base:null,
+          queue_authoritative_at:null,
+          queue_authority_marker:null,
+          queue_position:null,
+          active_order_id:null,
+          active_ride_id:null,
+          reserved_order_id:null,
+          reservation_token:null,
+          manual_reservation_token:null,
+          driver_reservation_key:null
         }
-      );
-      const count = result.matchedCount ?? result.modifiedCount ?? result.updated ?? 0;
-      if (queueBase && count === 1) await compactQueueUnlocked(b44, queueBase);
-      return result;
-    };
-
-    releasedCurrent = queueBase
-      ? await withQueueLock(b44, queueBase, releaseCurrentDriver)
-      : await releaseCurrentDriver();
+      }
+    );
     const releasedCount = releasedCurrent.matchedCount ?? releasedCurrent.modifiedCount ?? releasedCurrent.updated ?? 0;
     if (releasedCount !== 1) {
       // Compatibilidad con v12.27/v12.29: esas APK primero liberan el Driver y
@@ -151,58 +111,39 @@ Deno.serve(async (req) => {
       // ese evento, adoptamos la liberación ya hecha en vez de restaurarla y competir
       // con el teléfono. La validación exige que el Driver siga libre, sin otro viaje
       // y con el mismo queue_entered_at observado en el evento que disparó esta llamada.
-      // Una APK vieja puede haber liberado el Driver antes de que llegue este motor.
-      // Para rechazo legacy Y para timeout aceptamos esa liberación únicamente si el
-      // móvil sigue completamente libre; jamás si ya tiene otra reserva/viaje.
-      const canAdoptPriorRelease = source === 'legacy_client' || source === 'timeout';
-      const currentDriver = canAdoptPriorRelease
+      const currentDriver = source === 'legacy_client'
         ? await b44.entities.Driver.get(driverId).catch(() => null)
         : null;
-      const alreadyReleasedAndIdle = Boolean(
-        canAdoptPriorRelease &&
+      const legacyAlreadyReleased = Boolean(
+        source === 'legacy_client' &&
         currentDriver &&
         currentDriver.status === 'disponible' &&
         (currentDriver.dispatch_status == null || currentDriver.dispatch_status === 'normal') &&
         !currentDriver.reserved_order_id &&
         !currentDriver.active_order_id &&
         !currentDriver.active_ride_id &&
-        (source === 'timeout' || !legacyQueueEnteredAt || String(currentDriver.queue_entered_at || '') === String(legacyQueueEnteredAt))
+        (!legacyQueueEnteredAt || String(currentDriver.queue_entered_at || '') === String(legacyQueueEnteredAt))
       );
 
-      if (alreadyReleasedAndIdle) {
+      if (legacyAlreadyReleased) {
         currentReleased = true;
-        const adoptedQueueBase = queueBase || currentDriver.current_base || null;
-        let adoptedQueueAt = queueAt;
-        let adoptedNextPos = nextPos;
-        const adoptLegacyRelease = async () => {
-          if (adoptedQueueBase) {
-            adoptedQueueAt = await getNextQueueTailAt(b44, adoptedQueueBase, driverId);
-            adoptedNextPos = await getNextQueuePosition(b44, adoptedQueueBase, driverId);
-          }
-          const adopted = await b44.entities.Driver.updateMany(
-            { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
-            { $set:{
-              current_base:adoptedQueueBase,
-              queue_entered_at:adoptedQueueAt,
-              queue_authoritative_base:adoptedQueueBase,
-              queue_authoritative_at:adoptedQueueAt,
-              queue_authority_marker:adoptedNextPos,
-              queue_position:adoptedNextPos,
-              queue_left_at:null
-            } }
-          ).catch(()=>({updated:0}));
-          const adoptedCount = adopted?.updated ?? adopted?.modifiedCount ?? adopted?.matchedCount ?? 0;
-          if (adoptedQueueBase && adoptedCount === 1) await compactQueueUnlocked(b44, adoptedQueueBase);
-          return adopted;
-        };
-        if (adoptedQueueBase) await withQueueLock(b44, adoptedQueueBase, adoptLegacyRelease);
-        else await adoptLegacyRelease();
+        await b44.entities.Driver.updateMany(
+          { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
+          { $set:{
+            current_base:null,
+            queue_entered_at:null,
+            queue_authoritative_base:null,
+            queue_authoritative_at:null,
+            queue_authority_marker:null,
+            queue_position:null
+          } }
+        ).catch(()=>{});
         await b44.entities.AuditLog.create({
-          action: source === 'timeout' ? 'TIMEOUT_DRIVER_RELEASE_ADOPTED' : 'LEGACY_DRIVER_RELEASE_ADOPTED',
+          action:'LEGACY_DRIVER_RELEASE_ADOPTED',
           user_type:'sistema',
           user_name:'rejectRide',
-          details:`Central adoptó la liberación previa de APK vieja y dejó ${driverId} último en ${adoptedQueueBase || 'su cola'}`,
-          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), source, legacyQueueEnteredAt, baseName:adoptedQueueBase, queueAt:adoptedQueueAt }
+          details:`Central adoptó liberación previa de APK vieja para ${driverId} / ${orderId}`,
+          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), legacyQueueEnteredAt }
         }).catch(()=>{});
       } else {
         await b44.entities.RideOrder.updateMany(
@@ -214,13 +155,6 @@ Deno.serve(async (req) => {
       }
     } else {
       currentReleased = true;
-      await b44.entities.AuditLog.create({
-        action:'QUEUE_REINSERTED_LAST_AFTER_REJECT_OR_TIMEOUT',
-        user_type:'sistema',
-        user_name:'rejectRide',
-        details:`Móvil ${driverId} quedó último en ${queueBase || 'su cola'} después de ${source === 'timeout' ? 'timeout' : 'rechazo'}`,
-        metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), source, baseName:queueBase, queueAt }
-      }).catch(()=>{});
     }
 
     // Primero apagar/cerrar la oferta anterior. La cancelación conserva el intento
@@ -269,7 +203,7 @@ Deno.serve(async (req) => {
     if (autoReassignActive) {
       for (let i=0; i<100; i++) {
         const selectionOrder = { ...order, offered_driver_ids:[...excluded] };
-        const nextDriver = await findNextDriverInZone(b44, selectionOrder, excluded);
+        const nextDriver = await findNextDriverInZone(b44, selectionOrder, driverId);
         if (!nextDriver) break;
         excluded.add(nextDriver.id);
 
@@ -282,9 +216,7 @@ Deno.serve(async (req) => {
 
         const newAttempt = Number(assignmentAttempt) + 1;
         const assignedAt = new Date().toISOString();
-        // Nueva oferta: misma protección de transporte que assignRide. Sin ACK hay
-        // 15 s de gracia; con ACK la ventana queda anclada a la recepción del teléfono.
-        const expiresAt = Date.now() + timeoutSeconds*1000 + 15000;
+        const expiresAt = Date.now() + timeoutSeconds*1000;
         // Cada salto es una oferta NUEVA. offered_driver_ids queda sólo como historial
         // para no volver a ofrecer a quienes ya pasaron; la identidad activa se
         // reemplaza por completo con nextDriver + token + newAttempt.

@@ -7,10 +7,7 @@ Deno.serve(async (req) => {
 
   try {
     const tarifaConfigs = await b44.entities.TarifaConfig.list();
-    const configuredResponseSeconds = Number(tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos);
-    const tiempoMaximo = Number.isFinite(configuredResponseSeconds) && configuredResponseSeconds > 0
-      ? configuredResponseSeconds
-      : 30;
+    const tiempoMaximo = tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos || 60;
     const thresholdDate = new Date(Date.now() - (tiempoMaximo * 1000));
     const twoHoursAgoTime = Date.now() - (120 * 60 * 1000);
     const twoHoursAgoStr = new Date(twoHoursAgoTime).toISOString();
@@ -35,18 +32,8 @@ Deno.serve(async (req) => {
     let count = 0;
     
     // Limpieza de red de seguridad: choferes colgados con reservas a viajes muertos atómicamente
-    // Pico: no bajar toda la flota en cada cron. Pedir al servidor únicamente
-    // móviles con alguna señal de reserva/estado transitorio que pueda requerir reparación.
-    const stuckDrivers = await b44.entities.Driver.filter({
-      $or: [
-        { reserved_order_id: { $ne: null } },
-        { active_ride_id: { $ne: null } },
-        { dispatch_status: { $in: ['automatic_pending', 'manual_pending'] } },
-        { driver_reservation_key: { $ne: null } },
-        { reservation_token: { $ne: null } },
-        { manual_reservation_token: { $ne: null } }
-      ]
-    }).catch(() => []);
+    const allDrivers = await b44.entities.Driver.list();
+    const stuckDrivers = allDrivers.filter(d => d.reserved_order_id || d.active_ride_id || d.dispatch_status === 'automatic_pending' || d.dispatch_status === 'manual_pending' || d.driver_reservation_key || d.reservation_token || d.manual_reservation_token);
     for (const driver of stuckDrivers) {
       const ghostOrderId = driver.reserved_order_id || driver.active_ride_id;
       let isDead = false;
@@ -112,15 +99,6 @@ Deno.serve(async (req) => {
         freshOrder.assigned_at !== order.assigned_at ||
         (freshOrder.processingOwnerId && Number(freshOrder.processingLeaseExpiresAt || 0) > Date.now())
       ) {
-        continue;
-      }
-
-      // CRÍTICO: entre el list inicial y esta relectura pudo llegar el ACK del
-      // teléfono y renovar offerExpiresAt. Nunca decidir con el vencimiento del
-      // snapshot viejo. Revalidar la autoridad FRESCA inmediatamente antes de
-      // invocar rejectRide.
-      const freshExpiresAt = Number(freshOrder.offerExpiresAt);
-      if (!Number.isFinite(freshExpiresAt) || Date.now() < freshExpiresAt) {
         continue;
       }
 
@@ -316,15 +294,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // El reconciliador profundo queda como red de seguridad, fuera del camino
-    // caliente. Si este cron corre más seguido, sólo se ejecuta en la ventana
-    // de cada 15 minutos; dispatchReconciler mantiene además su propio lock.
-    const minuteNow = new Date().getUTCMinutes();
-    if (minuteNow % 15 === 0) {
-      await b44.functions.invoke('dispatchReconciler', {
-        internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
-      }).catch((e: any) => console.error('Deep reconciler backup error:', e));
-    }
+    // Conservamos el reconciliador profundo cada 15 minutos desde ESTE cron.
+    // El workflow que antes lo ejecutaba se reutiliza para detectar entrada real
+    // de móviles en lista sin perder esta red de seguridad.
+    await b44.functions.invoke('dispatchReconciler', {
+      internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+    }).catch((e: any) => console.error('Deep reconciler backup error:', e));
 
     if (count > 0 || ghostsDisconnected > 0 || pendingAssigned > 0) {
       console.log(`AutoReassignCron liberó: ${count}; desconectados: ${ghostsDisconnected}; pendientes despachados: ${pendingAssigned}.`);

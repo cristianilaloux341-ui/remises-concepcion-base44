@@ -314,8 +314,7 @@ Deno.serve(async (req) => {
 
     // 2. Config ya cargada en paralelo con las validaciones anteriores.
     const config = tarifaConfigs[0] || {};
-    const configuredSeconds = Number(config.tiempo_maximo_respuesta_segundos ?? 30);
-    const timeoutSeconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
+    const timeoutSeconds = config.tiempo_maximo_respuesta_segundos ?? 60;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     // Una asignación manual siempre debe esperar la aceptación del chofer.
     const autoAceptarViajes = payload.requireDriverConfirmation === true
@@ -333,12 +332,7 @@ Deno.serve(async (req) => {
     // Cada asignación crea una ventana propia de respuesta. acceptRide usa
     // offerExpiresAt como autoridad para decidir si la oferta sigue vigente.
     const assignedAt = new Date().toISOString();
-    // La ventana comercial es timeoutSeconds DESDE que el teléfono acusa recepción.
-    // Mientras no haya ACK, damos 15 s de transporte/despertar para que una APK vieja
-    // no pierda el pasaje contando los 30 s desde el envío (caso móvil 22).
-    // Si llega ACK, handleNativePushAction/renewOfferWindowOnPushAck fijan los 30 s reales.
-    const deliveryGraceMs = 15000;
-    const offerExpiresAt = Date.now() + (timeoutSeconds * 1000) + deliveryGraceMs;
+    const offerExpiresAt = Date.now() + (timeoutSeconds * 1000);
 
     // Update memory object for Push payload
     orderReq.assignment_attempt = newAttempt;

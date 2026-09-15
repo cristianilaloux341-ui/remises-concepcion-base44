@@ -60,9 +60,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
   // Geocodifica una dirección de texto si no tiene coords, usando Google Places
   const geocodeAddress = async (address) => {
     try {
-      // Priorizar SIEMPRE el token de operador. Si en la misma PC un cliente
-      // se logueó antes, localStorage retiene 'client_token' y deniega el acceso a la API.
-      const sessionToken = sessionStorage.getItem('local_operator_token') || localStorage.getItem('client_token') || 'client_demo_token';
+      const sessionToken = localStorage.getItem('client_token') || sessionStorage.getItem('local_operator_token') || 'client_demo_token';
       const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address, sessionToken });
       const predictions = res.data?.predictions;
       if (!predictions || predictions.length === 0) return null;
@@ -232,38 +230,23 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       }
 
       // Último recurso: geocodificar el texto y resolver por el polígono real.
-      let newCoords = null;
       if (!zone && !selectedCoords) {
-        newCoords = await geocodeAddress(form.pickup_address);
+        const coords = await geocodeAddress(form.pickup_address);
         if (!isCurrent()) return;
-        if (newCoords) {
-          zone = await detectZoneFromCoords(newCoords.lat, newCoords.lng);
+        if (coords) {
+          zone = await detectZoneFromCoords(coords.lat, coords.lng);
           if (!isCurrent()) return;
+          setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
         }
       }
 
       if (!isCurrent() || zoneManualOverrideRef.current) return;
       setDetectingZone(false);
-      
-      // Batch state updates to prevent intermediate re-renders and extra triggers
-      setForm(prev => {
-        const updates = {};
-        if (newCoords) {
-          updates.pickup_lat = newCoords.lat;
-          updates.pickup_lng = newCoords.lng;
-        }
-        if (zone) {
-          updates.zone = zone;
-        }
-        return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
-      });
-
       if (zone) {
         setDetectedZone(zone);
+        setForm(prev => ({ ...prev, zone }));
       } else {
         setDetectedZone(null);
-        // Si no detectó zona y ya no hay nada en form.zone (o era otra), lo dejamos así
-        // para forzar la selección manual
       }
     }, 600);
 
@@ -283,16 +266,14 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     const zoneQueue = getBaseQueue(availableDrivers, form.zone);
     setSuggestedDriver(zoneQueue[0] || null);
 
-    // Si cambió la zona después de una selección manual, borrar TODA la selección.
-    // Antes se limpiaba driver_id pero quedaba manualDriverInput; al enviar, ese texto
-    // volvía a resolverse como manual y podía cruzar de zona sin que la operadora lo viera.
-    if (form.driver_id) {
-      const selected = drivers.find(d => d.id === form.driver_id);
-      if (selected?.current_base !== form.zone) {
-        setForm(prev => ({ ...prev, driver_id: "", driver_name: "", status: "pendiente" }));
-        setManualDriverInput("");
-      }
-    }
+    // Si cambió la zona después de una sugerencia/selección, borrar el móvil anterior.
+    // Así el formulario nunca arrastra un chofer perteneciente a otra base.
+    setForm(prev => {
+      if (!prev.driver_id) return prev;
+      const selected = drivers.find(d => d.id === prev.driver_id);
+      if (selected?.current_base === prev.zone) return prev;
+      return { ...prev, driver_id: "", driver_name: "", status: "pendiente" };
+    });
   }, [form.zone, form.pickup_address, drivers, moviles]);
 
   const handleAddressClientSelect = (clientData) => {
@@ -340,20 +321,14 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
   const handleAutoAssign = async () => {
     setAutoAssigning(true);
-    // AUTO real: nunca fijar driver_id en el navegador. El candidato que se muestra
-    // es sólo una vista previa de la cola; al crear el pasaje, NewOrder debe entrar
-    // por clientCreateAndDispatchRide y el servidor vuelve a leer la zona/cola fresca.
-    // Así evitamos convertir accidentalmente "Auto" en forceManual y también evitamos
-    // despachar con una sugerencia vieja si la cola cambió entre pantalla y submit.
     const driver = form.zone ? (getBaseQueue(availableDrivers, form.zone)[0] || null) : null;
-    setSuggestedDriver(driver);
-    setManualDriverInput("");
-    setForm(prev => ({
-      ...prev,
-      driver_id: "",
-      driver_name: "",
-      status: "pendiente"
-    }));
+    if (driver) {
+      setForm(prev => ({ ...prev, driver_id: driver.id, driver_name: driver.name, status: "ofrecido" }));
+      setSuggestedDriver(driver);
+    } else {
+      setSuggestedDriver(null);
+      setForm(prev => ({ ...prev, driver_id: "", driver_name: "", status: "pendiente" }));
+    }
     setAutoAssigning(false);
   };
 
@@ -739,9 +714,11 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
                   <p className="text-sm font-semibold">{suggestedDriver.name}</p>
                   <p className="text-xs text-muted-foreground font-mono">{suggestedDriver.vehicle_plate} · {suggestedDriver.current_base}</p>
                 </div>
-                <Badge className="bg-amber-100 text-amber-700 border-0 text-xs shrink-0">
-                  Automático
-                </Badge>
+                <Button type="button" size="sm" className="gap-1.5 rounded-lg shrink-0 bg-amber-500 hover:bg-amber-600"
+                  onClick={handleAutoAssign} disabled={autoAssigning}>
+                  {autoAssigning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                  Asignar
+                </Button>
               </div>
             )}
 
@@ -751,7 +728,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
                 <p className="text-sm font-semibold text-green-700 flex-1">{form.driver_name}</p>
                 <Badge className="bg-green-100 text-green-700 border-0 text-xs">asignado</Badge>
                 <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-red-400"
-                  onClick={() => handleDriverChange("none")}>
+                  onClick={() => handleChange("driver_id", "")}>
                   <X className="w-3 h-3" />
                 </Button>
               </div>

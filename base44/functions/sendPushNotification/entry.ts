@@ -204,148 +204,6 @@ Deno.serve(async (req) => {
     if (isLegacyOfferedRollback) {
       const orderId = body.data.id;
       const ownerDriverId = body.old_data.reserved_driver_id || body.old_data.driver_id;
-
-      // v12.27/v12.29 pueden escribir ofrecido -> pendiente tanto durante ACEPTAR
-      // como durante un cierre/rechazo legacy. Ese cambio es AMBIGUO: por sí solo no
-      // autoriza a sacar al chofer mientras la oferta siga viva. Primero restauramos
-      // por CAS la oferta exacta anterior. Un rechazo explícito debe llegar por
-      // rejectRide; si una APK vieja no lo hace, el timeout normal resolverá al vencer.
-      if (orderId && ownerDriverId && body.old_data.reservation_token) {
-        const restoredForReassign = await base44.asServiceRole.entities.RideOrder.updateMany(
-          {
-            id:orderId,
-            status:'pendiente',
-            assignment_attempt:body.data.assignment_attempt ?? body.old_data.assignment_attempt
-          },
-          { $set:{
-            status:'ofrecido',
-            driver_id:ownerDriverId,
-            reserved_driver_id:ownerDriverId,
-            driver_name:body.old_data.driver_name,
-            assigned_base:body.old_data.assigned_base,
-            reservation_token:body.old_data.reservation_token,
-            manual_reservation_token:body.old_data.manual_reservation_token,
-            assigned_at:body.old_data.assigned_at,
-            offerExpiresAt:body.old_data.offerExpiresAt,
-            assignment_attempt:body.old_data.assignment_attempt,
-            offered_driver_ids:body.old_data.offered_driver_ids
-          } }
-        ).catch(() => null);
-
-        if ((restoredForReassign?.updated ?? restoredForReassign?.modifiedCount ?? restoredForReassign?.matchedCount ?? 0) === 1) {
-          const previousAttempt = Number(body.old_data.assignment_attempt || 1);
-          const previousExpiresAt = Number(body.old_data.offerExpiresAt);
-          const offerStillLive = !Number.isFinite(previousExpiresAt) || previousExpiresAt > Date.now();
-
-          // `ofrecido -> pendiente` solo es ambiguo. Las APK 12.27/12.29 hacen esa
-          // escritura tanto en caminos técnicos como al tocar RECHAZAR, pero el rechazo
-          // real deja inmediatamente un AuditLog anónimo `rechazar_viaje`. Esperamos una
-          // ventana corta únicamente para correlacionar ESA señal del mismo chofer.
-          // Si aparece, el rechazo avanza al siguiente ahora; si no aparece, se conserva
-          // la oferta viva y sus 30 s completos. Nunca inferimos rechazo por el rollback.
-          if (offerStillLive) {
-            let explicitLegacyReject = false;
-            const expectedRejectDetails = body.old_data.client_name
-              ? `Rechazó el viaje de ${body.old_data.client_name}`
-              : null;
-            // En producción el trigger que observa `ofrecido -> pendiente` puede llegar
-            // varios segundos después de que la APK ya escribió su AuditLog de RECHAZAR.
-            // Por eso NO usamos una ventana relativa a `Date.now()`. Correlacionamos desde
-            // el inicio de ESTA oferta: mismo chofer + mismo pasajero + log posterior a
-            // `assigned_at`. Eso evita perder rechazos reales de v12.27/v12.29 sin
-            // confundir un rechazo anterior del mismo chofer.
-            const assignedAtRaw = body.old_data.assigned_at || null;
-            const assignedAtMs = assignedAtRaw ? new Date(assignedAtRaw).getTime() : NaN;
-            const rejectSince = Number.isFinite(assignedAtMs)
-              ? new Date(assignedAtMs - 1000).toISOString()
-              : new Date(Date.now() - 20000).toISOString();
-            for (let check = 0; check < 4 && !explicitLegacyReject; check++) {
-              await new Promise(r => setTimeout(r, 250));
-              const recentRejects = await base44.asServiceRole.entities.AuditLog.filter({
-                action:'rechazar_viaje',
-                user_name:body.old_data.driver_name || 'Chofer',
-                user_type:'chofer',
-                created_date:{ $gte:rejectSince }
-              }).catch(()=>[]);
-              explicitLegacyReject = (recentRejects || []).some((log:any) => {
-                const sameRideDetails = !expectedRejectDetails || String(log?.details || '') === expectedRejectDetails;
-                const logMs = log?.created_date ? new Date(log.created_date).getTime() : NaN;
-                const afterThisOffer = !Number.isFinite(assignedAtMs) || (Number.isFinite(logMs) && logMs >= assignedAtMs - 1000);
-                return sameRideDetails && afterThisOffer;
-              });
-            }
-
-            if (explicitLegacyReject) {
-              const freshOffer = await base44.asServiceRole.entities.RideOrder.get(orderId).catch(()=>null);
-              const stillExactOffer = Boolean(
-                freshOffer &&
-                freshOffer.status === 'ofrecido' &&
-                freshOffer.reserved_driver_id === ownerDriverId &&
-                freshOffer.reservation_token === body.old_data.reservation_token &&
-                Number(freshOffer.assignment_attempt) === previousAttempt
-              );
-
-              if (stillExactOffer) {
-                const rejectRes = await base44.asServiceRole.functions.invoke('rejectRide', {
-                  orderId,
-                  driverId:ownerDriverId,
-                  assignmentAttempt:previousAttempt,
-                  source:'legacy_client',
-                  internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
-                }).catch((e:any)=>({ data:{ success:false, reason:e?.message || 'LEGACY_REJECT_INVOKE_FAILED' } }));
-                const rejectData = rejectRes?.data || rejectRes;
-                await base44.asServiceRole.entities.AuditLog.create({
-                  action:'LEGACY_EXPLICIT_REJECT_CONFIRMED',
-                  user_type:'sistema',
-                  user_name:body.old_data.driver_name || 'Chofer',
-                  details:`Rechazo legacy confirmado para ${orderId}; enviado inmediatamente al motor secuencial`,
-                  metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, result:rejectData?.reason || rejectData?.reassigned_to || null }
-                }).catch(()=>{});
-                return Response.json({ ok:rejectData?.success !== false, reason:'legacy_explicit_reject_confirmed', result:rejectData });
-              }
-            }
-
-            // Sin rechazo explícito: puede ser una escritura técnica o una carrera de
-            // aceptación. La oferta exacta permanece viva y rearmamos su mismo watcher.
-            base44.asServiceRole.functions.invoke('autoReassignOnTimeout', {
-              orderId,
-              driverId:ownerDriverId,
-              assignmentAttempt:previousAttempt,
-              internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
-            }).catch((e:any)=>console.error('Error rearmando timeout tras restore legacy:', e));
-
-            await base44.asServiceRole.entities.AuditLog.create({
-              action:'LEGACY_LIVE_PENDING_IGNORED_AS_REJECT',
-              user_type:'sistema',
-              user_name:body.old_data.driver_name || 'Chofer',
-              details:`Pendiente legacy sin rechazo explícito; oferta viva restaurada y timeout rearmado para ${orderId}`,
-              metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, offerExpiresAt:body.old_data.offerExpiresAt, timeoutWatcherRearmed:true }
-            }).catch(()=>{});
-            return Response.json({ ok:true, reason:'legacy_live_offer_restored_timeout_rearmed' });
-          }
-
-          // Sólo una oferta YA VENCIDA puede usar este rollback legacy como señal de
-          // timeout. En ese caso sí se entrega al motor único de reasignación.
-          const legacyReassign = await base44.asServiceRole.functions.invoke('rejectRide', {
-            orderId,
-            driverId:ownerDriverId,
-            assignmentAttempt:previousAttempt,
-            source:'timeout',
-            legacyQueueEnteredAt:body.data.queue_entered_at || null,
-            internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
-          }).catch((e:any) => ({ data:{ success:false, reason:e?.message || 'LEGACY_REASSIGN_INVOKE_FAILED' } }));
-          const legacyData = legacyReassign?.data || legacyReassign;
-          await base44.asServiceRole.entities.AuditLog.create({
-            action:'LEGACY_EXPIRED_OFFER_TO_TIMEOUT_REASSIGNED',
-            user_type:'sistema',
-            user_name:body.old_data.driver_name || 'Chofer',
-            details:`Cierre legacy vencido ${orderId} enviado al motor de timeout`,
-            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, result:legacyData, offerWasLive:false }
-          }).catch(()=>{});
-          return Response.json({ ok:legacyData?.success !== false, reason:'legacy_expired_offer_reassigned_as_timeout', result:legacyData });
-        }
-      }
-
       const ownerDriver = ownerDriverId
         ? await base44.asServiceRole.entities.Driver.get(ownerDriverId).catch(() => null)
         : null;
@@ -383,22 +241,14 @@ Deno.serve(async (req) => {
         ).catch(() => null);
 
         if ((restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0) === 1) {
-          const restoredAttempt = Number(body.old_data.assignment_attempt || 1);
-          base44.asServiceRole.functions.invoke('autoReassignOnTimeout', {
-            orderId,
-            driverId:ownerDriverId,
-            assignmentAttempt:restoredAttempt,
-            internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
-          }).catch((e:any)=>console.error('Error rearmando timeout tras rollback legacy:', e));
-
           await base44.asServiceRole.entities.AuditLog.create({
             action:'LEGACY_OFFER_TO_PENDING_ROLLBACK_BLOCKED',
             user_type:'sistema',
             user_name:body.old_data.driver_name || 'Chofer',
-            details:`Se restauró oferta ${orderId}: una APK vieja intentó devolverla a pendiente con dueño vigente; timeout rearmado`,
-            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:restoredAttempt, timeoutWatcherRearmed:true }
+            details:`Se restauró oferta ${orderId}: una APK vieja intentó devolverla a pendiente con dueño vigente`,
+            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:body.old_data.assignment_attempt }
           }).catch(()=>{});
-          return Response.json({ ok:true, reason:'legacy_offered_rollback_blocked_timeout_rearmed' });
+          return Response.json({ ok:true, reason:'legacy_offered_rollback_blocked' });
         }
       }
     }
@@ -427,42 +277,31 @@ Deno.serve(async (req) => {
 
       // CAS: solamente se revierte si la orden continúa en el estado ilegal que
       // produjo el móvil. Si la Central ya actuó, no se pisa su decisión.
-      const restoredAccepted = await base44.asServiceRole.entities.RideOrder.updateMany(
+      await base44.asServiceRole.entities.RideOrder.updateMany(
         { id: orderId, status: 'pendiente', driver_id: body.data.driver_id ?? null },
         { $set: restoreOrder }
-      ).catch(() => ({ updated:0 }));
-      const restoredAcceptedCount = restoredAccepted?.updated ?? restoredAccepted?.modifiedCount ?? restoredAccepted?.matchedCount ?? 0;
+      );
 
-      // Sólo restaurar Driver si PRIMERO logramos restaurar exactamente el RideOrder.
-      // Antes este bloque podía marcar al chofer en_viaje aunque el CAS del pasaje
-      // hubiese perdido contra una cancelación/avance legítimo concurrente, creando
-      // el estado partido que luego deja al móvil trabado.
-      if (previousDriverId && restoredAcceptedCount === 1) {
+      // Los APK viejos liberan el registro Driver inmediatamente después. Esperamos
+      // ese segundo paso y restauramos el vínculo con el viaje aceptado.
+      if (previousDriverId) {
         await new Promise(resolve => setTimeout(resolve, 750));
-        const freshAcceptedOrder = await base44.asServiceRole.entities.RideOrder.get(orderId).catch(() => null);
-        const stillAcceptedBySameDriver = Boolean(
-          freshAcceptedOrder &&
-          protectedAcceptedStatuses.has(freshAcceptedOrder.status) &&
-          (freshAcceptedOrder.driver_id === previousDriverId || freshAcceptedOrder.reserved_driver_id === previousDriverId)
+        await base44.asServiceRole.entities.Driver.updateMany(
+          {
+            id: previousDriverId,
+            $or: [
+              { active_ride_id: null },
+              { active_ride_id: orderId },
+              { active_ride_id: { $exists: false } }
+            ]
+          },
+          { $set: {
+            status: 'en_viaje',
+            dispatch_status: 'normal',
+            active_ride_id: orderId,
+            reserved_order_id: orderId
+          } }
         );
-        if (stillAcceptedBySameDriver) {
-          await base44.asServiceRole.entities.Driver.updateMany(
-            {
-              id: previousDriverId,
-              $or: [
-                { active_ride_id: null },
-                { active_ride_id: orderId },
-                { active_ride_id: { $exists: false } }
-              ]
-            },
-            { $set: {
-              status: 'en_viaje',
-              dispatch_status: 'normal',
-              active_ride_id: orderId,
-              reserved_order_id: orderId
-            } }
-          );
-        }
       }
 
       await base44.asServiceRole.entities.AuditLog.create({
