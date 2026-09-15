@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       {
         $set: {
           processingOwnerId: lockOwner,
-          processingAction: source === 'timeout' ? 'TIMEOUT' : 'REJECT',
+          processingAction: (source === 'timeout' || source === 'delivery_unconfirmed') ? 'TIMEOUT' : 'REJECT',
           processingOperationKey: `${source}:${orderId}:${assignmentAttempt}`,
           processingLeaseExpiresAt: leaseUntil,
           processingPhase: 'REASSIGNING'
@@ -249,10 +249,13 @@ Deno.serve(async (req) => {
               reserved_driver_id:nextDriver.id,
               reservation_token:token,
               manual_reservation_token:null,
-              assigned_base:nextDriver.current_base,
+              assigned_base:nextDriver.current_base || nextDriver.queue_authoritative_base || order.zone || null,
               offerExpiresAt:expiresAt,
               assignment_attempt:newAttempt,
               assigned_at:assignedAt,
+              push_ack_at:null,
+              push_ack_assignment_attempt:null,
+              delivery_retry_count:0,
               processingAction:null,
               processingOperationKey:null,
               processingOwnerId:null,
@@ -322,6 +325,9 @@ Deno.serve(async (req) => {
           manual_reservation_token:null,
           assigned_at:null,
           offerExpiresAt:null,
+          push_ack_at:null,
+          push_ack_assignment_attempt:null,
+          delivery_retry_count:0,
           assigned_base:null,
           processingAction:null,
           processingOperationKey:null,
