@@ -39,10 +39,24 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const allMoviles = [...movilesById.filter(Boolean), ...movilesByFallback]
     .filter((m: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === m.id) === i);
 
-  const getEffectiveBase = (d:any) => d.current_base || d.queue_authoritative_base || null;
+  const queueExitGraceMs = 10 * 1000;
+  const authorityGraceActive = (d:any) => {
+    if (d.current_base) return true;
+    const leftAtMs = d.queue_left_at ? new Date(d.queue_left_at).getTime() : NaN;
+    return Boolean(
+      d.queue_authoritative_base &&
+      Number.isFinite(leftAtMs) &&
+      (Date.now() - leftAtMs) <= queueExitGraceMs
+    );
+  };
+  const getEffectiveBase = (d:any) => {
+    if (d.current_base) return d.current_base;
+    return authorityGraceActive(d) ? (d.queue_authoritative_base || null) : null;
+  };
   const getEffectiveQueueAt = (d:any) => {
     const currentBase = d.current_base || null;
     const authoritativeBase = d.queue_authoritative_base || null;
+    if (!currentBase && !authorityGraceActive(d)) return null;
     if (currentBase && authoritativeBase && currentBase !== authoritativeBase) {
       return d.queue_entered_at || null;
     }
