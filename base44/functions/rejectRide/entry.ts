@@ -239,7 +239,9 @@ Deno.serve(async (req) => {
 
         const newAttempt = Number(assignmentAttempt) + 1;
         const assignedAt = new Date().toISOString();
-        const expiresAt = Date.now() + timeoutSeconds*1000;
+        // Nueva oferta: misma protección de transporte que assignRide. Sin ACK hay
+        // 15 s de gracia; con ACK la ventana queda anclada a la recepción del teléfono.
+        const expiresAt = Date.now() + timeoutSeconds*1000 + 15000;
         // Cada salto es una oferta NUEVA. offered_driver_ids queda sólo como historial
         // para no volver a ofrecer a quienes ya pasaron; la identidad activa se
         // reemplaza por completo con nextDriver + token + newAttempt.
