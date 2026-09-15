@@ -492,7 +492,7 @@ Deno.serve(async (req) => {
       if (explicitOffServiceExit && (authoritativeBase || authoritativeAt)) {
         await b44.entities.Driver.updateMany(
           { id:driverId, status:'no_disponible', current_base:null, queue_entered_at:null },
-          { $set:{ queue_authoritative_base:null, queue_authoritative_at:null } }
+          { $set:{ queue_authoritative_base:null, queue_authoritative_at:null, queue_left_at:null } }
         ).catch(()=>{});
         return Response.json({ success:true, repaired:true, reason:'QUEUE_AUTHORITY_CLEARED_EXPLICIT_OFF_SERVICE' });
       }
@@ -580,6 +580,61 @@ Deno.serve(async (req) => {
       }
 
       if (queueIdle) {
+        // Reingreso desde "sin base". La posición anterior sólo sobrevive si vuelve
+        // a LA MISMA base dentro de los 10 s de gracia. Cualquier otra combinación
+        // (otra base, más de 10 s o autoridad vieja sin marca de salida) es una entrada
+        // nueva y recibe hora actual del servidor.
+        const returnedFromNoBase = Boolean(
+          currentBase && oldData && !oldData.current_base && authoritativeBase
+        );
+        if (returnedFromNoBase) {
+          const leftAtRaw = freshQueueDriver.queue_left_at || oldData.queue_left_at || null;
+          const leftAtMs = leftAtRaw ? new Date(leftAtRaw).getTime() : NaN;
+          const withinGrace = Number.isFinite(leftAtMs) && (Date.now() - leftAtMs) <= baseExitGraceMs;
+
+          if (currentBase === authoritativeBase && withinGrace) {
+            const kept = await b44.entities.Driver.updateMany(
+              { id:driverId, status:'disponible', current_base:currentBase },
+              { $set:{ queue_entered_at:authoritativeAt, queue_left_at:null } }
+            ).catch(()=>({updated:0}));
+            const keptCount = kept?.updated ?? kept?.modifiedCount ?? kept?.matchedCount ?? 0;
+            if (keptCount === 1) {
+              await b44.entities.AuditLog.create({
+                action:'QUEUE_RETURNED_WITHIN_10S_POSITION_KEPT',
+                user_type:'sistema',
+                user_name:freshQueueDriver.name || 'Driver',
+                details:`${freshQueueDriver.name || driverId} volvió a ${currentBase} dentro de 10 segundos y conservó su posición`,
+                metadata:{ driverId, baseName:currentBase, queueAt:authoritativeAt, leftAt:leftAtRaw }
+              }).catch(()=>{});
+            }
+            return Response.json({ success:true, repaired:keptCount === 1, reason:'QUEUE_RETURNED_WITHIN_10S_POSITION_KEPT' });
+          }
+
+          const newEntryAt = new Date().toISOString();
+          const reset = await b44.entities.Driver.updateMany(
+            { id:driverId, status:'disponible', current_base:currentBase },
+            { $set:{
+              queue_entered_at:newEntryAt,
+              queue_authoritative_base:currentBase,
+              queue_authoritative_at:newEntryAt,
+              queue_authority_marker:null,
+              queue_position:null,
+              queue_left_at:null
+            } }
+          ).catch(()=>({updated:0}));
+          const resetCount = reset?.updated ?? reset?.modifiedCount ?? reset?.matchedCount ?? 0;
+          if (resetCount === 1) {
+            await b44.entities.AuditLog.create({
+              action:'QUEUE_REENTRY_NEW_POSITION_AFTER_GRACE',
+              user_type:'sistema',
+              user_name:freshQueueDriver.name || 'Driver',
+              details:`${freshQueueDriver.name || driverId} reingresó y recibió una posición nueva al final de ${currentBase}`,
+              metadata:{ driverId, previousBase:authoritativeBase, newBase:currentBase, queueAt:newEntryAt, leftAt:leftAtRaw, withinGrace }
+            }).catch(()=>{});
+          }
+          return Response.json({ success:true, repaired:resetCount === 1, reason:'QUEUE_REENTRY_NEW_POSITION_AFTER_GRACE' });
+        }
+
         // Primera entrada sin autoridad: NUNCA confiar en queue_entered_at enviado por
         // la APK (puede ser viejo y meter al móvil primero). La entrada nace con hora
         // del servidor, por lo que queda detrás de todos los que ya estaban en la base.
@@ -591,7 +646,8 @@ Deno.serve(async (req) => {
               queue_entered_at:seedAt,
               queue_authoritative_base:currentBase,
               queue_authoritative_at:seedAt,
-              queue_authority_marker:marker
+              queue_authority_marker:marker,
+              queue_left_at:null
             } }
           ).catch(()=>{});
           await b44.entities.AuditLog.create({
