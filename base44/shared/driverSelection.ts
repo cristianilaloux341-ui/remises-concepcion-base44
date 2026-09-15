@@ -2,12 +2,15 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const targetZone = order.zone;
   if (!targetZone) return null;
 
-  // Para despacho automático el móvil debe estar VISIBLEMENTE dentro de la base.
-  // No existe gracia ni selección por una base autoritativa vieja: si current_base
-  // está vacío, salió de la fila; cuando vuelva el workflow lo ubicará último.
+  // Durante la gracia de 20 s un móvil puede estar mirando otras filas con
+  // current_base=null pero conservar todavía su lugar autoritativo en la zona.
+  // Por eso la selección trae base visible O base autoritativa y luego valida la gracia.
   const zoneDrivers = await b44.entities.Driver.filter({
     status: "disponible",
-    current_base: targetZone
+    $or: [
+      { current_base: targetZone },
+      { queue_authoritative_base: targetZone }
+    ]
   });
 
   // Driver.vehicle_model guarda el ID del móvil. No descargar toda la flota:
@@ -36,17 +39,36 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const allMoviles = [...movilesById.filter(Boolean), ...movilesByFallback]
     .filter((m: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === m.id) === i);
 
+  const queueExitGraceMs = 20 * 1000;
+  const authorityGraceActive = (d:any) => {
+    if (d.current_base) return true;
+    const leftAtMs = d.queue_left_at ? new Date(d.queue_left_at).getTime() : NaN;
+    return Boolean(
+      d.queue_authoritative_base &&
+      Number.isFinite(leftAtMs) &&
+      (Date.now() - leftAtMs) <= queueExitGraceMs
+    );
+  };
   const getEffectiveBase = (d:any) => {
     const currentBase = d.current_base || null;
     const authoritativeBase = d.queue_authoritative_base || null;
-    if (!currentBase) return null;
-    // Si todavía hay una autoridad de otra base, el cambio está siendo normalizado.
-    // No despachar hasta que ambas coincidan para no meter un móvil a mitad de fila.
-    if (authoritativeBase && authoritativeBase !== currentBase) return null;
-    return currentBase;
+    if (currentBase) {
+      // Mientras un cambio real A->B todavía se está sellando, la autoridad anterior
+      // no puede convertir al móvil en candidato de la base vieja.
+      if (authoritativeBase && authoritativeBase !== currentBase) return currentBase;
+      return authoritativeBase || currentBase;
+    }
+    return authorityGraceActive(d) ? authoritativeBase : null;
   };
   const getEffectiveQueueAt = (d:any) => {
-    if (!getEffectiveBase(d)) return null;
+    const currentBase = d.current_base || null;
+    const authoritativeBase = d.queue_authoritative_base || null;
+    if (!currentBase && !authorityGraceActive(d)) return null;
+    if (currentBase && authoritativeBase && currentBase !== authoritativeBase) {
+      // Cambio real aún no normalizado: esta marca local no define orden final, por lo
+      // que quedará atrás hasta que el servidor selle su cola nueva.
+      return null;
+    }
     return d.queue_authoritative_at || d.queue_entered_at || null;
   };
 
