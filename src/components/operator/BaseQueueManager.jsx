@@ -113,6 +113,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
         { $set: {
           current_base: null, status: "no_disponible", queue_entered_at: null,
           queue_authoritative_base: null, queue_authoritative_at: null,
+          queue_authority_marker: null, queue_position: null, queue_left_at: null,
           dispatch_status: "normal", active_order_id: null, active_ride_id: null,
           reserved_order_id: null, reservation_token: null,
           manual_reservation_token: null, driver_reservation_key: null
