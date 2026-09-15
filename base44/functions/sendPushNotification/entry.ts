@@ -233,11 +233,74 @@ Deno.serve(async (req) => {
         ).catch(() => null);
 
         if ((restoredForReassign?.updated ?? restoredForReassign?.modifiedCount ?? restoredForReassign?.matchedCount ?? 0) === 1) {
+          const previousAttempt = Number(body.old_data.assignment_attempt || 1);
+          const previousExpiresAt = Number(body.old_data.offerExpiresAt);
+          const offerStillLive = !Number.isFinite(previousExpiresAt) || previousExpiresAt > Date.now();
+
+          // CRÍTICO: `ofrecido -> pendiente` en APK legacy NO prueba un rechazo.
+          // También aparece durante la secuencia vieja de ACEPTAR. Primero restauramos
+          // la oferta y, mientras siga viva, damos una ventana corta para que acceptRide
+          // adquiera su lease. Así ACEPTAR siempre gana contra la limpieza local vieja.
+          if (offerStillLive) {
+            await base44.asServiceRole.entities.AuditLog.create({
+              action:'LEGACY_LIVE_OFFER_ROLLBACK_RESTORED',
+              user_type:'sistema',
+              user_name:body.old_data.driver_name || 'Chofer',
+              details:`Rollback legacy restaurado sin reasignar de inmediato: ${orderId}`,
+              metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, offerExpiresAt:body.old_data.offerExpiresAt }
+            }).catch(()=>{});
+
+            // Sólo corre en la anomalía legacy. Un rechazo real puede demorarse hasta
+            // 1.2 s; a cambio evitamos perder una aceptación que ya viene en vuelo.
+            await new Promise(resolve => setTimeout(resolve, 1200));
+
+            const freshOrder = await base44.asServiceRole.entities.RideOrder.get(orderId).catch(() => null);
+            const nowAfterGrace = Date.now();
+            const acceptAlreadyWon = Boolean(
+              freshOrder &&
+              freshOrder.status === 'aceptado' &&
+              freshOrder.driver_id === ownerDriverId
+            );
+            const acceptOwnsLease = Boolean(
+              freshOrder &&
+              freshOrder.status === 'ofrecido' &&
+              freshOrder.reserved_driver_id === ownerDriverId &&
+              Number(freshOrder.assignment_attempt) === previousAttempt &&
+              freshOrder.processingAction === 'ACCEPT' &&
+              freshOrder.processingOwnerId &&
+              Number(freshOrder.processingLeaseExpiresAt || 0) > nowAfterGrace
+            );
+
+            if (acceptAlreadyWon || acceptOwnsLease) {
+              await base44.asServiceRole.entities.AuditLog.create({
+                action:'LEGACY_ROLLBACK_YIELDED_TO_ACCEPT',
+                user_type:'sistema',
+                user_name:body.old_data.driver_name || 'Chofer',
+                details:`Se ignoró cierre legacy porque ACEPTAR ganó para ${orderId}`,
+                metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, accepted:acceptAlreadyWon, acceptLease:acceptOwnsLease }
+              }).catch(()=>{});
+              return Response.json({ ok:true, reason:'legacy_rollback_yielded_to_accept' });
+            }
+
+            // Si otra operación ya cambió el pasaje, esta copia legacy quedó vieja.
+            const stillSameOffer = Boolean(
+              freshOrder &&
+              freshOrder.status === 'ofrecido' &&
+              freshOrder.reserved_driver_id === ownerDriverId &&
+              Number(freshOrder.assignment_attempt) === previousAttempt
+            );
+            if (!stillSameOffer) {
+              return Response.json({ ok:true, reason:'legacy_rollback_state_already_advanced' });
+            }
+          }
+
+          // Si no apareció una aceptación durante la gracia (o la oferta ya venció),
+          // recién ahora el cierre legacy puede entrar al motor único de rechazo/timeout.
           const legacyReassign = await base44.asServiceRole.functions.invoke('rejectRide', {
             orderId,
             driverId:ownerDriverId,
-            assignmentAttempt:Number(body.old_data.assignment_attempt || 1),
-            source:'legacy_client',
+            assignmentAttempt:previousAttempt,
+            source:offerStillLive ? 'legacy_client' : 'timeout',
             legacyQueueEnteredAt:body.data.queue_entered_at || null,
             internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
           }).catch((e:any) => ({ data:{ success:false, reason:e?.message || 'LEGACY_REASSIGN_INVOKE_FAILED' } }));
@@ -247,7 +310,7 @@ Deno.serve(async (req) => {
             user_type:'sistema',
             user_name:body.old_data.driver_name || 'Chofer',
             details:`Cierre legacy ${orderId} enviado al motor de reasignación automática`,
-            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:body.old_data.assignment_attempt, result:legacyData }
+            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:previousAttempt, result:legacyData, offerWasLive:offerStillLive }
           }).catch(()=>{});
           return Response.json({ ok:legacyData?.success !== false, reason:'legacy_offered_rollback_reassigned', result:legacyData });
         }
