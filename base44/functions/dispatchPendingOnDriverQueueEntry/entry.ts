@@ -539,12 +539,15 @@ Deno.serve(async (req) => {
       }
 
       if (queueIdle) {
-        // Primera migración: congelar exactamente la posición que ya tiene, sin moverla.
+        // Primera entrada sin autoridad: NUNCA confiar en queue_entered_at enviado por
+        // la APK (puede ser viejo y meter al móvil primero). La entrada nace con hora
+        // del servidor, por lo que queda detrás de todos los que ya estaban en la base.
         if (!authoritativeBase && currentBase) {
-          const seedAt = currentAt || new Date().toISOString();
+          const seedAt = new Date().toISOString();
           await b44.entities.Driver.updateMany(
             { id:driverId, status:'disponible', current_base:currentBase },
             { $set:{
+              queue_entered_at:seedAt,
               queue_authoritative_base:currentBase,
               queue_authoritative_at:seedAt,
               queue_authority_marker:marker
@@ -552,7 +555,7 @@ Deno.serve(async (req) => {
           ).catch(()=>{});
           await b44.entities.AuditLog.create({
             action:'QUEUE_AUTHORITY_INITIALIZED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
-            details:`Se congeló la posición actual de ${freshQueueDriver.name || driverId} sin modificar su orden`,
+            details:`Entrada de ${freshQueueDriver.name || driverId} registrada al final de ${currentBase} con hora autoritativa del servidor`,
             metadata:{ driverId, baseName:currentBase, queueAt:seedAt }
           }).catch(()=>{});
           return Response.json({ success:true, repaired:true, reason:'QUEUE_AUTHORITY_INITIALIZED' });
@@ -591,10 +594,13 @@ Deno.serve(async (req) => {
           );
 
           if (explicitDriverBaseEntry) {
-            const newAuthoritativeAt = currentAt || eventData.queue_entered_at;
+            // Cambio/entrada real de base: la hora del teléfono NO define la posición.
+            // El servidor sella la entrada ahora, garantizando que el móvil quede último.
+            const newAuthoritativeAt = new Date().toISOString();
             await b44.entities.Driver.updateMany(
               { id:driverId, status:'disponible', current_base:currentBase, queue_entered_at:currentAt },
               { $set:{
+                queue_entered_at:newAuthoritativeAt,
                 queue_authoritative_base:currentBase,
                 queue_authoritative_at:newAuthoritativeAt
               } }
