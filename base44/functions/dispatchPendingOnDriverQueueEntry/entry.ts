@@ -716,19 +716,14 @@ Deno.serve(async (req) => {
 
           if (explicitDriverBaseEntry) {
             // Cambio/entrada real de base: la hora del teléfono NO define la posición.
-            // El servidor sella la entrada ahora, garantizando que el móvil quede último.
-            const newAuthoritativeAt = await getNextQueueTailAt(b44, currentBase, driverId);
-            const nextPos = await getNextQueuePosition(b44, currentBase, driverId);
-            await b44.entities.Driver.updateMany(
-              { id:driverId, status:'disponible', current_base:currentBase, queue_entered_at:currentAt },
-              { $set:{
-                queue_entered_at:newAuthoritativeAt,
-                queue_authoritative_base:currentBase,
-                queue_authoritative_at:newAuthoritativeAt,
-                queue_position:nextPos,
-                queue_left_at:null
-              } }
-            ).catch(()=>{});
+            // El servidor serializa la nueva base y lo deja último por queue_position.
+            const placed = await placeDriverLastLocked(
+              currentBase,
+              driverId,
+              { id:driverId, status:'disponible', current_base:currentBase, queue_entered_at:currentAt }
+            );
+            const newAuthoritativeAt = placed.queueAt;
+            if (placed.count === 1 && authoritativeBase) await compactQueue(b44, authoritativeBase).catch(()=>null);
             await b44.entities.AuditLog.create({
               action:'QUEUE_AUTHORITY_BASE_CHANGED', user_type:'sistema', user_name:freshQueueDriver.name || 'Driver',
               details:`Entrada voluntaria de base aceptada para ${freshQueueDriver.name || driverId}: ${authoritativeBase} → ${currentBase}`,
