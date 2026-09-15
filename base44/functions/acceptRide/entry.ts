@@ -448,7 +448,15 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   try {
     resDriver = await b44.entities.Driver.updateMany(reserveDriverFilter, reserveDriverUpdate);
     if (mutationCount(resDriver) > 0 && driver.current_base) {
-      compactQueue(b44, driver.current_base).catch((err) => console.error("Error compacting queue after accept:", err));
+      // La salida del móvil aceptado tiene que compactar la cola ANTES de cerrar
+      // la aceptación. En serverless un fire-and-forget puede cortarse al devolver
+      // la respuesta y dejar 2,3,4... sin avanzar a 1,2,3, rompiendo la secuencia.
+      try {
+        await compactQueue(b44, driver.current_base);
+      } catch (err) {
+        console.error("Error compacting queue after accept:", err);
+        throw err;
+      }
     }
   } catch (e: any) { 
     await logStep(ctx, "RESERVE_DRIVER_AFTER", start, reserveDriverFilter, null, e.message, snapshotBefore, null, "FAILED");
