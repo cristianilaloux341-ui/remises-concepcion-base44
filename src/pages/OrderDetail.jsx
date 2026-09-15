@@ -136,6 +136,13 @@ export default function OrderDetail() {
           $set: {
             status: "disponible",
             dispatch_status: "normal",
+            current_base: null,
+            queue_entered_at: null,
+            queue_authoritative_base: null,
+            queue_authoritative_at: null,
+            queue_authority_marker: null,
+            queue_position: null,
+            queue_left_at: null,
             active_order_id: null,
             active_ride_id: null,
             reserved_order_id: null,
@@ -147,38 +154,20 @@ export default function OrderDetail() {
       );
 
       if (order.driver_id && !order.preassigned_driver_id) {
-        // ÚNICA REINSERCIÓN AUTOMÁTICA DE COLA: cancelación hecha por Central.
-        // El móvil vuelve 1° a la base del pasaje. queue_entered_at se conserva
-        // únicamente como clave de orden compatible con las APK instaladas; no es
-        // un reloj de negocio ni dispara movimientos por sí solo.
+        // Excepción comercial existente: una cancelación hecha por Central devuelve
+        // el móvil 1° a la base del pasaje. La posición se decide en backend bajo lock;
+        // el timestamp sólo se proyecta para las APK v12.27/v12.29.
         const returnBase = order.assigned_base || order.zone || null;
         if (returnBase) {
-          const baseDrivers = await base44.entities.Driver.filter({ current_base: returnBase, status: "disponible" }).catch(() => []);
-          const validTimes = baseDrivers
-            .filter(d => d.id !== order.driver_id && d.queue_entered_at)
-            .map(d => new Date(d.queue_entered_at).getTime())
-            .filter(Number.isFinite);
-          // Si el móvil ya estaba 1° (su antigüedad es anterior a todos), no
-          // adelantar su reloj hacia una hora más nueva al cancelar. Central sólo
-          // puede conservarlo o llevarlo hacia adelante en la cola, nunca hacerlo
-          // perder antigüedad por la propia reinserción.
-          const currentQueueMs = order.driver_id
-            ? new Date((await base44.entities.Driver.get(order.driver_id).catch(() => null))?.queue_entered_at || '').getTime()
-            : NaN;
-          const targetFirstMs = validTimes.length ? Math.min(...validTimes) - 1 : Date.now();
-          const firstMs = Number.isFinite(currentQueueMs) ? Math.min(currentQueueMs, targetFirstMs) : targetFirstMs;
-          const firstAt = new Date(firstMs).toISOString();
-          const marker = Date.now();
-          await base44.entities.Driver.update(order.driver_id, {
-            status: "disponible",
-            dispatch_status: "normal",
-            current_base: returnBase,
-            queue_entered_at: firstAt,
-            queue_authoritative_base: returnBase,
-            queue_authoritative_at: firstAt,
-            queue_position: marker,
-            queue_authority_marker: marker
+          const sessionToken = sessionStorage.getItem("local_operator_token");
+          const requeue = await base44.functions.invoke("requeueDriverFront", {
+            driverId: order.driver_id,
+            baseName: returnBase,
+            sessionToken
           });
+          if (!requeue?.data?.success) {
+            console.error("No se pudo reinsertar primero tras cancelación:", requeue?.data?.reason);
+          }
         }
       }
       
