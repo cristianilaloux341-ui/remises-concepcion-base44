@@ -364,52 +364,68 @@ Deno.serve(async (req) => {
         });
       }
 
-      // La oferta ya cambió de dueño/estado antes de que corriera el workflow.
-      // v12.27 puede haber escrito una queue_entered_at nueva al liberar/rechazar.
-      // Esa hora NO es una entrada de base y no debe contar para posiciones. Además,
-      // según la regla operativa actual, rechazo/timeout deja al móvil fuera de cola
-      // hasta una entrada explícita posterior. Limpiamos únicamente la proyección de
-      // cola que dejó la APK vieja; no tocamos el RideOrder ni la cola de otros móviles.
-      const staleLegacyQueueCleared = await b44.entities.Driver.updateMany(
-        {
-          id:driverId,
-          status:'disponible',
-          $or:[
-            { dispatch_status:'normal' },
-            { dispatch_status:null },
-            { dispatch_status:{ $exists:false } }
-          ],
-          reserved_order_id:null,
-          active_order_id:null,
-          active_ride_id:null,
-          queue_entered_at:eventData.queue_entered_at
-        },
-        { $set:{
-          current_base:null,
-          queue_entered_at:null,
-          queue_authoritative_base:null,
-          queue_authoritative_at:null,
-          queue_position:null,
-          queue_authority_marker:null,
-          queue_left_at:null
-        } }
-      ).catch(()=>({updated:0}));
-      const staleLegacyQueueClearedCount = staleLegacyQueueCleared?.updated ?? staleLegacyQueueCleared?.modifiedCount ?? staleLegacyQueueCleared?.matchedCount ?? 0;
+      // La oferta ya cambió de dueño/estado antes de que corriera este evento legacy.
+      // NO borrar la reinserción que rejectRide pudo haber hecho server-side. La regla
+      // actual es rechazo/timeout = último de la misma base. Si todavía no existe una
+      // reinserción autoritativa, la completamos acá con cola fresca del servidor.
+      const releasedDriver = await b44.entities.Driver.get(driverId).catch(()=>null);
+      const queueBase = legacyOrder?.assigned_base || legacyOrder?.zone || oldData.current_base || eventData.current_base || null;
+      const alreadyQueuedAtTailAuthority = Boolean(
+        releasedDriver && queueBase &&
+        releasedDriver.status === 'disponible' &&
+        (releasedDriver.dispatch_status == null || releasedDriver.dispatch_status === 'normal') &&
+        !releasedDriver.reserved_order_id && !releasedDriver.active_order_id && !releasedDriver.active_ride_id &&
+        releasedDriver.current_base === queueBase &&
+        releasedDriver.queue_authoritative_base === queueBase &&
+        releasedDriver.queue_authoritative_at
+      );
+
+      let reconciled = alreadyQueuedAtTailAuthority;
+      let queueAt = releasedDriver?.queue_authoritative_at || null;
+      if (!reconciled && releasedDriver && queueBase &&
+          releasedDriver.status === 'disponible' &&
+          (releasedDriver.dispatch_status == null || releasedDriver.dispatch_status === 'normal') &&
+          !releasedDriver.reserved_order_id && !releasedDriver.active_order_id && !releasedDriver.active_ride_id &&
+          (!releasedDriver.current_base || releasedDriver.current_base === queueBase)) {
+        queueAt = await getNextQueueTailAt(b44, queueBase, driverId);
+        const requeued = await b44.entities.Driver.updateMany(
+          {
+            id:driverId,
+            status:'disponible',
+            $or:[{ current_base:null }, { current_base:queueBase }],
+            reserved_order_id:null,
+            active_order_id:null,
+            active_ride_id:null
+          },
+          { $set:{
+            current_base:queueBase,
+            queue_entered_at:queueAt,
+            queue_authoritative_base:queueBase,
+            queue_authoritative_at:queueAt,
+            queue_position:null,
+            queue_authority_marker:null,
+            queue_left_at:null
+          } }
+        ).catch(()=>({updated:0}));
+        reconciled = (requeued?.updated ?? requeued?.modifiedCount ?? requeued?.matchedCount ?? 0) === 1;
+      }
 
       await b44.entities.AuditLog.create({
-        action:'LEGACY_QUEUE_TIMESTAMP_IGNORED',
+        action:'LEGACY_RELEASE_RECONCILED_TO_QUEUE_TAIL',
         user_type:'sistema',
         user_name:eventData.name || oldData.name || 'Driver',
-        details:`Se ignoró la nueva antigüedad escrita por APK legacy al cerrar la oferta`,
+        details:`Cierre legacy conciliado sin borrar la cola server-side de ${driverId}`,
         metadata:{
           driverId,
-          oldQueueEnteredAt:oldData.queue_entered_at ?? null,
-          ignoredQueueEnteredAt:eventData.queue_entered_at ?? null,
-          clearedFromQueue:staleLegacyQueueClearedCount === 1
+          orderId:legacyOrderId,
+          baseName:queueBase,
+          queueAt,
+          preservedExistingServerRequeue:alreadyQueuedAtTailAuthority,
+          reconciled
         }
       }).catch(()=>{});
 
-      return Response.json({ success:true, repaired:staleLegacyQueueClearedCount === 1, reason:'LEGACY_RELEASE_ALREADY_ADVANCED_QUEUE_IGNORED' });
+      return Response.json({ success:true, repaired:reconciled, reason:'LEGACY_RELEASE_RECONCILED_TO_QUEUE_TAIL' });
     }
 
     // AUTORIDAD SERVER-SIDE DE COLA.
