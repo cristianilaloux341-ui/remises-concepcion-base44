@@ -2,10 +2,11 @@ export function getEffectiveQueueEnteredAt(driver: any) {
   if (!driver) return null;
   const currentBase = driver.current_base || null;
   const authoritativeBase = driver.queue_authoritative_base || null;
-  if (currentBase && authoritativeBase && currentBase !== authoritativeBase) {
-    return driver.queue_entered_at || null;
-  }
-  return driver.queue_authoritative_at || driver.queue_entered_at || null;
+  if (!currentBase) return null;
+  // Mientras una entrada/cambio todavía no fue sellado por servidor, no inventamos
+  // una posición provisoria con la hora del teléfono.
+  if (!authoritativeBase || authoritativeBase !== currentBase) return null;
+  return driver.queue_authoritative_at || null;
 }
 
 export function sortQueue(driversArray: any[]) {
@@ -23,7 +24,9 @@ export function sortQueue(driversArray: any[]) {
 
 export function getBaseQueue(drivers: any[], baseName: string) {
   return sortQueue(drivers.filter(d =>
-    (d.current_base || d.queue_authoritative_base || null) === baseName &&
+    d.current_base === baseName &&
+    d.queue_authoritative_base === baseName &&
+    Boolean(d.queue_authoritative_at) &&
     d.status === "disponible" &&
     (d.dispatch_status == null || d.dispatch_status === "normal") &&
     !d.reserved_order_id &&
@@ -39,20 +42,18 @@ export function getBaseQueue(drivers: any[], baseName: string) {
 export async function getNextQueueTailAt(b44: any, baseName: string, excludeDriverId: string | null = null) {
   const drivers = await b44.entities.Driver.filter({
     status: "disponible",
-    $or: [
-      { current_base: baseName },
-      { queue_authoritative_base: baseName }
-    ]
+    current_base: baseName
   }).catch(() => []);
 
   let nextMs = Date.now();
   for (const d of drivers || []) {
     if (!d || d.id === excludeDriverId) continue;
-    if ((d.current_base || d.queue_authoritative_base || null) !== baseName) continue;
+    if (d.current_base !== baseName) continue;
+    if (d.queue_authoritative_base !== baseName || !d.queue_authoritative_at) continue;
     if (d.dispatch_status != null && d.dispatch_status !== "normal") continue;
     if (d.reserved_order_id || d.active_order_id || d.active_ride_id) continue;
 
-    const raw = d.queue_authoritative_at || d.queue_entered_at || null;
+    const raw = d.queue_authoritative_at || null;
     const ms = raw ? new Date(raw).getTime() : NaN;
     if (Number.isFinite(ms)) nextMs = Math.max(nextMs, ms + 1);
   }
