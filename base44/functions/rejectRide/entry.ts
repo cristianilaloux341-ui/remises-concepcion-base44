@@ -159,7 +159,8 @@ Deno.serve(async (req) => {
             queue_authoritative_base:null,
             queue_authoritative_at:null,
             queue_authority_marker:null,
-            queue_position:null
+            queue_position:null,
+            queue_left_at:null
           } }
         ).catch(()=>{});
         await b44.entities.AuditLog.create({
