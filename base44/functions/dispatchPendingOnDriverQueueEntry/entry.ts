@@ -418,9 +418,9 @@ Deno.serve(async (req) => {
           (releasedDriver.dispatch_status == null || releasedDriver.dispatch_status === 'normal') &&
           !releasedDriver.reserved_order_id && !releasedDriver.active_order_id && !releasedDriver.active_ride_id &&
           (!releasedDriver.current_base || releasedDriver.current_base === queueBase)) {
-        queueAt = await getNextQueueTailAt(b44, queueBase, driverId);
-        const nextPos = await getNextQueuePosition(b44, queueBase, driverId);
-        const requeued = await b44.entities.Driver.updateMany(
+        const placed = await placeDriverLastLocked(
+          queueBase,
+          driverId,
           {
             id:driverId,
             status:'disponible',
@@ -429,17 +429,10 @@ Deno.serve(async (req) => {
             active_order_id:null,
             active_ride_id:null
           },
-          { $set:{
-            current_base:queueBase,
-            queue_entered_at:queueAt,
-            queue_authoritative_base:queueBase,
-            queue_authoritative_at:queueAt,
-            queue_position:nextPos,
-            queue_authority_marker:null,
-            queue_left_at:null
-          } }
-        ).catch(()=>({updated:0}));
-        reconciled = (requeued?.updated ?? requeued?.modifiedCount ?? requeued?.matchedCount ?? 0) === 1;
+          { current_base:queueBase, queue_authority_marker:null }
+        );
+        queueAt = placed.queueAt;
+        reconciled = placed.count === 1;
       }
 
       await b44.entities.AuditLog.create({
