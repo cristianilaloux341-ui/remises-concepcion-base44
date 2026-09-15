@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
     if (autoReassignActive) {
       for (let i=0; i<100; i++) {
         const selectionOrder = { ...order, offered_driver_ids:[...excluded] };
-        const nextDriver = await findNextDriverInZone(b44, selectionOrder, driverId);
+        const nextDriver = await findNextDriverInZone(b44, selectionOrder, excluded);
         if (!nextDriver) break;
         excluded.add(nextDriver.id);
 
