@@ -53,10 +53,10 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
     const currentBase = d.current_base || null;
     const authoritativeBase = d.queue_authoritative_base || null;
     if (currentBase) {
-      // Mientras un cambio real A->B todavía se está sellando, la autoridad anterior
-      // no puede convertir al móvil en candidato de la base vieja.
-      if (authoritativeBase && authoritativeBase !== currentBase) return currentBase;
-      return authoritativeBase || currentBase;
+      // Mientras un cambio real A->B todavía se está sellando, no es candidato ni de
+      // la base vieja ni de la nueva. En milisegundos el servidor lo sella último en B.
+      if (!authoritativeBase || authoritativeBase !== currentBase) return null;
+      return currentBase;
     }
     return authorityGraceActive(d) ? authoritativeBase : null;
   };
