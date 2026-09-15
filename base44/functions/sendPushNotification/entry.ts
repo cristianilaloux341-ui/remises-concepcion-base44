@@ -248,21 +248,30 @@ Deno.serve(async (req) => {
             const expectedRejectDetails = body.old_data.client_name
               ? `Rechazó el viaje de ${body.old_data.client_name}`
               : null;
-            // El log legacy aparece prácticamente junto al rollback. Miramos sólo una
-            // ventana estrecha y, cuando conocemos el pasajero, exigimos además el
-            // detalle exacto para no confundir otro rechazo del mismo chofer.
-            const rejectSince = new Date(Date.now() - 1500).toISOString();
+            // En producción el trigger que observa `ofrecido -> pendiente` puede llegar
+            // varios segundos después de que la APK ya escribió su AuditLog de RECHAZAR.
+            // Por eso NO usamos una ventana relativa a `Date.now()`. Correlacionamos desde
+            // el inicio de ESTA oferta: mismo chofer + mismo pasajero + log posterior a
+            // `assigned_at`. Eso evita perder rechazos reales de v12.27/v12.29 sin
+            // confundir un rechazo anterior del mismo chofer.
+            const assignedAtRaw = body.old_data.assigned_at || null;
+            const assignedAtMs = assignedAtRaw ? new Date(assignedAtRaw).getTime() : NaN;
+            const rejectSince = Number.isFinite(assignedAtMs)
+              ? new Date(assignedAtMs - 1000).toISOString()
+              : new Date(Date.now() - 20000).toISOString();
             for (let check = 0; check < 4 && !explicitLegacyReject; check++) {
               await new Promise(r => setTimeout(r, 250));
               const recentRejects = await base44.asServiceRole.entities.AuditLog.filter({
                 action:'rechazar_viaje',
                 user_name:body.old_data.driver_name || 'Chofer',
+                user_type:'chofer',
                 created_date:{ $gte:rejectSince }
               }).catch(()=>[]);
               explicitLegacyReject = (recentRejects || []).some((log:any) => {
-                const anonymousLegacy = log?.created_by_id === 'anonymous' || log?.created_by === 'anonymous';
                 const sameRideDetails = !expectedRejectDetails || String(log?.details || '') === expectedRejectDetails;
-                return anonymousLegacy && sameRideDetails;
+                const logMs = log?.created_date ? new Date(log.created_date).getTime() : NaN;
+                const afterThisOffer = !Number.isFinite(assignedAtMs) || (Number.isFinite(logMs) && logMs >= assignedAtMs - 1000);
+                return sameRideDetails && afterThisOffer;
               });
             }
 
