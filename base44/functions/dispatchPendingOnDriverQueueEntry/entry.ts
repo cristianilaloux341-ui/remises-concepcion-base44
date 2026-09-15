@@ -571,6 +571,45 @@ Deno.serve(async (req) => {
         // Cierre/reconexión/estado atrasado: un móvil libre no puede salir solo de
         // una base en la que conserva autoridad. Restaurar base y hora exactas.
         if (authoritativeBase && !currentBase) {
+          const lastActiveMs = freshQueueDriver.last_active
+            ? new Date(freshQueueDriver.last_active).getTime()
+            : NaN;
+          const prolongedNoBase = Number.isFinite(lastActiveMs) &&
+            (Date.now() - lastActiveMs) > staleNoBaseThresholdMs;
+
+          if (prolongedNoBase) {
+            const cleared = await b44.entities.Driver.updateMany(
+              {
+                id:driverId,
+                status:'disponible',
+                current_base:null,
+                reserved_order_id:null,
+                active_order_id:null,
+                active_ride_id:null,
+                queue_authoritative_base:authoritativeBase,
+                queue_authoritative_at:authoritativeAt
+              },
+              { $set:{
+                queue_entered_at:null,
+                queue_authoritative_base:null,
+                queue_authoritative_at:null,
+                queue_authority_marker:null,
+                queue_position:null
+              } }
+            ).catch(()=>({updated:0}));
+            const clearedCount = cleared?.updated ?? cleared?.modifiedCount ?? cleared?.matchedCount ?? 0;
+            if (clearedCount === 1) {
+              await b44.entities.AuditLog.create({
+                action:'QUEUE_STALE_AUTHORITY_CLEARED_ON_RETURN',
+                user_type:'sistema',
+                user_name:freshQueueDriver.name || 'Driver',
+                details:`Se descartó posición vieja de ${freshQueueDriver.name || driverId}; deberá ingresar de nuevo al final de la cola`,
+                metadata:{ driverId, staleBase:authoritativeBase, staleQueueAt:authoritativeAt, lastActive:freshQueueDriver.last_active || null }
+              }).catch(()=>{});
+            }
+            return Response.json({ success:true, repaired:clearedCount === 1, reason:'QUEUE_STALE_AUTHORITY_CLEARED_ON_RETURN' });
+          }
+
           const restored = await b44.entities.Driver.updateMany(
             { id:driverId, status:'disponible', current_base:null, reserved_order_id:null, active_order_id:null, active_ride_id:null },
             { $set:{ current_base:authoritativeBase, queue_entered_at:authoritativeAt } }
