@@ -224,6 +224,25 @@
         "null"
       ]
     },
+    "push_ack_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Hora en que el tel\u00e9fono confirm\u00f3 recepci\u00f3n de la oferta activa"
+    },
+    "push_ack_assignment_attempt": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "assignment_attempt cuya recepci\u00f3n fue confirmada por el tel\u00e9fono"
+    },
+    "delivery_retry_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Cantidad de reintentos de entrega FCM del mismo assignment_attempt sin ACK"
+    },
     "processingOwnerId": {
       "type": [
         "string",
