@@ -283,14 +283,16 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     const zoneQueue = getBaseQueue(availableDrivers, form.zone);
     setSuggestedDriver(zoneQueue[0] || null);
 
-    // Si cambió la zona después de una sugerencia/selección, borrar el móvil anterior.
-    // Así el formulario nunca arrastra un chofer perteneciente a otra base.
-    setForm(prev => {
-      if (!prev.driver_id) return prev;
-      const selected = drivers.find(d => d.id === prev.driver_id);
-      if (selected?.current_base === prev.zone) return prev;
-      return { ...prev, driver_id: "", driver_name: "", status: "pendiente" };
-    });
+    // Si cambió la zona después de una selección manual, borrar TODA la selección.
+    // Antes se limpiaba driver_id pero quedaba manualDriverInput; al enviar, ese texto
+    // volvía a resolverse como manual y podía cruzar de zona sin que la operadora lo viera.
+    if (form.driver_id) {
+      const selected = drivers.find(d => d.id === form.driver_id);
+      if (selected?.current_base !== form.zone) {
+        setForm(prev => ({ ...prev, driver_id: "", driver_name: "", status: "pendiente" }));
+        setManualDriverInput("");
+      }
+    }
   }, [form.zone, form.pickup_address, drivers, moviles]);
 
   const handleAddressClientSelect = (clientData) => {
@@ -737,11 +739,9 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
                   <p className="text-sm font-semibold">{suggestedDriver.name}</p>
                   <p className="text-xs text-muted-foreground font-mono">{suggestedDriver.vehicle_plate} · {suggestedDriver.current_base}</p>
                 </div>
-                <Button type="button" size="sm" className="gap-1.5 rounded-lg shrink-0 bg-amber-500 hover:bg-amber-600"
-                  onClick={handleAutoAssign} disabled={autoAssigning}>
-                  {autoAssigning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-                  Asignar
-                </Button>
+                <Badge className="bg-amber-100 text-amber-700 border-0 text-xs shrink-0">
+                  Automático
+                </Badge>
               </div>
             )}
 
@@ -751,7 +751,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
                 <p className="text-sm font-semibold text-green-700 flex-1">{form.driver_name}</p>
                 <Badge className="bg-green-100 text-green-700 border-0 text-xs">asignado</Badge>
                 <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-red-400"
-                  onClick={() => handleChange("driver_id", "")}>
+                  onClick={() => handleDriverChange("none")}>
                   <X className="w-3 h-3" />
                 </Button>
               </div>
