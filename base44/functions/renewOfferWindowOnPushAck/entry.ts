@@ -68,9 +68,9 @@ Deno.serve(async (req) => {
     const ackBaseMs = Number.isFinite(ackMs) ? Math.max(ackMs, now - 5000) : now;
     const renewedExpiry = ackBaseMs + safeTimeoutSeconds * 1000;
 
-    // No acortar una oferta por ningún motivo. Si por latencia el workflow corre
-    // tarde, usar como mínimo 30 s desde el momento de procesar el ACK.
-    const targetExpiry = Math.max(currentExpiry, renewedExpiry, now + safeTimeoutSeconds * 1000);
+    // Con ACK ya conocemos cuándo llegó al teléfono: desde acá rigen los 30 s reales.
+    // La gracia previa era sólo para transporte sin ACK y no debe sumarse a la ventana.
+    const targetExpiry = Math.max(renewedExpiry, now + safeTimeoutSeconds * 1000);
 
     const updateRes = await b44.entities.RideOrder.updateMany(
       {
