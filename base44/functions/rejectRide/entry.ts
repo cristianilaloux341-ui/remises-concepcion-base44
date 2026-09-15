@@ -118,6 +118,7 @@ Deno.serve(async (req) => {
           queue_authoritative_at:null,
           queue_authority_marker:null,
           queue_position:null,
+          queue_left_at:null,
           active_order_id:null,
           active_ride_id:null,
           reserved_order_id:null,
