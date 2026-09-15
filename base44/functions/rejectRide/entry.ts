@@ -93,10 +93,12 @@ Deno.serve(async (req) => {
     }
     lockedOrder = order;
 
-    // REGLA DE COLA: recibir una oferta NO hace perder la antigüedad que el móvil
-    // ya tenía. Si rechaza o vence el tiempo, sólo liberamos la reserva de ESTA oferta;
-    // base y posición permanecen exactamente como estaban antes de recibirla.
-    // Esto evita saltos 1°→8° como el observado en el móvil 22.
+    // REGLA DE COLA MANUAL: rechazo o timeout NO reinsertan al móvil en ninguna
+    // posición. Se libera la oferta y el móvil queda sin base/posición hasta que
+    // el propio chofer vuelva a entrar a una base o el operador lo acomode.
+    // Conservamos queueNow/queueBase sólo para auditoría/compatibilidad del flujo legacy.
+    const queueNow = new Date().toISOString();
+    const queueBase = order.assigned_base || order.zone || null;
     const releasedCurrent = await b44.entities.Driver.updateMany(
       {
         id: driverId,
@@ -109,8 +111,13 @@ Deno.serve(async (req) => {
         $set: {
           status:'disponible',
           dispatch_status:'normal',
-          // No tocar current_base ni ningún campo de cola: la oferta es transitoria
-          // y no modifica el turno/antigüedad del chofer.
+          // Rechazo/timeout: fuera de cola. No existe reingreso automático.
+          current_base:null,
+          queue_entered_at:null,
+          queue_authoritative_base:null,
+          queue_authoritative_at:null,
+          queue_authority_marker:null,
+          queue_position:null,
           active_order_id:null,
           active_ride_id:null,
           reserved_order_id:null,
@@ -143,9 +150,17 @@ Deno.serve(async (req) => {
 
       if (legacyAlreadyReleased) {
         currentReleased = true;
-        // La APK legacy ya liberó la reserva. No borrar ni reescribir base/cola:
-        // el reconciliador autoritativo restaura cualquier proyección vieja sin
-        // perder la antigüedad previa del móvil.
+        await b44.entities.Driver.updateMany(
+          { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
+          { $set:{
+            current_base:null,
+            queue_entered_at:null,
+            queue_authoritative_base:null,
+            queue_authoritative_at:null,
+            queue_authority_marker:null,
+            queue_position:null
+          } }
+        ).catch(()=>{});
         await b44.entities.AuditLog.create({
           action:'LEGACY_DRIVER_RELEASE_ADOPTED',
           user_type:'sistema',
