@@ -32,8 +32,18 @@ Deno.serve(async (req) => {
     let count = 0;
     
     // Limpieza de red de seguridad: choferes colgados con reservas a viajes muertos atómicamente
-    const allDrivers = await b44.entities.Driver.list();
-    const stuckDrivers = allDrivers.filter(d => d.reserved_order_id || d.active_ride_id || d.dispatch_status === 'automatic_pending' || d.dispatch_status === 'manual_pending' || d.driver_reservation_key || d.reservation_token || d.manual_reservation_token);
+    // Pico: no bajar toda la flota en cada cron. Pedir al servidor únicamente
+    // móviles con alguna señal de reserva/estado transitorio que pueda requerir reparación.
+    const stuckDrivers = await b44.entities.Driver.filter({
+      $or: [
+        { reserved_order_id: { $ne: null } },
+        { active_ride_id: { $ne: null } },
+        { dispatch_status: { $in: ['automatic_pending', 'manual_pending'] } },
+        { driver_reservation_key: { $ne: null } },
+        { reservation_token: { $ne: null } },
+        { manual_reservation_token: { $ne: null } }
+      ]
+    }).catch(() => []);
     for (const driver of stuckDrivers) {
       const ghostOrderId = driver.reserved_order_id || driver.active_ride_id;
       let isDead = false;
@@ -303,12 +313,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Conservamos el reconciliador profundo cada 15 minutos desde ESTE cron.
-    // El workflow que antes lo ejecutaba se reutiliza para detectar entrada real
-    // de móviles en lista sin perder esta red de seguridad.
-    await b44.functions.invoke('dispatchReconciler', {
-      internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
-    }).catch((e: any) => console.error('Deep reconciler backup error:', e));
+    // El reconciliador profundo queda como red de seguridad, fuera del camino
+    // caliente. Si este cron corre más seguido, sólo se ejecuta en la ventana
+    // de cada 15 minutos; dispatchReconciler mantiene además su propio lock.
+    const minuteNow = new Date().getUTCMinutes();
+    if (minuteNow % 15 === 0) {
+      await b44.functions.invoke('dispatchReconciler', {
+        internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+      }).catch((e: any) => console.error('Deep reconciler backup error:', e));
+    }
 
     if (count > 0 || ghostsDisconnected > 0 || pendingAssigned > 0) {
       console.log(`AutoReassignCron liberó: ${count}; desconectados: ${ghostsDisconnected}; pendientes despachados: ${pendingAssigned}.`);
