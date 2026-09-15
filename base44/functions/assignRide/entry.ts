@@ -332,7 +332,12 @@ Deno.serve(async (req) => {
     // Cada asignación crea una ventana propia de respuesta. acceptRide usa
     // offerExpiresAt como autoridad para decidir si la oferta sigue vigente.
     const assignedAt = new Date().toISOString();
-    const offerExpiresAt = Date.now() + (timeoutSeconds * 1000);
+    // La ventana comercial es timeoutSeconds DESDE que el teléfono acusa recepción.
+    // Mientras no haya ACK, damos 15 s de transporte/despertar para que una APK vieja
+    // no pierda el pasaje contando los 30 s desde el envío (caso móvil 22).
+    // Si llega ACK, handleNativePushAction/renewOfferWindowOnPushAck fijan los 30 s reales.
+    const deliveryGraceMs = 15000;
+    const offerExpiresAt = Date.now() + (timeoutSeconds * 1000) + deliveryGraceMs;
 
     // Update memory object for Push payload
     orderReq.assignment_attempt = newAttempt;
