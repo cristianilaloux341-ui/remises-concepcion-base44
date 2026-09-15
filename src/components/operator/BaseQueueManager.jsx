@@ -174,8 +174,12 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
           status: "disponible",
           dispatch_status: "normal",
           queue_entered_at: ts,
-          queue_authoritative_base: baseName,
-          queue_authoritative_at: ts,
+          // La Central solicita la entrada pero NO inventa la posición. El workflow
+          // server-side sellará queue_authoritative_* detrás del último real.
+          queue_authoritative_base: null,
+          queue_authoritative_at: null,
+          queue_authority_marker: null,
+          queue_position: null,
           active_order_id: null,
           active_ride_id: null,
           reserved_order_id: null,
@@ -410,8 +414,12 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
           status: "disponible",
           dispatch_status: "normal",
           queue_entered_at: ts,
-          queue_authoritative_base: baseName,
-          queue_authoritative_at: ts,
+          // La Central solicita la entrada pero NO inventa la posición. El workflow
+          // server-side sellará queue_authoritative_* detrás del último real.
+          queue_authoritative_base: null,
+          queue_authoritative_at: null,
+          queue_authority_marker: null,
+          queue_position: null,
           active_order_id: null,
           active_ride_id: null,
           reserved_order_id: null,
