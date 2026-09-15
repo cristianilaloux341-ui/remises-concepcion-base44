@@ -1,34 +1,35 @@
-const QUEUE_EXIT_GRACE_MS = 20 * 1000;
+const QUEUE_LOCK_TTL_MS = 5000;
+const QUEUE_LOCK_WAIT_MS = 2500;
 
-function hasQueueExitGrace(driver: any) {
-  if (!driver) return false;
-  if (driver.current_base) return true;
-  const leftAtMs = driver.queue_left_at ? new Date(driver.queue_left_at).getTime() : NaN;
-  return Boolean(
-    driver.queue_authoritative_base &&
-    driver.queue_authoritative_at &&
-    Number.isFinite(leftAtMs) &&
-    (Date.now() - leftAtMs) <= QUEUE_EXIT_GRACE_MS
+function mutationCount(result: any): number {
+  return Math.max(
+    Number(result?.updated ?? 0),
+    Number(result?.modifiedCount ?? 0),
+    Number(result?.matchedCount ?? 0)
   );
 }
 
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Cola operativa: current_base + queue_position son la autoridad.
+// Los timestamps se conservan únicamente como historial/proyección para APK legacy.
 export function getEffectiveQueueBase(driver: any) {
   if (!driver) return null;
   const currentBase = driver.current_base || null;
   const authoritativeBase = driver.queue_authoritative_base || null;
-  if (currentBase) {
-    // Si no tiene queue_position, es que no está validado por server
-    if (driver.queue_position == null) return null;
-    if (!authoritativeBase || authoritativeBase !== currentBase) return null;
-    return currentBase;
-  }
-  return hasQueueExitGrace(driver) ? authoritativeBase : null;
+  const pos = Number(driver.queue_position);
+  if (!currentBase) return null;
+  if (!authoritativeBase || authoritativeBase !== currentBase) return null;
+  if (!Number.isFinite(pos) || pos <= 0) return null;
+  return currentBase;
 }
 
 export function sortQueue(driversArray: any[]) {
   return driversArray.sort((a, b) => {
-    const posA = Number.isFinite(Number(a.queue_position)) && a.queue_position > 0 ? Number(a.queue_position) : Infinity;
-    const posB = Number.isFinite(Number(b.queue_position)) && b.queue_position > 0 ? Number(b.queue_position) : Infinity;
+    const posA = Number.isFinite(Number(a.queue_position)) && Number(a.queue_position) > 0 ? Number(a.queue_position) : Infinity;
+    const posB = Number.isFinite(Number(b.queue_position)) && Number(b.queue_position) > 0 ? Number(b.queue_position) : Infinity;
     if (posA !== posB) return posA - posB;
     return (a.id || "").localeCompare(b.id || "");
   });
@@ -45,57 +46,125 @@ export function getBaseQueue(drivers: any[], baseName: string) {
   ));
 }
 
-// Solo guarda el timestamp histórico, pero devuelve la posicion calculada
-export async function getNextQueueTailAt(b44: any, baseName: string, excludeDriverId: string | null = null) {
-  return new Date().toISOString();
+// Lock exclusivo por base, separado del lock comercial de despacho.
+// Evita que dos entradas/rechazos simultáneos calculen el mismo MAX+1.
+export async function withQueueLock<T>(
+  b44: any,
+  baseName: string,
+  fn: () => Promise<T>,
+  waitMs: number = QUEUE_LOCK_WAIT_MS
+): Promise<T> {
+  if (!baseName) return await fn();
+
+  const rows = await b44.entities.QueueLock.filter({ base_name: baseName }).catch(() => []);
+  if (!Array.isArray(rows) || rows.length !== 1) {
+    throw new Error(`QUEUE_LOCK_INVALID:${baseName}:${Array.isArray(rows) ? rows.length : 0}`);
+  }
+
+  const lock = rows[0];
+  const owner = crypto.randomUUID();
+  const deadline = Date.now() + waitMs;
+  let acquired = false;
+
+  while (!acquired && Date.now() <= deadline) {
+    const now = Date.now();
+    const res = await b44.entities.QueueLock.updateMany(
+      {
+        id: lock.id,
+        $or: [
+          { owner: null },
+          { owner: { $exists: false } },
+          { expires_at: null },
+          { expires_at: { $exists: false } },
+          { expires_at: { $lt: now } }
+        ]
+      },
+      {
+        $set: { owner, expires_at: now + QUEUE_LOCK_TTL_MS },
+        $inc: { version: 1 }
+      }
+    ).catch(() => ({ updated: 0 }));
+
+    acquired = mutationCount(res) === 1;
+    if (!acquired) await sleep(20 + Math.floor(Math.random() * 31));
+  }
+
+  if (!acquired) throw new Error(`QUEUE_LOCK_BUSY:${baseName}`);
+
+  try {
+    return await fn();
+  } finally {
+    await b44.entities.QueueLock.updateMany(
+      { id: lock.id, owner },
+      { $set: { owner: null, expires_at: null } }
+    ).catch(() => null);
+  }
 }
 
+// Proyección legacy únicamente: genera una hora posterior a las demás para que
+// v12.27/v12.29 sigan viendo "último". El servidor NUNCA usa esta hora para elegir.
+export async function getNextQueueTailAt(b44: any, baseName: string, excludeDriverId: string | null = null) {
+  const drivers = await b44.entities.Driver.filter({
+    status: "disponible",
+    current_base: baseName
+  }).catch(() => []);
+
+  let nextMs = Date.now();
+  for (const d of drivers || []) {
+    if (!d || d.id === excludeDriverId) continue;
+    if (getEffectiveQueueBase(d) !== baseName) continue;
+    const raw = d.queue_authoritative_at || d.queue_entered_at || null;
+    const ms = raw ? new Date(raw).getTime() : NaN;
+    if (Number.isFinite(ms)) nextMs = Math.max(nextMs, ms + 1);
+  }
+  return new Date(nextMs).toISOString();
+}
+
+// Debe ejecutarse dentro de withQueueLock cuando el resultado vaya a escribirse.
 export async function getNextQueuePosition(b44: any, baseName: string, excludeDriverId: string | null = null) {
   const drivers = await b44.entities.Driver.filter({
     status: "disponible",
-    $or: [
-      { current_base: baseName },
-      { queue_authoritative_base: baseName }
-    ]
+    current_base: baseName
   }).catch(() => []);
 
   let maxPos = 0;
   for (const d of drivers || []) {
     if (!d || d.id === excludeDriverId) continue;
     if (getEffectiveQueueBase(d) !== baseName) continue;
-    // Include drivers in pending dispatch to keep the max position accurate
-    // Because if driver 1 is deciding, max pos is 1. If we exclude him, max pos is 0,
-    // and new driver would get pos 1.
-    
     const pos = Number(d.queue_position);
-    if (Number.isFinite(pos) && pos > 0) {
-      maxPos = Math.max(maxPos, pos);
-    }
+    if (Number.isFinite(pos) && pos > 0) maxPos = Math.max(maxPos, pos);
   }
-
   return maxPos + 1;
+}
+
+export async function compactQueueUnlocked(b44: any, baseName: string) {
+  if (!baseName) return;
+  const drivers = await b44.entities.Driver.filter({
+    status: "disponible",
+    current_base: baseName
+  }).catch(() => []);
+
+  const queue = drivers.filter((d: any) =>
+    getEffectiveQueueBase(d) === baseName &&
+    Number.isFinite(Number(d.queue_position)) && Number(d.queue_position) > 0
+  ).sort((a: any, b: any) => {
+    const diff = Number(a.queue_position) - Number(b.queue_position);
+    return diff !== 0 ? diff : String(a.id || '').localeCompare(String(b.id || ''));
+  });
+
+  let expectedPos = 1;
+  for (const d of queue) {
+    if (Number(d.queue_position) !== expectedPos) {
+      await b44.entities.Driver.updateMany(
+        { id: d.id, current_base: baseName, status: 'disponible', queue_position: d.queue_position },
+        { $set: { queue_position: expectedPos } }
+      ).catch(() => null);
+    }
+    expectedPos++;
+  }
 }
 
 export async function compactQueue(b44: any, baseName: string) {
   if (!baseName) return;
-  const drivers = await b44.entities.Driver.filter({
-    status: "disponible",
-    $or: [
-      { current_base: baseName },
-      { queue_authoritative_base: baseName }
-    ]
-  }).catch(() => []);
-  
-  const queue = drivers.filter(d => 
-    getEffectiveQueueBase(d) === baseName &&
-    Number.isFinite(Number(d.queue_position)) && Number(d.queue_position) > 0
-  ).sort((a, b) => Number(a.queue_position) - Number(b.queue_position));
-  
-  let expectedPos = 1;
-  for (const d of queue) {
-    if (Number(d.queue_position) !== expectedPos) {
-      await b44.entities.Driver.update(d.id, { queue_position: expectedPos }).catch(()=>null);
-    }
-    expectedPos++;
-  }
+  return withQueueLock(b44, baseName, async () => compactQueueUnlocked(b44, baseName));
 }

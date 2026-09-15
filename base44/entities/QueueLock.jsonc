@@ -1,0 +1,60 @@
+{
+  "type": "object",
+  "properties": {
+    "base_name": {
+      "type": "string",
+      "enum": [
+        "1-Puerto",
+        "2-Plaza",
+        "3-Columna",
+        "4-Base",
+        "5-Cementerio",
+        "6-D\u00edaz V\u00e9lez",
+        "7-Don Bosco",
+        "8-Monumento"
+      ]
+    },
+    "owner": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expires_at": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "version": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "base_name"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "name": "QueueLock"
+}
