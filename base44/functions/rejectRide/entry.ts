@@ -8,6 +8,7 @@ Deno.serve(async (req) => {
   let lockOrderId: string | null = null;
   let currentReleased = false;
   let lockedOrder: any = null;
+  let requeueReleasedDriverAtEnd: null | (() => Promise<boolean>) = null;
 
   try {
     const base44 = createClientFromRequest(req);
@@ -93,12 +94,50 @@ Deno.serve(async (req) => {
     }
     lockedOrder = order;
 
-    // REGLA DE COLA MANUAL: rechazo o timeout NO reinsertan al móvil en ninguna
-    // posición. Se libera la oferta y el móvil queda sin base/posición hasta que
-    // el propio chofer vuelva a entrar a una base o el operador lo acomode.
-    // Conservamos queueNow/queueBase sólo para auditoría/compatibilidad del flujo legacy.
-    const queueNow = new Date().toISOString();
+    // Durante la reasignación sacamos temporalmente al móvil de la cola para que
+    // ninguna escritura legacy compita con el cambio de dueño de la oferta. Una vez
+    // cerrado este intento, la regla operativa es inequívoca: rechazo o timeout =
+    // ÚLTIMO de la misma base. La reinserción se hace server-side y no depende de que
+    // la APK 12.27/12.29 vuelva a publicar una entrada.
     const queueBase = order.assigned_base || order.zone || null;
+    requeueReleasedDriverAtEnd = async () => {
+      if (!queueBase) return false;
+      const queueAt = new Date().toISOString();
+      const requeued = await b44.entities.Driver.updateMany(
+        {
+          id:driverId,
+          status:'disponible',
+          $or:[{ current_base:null }, { current_base:queueBase }],
+          $and:[
+            { $or:[{ dispatch_status:'normal' }, { dispatch_status:null }, { dispatch_status:{ $exists:false } }] },
+            { $or:[{ reserved_order_id:null }, { reserved_order_id:{ $exists:false } }] },
+            { $or:[{ active_order_id:null }, { active_order_id:{ $exists:false } }] },
+            { $or:[{ active_ride_id:null }, { active_ride_id:{ $exists:false } }] }
+          ]
+        },
+        { $set:{
+          current_base:queueBase,
+          queue_entered_at:queueAt,
+          queue_authoritative_base:queueBase,
+          queue_authoritative_at:queueAt,
+          queue_authority_marker:null,
+          queue_position:null,
+          queue_left_at:null
+        } }
+      ).catch(()=>({updated:0}));
+      const requeuedCount = requeued?.updated ?? requeued?.modifiedCount ?? requeued?.matchedCount ?? 0;
+      if (requeuedCount === 1) {
+        await b44.entities.AuditLog.create({
+          action:'QUEUE_REINSERTED_LAST_AFTER_REJECT_OR_TIMEOUT',
+          user_type:'sistema',
+          user_name:'rejectRide',
+          details:`Móvil ${driverId} reinsertado al final de ${queueBase} después de ${source === 'timeout' ? 'timeout' : 'rechazo'}`,
+          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), source, baseName:queueBase, queueAt }
+        }).catch(()=>{});
+        return true;
+      }
+      return false;
+    };
     const releasedCurrent = await b44.entities.Driver.updateMany(
       {
         id: driverId,
@@ -308,6 +347,8 @@ Deno.serve(async (req) => {
           internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
         }).catch(e=>console.error('AutoReassign Trigger Error:',e));
 
+        await requeueReleasedDriverAtEnd?.();
+
         await b44.entities.AuditLog.create({
           action: source === 'timeout' ? 'timeout_viaje' : 'rechazar_viaje',
           user_type: source === 'timeout' ? 'sistema' : 'chofer',
@@ -353,6 +394,7 @@ Deno.serve(async (req) => {
     }
 
     lockOwner = null;
+    await requeueReleasedDriverAtEnd?.();
     await b44.entities.AuditLog.create({
       action: source === 'timeout' ? 'timeout_viaje' : 'rechazar_viaje',
       user_type: source === 'timeout' ? 'sistema' : 'chofer',
@@ -396,6 +438,7 @@ Deno.serve(async (req) => {
             }
           }
         ).catch(()=>{});
+        await requeueReleasedDriverAtEnd?.().catch(()=>false);
       } else {
         await b44.entities.RideOrder.updateMany(
           { id:lockOrderId, processingOwnerId:lockOwner },
