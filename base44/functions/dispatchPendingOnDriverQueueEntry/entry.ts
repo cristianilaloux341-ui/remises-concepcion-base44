@@ -197,10 +197,10 @@ Deno.serve(async (req) => {
 
     // REGLA OPERATIVA DE SALIDA DE BASE:
     // un móvil que ya está trabajando puede salir momentáneamente de una fila para
-    // mirar otras posiciones sin perder su turno. Conserva SU MISMO lugar durante
-    // 20 segundos. Si vuelve a la misma base dentro de esa gracia, recupera exactamente
-    // la misma antigüedad. Si entra a otra base, entra último allí. Si pasan 20 s sin
-    // volver, pierde la posición y cualquier reingreso posterior será al final.
+    // mirar otras posiciones sin perder de inmediato su turno. Mientras current_base
+    // siga NULL conserva esa referencia durante 20 segundos. PERO ENTRAR a cualquier
+    // base —sea la misma, otra distinta o recién entrando en servicio— es siempre una
+    // entrada nueva y el servidor lo coloca detrás del último de esa fila.
     const baseExitGraceMs = 20 * 1000;
 
     // Marca una entrada NUEVA que ya fue normalizada con hora autoritativa del servidor.
@@ -636,9 +636,9 @@ Deno.serve(async (req) => {
           normalizedExplicitQueueEntry = true;
         }
 
-        // Reingreso desde "sin base": si vuelve a LA MISMA base dentro de los 20 s,
-        // conserva exactamente su posición. Si elige otra base o la gracia venció,
-        // es una entrada nueva y queda detrás del último real de esa fila.
+        // Reingreso desde "sin base": SIEMPRE es una entrada nueva. La gracia de
+        // 20 s sólo mantiene la referencia mientras sigue afuera (current_base=null);
+        // en cuanto toca cualquier base, incluso la misma, queda detrás del último.
         const returnedFromNoBase = Boolean(
           !normalizedExplicitQueueEntry && currentBase && oldData && !oldData.current_base
         );
@@ -646,29 +646,6 @@ Deno.serve(async (req) => {
           const leftAtRaw = freshQueueDriver.queue_left_at || oldData.queue_left_at || null;
           const leftAtMs = leftAtRaw ? new Date(leftAtRaw).getTime() : NaN;
           const withinGrace = Number.isFinite(leftAtMs) && (Date.now() - leftAtMs) <= baseExitGraceMs;
-
-          if (authoritativeBase && currentBase === authoritativeBase && withinGrace && authoritativeAt) {
-            const kept = await b44.entities.Driver.updateMany(
-              { id:driverId, status:'disponible', current_base:currentBase },
-              { $set:{
-                queue_entered_at:authoritativeAt,
-                queue_authoritative_base:authoritativeBase,
-                queue_authoritative_at:authoritativeAt,
-                queue_left_at:null
-              } }
-            ).catch(()=>({updated:0}));
-            const keptCount = kept?.updated ?? kept?.modifiedCount ?? kept?.matchedCount ?? 0;
-            if (keptCount === 1) {
-              await b44.entities.AuditLog.create({
-                action:'QUEUE_RETURNED_WITHIN_20S_POSITION_KEPT',
-                user_type:'sistema',
-                user_name:freshQueueDriver.name || 'Driver',
-                details:`${freshQueueDriver.name || driverId} volvió a ${currentBase} dentro de 20 segundos y conservó su posición`,
-                metadata:{ driverId, baseName:currentBase, queueAt:authoritativeAt, leftAt:leftAtRaw, graceMs:baseExitGraceMs }
-              }).catch(()=>{});
-            }
-            return Response.json({ success:true, repaired:keptCount === 1, reason:'QUEUE_RETURNED_WITHIN_20S_POSITION_KEPT' });
-          }
 
           const newEntryAt = await getNextQueueTailAt(b44, currentBase, driverId);
           const reset = await b44.entities.Driver.updateMany(
@@ -730,8 +707,9 @@ Deno.serve(async (req) => {
         }
 
         // Autoridad sin base visible = móvil mirando otras filas dentro de su gracia.
-        // Nunca restauramos current_base por atrás: sólo conservamos su turno durante
-        // 20 s. Si no vuelve a la misma base en ese plazo, limpiamos la antigüedad.
+        // Nunca restauramos current_base por atrás: sólo conservamos la referencia de
+        // su turno hasta 20 s mientras permanece afuera. Si entra a cualquier base,
+        // la rama de reingreso anterior lo coloca último; si sigue afuera, expira.
         if (!normalizedExplicitQueueEntry && authoritativeBase && !currentBase) {
           let leftAtRaw = freshQueueDriver.queue_left_at || null;
           if (!leftAtRaw) {
