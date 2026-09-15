@@ -621,9 +621,12 @@ Deno.serve(async (req) => {
         },
         { $set: {
           queue_entered_at: oldData.queue_entered_at,
-          // Marcador técnico anti-bucle. No representa posición; sólo identifica
-          // que esta segunda escritura es la restauración hecha por el servidor.
-          queue_position: marker
+          // Marcador técnico anti-bucle. Mantener ambos marcadores sincronizados:
+          // si sólo cambia queue_position, la siguiente ejecución lo interpreta
+          // erróneamente como movimiento manual del operador y termina adoptando
+          // como autoridad la hora espuria que justamente acabamos de revertir.
+          queue_position: marker,
+          queue_authority_marker: marker
         } }
       );
       const changed = reverted?.updated ?? reverted?.modifiedCount ?? reverted?.matchedCount ?? 0;
