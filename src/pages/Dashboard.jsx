@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 // base44 y useQuery se usan solo para bases (dato estático, no necesita tiempo real)
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
-import useRejectionAlert from "@/hooks/useRejectionAlert.jsx";
 
 import { Car, Clock, CheckCircle2, Users, ArrowRight, Zap, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -78,10 +77,8 @@ export default function Dashboard() {
   const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 4000 });
   const { drivers } = useRealtimeDrivers({ refreshIntervalMs: 30000 });
 
-  // La Central sólo observa/muestra el rechazo. NO reasigna desde el navegador.
-  // rejectRide es la única autoridad server-side para cerrar el intento anterior
-  // y crear la oferta nueva al siguiente móvil de la misma cola.
-  useRejectionAlert();
+  // Las alertas de rechazo se muestran una sola vez desde AppLayout.
+  // Dashboard no ejecuta ninguna reasignación ni abre una segunda suscripción.
 
   const { data: bases = [] } = useQuery({
     queryKey: ["bases"],
