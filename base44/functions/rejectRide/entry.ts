@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
-import { getNextQueueTailAt, getNextQueuePosition } from '../../shared/queueOrder.ts';
+import { getNextQueueTailAt, getNextQueuePosition, withQueueLock, compactQueueUnlocked } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   let b44: any = null;
@@ -99,43 +99,51 @@ Deno.serve(async (req) => {
     // No se lo saca de la cola para reinsertarlo después: eso evita carreras y mantiene
     // una única secuencia automática 1 -> 2 -> 3 -> 4.
     const queueBase = order.assigned_base || order.zone || null;
-    const queueAt = queueBase
-      ? await getNextQueueTailAt(b44, queueBase, driverId)
-      : new Date().toISOString();
-    const nextPos = queueBase 
-      ? await getNextQueuePosition(b44, queueBase, driverId)
-      : null;
-    const releasedCurrent = await b44.entities.Driver.updateMany(
-      {
-        id: driverId,
-        status: 'disponible',
-        dispatch_status: 'automatic_pending',
-        reserved_order_id: orderId,
-        reservation_token: order.reservation_token
-      },
-      {
-        $set: {
-          status:'disponible',
-          dispatch_status:'normal',
-          current_base:queueBase,
-          queue_entered_at:queueAt,
-          queue_authoritative_base:queueBase,
-          queue_authoritative_at:queueAt,
-          queue_authority_marker:null,
-          queue_position:nextPos,
-          queue_left_at:null,
-          active_order_id:null,
-          active_ride_id:null,
-          reserved_order_id:null,
-          reservation_token:null,
-          manual_reservation_token:null,
-          driver_reservation_key:null
-        }
+    let queueAt = new Date().toISOString();
+    let nextPos: number | null = null;
+    let releasedCurrent: any = { updated: 0 };
+
+    const releaseCurrentDriver = async () => {
+      if (queueBase) {
+        queueAt = await getNextQueueTailAt(b44, queueBase, driverId);
+        nextPos = await getNextQueuePosition(b44, queueBase, driverId);
       }
-    );
-    if (queueBase) {
-      compactQueue(b44, queueBase).catch(e => console.error("Error compacting queue in rejectRide:", e));
-    }
+      const result = await b44.entities.Driver.updateMany(
+        {
+          id: driverId,
+          status: 'disponible',
+          dispatch_status: 'automatic_pending',
+          reserved_order_id: orderId,
+          reservation_token: order.reservation_token
+        },
+        {
+          $set: {
+            status:'disponible',
+            dispatch_status:'normal',
+            current_base:queueBase,
+            queue_entered_at:queueAt,
+            queue_authoritative_base:queueBase,
+            queue_authoritative_at:queueAt,
+            queue_authority_marker:null,
+            queue_position:nextPos,
+            queue_left_at:null,
+            active_order_id:null,
+            active_ride_id:null,
+            reserved_order_id:null,
+            reservation_token:null,
+            manual_reservation_token:null,
+            driver_reservation_key:null
+          }
+        }
+      );
+      const count = result.matchedCount ?? result.modifiedCount ?? result.updated ?? 0;
+      if (queueBase && count === 1) await compactQueueUnlocked(b44, queueBase);
+      return result;
+    };
+
+    releasedCurrent = queueBase
+      ? await withQueueLock(b44, queueBase, releaseCurrentDriver)
+      : await releaseCurrentDriver();
     const releasedCount = releasedCurrent.matchedCount ?? releasedCurrent.modifiedCount ?? releasedCurrent.updated ?? 0;
     if (releasedCount !== 1) {
       // Compatibilidad con v12.27/v12.29: esas APK primero liberan el Driver y
