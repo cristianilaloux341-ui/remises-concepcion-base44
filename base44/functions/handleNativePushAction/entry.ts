@@ -51,7 +51,9 @@ Deno.serve(async (req) => {
           {
             $set: {
               assigned_at: receivedAt,
-              offerExpiresAt: receivedOfferExpiresAt
+              offerExpiresAt: receivedOfferExpiresAt,
+              push_ack_at: receivedAt,
+              push_ack_assignment_attempt: order.assignment_attempt
             }
           }
         );
