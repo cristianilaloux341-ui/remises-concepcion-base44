@@ -184,7 +184,7 @@
         "string",
         "null"
       ],
-      "description": "Hora de servidor en que el m\u00f3vil sali\u00f3 de toda lista de base; conserva su posici\u00f3n como m\u00e1ximo 10 segundos"
+      "description": "Hora de servidor en que el m\u00f3vil sali\u00f3 de toda lista de base; conserva su posici\u00f3n como m\u00e1ximo 20 segundos"
     },
     "queue_authority_marker": {
       "type": "number",
