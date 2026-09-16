@@ -138,75 +138,16 @@ Deno.serve(async (req) => {
       return Response.json({ success:true, skipped:true, reason:'NO_UNIQUE_LIVE_OR_RECOVERABLE_OFFER_FOR_DRIVER', driverId:driver.id });
     }
 
-    // MODO SEGURO LEGACY (12.27/12.29): el toque RECHAZAR NO reasigna antes del
-    // vencimiento original. Conservamos/restauramos la oferta exacta y dejamos que
-    // autoReassignOnTimeout la procese al T=30 contado desde el primer envío.
-    // IMPORTANTE: nunca crear 30 s nuevos desde el rechazo.
+    // RECHAZO EXPLÍCITO: el botón RECHAZAR termina ESTA oferta inmediatamente.
+    // No espera el resto de los 30 s y no crea una ventana nueva. rejectRide hace
+    // el traspaso atómico ofrecido(A) -> ofrecido(B) cuando existe otro candidato;
+    // `pendiente` sólo es válido si realmente se agotó la cadena de candidatos.
     const assignmentAttempt = Number(order.assignment_attempt || 1);
-    const expiresAt = Number(order.offerExpiresAt);
-    const remainingMs = Number.isFinite(expiresAt) ? expiresAt - Date.now() : null;
-
-    if (remainingMs !== null && remainingMs > 0) {
-      // Si la APK alcanzó a liberar el Driver, volver a enlazarlo con ESTA oferta para
-      // que el viaje no quede visible/tomable en Pendientes durante el tiempo restante.
-      await b44.entities.Driver.updateMany(
-        {
-          id:driver.id,
-          status:'disponible',
-          active_order_id:null,
-          active_ride_id:null
-        },
-        { $set:{
-          dispatch_status:'automatic_pending',
-          reserved_order_id:order.id,
-          reservation_token:order.reservation_token,
-          current_base:order.assigned_base || freshDriver?.current_base || null
-        } }
-      ).catch(()=>({updated:0}));
-
-      // Si la oferta tuvo que recuperarse desde pendiente, el worker original puede
-      // haber terminado con offer_changed. Rearmarlo sobre el MISMO attempt y el
-      // MISMO offerExpiresAt garantiza el salto al siguiente al cumplir los 30 s.
-      b44.functions.invoke('autoReassignOnTimeout', {
-        orderId:order.id,
-        driverId:driver.id,
-        assignmentAttempt,
-        internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
-      }).catch((e:any)=>console.error('Legacy reject timeout rearm error:', e));
-
-      await b44.entities.AuditLog.create({
-        action:'LEGACY_REJECT_DEFERRED_TO_ORIGINAL_TIMEOUT',
-        user_type:'sistema',
-        user_name:driverName,
-        details:`Rechazo legacy ${order.id} protegido hasta el vencimiento original de 30 s`,
-        metadata:{
-          orderId:order.id,
-          driverId:driver.id,
-          assignmentAttempt,
-          offerExpiresAt:expiresAt,
-          remainingMs:Math.max(0, remainingMs),
-          legacyAuditLogId:log.id || null
-        }
-      }).catch(()=>{});
-
-      return Response.json({
-        success:true,
-        applied:true,
-        deferredToOriginalTimeout:true,
-        orderId:order.id,
-        driverId:driver.id,
-        assignmentAttempt,
-        remainingMs:Math.max(0, remainingMs)
-      });
-    }
-
-    // Si cuando llega el AuditLog el reloj original ya venció, no esperamos nada:
-    // usamos el mismo motor server-side como timeout para pasar al siguiente móvil.
     const rejectRes = await b44.functions.invoke('rejectRide', {
       orderId:order.id,
       driverId:driver.id,
       assignmentAttempt,
-      source:'timeout',
+      source:'explicit_reject',
       internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
     }).catch((error:any) => ({ data:{ success:false, reason:error?.message || 'INVOKE_FAILED' } }));
 
