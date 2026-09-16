@@ -461,6 +461,54 @@ Deno.serve(async (req) => {
         !freshQueueDriver.active_order_id &&
         !freshQueueDriver.active_ride_id;
 
+      // APK legacy: al volver A SERVICIO puede publicar primero disponible+sin base
+      // conservando la autoridad/posición de la sesión anterior. Esa autoridad es
+      // inválida: si la dejamos viva, al elegir base puede reaparecer 1° con su
+      // queue_position viejo. La transición real no_disponible -> disponible sin
+      // base abre una sesión nueva y debe esperar una entrada de base desde cero.
+      const legacyServiceOnWithoutBase = Boolean(
+        oldData && eventData &&
+        oldData.status === 'no_disponible' &&
+        eventData.status === 'disponible' &&
+        !eventData.current_base &&
+        !freshQueueDriver.current_base &&
+        !freshQueueDriver.reserved_order_id &&
+        !freshQueueDriver.active_order_id &&
+        !freshQueueDriver.active_ride_id
+      );
+      if (legacyServiceOnWithoutBase && (authoritativeBase || authoritativeAt || freshQueueDriver.queue_position != null)) {
+        const cleared = await b44.entities.Driver.updateMany(
+          {
+            id:driverId,
+            status:'disponible',
+            current_base:null,
+            reserved_order_id:null,
+            active_order_id:null,
+            active_ride_id:null
+          },
+          { $set:{
+            queue_authoritative_base:null,
+            queue_authoritative_at:null,
+            queue_authority_marker:null,
+            queue_position:null,
+            queue_entered_at:null,
+            queue_left_at:new Date().toISOString()
+          } }
+        ).catch(()=>({updated:0}));
+        const clearedCount = cleared?.updated ?? cleared?.modifiedCount ?? cleared?.matchedCount ?? 0;
+        if (authoritativeBase && clearedCount === 1) compactQueue(b44, authoritativeBase).catch(()=>null);
+        if (clearedCount === 1) {
+          await b44.entities.AuditLog.create({
+            action:'QUEUE_STALE_AUTHORITY_CLEARED_ON_SERVICE_START',
+            user_type:'sistema',
+            user_name:freshQueueDriver.name || oldData.name || 'Driver',
+            details:`Se limpió posición vieja de ${freshQueueDriver.name || driverId} al volver a servicio sin base`,
+            metadata:{ driverId, previousBase:authoritativeBase, previousPosition:marker }
+          }).catch(()=>{});
+        }
+        return Response.json({ success:true, repaired:clearedCount === 1, reason:'QUEUE_STALE_AUTHORITY_CLEARED_ON_SERVICE_START' });
+      }
+
       // Salida real de servicio: status=no_disponible + current_base=null invalida
       // SIEMPRE la autoridad de cola. Las APK 12.27/12.29 pueden dejar un
       // queue_entered_at viejo en caché; ese timestamp nunca puede mantener vivo un puesto.
