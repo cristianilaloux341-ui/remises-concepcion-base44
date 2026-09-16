@@ -87,37 +87,16 @@ async function guardOfferedReservationIntegrity(b44:any, driverId:string) {
   }
 
   if (driverBusyElsewhere) {
-    const closed = await b44.entities.RideOrder.updateMany(
-      {
-        id: order.id,
-        status: 'ofrecido',
-        reserved_driver_id: driverId,
-        reservation_token: order.reservation_token,
-        assignment_attempt: order.assignment_attempt,
-        offerExpiresAt: order.offerExpiresAt
-      },
-      { $set: {
-        status:'pendiente', driver_id:null, driver_name:null, reserved_driver_id:null,
-        reservation_token:null, manual_reservation_token:null, assigned_at:null,
-        offerExpiresAt:null, assigned_base:null, processingOwnerId:null,
-        processingAction:null, processingOperationKey:null, processingLeaseExpiresAt:null,
-        processingPhase:null
-      } }
-    ).catch(() => ({ updated:0 }));
-    if ((closed.updated ?? closed.matchedCount ?? closed.modifiedCount ?? 0) === 1) {
-      await b44.functions.invoke('sendPushNotification', {
-        action:'cancel_multiple', orderId:order.id, driversToCancel:[driverId],
-        orderData:{ assignmentAttempt:Number(order.assignment_attempt) },
-        internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
-      }).catch(() => {});
-      await b44.entities.AuditLog.create({
-        action:'ORPHAN_OFFER_CLOSED_BY_DRIVER_GUARD', user_type:'sistema', user_name:'DriverStateGuard',
-        details:`Oferta ${order.id} cerrada al detectar vínculo roto con ${driverId}`,
-        metadata:{ orderId:order.id, driverId, expired, driverBusyElsewhere }
-      }).catch(() => {});
-      return { repaired:true, action:'ORDER_TO_PENDING' };
-    }
-    return { repaired:false, reason:'CONCURRENT_CHANGE' };
+    // Un Driver ocupado con otro viaje es una inconsistencia, no autorización para
+    // abrir Pendientes. No tocamos el RideOrder ofrecido: el timeout/reconciliador
+    // autoritativo lo cerrará y recorrerá la cola. Esto evita cortar A→B→C por un
+    // vínculo roto o una carrera del APK legacy.
+    await b44.entities.AuditLog.create({
+      action:'ORPHAN_OFFER_DRIVER_BUSY_FAIL_CLOSED', user_type:'sistema', user_name:'DriverStateGuard',
+      details:`Oferta ${order.id} conservada al detectar ${driverId} ocupado en otro viaje; Pendientes bloqueado`,
+      metadata:{ orderId:order.id, driverId, expired, driverBusyElsewhere }
+    }).catch(()=>{});
+    return { repaired:false, reason:'DRIVER_BUSY_FAIL_CLOSED' };
   }
 
   // Oferta todavía vigente y móvil sin otro viaje: el RideOrder es la autoridad.
