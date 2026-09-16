@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     if (!order) return Response.json({ ok:true, skipped:true, reason:'order_missing' });
 
     // offerExpiresAt en Central es la ÚNICA autoridad de tiempo. La APK no decide
-    // cuándo vence una oferta. Si ACK nativo extendió la ventana, este valor ya lo refleja.
+    // cuándo vence una oferta y el ACK nunca extiende el techo absoluto de 30 s.
     if (
       order.status !== 'ofrecido' ||
       order.reserved_driver_id !== driverId ||
@@ -30,13 +30,10 @@ Deno.serve(async (req) => {
 
     let expiresAt = Number(order.offerExpiresAt);
     if (!Number.isFinite(expiresAt)) {
-      // Nunca inventar un vencimiento corto si falta la autoridad de tiempo.
-      // Recuperamos una ventana completa (30 s configurados) desde este instante;
-      // si llega el ACK del teléfono, native_ack vuelve a fijar 30 s desde recepción.
-      const config = (await b44.entities.TarifaConfig.list())[0] || {};
-      const configuredSeconds = Number(config.tiempo_maximo_respuesta_segundos ?? 30);
-      const seconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
-      expiresAt = Date.now() + seconds * 1000;
+      // Si falta la autoridad de tiempo, reconstruimos el techo desde assigned_at.
+      // Nunca abrimos una ventana nueva por ACK o por ejecutar tarde este worker.
+      const assignedBaseMs = order.assigned_at ? new Date(order.assigned_at).getTime() : Date.now();
+      expiresAt = assignedBaseMs + 30000;
       await b44.entities.RideOrder.updateMany(
         {
           id: orderId,
