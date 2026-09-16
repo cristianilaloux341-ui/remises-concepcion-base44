@@ -131,17 +131,20 @@ Deno.serve(async (req) => {
       return Response.json({ ok:true, chained:true, remainingMs:Math.max(0, remainingMs - waitMs), ackedThisAttempt });
     }
 
-    // Si el teléfono NUNCA confirmó recepción, esto no es un timeout del chofer.
-    // Reintentamos la MISMA oferta (mismo assignment_attempt) hasta dos veces. El
-    // primer ACK que llegue fija los 30 s reales y detiene esta rama automáticamente.
+    // La oferta total dura 30 s. Si el teléfono todavía no confirmó recepción,
+    // hacemos UN solo refuerzo a los 15 s (mismo assignment_attempt): primer aviso
+    // al inicio + segundo aviso a mitad de ventana. Ese refuerzo NO crea otros 30 s.
+    // Al llegar a los 30 s totales, si sigue sin respuesta, se pasa al siguiente.
     if (!ackedThisAttempt) {
       const retryCount = Number(order.delivery_retry_count || 0);
-      const MAX_DELIVERY_RETRIES = 2;
-      const DELIVERY_RETRY_WAIT_MS = 10000;
+      const MAX_DELIVERY_RETRIES = 1;
+      const DELIVERY_RETRY_WAIT_MS = 15000;
 
       if (retryCount < MAX_DELIVERY_RETRIES) {
         const nextRetryCount = retryCount + 1;
-        const retryExpiresAt = Date.now() + DELIVERY_RETRY_WAIT_MS;
+        const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : Date.now();
+        const totalWindowEnd = assignedMs + 30000;
+        const retryExpiresAt = Math.max(Date.now() + 1000, totalWindowEnd);
         const retryFilter:any = {
           id:orderId,
           status:'ofrecido',
@@ -215,8 +218,8 @@ Deno.serve(async (req) => {
         return Response.json({ ok:true, skipped:true, reason:'delivery_state_changed' });
       }
 
-      // Dos reintentos sin ACK: el teléfono no confirmó recepción. Se pasa al
-      // siguiente sin penalizar la posición de cola de este chofer.
+      // Cumplidos los 30 s totales sin respuesta/ACK suficiente: se pasa al
+      // siguiente sin agregar otra ventana y sin penalizar la posición por entrega.
       const deliveryResult = await b44.functions.invoke('rejectRide', {
         orderId,
         driverId,
