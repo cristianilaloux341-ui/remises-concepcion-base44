@@ -80,7 +80,8 @@ Deno.serve(async (req) => {
         const responseSeconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
         const ackMs = new Date(matchingAck.created_date).getTime();
         const ackAt = new Date(ackMs).toISOString();
-        const ackExpiry = ackMs + responseSeconds * 1000;
+        const assignedBaseMs = order.assigned_at ? new Date(order.assigned_at).getTime() : ackMs;
+        const ackExpiry = assignedBaseMs + 30000;
         const adopted = await b44.entities.RideOrder.updateMany(
           {
             id:orderId,
@@ -108,7 +109,7 @@ Deno.serve(async (req) => {
             action:'ACK_RECOVERED_BEFORE_TIMEOUT',
             user_type:'sistema',
             user_name:'autoReassignOnTimeout',
-            details:`ACK ya existente recuperado antes de vencer/reasignar ${orderId}`,
+            details:`ACK ya existente recuperado sin extender el techo absoluto de 30 s de ${orderId}`,
             metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), ackAt, offerExpiresAt:ackExpiry }
           }).catch(()=>{});
         }
