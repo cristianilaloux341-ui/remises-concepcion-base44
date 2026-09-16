@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
+import { findNextDriverInZone } from '../../shared/driverSelection.ts';
 
 const changed = (result: any) =>
   (result?.matchedCount ?? result?.modifiedCount ?? result?.updated ?? 0) === 1;
@@ -177,6 +178,22 @@ Deno.serve(async (req) => {
     if (!order || order.status !== 'pendiente' || order.driver_id || order.reserved_driver_id ||
         order.preassigned_driver_id) {
       return Response.json({ success: false, reason: 'already_taken' });
+    }
+
+    // REGLA ORIGINAL DE PENDIENTES: si todavía existe un móvil realmente disponible
+    // en la zona del pasaje, la cartelera NO puede apropiárselo. Debe seguir por el
+    // despacho automático respetando la cola de esa zona. Pendientes sólo queda
+    // habilitado cuando el selector autoritativo confirma que no hay candidato.
+    const zoneCandidate = await findNextDriverInZone(b44, order, null).catch(() => null);
+    if (zoneCandidate) {
+      await b44.entities.AuditLog.create({
+        action: 'PENDING_CLAIM_BLOCKED_DRIVER_IN_ZONE',
+        user_type: 'sistema',
+        user_name: driver.name || driverId,
+        details: `Bloqueado Pendientes para ${orderId}: hay móvil disponible en ${order.zone}`,
+        metadata: { orderId, driverId, zone: order.zone, zoneDriverId: zoneCandidate.id, zoneDriverName: zoneCandidate.name }
+      }).catch(() => {});
+      return Response.json({ success: false, reason: 'driver_available_in_zone' });
     }
 
     // Las APK legacy pueden escribir `pendiente` unos milisegundos antes de que
