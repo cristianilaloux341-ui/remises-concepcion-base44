@@ -8,6 +8,10 @@
     "note": {
       "type": "string",
       "default": "unused"
+    },
+    "safe_to_ignore": {
+      "type": "boolean",
+      "default": true
     }
   },
   "required": [],
