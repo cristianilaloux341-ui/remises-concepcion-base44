@@ -135,18 +135,14 @@ export async function getNextQueuePosition(b44: any, baseName: string, excludeDr
     ]
   }).catch(() => []);
 
-  // Una entrada nueva siempre va DETRÁS de todos los móviles que ya conservan
-  // autoridad válida en la base. No usamos MAX(queue_position)+1 como fuente de
-  // verdad porque una compactación/reordenamiento concurrente puede dejar huecos o
-  // posiciones transitorias. La cantidad de miembros autoritativos existentes es
-  // la posición lógica de cola; el lock de base garantiza que nadie entre a la vez.
-  let members = 0;
+  let maxPos = 0;
   for (const d of drivers || []) {
     if (!d || d.id === excludeDriverId) continue;
     if (getEffectiveQueueBase(d) !== baseName) continue;
-    members++;
+    const pos = Number(d.queue_position);
+    if (Number.isFinite(pos) && pos > 0) maxPos = Math.max(maxPos, pos);
   }
-  return members + 1;
+  return maxPos + 1;
 }
 
 export async function compactQueueUnlocked(b44: any, baseName: string) {
