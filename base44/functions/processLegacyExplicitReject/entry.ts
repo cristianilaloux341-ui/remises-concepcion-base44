@@ -78,7 +78,64 @@ Deno.serve(async (req) => {
     }
 
     if (!order) {
-      return Response.json({ success:true, skipped:true, reason:'NO_UNIQUE_LIVE_OFFER_FOR_DRIVER', driverId:driver.id });
+      // Algunas APK 12.27/12.29 alcanzan a poner RideOrder en `pendiente` antes de
+      // crear este AuditLog. En ese caso la búsqueda de oferta viva llegaba tarde y
+      // el rechazo quedaba esperando al cron o a que alguien tomara Pendientes.
+      // Recuperamos SOLAMENTE la última oferta FCM de este mismo chofer, emitida en
+      // los 90 s previos al rechazo, y sólo si el viaje sigue pendiente y sin dueño.
+      const logMs = new Date(log.created_date || Date.now()).getTime();
+      const recentPushes = await b44.entities.AuditLog.filter({
+        action:'push_enviado',
+        'metadata.driverId':driver.id
+      }, '-created_date', 10).catch(()=>[]);
+
+      for (const pushLog of recentPushes || []) {
+        const pushMs = new Date(pushLog.created_date || 0).getTime();
+        if (!Number.isFinite(pushMs) || pushMs > logMs + 1000 || logMs - pushMs > 90000) continue;
+        const candidateId = pushLog.metadata?.orderId;
+        if (!candidateId) continue;
+        const candidate = await b44.entities.RideOrder.get(candidateId).catch(()=>null);
+        if (!candidate || candidate.status !== 'pendiente' || candidate.driver_id || candidate.reserved_driver_id) continue;
+        const client = String(candidate.client_name || '').trim().toLowerCase();
+        if (client && detail && !detail.includes(client)) continue;
+
+        const syntheticToken = crypto.randomUUID();
+        const attemptNo = Number(candidate.assignment_attempt || 1);
+        const restored = await b44.entities.RideOrder.updateMany(
+          {
+            id:candidate.id,
+            status:'pendiente',
+            driver_id:null,
+            reserved_driver_id:null,
+            assignment_attempt:attemptNo
+          },
+          { $set:{
+            status:'ofrecido',
+            driver_id:driver.id,
+            driver_name:driver.name,
+            reserved_driver_id:driver.id,
+            reservation_token:syntheticToken,
+            assigned_base:candidate.assigned_base || candidate.zone || null
+          } }
+        ).catch(()=>({updated:0}));
+        const restoredCount = restored?.updated ?? restored?.matchedCount ?? restored?.modifiedCount ?? 0;
+        if (restoredCount === 1) {
+          order = await b44.entities.RideOrder.get(candidate.id).catch(()=>null);
+          freshDriver = await b44.entities.Driver.get(driver.id).catch(()=>freshDriver);
+          await b44.entities.AuditLog.create({
+            action:'LEGACY_REJECT_PENDING_RECOVERED',
+            user_type:'sistema',
+            user_name:driverName,
+            details:`Se recuperó rechazo legacy que había dejado ${candidate.id} pendiente antes del motor secuencial`,
+            metadata:{ orderId:candidate.id, driverId:driver.id, assignmentAttempt:attemptNo, legacyAuditLogId:log.id || null }
+          }).catch(()=>{});
+          break;
+        }
+      }
+    }
+
+    if (!order) {
+      return Response.json({ success:true, skipped:true, reason:'NO_UNIQUE_LIVE_OR_RECOVERABLE_OFFER_FOR_DRIVER', driverId:driver.id });
     }
 
     // Cinturón extra: si el texto legacy incluye nombre de cliente, no asociar el
