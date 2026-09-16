@@ -253,6 +253,8 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
 
       // Si el selector fresco confirma que ya no queda ningún candidato, recién
       // entonces esta recuperación puede liberar el pasaje como Pendiente real.
+      // La misma marca usada por rejectRide distingue esta salida autoritativa de
+      // cualquier offered→pending escrito por APK legacy.
       const res = await b44.entities.RideOrder.updateMany(
         {
           id: order.id,
@@ -273,7 +275,7 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
             assigned_at: null,
             offerExpiresAt: null,
             assigned_base: null,
-            processingAction: null,
+            processingAction: 'PENDING_AUTHORIZED',
             processingOperationKey: null,
             processingOwnerId: null,
             processingLeaseExpiresAt: null,
