@@ -101,6 +101,29 @@ Deno.serve(async (req) => {
 
         const syntheticToken = crypto.randomUUID();
         const attemptNo = Number(candidate.assignment_attempt || 1);
+
+        // La APK legacy ya confirmó el rechazo al crear este AuditLog. Desde este
+        // punto Central toma propiedad exclusiva del pasaje. Restauramos EN CONJUNTO
+        // la oferta y la reserva del Driver antes de entrar a rejectRide; así el
+        // motor server-side ve exactamente el mismo contrato que en un rechazo
+        // moderno y no termina STALE_OR_EXPIRED porque el teléfono liberó primero.
+        const driverClaim = await b44.entities.Driver.updateMany(
+          {
+            id:driver.id,
+            status:'disponible',
+            reserved_order_id:null,
+            active_order_id:null,
+            active_ride_id:null
+          },
+          { $set:{
+            dispatch_status:'automatic_pending',
+            reserved_order_id:candidate.id,
+            reservation_token:syntheticToken
+          } }
+        ).catch(()=>({updated:0}));
+        const driverClaimed = (driverClaim?.updated ?? driverClaim?.matchedCount ?? driverClaim?.modifiedCount ?? 0) === 1;
+        if (!driverClaimed) continue;
+
         const restored = await b44.entities.RideOrder.updateMany(
           {
             id:candidate.id,
@@ -115,7 +138,12 @@ Deno.serve(async (req) => {
             driver_name:driver.name,
             reserved_driver_id:driver.id,
             reservation_token:syntheticToken,
-            assigned_base:candidate.assigned_base || candidate.zone || null
+            assigned_base:candidate.assigned_base || candidate.zone || freshDriver?.current_base || freshDriver?.queue_authoritative_base || null,
+            processingOwnerId:null,
+            processingAction:null,
+            processingOperationKey:null,
+            processingLeaseExpiresAt:null,
+            processingPhase:null
           } }
         ).catch(()=>({updated:0}));
         const restoredCount = restored?.updated ?? restored?.matchedCount ?? restored?.modifiedCount ?? 0;
@@ -126,11 +154,18 @@ Deno.serve(async (req) => {
             action:'LEGACY_REJECT_PENDING_RECOVERED',
             user_type:'sistema',
             user_name:driverName,
-            details:`Se recuperó rechazo legacy que había dejado ${candidate.id} pendiente antes del motor secuencial`,
+            details:`Central tomó propiedad del rechazo legacy ${candidate.id} y restauró contrato atómico antes del motor secuencial`,
             metadata:{ orderId:candidate.id, driverId:driver.id, assignmentAttempt:attemptNo, legacyAuditLogId:log.id || null }
           }).catch(()=>{});
           break;
         }
+
+        // Si otro actor ganó la carrera por el pasaje, devolver la reserva sintética
+        // del Driver. Nunca dejar un móvil bloqueado por una recuperación fallida.
+        await b44.entities.Driver.updateMany(
+          { id:driver.id, reserved_order_id:candidate.id, reservation_token:syntheticToken },
+          { $set:{ dispatch_status:'normal', reserved_order_id:null, reservation_token:null } }
+        ).catch(()=>{});
       }
     }
 
