@@ -110,69 +110,36 @@ Deno.serve(async (req) => {
       }
     }
 
-    const remainingMs = expiresAt - Date.now();
+    const nowMs = Date.now();
+    const remainingMs = expiresAt - nowMs;
+    const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : (expiresAt - 30000);
+    const reminderAt = assignedMs + 15000;
+    const retryCount = Number(order.delivery_retry_count || 0);
+
     if (remainingMs > 0) {
-      // Las funciones serverless no deben dormir demasiado. Esperamos como máximo
-      // 25 s y volvemos a leer offerExpiresAt; así cualquier ACK/cambio de Central
-      // se respeta sin tener un reloj independiente dentro de Android.
-      const waitMs = Math.min(25000, Math.max(1000, remainingMs));
-      await new Promise(r => setTimeout(r, waitMs));
-      b44.functions.invoke('autoReassignOnTimeout', {
-        orderId,
-        driverId,
-        assignmentAttempt,
-        internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
-      }).catch(e=>console.error('Timeout chain error:',e));
-      return Response.json({ ok:true, chained:true, remainingMs:Math.max(0, remainingMs - waitMs), ackedThisAttempt });
-    }
-
-    // La oferta total dura 30 s. Si el teléfono todavía no confirmó recepción,
-    // hacemos UN solo refuerzo a los 15 s (mismo assignment_attempt): primer aviso
-    // al inicio + segundo aviso a mitad de ventana. Ese refuerzo NO crea otros 30 s.
-    // Al llegar a los 30 s totales, si sigue sin respuesta, se pasa al siguiente.
-    if (!ackedThisAttempt) {
-      const retryCount = Number(order.delivery_retry_count || 0);
-      const MAX_DELIVERY_RETRIES = 1;
-      const DELIVERY_RETRY_WAIT_MS = 15000;
-
-      if (retryCount < MAX_DELIVERY_RETRIES) {
-        const nextRetryCount = retryCount + 1;
-        const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : Date.now();
-        const totalWindowEnd = assignedMs + 30000;
-        const retryExpiresAt = Math.max(Date.now() + 1000, totalWindowEnd);
-        const retryFilter:any = {
-          id:orderId,
-          status:'ofrecido',
-          reserved_driver_id:driverId,
-          reservation_token:order.reservation_token,
-          assignment_attempt:Number(assignmentAttempt),
-          offerExpiresAt:order.offerExpiresAt,
-          $and:[
-            { $or:[
-              { push_ack_assignment_attempt:null },
-              { push_ack_assignment_attempt:{ $exists:false } },
-              { push_ack_assignment_attempt:{ $ne:Number(assignmentAttempt) } }
-            ] }
-          ]
-        };
-        if (retryCount === 0) {
-          retryFilter.$and.push({ $or:[
-            { delivery_retry_count:0 },
-            { delivery_retry_count:null },
-            { delivery_retry_count:{ $exists:false } }
-          ] });
-        } else {
-          retryFilter.delivery_retry_count = retryCount;
-        }
-
-        const retryCas = await b44.entities.RideOrder.updateMany(
-          retryFilter,
-          { $set:{ delivery_retry_count:nextRetryCount, offerExpiresAt:retryExpiresAt } }
+      // Dos avisos dentro de UNA sola ventana: el inicial en t=0 y, si el viaje
+      // sigue ofrecido sin aceptar/rechazar, un único refuerzo en t=15 s. El refuerzo
+      // conserva exactamente el mismo assignment_attempt y NO modifica offerExpiresAt.
+      if (retryCount === 0 && nowMs >= reminderAt) {
+        const reminderCas = await b44.entities.RideOrder.updateMany(
+          {
+            id:orderId,
+            status:'ofrecido',
+            reserved_driver_id:driverId,
+            reservation_token:order.reservation_token,
+            assignment_attempt:Number(assignmentAttempt),
+            $or:[
+              { delivery_retry_count:0 },
+              { delivery_retry_count:null },
+              { delivery_retry_count:{ $exists:false } }
+            ]
+          },
+          { $set:{ delivery_retry_count:1 } }
         ).catch(()=>({updated:0}));
-        const retryChanged = retryCas?.updated ?? retryCas?.matchedCount ?? retryCas?.modifiedCount ?? 0;
+        const reminderWon = reminderCas?.updated ?? reminderCas?.matchedCount ?? reminderCas?.modifiedCount ?? 0;
 
-        if (retryChanged === 1) {
-          const retryPush = await b44.functions.invoke('sendPushNotification', {
+        if (reminderWon === 1) {
+          const reminderPush = await b44.functions.invoke('sendPushNotification', {
             action:'send',
             driverId,
             orderId,
@@ -187,34 +154,38 @@ Deno.serve(async (req) => {
           }).catch((e:any)=>({ data:{ ok:false, error:e?.message || String(e) } }));
 
           await b44.entities.AuditLog.create({
-            action:'OFFER_DELIVERY_RETRY_SENT',
+            action:'OFFER_15S_REMINDER_SENT',
             user_type:'sistema',
             user_name:'autoReassignOnTimeout',
-            details:`Sin ACK del teléfono; reintento ${nextRetryCount}/${MAX_DELIVERY_RETRIES} de la misma oferta ${orderId}`,
-            metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), retryCount:nextRetryCount, retryPushOk:(retryPush?.data || retryPush)?.ok !== false }
+            details:`Segundo y último aviso de la oferta ${orderId} a los 15 s; el vencimiento original no se modificó.`,
+            metadata:{
+              orderId,
+              driverId,
+              assignmentAttempt:Number(assignmentAttempt),
+              offerExpiresAt:expiresAt,
+              reminderPushOk:(reminderPush?.data || reminderPush)?.ok !== false
+            }
           }).catch(()=>{});
-
-          b44.functions.invoke('autoReassignOnTimeout', {
-            orderId,
-            driverId,
-            assignmentAttempt:Number(assignmentAttempt),
-            internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
-          }).catch(e=>console.error('Delivery retry timeout chain error:',e));
-          return Response.json({ ok:true, deliveryRetry:true, retryCount:nextRetryCount });
         }
-
-        // ACK o alguna transición ganó la carrera. Releer sin tocar nada.
-        b44.functions.invoke('autoReassignOnTimeout', {
-          orderId,
-          driverId,
-          assignmentAttempt:Number(assignmentAttempt),
-          internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
-        }).catch(()=>{});
-        return Response.json({ ok:true, skipped:true, reason:'delivery_state_changed' });
       }
 
-      // Cumplidos los 30 s totales sin respuesta/ACK suficiente: se pasa al
-      // siguiente sin agregar otra ventana y sin penalizar la posición por entrega.
+      const freshNow = Date.now();
+      const nextWakeAt = retryCount === 0 && freshNow < reminderAt ? reminderAt : expiresAt;
+      const waitMs = Math.min(15000, Math.max(500, nextWakeAt - freshNow));
+      await new Promise(r => setTimeout(r, waitMs));
+      b44.functions.invoke('autoReassignOnTimeout', {
+        orderId,
+        driverId,
+        assignmentAttempt,
+        internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+      }).catch(e=>console.error('Timeout chain error:',e));
+      return Response.json({ ok:true, chained:true, remainingMs:Math.max(0, expiresAt - Date.now()), ackedThisAttempt });
+    }
+
+    // A los 30 s TOTALES se termina esta oferta. Con ACK es timeout normal; sin ACK
+    // es entrega no confirmada. En ambos casos el pasaje sigue al siguiente móvil y
+    // jamás se abre una tercera ventana para este mismo móvil.
+    if (!ackedThisAttempt) {
       const deliveryResult = await b44.functions.invoke('rejectRide', {
         orderId,
         driverId,
@@ -225,8 +196,7 @@ Deno.serve(async (req) => {
       return Response.json({ ok:(deliveryResult?.data || deliveryResult)?.success !== false, deliveryUnconfirmed:true, result:deliveryResult?.data || deliveryResult });
     }
 
-    // ACK confirmado: recién ahora el vencimiento significa que el chofer tuvo sus
-    // 30 s completos y no respondió. Se usa el motor normal de timeout/reasignación.
+    // ACK confirmado y 30 s agotados: timeout/reasignación inmediata.
     const result = await b44.functions.invoke('rejectRide', {
       orderId,
       driverId,
