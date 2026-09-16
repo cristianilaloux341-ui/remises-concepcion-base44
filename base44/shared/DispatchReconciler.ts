@@ -305,8 +305,17 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
         for (const o of toReset) {
            // Solo estados PREVIOS a la aceptación pueden volver a pendiente.
            // Nunca permitir que en_camino/en_viaje/completado/cancelado retrocedan por reconciliación.
+           if (o.processingPhase === 'REASSIGNING') continue;
            const r = await b44.entities.RideOrder.updateMany(
-             { id: o.id, status: { $in: ['procesando_despacho', 'esperando_confirmacion_manual', 'ofrecido'] } },
+             {
+               id: o.id,
+               status: { $in: ['procesando_despacho', 'esperando_confirmacion_manual', 'ofrecido'] },
+               $or: [
+                 { processingPhase: null },
+                 { processingPhase: { $exists:false } },
+                 { processingPhase: { $ne:'REASSIGNING' } }
+               ]
+             },
              { $set: { status: 'pendiente', driver_id: null, driver_name: null, reserved_driver_id: null, reservation_token: null, manual_reservation_token: null } }
            );
            mCount += r.matchedCount ?? r.modifiedCount ?? 0;
