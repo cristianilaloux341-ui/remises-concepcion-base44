@@ -19,7 +19,10 @@ Deno.serve(async (req) => {
     return await withQueueLock(b44, baseName, async () => {
       const [target, baseDrivers] = await Promise.all([
         b44.entities.Driver.get(driverId).catch(() => null),
-        b44.entities.Driver.filter({ current_base:baseName, status:'disponible' }).catch(() => [])
+        b44.entities.Driver.filter({
+          status:'disponible',
+          $or:[{ current_base:baseName }, { queue_authoritative_base:baseName }]
+        }).catch(() => [])
       ]);
 
       if (!target) return Response.json({ success:false, reason:'driver_not_found' }, { status:404 });
@@ -63,7 +66,7 @@ Deno.serve(async (req) => {
           active_order_id:null,
           active_ride_id:null
         };
-        if (i > 0) filter.current_base = baseName;
+        if (i > 0) filter.queue_authoritative_base = baseName;
 
         const set:any = {
           current_base:baseName,
