@@ -68,17 +68,14 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'INVALID_OFFER_EXPIRY' });
     }
 
-    const timeoutSeconds = Number(configs?.[0]?.tiempo_maximo_respuesta_segundos ?? 30);
-    const safeTimeoutSeconds = Number.isFinite(timeoutSeconds) && timeoutSeconds > 0 ? timeoutSeconds : 30;
     const rawAckMs = eventData?.created_date ? new Date(eventData.created_date).getTime() : now;
     const ackMs = Number.isFinite(rawAckMs) ? Math.min(rawAckMs, now) : now;
     const ackAt = new Date(ackMs).toISOString();
-    const targetExpiry = ackMs + safeTimeoutSeconds * 1000;
+    const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : now;
+    const targetExpiry = assignedMs + 30000;
 
-    // Si el workflow se ejecutó tarde y ya pasaron incluso los 30 s desde el ACK,
-    // no inventamos tiempo extra. Mientras la MISMA oferta siga siendo propiedad de
-    // este móvil, registramos la recepción y dejamos al timeout resolver enseguida.
-    // Esto mantiene exactamente 30 s desde la recepción real, no desde el workflow.
+    // El ACK ya no renueva ni extiende la oferta. Sólo confirma que el teléfono la
+    // recibió. El vencimiento permanece clavado a 30 s desde assigned_at.
 
     const updateRes = await b44.entities.RideOrder.updateMany(
       {
@@ -102,29 +99,29 @@ Deno.serve(async (req) => {
     }
 
     await b44.entities.AuditLog.create({
-      action: 'OFFER_WINDOW_RENEWED_ON_ACK',
+      action: 'OFFER_ACK_RECORDED_NO_EXTENSION',
       user_type: 'sistema',
       user_name: order.driver_name || driver.name || 'Sistema',
-      details: `Ventana renovada a ${safeTimeoutSeconds}s completos desde recepción visible del pasaje.`,
+      details: `ACK registrado sin extender la ventana: la oferta conserva su techo absoluto de 30 s.`, 
       metadata: {
         orderId,
         driverId,
         assignmentAttempt: order.assignment_attempt,
         previousOfferExpiresAt: currentExpiry,
         renewedOfferExpiresAt: targetExpiry,
-        extensionMs: Math.max(0, targetExpiry - currentExpiry)
+        extensionMs: 0
       }
     }).catch(() => {});
 
     return Response.json({
       success: true,
-      renewed: true,
+      renewed: false,
       orderId,
       driverId,
       assignmentAttempt: order.assignment_attempt,
       previousOfferExpiresAt: currentExpiry,
       offerExpiresAt: targetExpiry,
-      timeoutSeconds: safeTimeoutSeconds
+      timeoutSeconds: 30
     });
   } catch (error) {
     console.error('renewOfferWindowOnPushAck error', error);
