@@ -367,10 +367,17 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
       if (accepted) {
         const toReset = linkedOrders.filter(o => o.id !== accepted.id);
         let mCount = 0;
+        let blockedCount = 0;
         for (const o of toReset) {
-           // Solo estados PREVIOS a la aceptación pueden volver a pendiente.
-           // Nunca permitir que en_camino/en_viaje/completado/cancelado retrocedan por reconciliación.
+           // Que el mismo Driver haya quedado ligado a dos órdenes NO autoriza a
+           // publicar la orden extra en Pendientes. Para despacho automático primero
+           // debe agotarse la cola real de su zona.
            if (o.processingPhase === 'REASSIGNING') continue;
+           const zoneCandidate = o.zone ? await findNextDriverInZone(b44, o, d.id) : null;
+           if (zoneCandidate) {
+             blockedCount++;
+             continue;
+           }
            const r = await b44.entities.RideOrder.updateMany(
              {
                id: o.id,
@@ -381,11 +388,11 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
                  { processingPhase: { $ne:'REASSIGNING' } }
                ]
              },
-             { $set: { status: 'pendiente', driver_id: null, driver_name: null, reserved_driver_id: null, reservation_token: null, manual_reservation_token: null } }
+             { $set: { status:'pendiente', driver_id:null, driver_name:null, reserved_driver_id:null, reservation_token:null, manual_reservation_token:null, processingAction:'PENDING_AUTHORIZED' } }
            );
            mCount += r.matchedCount ?? r.modifiedCount ?? 0;
         }
-        await pushResult({ status: mCount ? 'repaired' : 'concurrent_change', issueType: 'DRIVER_LINKED_TO_MULTIPLE_ORDERS', driverIds: [d.id], actions: ['Viajes extra devueltos a pendiente'], correlationId, matchedCount: mCount });
+        await pushResult({ status: mCount ? 'repaired' : (blockedCount ? 'no_action' : 'concurrent_change'), issueType: 'DRIVER_LINKED_TO_MULTIPLE_ORDERS', driverIds: [d.id], actions: [blockedCount ? `${blockedCount} viajes con candidato en zona: Pendientes bloqueado` : 'Viajes extra sin candidato devueltos a Pendiente autorizado'], correlationId, matchedCount: mCount });
       } else {
         await pushResult({ status: 'manual_review_required', issueType: 'DRIVER_LINKED_TO_MULTIPLE_ORDERS', driverIds: [d.id], actions: ['Múltiples viajes sin ganador claro'], correlationId });
       }
