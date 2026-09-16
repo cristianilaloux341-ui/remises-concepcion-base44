@@ -314,8 +314,8 @@ Deno.serve(async (req) => {
 
     // 2. Config ya cargada en paralelo con las validaciones anteriores.
     const config = tarifaConfigs[0] || {};
-    const configuredSeconds = Number(config.tiempo_maximo_respuesta_segundos ?? 30);
-    const timeoutSeconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
+    // Regla operativa fija: 30 s TOTALES por móvil. El ACK no extiende este techo.
+    const timeoutSeconds = 30;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     // Una asignación manual siempre debe esperar la aceptación del chofer.
     const autoAceptarViajes = payload.requireDriverConfirmation === true
@@ -330,8 +330,8 @@ Deno.serve(async (req) => {
     // Set protege además contra datos históricos duplicados.
     const offeredIds = [...new Set([...(orderReq.offered_driver_ids || []), driverId])];
 
-    // Cada asignación crea una ventana propia de respuesta. acceptRide usa
-    // offerExpiresAt como autoridad para decidir si la oferta sigue vigente.
+    // Cada asignación crea una ventana propia de 30 s TOTALES. acceptRide usa
+    // offerExpiresAt como autoridad y ningún ACK puede extenderla.
     const assignedAt = new Date().toISOString();
     const offerExpiresAt = Date.now() + (timeoutSeconds * 1000);
 
