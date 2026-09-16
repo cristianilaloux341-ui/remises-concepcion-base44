@@ -173,6 +173,9 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
   for (const order of activeOrders.filter(o => o.status === 'ofrecido')) {
     const expiresAt = Number(order.offerExpiresAt);
     if (!Number.isFinite(expiresAt) || expiresAt > now) continue;
+    // Una reasignación autoritativa nunca se degrada a Pendientes desde el
+    // reconciliador. rejectRide/timeout son los únicos que pueden cerrar la cadena.
+    if (order.processingPhase === 'REASSIGNING') continue;
     if (order.processingOwnerId && Number(order.processingLeaseExpiresAt || 0) > now) continue;
 
     const reservedDriverId = order.reserved_driver_id || order.driver_id;
