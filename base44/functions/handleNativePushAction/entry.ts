@@ -26,8 +26,8 @@ Deno.serve(async (req) => {
       const driver = await b44.entities.Driver.get(driverId);
       const order = await b44.entities.RideOrder.get(realOrderId).catch(() => null);
 
-      // La ventana configurada en Central debe ser real para el chofer: empieza cuando
-      // el teléfono confirma que recibió ESTA oferta, no cuando FCM la puso en cola.
+      // El ACK confirma recepción, pero NO reinicia el reloj. La oferta tiene un
+      // techo absoluto de 30 s desde assigned_at: aviso inicial + un refuerzo a 15 s.
       let responseWindowExtended = false;
       if (
         order &&
@@ -35,11 +35,9 @@ Deno.serve(async (req) => {
         order.reserved_driver_id === driverId &&
         (nativeAssignmentAttempt == null || order.assignment_attempt === nativeAssignmentAttempt)
       ) {
-        const configs = await b44.entities.TarifaConfig.list();
-        const configuredSeconds = Number(configs[0]?.tiempo_maximo_respuesta_segundos ?? 30);
-        const responseSeconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
         const receivedAt = new Date().toISOString();
-        const receivedOfferExpiresAt = Date.now() + (responseSeconds * 1000);
+        const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : Date.now();
+        const absoluteOfferExpiresAt = assignedMs + 30000;
         const extended = await b44.entities.RideOrder.updateMany(
           {
             id: realOrderId,
@@ -50,8 +48,7 @@ Deno.serve(async (req) => {
           },
           {
             $set: {
-              assigned_at: receivedAt,
-              offerExpiresAt: receivedOfferExpiresAt,
+              offerExpiresAt: absoluteOfferExpiresAt,
               push_ack_at: receivedAt,
               push_ack_assignment_attempt: order.assignment_attempt
             }
@@ -66,7 +63,7 @@ Deno.serve(async (req) => {
         user_type: "sistema",
         user_name: driver?.name || "Chofer",
         details: responseWindowExtended
-          ? `El teléfono confirmó la recepción; comenzó la ventana configurada en Central.`
+          ? `El teléfono confirmó la recepción; se conserva el vencimiento absoluto de 30 s de esta oferta.`
           : `El teléfono confirmó recepción del push, pero la oferta ya no estaba vigente para este móvil.`,
         metadata: { orderId: realOrderId, driverId, responseWindowExtended }
       }).catch(() => {});
