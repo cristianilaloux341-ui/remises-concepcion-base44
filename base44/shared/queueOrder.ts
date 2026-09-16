@@ -139,40 +139,14 @@ export async function getNextQueuePosition(b44: any, baseName: string, excludeDr
   return maxPos + 1;
 }
 
-export async function compactQueueUnlocked(b44: any, baseName: string) {
-  if (!baseName) return;
-  const drivers = await b44.entities.Driver.filter({
-    queue_authoritative_base: baseName
-  }).catch(() => []);
-
-  const queue = drivers.filter((d: any) =>
-    getEffectiveQueueBase(d) === baseName &&
-    d.status !== 'en_viaje' &&
-    !d.active_ride_id &&
-    !d.active_order_id &&
-    !d.reserved_order_id &&
-    Number.isFinite(Number(d.queue_position)) && Number(d.queue_position) > 0
-  ).sort((a: any, b: any) => {
-    const diff = Number(a.queue_position) - Number(b.queue_position);
-    if (diff !== 0) return diff;
-    
-    const timeA = a.queue_authoritative_at ? new Date(a.queue_authoritative_at).getTime() : Infinity;
-    const timeB = b.queue_authoritative_at ? new Date(b.queue_authoritative_at).getTime() : Infinity;
-    if (timeA !== timeB) return timeA - timeB;
-    
-    return String(a.id || '').localeCompare(String(b.id || ''));
-  });
-
-  let expectedPos = 1;
-  for (const d of queue) {
-    if (Number(d.queue_position) !== expectedPos) {
-      await b44.entities.Driver.updateMany(
-        { id: d.id, queue_authoritative_base: baseName, queue_position: d.queue_position },
-        { $set: { queue_position: expectedPos, queue_authority_marker: expectedPos } }
-      ).catch(() => null);
-    }
-    expectedPos++;
-  }
+export async function compactQueueUnlocked(_b44: any, _baseName: string) {
+  // REGLA OPERATIVA: compactar no puede cambiar posiciones por sí solo.
+  // Una posición otorgada queda congelada hasta una acción operativa explícita
+  // (asignación/rechazo-vencimiento, salida real o reordenamiento del operador).
+  // Los escritores autorizados ya asignan la posición correspondiente bajo lock.
+  // Por eso esta función queda deliberadamente como no-op: evita que una limpieza,
+  // reconexión o estado técnico renumere 1°, 2°, 3° sin una acción real.
+  return;
 }
 
 export async function compactQueue(b44: any, baseName: string) {
