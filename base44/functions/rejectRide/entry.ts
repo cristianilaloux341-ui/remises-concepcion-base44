@@ -19,7 +19,9 @@ Deno.serve(async (req) => {
       ? 'delivery_unconfirmed'
       : (payload.source === 'timeout'
         ? 'timeout'
-        : (payload.source === 'legacy_client' ? 'legacy_client' : 'driver'));
+        : (payload.source === 'legacy_client' || payload.source === 'explicit_reject'
+          ? 'legacy_client'
+          : 'driver'));
     const legacyQueueEnteredAt = payload.legacyQueueEnteredAt || null;
 
     if (!orderId || !driverId || assignmentAttempt == null) {
