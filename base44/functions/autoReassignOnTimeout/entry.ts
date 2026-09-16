@@ -75,9 +75,6 @@ Deno.serve(async (req) => {
       });
 
       if (matchingAck) {
-        const config = (await b44.entities.TarifaConfig.list().catch(()=>[]))[0] || {};
-        const configuredSeconds = Number(config.tiempo_maximo_respuesta_segundos ?? 30);
-        const responseSeconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
         const ackMs = new Date(matchingAck.created_date).getTime();
         const ackAt = new Date(ackMs).toISOString();
         const assignedBaseMs = order.assigned_at ? new Date(order.assigned_at).getTime() : ackMs;
