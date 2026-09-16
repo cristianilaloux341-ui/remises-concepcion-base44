@@ -189,8 +189,7 @@ Deno.serve(async (req) => {
   );
 
   if (mutationCount(uDriver) < 1) {
-    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: `Driver update failed, raw: ${JSON.stringify(uDriver)}`, metadata: { orderId, driverId } });
-    return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION', db_result: uDriver });
+    return await checkAndRepairDriver(driver);
   }
 
   await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_COMMITTED', user_type: 'sistema', user_name: 'finishRide', details: 'Finished successfully', metadata: { orderId, driverId } });
