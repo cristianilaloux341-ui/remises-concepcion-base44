@@ -696,7 +696,16 @@ Deno.serve(async (req) => {
         // disponible/normal y sin viaje o reserva, la autoridad de cola manda y se
         // restaura la base anterior. Sólo una salida de servicio real o un pasaje puede
         // quitarlo de posición; el cambio voluntario A->B se procesa explícitamente abajo.
-        if (!normalizedExplicitQueueEntry && authoritativeBase && !currentBase) {
+        const previousEventStillOwnedAuthority = Boolean(
+          oldData && authoritativeBase &&
+          oldData.status === 'disponible' &&
+          oldData.current_base === authoritativeBase &&
+          oldData.queue_authoritative_base === authoritativeBase &&
+          Number.isFinite(Number(oldData.queue_position)) && Number(oldData.queue_position) > 0 &&
+          !oldData.reserved_order_id && !oldData.active_order_id && !oldData.active_ride_id &&
+          (oldData.dispatch_status == null || oldData.dispatch_status === 'normal')
+        );
+        if (!normalizedExplicitQueueEntry && authoritativeBase && !currentBase && previousEventStillOwnedAuthority) {
           const restored = await b44.entities.Driver.updateMany(
             {
               id:driverId,
