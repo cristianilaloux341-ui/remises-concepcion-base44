@@ -201,11 +201,10 @@ Deno.serve(async (req) => {
     });
 
     const config = (await b44.entities.TarifaConfig.list())[0] || {};
-    // Regla comercial: cada NUEVA oferta tiene 30 s desde que llega al teléfono.
-    // El valor inicial sólo protege el tránsito hasta el ACK; native_ack lo vuelve
-    // a fijar a 30 s completos desde la recepción real del nuevo móvil.
-    const configuredSeconds = Number(config.tiempo_maximo_respuesta_segundos ?? 30);
-    const timeoutSeconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
+    // Regla comercial: cada NUEVA oferta tiene un techo absoluto de 30 s desde que
+    // Central la compromete. El ACK no reinicia el reloj; a los 15 s puede haber un
+    // único refuerzo y a los 30 s se reasigna si no hubo respuesta.
+    const timeoutSeconds = 30;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     const excluded = new Set<string>([...(order.offered_driver_ids || []), driverId].filter(Boolean));
 
