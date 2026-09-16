@@ -201,6 +201,9 @@ Deno.serve(async (req) => {
     // transitorio y NO debe quedar reclamable desde Pendientes: de lo contrario
     // otro móvil roba el pasaje y corta la cadena automática.
     const nowMs = Date.now();
+    if (order.processingPhase === 'REASSIGNING') {
+      return Response.json({ success: false, reason: 'automatic_reassignment_in_progress' });
+    }
     const offerExpiresAt = Number(order.offerExpiresAt);
     const hasLiveLegacyOfferWindow =
       Number.isFinite(offerExpiresAt) && offerExpiresAt > nowMs &&
