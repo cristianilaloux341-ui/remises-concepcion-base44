@@ -1,9 +1,6 @@
 {
   "type": "object",
   "properties": {
-    "x": {
-      "type": "string"
-    },
     "deprecated": {
       "type": "boolean",
       "default": true
