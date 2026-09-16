@@ -629,8 +629,16 @@ Deno.serve(async (req) => {
 
         // Reingreso desde "sin base": SIEMPRE es una entrada nueva.
         // No existe gracia: al tocar cualquier base, incluso la misma, queda detrás del último.
+        // Un oldData.current_base=null puede ser una proyección técnica/atrasada de APK.
+        // Si el estado FRESCO ya conserva autoridad válida en esta misma base, no es
+        // un reingreso real y jamás debe renovar antigüedad ni mandar el móvil al final.
+        const freshHasContinuousAuthority = Boolean(
+          currentBase && authoritativeBase === currentBase &&
+          Number(freshQueueDriver.queue_position || 0) > 0
+        );
         const returnedFromNoBase = Boolean(
-          !normalizedExplicitQueueEntry && currentBase && oldData && !oldData.current_base
+          !normalizedExplicitQueueEntry && currentBase && oldData && !oldData.current_base &&
+          !freshHasContinuousAuthority
         );
         if (returnedFromNoBase) {
           const placed = await placeDriverLastLocked(
