@@ -947,10 +947,20 @@ Deno.serve(async (req) => {
         12
       ).catch(() => []);
 
+      const nowMs = Date.now();
       const eligiblePendings = pendings.filter((order: any) => {
         const heldForReview = String(order.notes || '').includes(CENTRAL_REVIEW_MARKER);
         const lifecycleAlreadyAdvanced = PROTECTED_ACTIONS.has(String(order.lastCompletedAction || ''));
-        return !heldForReview && !lifecycleAlreadyAdvanced;
+        const reassigning = order.processingPhase === 'REASSIGNING';
+        // APK 12.27/v12.29 puede escribir `pendiente` conservando por unos segundos
+        // la ventana/attempt de la oferta anterior. Eso es un estado transitorio de
+        // la cadena A→B→C, no un Pendiente público. No lo consume este workflow.
+        const offerExpiry = Number(order.offerExpiresAt);
+        const legacyOfferWindowStillLive =
+          Number(order.assignment_attempt || 0) > 0 &&
+          Number.isFinite(offerExpiry) &&
+          offerExpiry > nowMs;
+        return !heldForReview && !lifecycleAlreadyAdvanced && !reassigning && !legacyOfferWindowStillLive;
       });
 
       if (eligiblePendings.length === 0) {
