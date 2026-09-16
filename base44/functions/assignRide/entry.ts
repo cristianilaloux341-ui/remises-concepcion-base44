@@ -260,24 +260,12 @@ Deno.serve(async (req) => {
   if (orderReq.zone && effectiveDriverBase !== orderReq.zone && !isManualAuthorized) {
     console.warn(`[STRICT ZONE] Rechazado assign de Viaje ${orderId} (Zona: ${orderReq.zone}) a Móvil ${driverId} (Base: ${effectiveDriverBase}). ManualAuth: ${isManualAuthorized}`);
     
-    // Limpiamos devolviendo a pendiente de forma 100% ATÓMICA.
-    // Solo si el pasaje sigue exactamente en el mismo estado en que lo leímos.
-    // Si otro proceso legítimo ya lo tomó o modificó, no tocamos nada.
-    await b44.entities.RideOrder.updateMany(
-       { 
-         id: orderId, 
-         status: orderReq.status,
-         assignment_attempt: orderReq.assignment_attempt ?? null,
-         driver_id: orderReq.driver_id ?? null,
-         reserved_driver_id: orderReq.reserved_driver_id ?? null,
-         reservation_token: orderReq.reservation_token ?? null
-       },
-       { $set: { status: 'pendiente', driver_id: null, driver_name: null, reserved_driver_id: null, assigned_base: null, reservation_token: null, manual_reservation_token: null, offerExpiresAt: null } }
-    );
-    
+    // Una selección equivocada de zona NO autoriza a publicar Pendientes. El
+    // llamador automático debe continuar con el siguiente candidato de la zona.
+    // Tampoco tocamos el RideOrder: podría existir una oferta válida concurrente.
     return Response.json({
       success: false,
-      reason: `Asignación denegada: el móvil está en ${effectiveDriverBase || 'ninguna base'} y el pasaje es de zona ${orderReq.zone}. Debe quedar pendiente.`
+      reason: `DRIVER_WRONG_ZONE:${effectiveDriverBase || 'sin_base'}:${orderReq.zone}`
     });
   }
 
