@@ -107,17 +107,14 @@ export async function withQueueLock<T>(
 // v12.27/v12.29 sigan viendo "último". El servidor NUNCA usa esta hora para elegir.
 export async function getNextQueueTailAt(b44: any, baseName: string, excludeDriverId: string | null = null) {
   const drivers = await b44.entities.Driver.filter({
-    status: "disponible",
-    $or: [
-      { current_base: baseName },
-      { queue_authoritative_base: baseName }
-    ]
+    queue_authoritative_base: baseName
   }).catch(() => []);
 
   let nextMs = Date.now();
   for (const d of drivers || []) {
     if (!d || d.id === excludeDriverId) continue;
     if (getEffectiveQueueBase(d) !== baseName) continue;
+    if (d.status === 'en_viaje' || d.active_ride_id || d.active_order_id || d.reserved_order_id) continue;
     const raw = d.queue_authoritative_at || d.queue_entered_at || null;
     const ms = raw ? new Date(raw).getTime() : NaN;
     if (Number.isFinite(ms)) nextMs = Math.max(nextMs, ms + 1);
@@ -128,17 +125,14 @@ export async function getNextQueueTailAt(b44: any, baseName: string, excludeDriv
 // Debe ejecutarse dentro de withQueueLock cuando el resultado vaya a escribirse.
 export async function getNextQueuePosition(b44: any, baseName: string, excludeDriverId: string | null = null) {
   const drivers = await b44.entities.Driver.filter({
-    status: "disponible",
-    $or: [
-      { current_base: baseName },
-      { queue_authoritative_base: baseName }
-    ]
+    queue_authoritative_base: baseName
   }).catch(() => []);
 
   let maxPos = 0;
   for (const d of drivers || []) {
     if (!d || d.id === excludeDriverId) continue;
     if (getEffectiveQueueBase(d) !== baseName) continue;
+    if (d.status === 'en_viaje' || d.active_ride_id || d.active_order_id || d.reserved_order_id) continue;
     const pos = Number(d.queue_position);
     if (Number.isFinite(pos) && pos > 0) maxPos = Math.max(maxPos, pos);
   }
@@ -148,26 +142,32 @@ export async function getNextQueuePosition(b44: any, baseName: string, excludeDr
 export async function compactQueueUnlocked(b44: any, baseName: string) {
   if (!baseName) return;
   const drivers = await b44.entities.Driver.filter({
-    status: "disponible",
-    $or: [
-      { current_base: baseName },
-      { queue_authoritative_base: baseName }
-    ]
+    queue_authoritative_base: baseName
   }).catch(() => []);
 
   const queue = drivers.filter((d: any) =>
     getEffectiveQueueBase(d) === baseName &&
+    d.status !== 'en_viaje' &&
+    !d.active_ride_id &&
+    !d.active_order_id &&
+    !d.reserved_order_id &&
     Number.isFinite(Number(d.queue_position)) && Number(d.queue_position) > 0
   ).sort((a: any, b: any) => {
     const diff = Number(a.queue_position) - Number(b.queue_position);
-    return diff !== 0 ? diff : String(a.id || '').localeCompare(String(b.id || ''));
+    if (diff !== 0) return diff;
+    
+    const timeA = a.queue_authoritative_at ? new Date(a.queue_authoritative_at).getTime() : Infinity;
+    const timeB = b.queue_authoritative_at ? new Date(b.queue_authoritative_at).getTime() : Infinity;
+    if (timeA !== timeB) return timeA - timeB;
+    
+    return String(a.id || '').localeCompare(String(b.id || ''));
   });
 
   let expectedPos = 1;
   for (const d of queue) {
     if (Number(d.queue_position) !== expectedPos) {
       await b44.entities.Driver.updateMany(
-        { id: d.id, queue_authoritative_base: baseName, status: 'disponible', queue_position: d.queue_position },
+        { id: d.id, queue_authoritative_base: baseName, queue_position: d.queue_position },
         { $set: { queue_position: expectedPos, queue_authority_marker: expectedPos } }
       ).catch(() => null);
     }
