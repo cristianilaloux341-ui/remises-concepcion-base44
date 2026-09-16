@@ -203,52 +203,82 @@ Deno.serve(async (req) => {
 
     if (isLegacyOfferedRollback) {
       const orderId = body.data.id;
-      const ownerDriverId = body.old_data.reserved_driver_id || body.old_data.driver_id;
-      const ownerDriver = ownerDriverId
-        ? await base44.asServiceRole.entities.Driver.get(ownerDriverId).catch(() => null)
-        : null;
-      const ownerStillOwnsExactOffer = Boolean(
-        ownerDriver &&
-        ownerDriver.dispatch_status === 'automatic_pending' &&
-        ownerDriver.reserved_order_id === orderId &&
-        ownerDriver.reservation_token === body.old_data.reservation_token
-      );
 
-      if (ownerStillOwnsExactOffer) {
-        const restoreOffer = {
-          status: 'ofrecido',
-          driver_id: ownerDriverId,
-          reserved_driver_id: ownerDriverId,
-          driver_name: body.old_data.driver_name,
-          assigned_base: body.old_data.assigned_base,
-          reservation_token: body.old_data.reservation_token,
-          manual_reservation_token: body.old_data.manual_reservation_token,
-          assigned_at: body.old_data.assigned_at,
-          offerExpiresAt: body.old_data.offerExpiresAt,
-          assignment_attempt: body.old_data.assignment_attempt,
-          offered_driver_ids: body.old_data.offered_driver_ids
-        };
+      // Pendiente legítimo: rejectRide sólo coloca esta marca DESPUÉS de recorrer
+      // autoritativamente toda la zona y confirmar que no queda candidato.
+      const serverAuthorizedPending = body.data.processingAction === 'PENDING_AUTHORIZED';
+      if (serverAuthorizedPending) {
+        await base44.asServiceRole.entities.RideOrder.updateMany(
+          { id:orderId, status:'pendiente', processingAction:'PENDING_AUTHORIZED' },
+          { $set:{ processingAction:null } }
+        ).catch(()=>{});
+      } else {
+        const ownerDriverId = body.old_data.reserved_driver_id || body.old_data.driver_id;
+        const ownerDriver = ownerDriverId
+          ? await base44.asServiceRole.entities.Driver.get(ownerDriverId).catch(() => null)
+          : null;
+        const ownerStillOwnsExactOffer = Boolean(
+          ownerDriver &&
+          ownerDriver.dispatch_status === 'automatic_pending' &&
+          ownerDriver.reserved_order_id === orderId &&
+          ownerDriver.reservation_token === body.old_data.reservation_token
+        );
+        const ownerSafelyFree = Boolean(
+          ownerDriver &&
+          ownerDriver.status === 'disponible' &&
+          (ownerDriver.dispatch_status == null || ownerDriver.dispatch_status === 'normal') &&
+          !ownerDriver.reserved_order_id &&
+          !ownerDriver.active_order_id &&
+          !ownerDriver.active_ride_id
+        );
 
-        const restored = await base44.asServiceRole.entities.RideOrder.updateMany(
-          {
-            id: orderId,
-            status: 'pendiente',
-            driver_id: body.data.driver_id ?? null,
-            reserved_driver_id: body.data.reserved_driver_id ?? null,
-            assignment_attempt: body.data.assignment_attempt ?? body.old_data.assignment_attempt
-          },
-          { $set: restoreOffer }
-        ).catch(() => null);
+        let ownerReady = ownerStillOwnsExactOffer;
+        if (!ownerReady && ownerSafelyFree && ownerDriverId) {
+          const reclaimed = await base44.asServiceRole.entities.Driver.updateMany(
+            { id:ownerDriverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
+            { $set:{ dispatch_status:'automatic_pending', reserved_order_id:orderId, reservation_token:body.old_data.reservation_token } }
+          ).catch(() => null);
+          ownerReady = (reclaimed?.updated ?? reclaimed?.modifiedCount ?? reclaimed?.matchedCount ?? 0) === 1;
+        }
 
-        if ((restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0) === 1) {
-          await base44.asServiceRole.entities.AuditLog.create({
-            action:'LEGACY_OFFER_TO_PENDING_ROLLBACK_BLOCKED',
-            user_type:'sistema',
-            user_name:body.old_data.driver_name || 'Chofer',
-            details:`Se restauró oferta ${orderId}: una APK vieja intentó devolverla a pendiente con dueño vigente`,
-            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:body.old_data.assignment_attempt }
-          }).catch(()=>{});
-          return Response.json({ ok:true, reason:'legacy_offered_rollback_blocked' });
+        if (ownerReady) {
+          const restoreOffer = {
+            status:'ofrecido', driver_id:ownerDriverId, reserved_driver_id:ownerDriverId,
+            driver_name:body.old_data.driver_name, assigned_base:body.old_data.assigned_base,
+            reservation_token:body.old_data.reservation_token,
+            manual_reservation_token:body.old_data.manual_reservation_token,
+            assigned_at:body.old_data.assigned_at, offerExpiresAt:body.old_data.offerExpiresAt,
+            assignment_attempt:body.old_data.assignment_attempt,
+            offered_driver_ids:body.old_data.offered_driver_ids,
+            processingAction:null, processingOperationKey:null, processingOwnerId:null,
+            processingLeaseExpiresAt:null, processingPhase:null
+          };
+          const restored = await base44.asServiceRole.entities.RideOrder.updateMany(
+            {
+              id:orderId, status:'pendiente',
+              driver_id:body.data.driver_id ?? null,
+              reserved_driver_id:body.data.reserved_driver_id ?? null,
+              assignment_attempt:body.data.assignment_attempt ?? body.old_data.assignment_attempt
+            },
+            { $set:restoreOffer }
+          ).catch(() => null);
+
+          if ((restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0) === 1) {
+            await base44.asServiceRole.entities.AuditLog.create({
+              action:'LEGACY_OFFER_TO_PENDING_ROLLBACK_BLOCKED', user_type:'sistema',
+              user_name:body.old_data.driver_name || 'Chofer',
+              details:`Se cerró Pendientes y se restauró la oferta legacy ${orderId}`,
+              metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:body.old_data.assignment_attempt, driverWasReclaimed:!ownerStillOwnsExactOffer }
+            }).catch(()=>{});
+            return Response.json({ ok:true, reason:'legacy_offered_rollback_blocked' });
+          }
+
+          if (!ownerStillOwnsExactOffer && ownerDriverId) {
+            await base44.asServiceRole.entities.Driver.updateMany(
+              { id:ownerDriverId, reserved_order_id:orderId, reservation_token:body.old_data.reservation_token },
+              { $set:{ dispatch_status:'normal', reserved_order_id:null, reservation_token:null } }
+            ).catch(()=>{});
+          }
         }
       }
     }
