@@ -482,26 +482,23 @@ Deno.serve(async (req) => {
         !freshQueueDriver.active_order_id &&
         !freshQueueDriver.active_ride_id;
 
-      // Salir de servicio explícitamente sí abandona la cola. Pero NO alcanza con ver
-      // status=no_disponible: una APK/reconexión puede publicar ese estado transitorio
-      // mientras todavía conserva base + antigüedad. Si borramos autoridad en ese caso,
-      // al siguiente disponible se reinicializa con una hora nueva y el móvil salta solo
-      // hacia atrás en la cola. Exigimos además la proyección legacy vacía, que es la
-      // señal compatible de una salida real de servicio en las APK instaladas.
+      // Salida real de servicio: status=no_disponible + current_base=null invalida
+      // SIEMPRE la autoridad de cola. Las APK 12.27/12.29 pueden dejar un
+      // queue_entered_at viejo en caché; ese timestamp nunca puede mantener vivo un puesto.
       const explicitOffServiceExit = Boolean(
         freshQueueDriver.status === 'no_disponible' &&
-        !freshQueueDriver.current_base &&
-        !freshQueueDriver.queue_entered_at
+        !freshQueueDriver.current_base
       );
       if (explicitOffServiceExit && (authoritativeBase || authoritativeAt || freshQueueDriver.queue_position != null)) {
         await b44.entities.Driver.updateMany(
-          { id:driverId, status:'no_disponible', current_base:null, queue_entered_at:null },
+          { id:driverId, status:'no_disponible', current_base:null },
           { $set:{
             queue_authoritative_base:null,
             queue_authoritative_at:null,
             queue_authority_marker:null,
             queue_position:null,
-            queue_left_at:null
+            queue_entered_at:null,
+            queue_left_at:new Date().toISOString()
           } }
         ).catch(()=>{});
         if (authoritativeBase) compactQueue(b44, authoritativeBase).catch(()=>null);
