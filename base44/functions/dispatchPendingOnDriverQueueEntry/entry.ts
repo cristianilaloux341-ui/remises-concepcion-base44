@@ -165,9 +165,6 @@ Deno.serve(async (req) => {
     filter:any,
     extraSet:any = {}
   ) => withQueueLock(b44, baseName, async () => {
-    // Normalizar primero la cola existente. Así el nuevo móvil siempre recibe N+1
-    // y nunca puede ocupar un hueco/transitorio delante de alguien que ya estaba.
-    await compactQueueUnlocked(b44, baseName);
     const queueAt = await getNextQueueTailAt(b44, baseName, targetDriverId);
     const nextPos = await getNextQueuePosition(b44, baseName, targetDriverId);
     const result = await b44.entities.Driver.updateMany(
