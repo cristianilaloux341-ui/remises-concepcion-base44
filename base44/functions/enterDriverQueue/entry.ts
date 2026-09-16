@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 import { verifyRequestAuth } from '../../shared/security.ts';
-import { getNextQueueTailAt, getNextQueuePosition, compactQueueUnlocked, withQueueLock } from '../../shared/queueOrder.ts';
+import { getNextQueueTailAt, getNextQueuePosition, withQueueLock } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -74,8 +74,6 @@ Deno.serve(async (req) => {
       };
     }
 
-    // Primero dejar 1..N a los que YA estaban. La nueva entrada siempre queda N+1.
-    await compactQueueUnlocked(b44, baseName);
     const queueEnteredAt = await getNextQueueTailAt(b44, baseName, driverId);
     const position = await getNextQueuePosition(b44, baseName, driverId);
     const authorityMarker = position;
