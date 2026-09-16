@@ -168,39 +168,37 @@ Deno.serve(async (req) => {
       currentReleased = true;
     }
 
-    // Primero apagar/cerrar la oferta anterior. La cancelación conserva el intento
-    // exacto que recibió ese teléfono, aunque el RideOrder cambie después.
-    // No dependemos de un único intento de red: si falla el primer cierre, repetimos
-    // una vez y dejamos auditoría explícita. La reasignación puede continuar, pero
-    // queda trazado si el móvil anterior no pudo recibir la orden de cierre.
-    let closePushOk = false;
-    let closePushError = null;
-    for (let closeAttempt = 1; closeAttempt <= 2 && !closePushOk; closeAttempt++) {
-      try {
-        const closeRes = await b44.functions.invoke('sendPushNotification', {
-          action:'cancel_multiple',
-          orderId:order.id,
-          driversToCancel:[driverId],
-          orderData:{ assignmentAttempt:Number(assignmentAttempt) },
-          internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
-        });
-        const closeData = closeRes?.data || closeRes;
-        closePushOk = closeData?.ok !== false && !closeData?.error;
-        if (!closePushOk) closePushError = closeData?.error || closeData?.reason || 'cancel_push_failed';
-      } catch (e) {
-        closePushError = e?.message || String(e);
-      }
-    }
-
-    await b44.entities.AuditLog.create({
-      action: closePushOk ? 'OFFER_CLOSE_CONFIRMED_BEFORE_REASSIGN' : 'OFFER_CLOSE_FAILED_BEFORE_REASSIGN',
-      user_type:'sistema',
-      user_name:'rejectRide',
-      details: closePushOk
-        ? `Oferta ${order.id} cerrada en móvil anterior antes de reasignar`
-        : `No se pudo confirmar cierre de oferta ${order.id} en móvil anterior antes de reasignar`,
-      metadata:{ orderId:order.id, driverId, assignmentAttempt:Number(assignmentAttempt), error:closePushError }
-    }).catch(()=>{});
+    // Cerrar la oferta anterior EN PARALELO. Un rechazo explícito o un timeout ya
+    // confirmado no puede quedar esperando la latencia de FCM antes de saltar al
+    // siguiente móvil. El cierre está dirigido únicamente al driver + attempt viejo,
+    // por lo que es seguro que termine después de comprometer la nueva oferta.
+    b44.functions.invoke('sendPushNotification', {
+      action:'cancel_multiple',
+      orderId:order.id,
+      driversToCancel:[driverId],
+      orderData:{ assignmentAttempt:Number(assignmentAttempt) },
+      internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+    }).then(async (closeRes:any) => {
+      const closeData = closeRes?.data || closeRes;
+      const ok = closeData?.ok !== false && !closeData?.error;
+      await b44.entities.AuditLog.create({
+        action: ok ? 'OFFER_CLOSE_CONFIRMED' : 'OFFER_CLOSE_FAILED',
+        user_type:'sistema',
+        user_name:'rejectRide',
+        details: ok
+          ? `Oferta ${order.id} cerrada en móvil anterior`
+          : `No se pudo confirmar cierre de oferta ${order.id} en móvil anterior`,
+        metadata:{ orderId:order.id, driverId, assignmentAttempt:Number(assignmentAttempt), error:closeData?.error || closeData?.reason || null }
+      }).catch(()=>{});
+    }).catch(async (e:any) => {
+      await b44.entities.AuditLog.create({
+        action:'OFFER_CLOSE_FAILED',
+        user_type:'sistema',
+        user_name:'rejectRide',
+        details:`Falló cierre FCM de oferta ${order.id} en móvil anterior`,
+        metadata:{ orderId:order.id, driverId, assignmentAttempt:Number(assignmentAttempt), error:e?.message || String(e) }
+      }).catch(()=>{});
+    });
 
     const config = (await b44.entities.TarifaConfig.list())[0] || {};
     // Regla comercial: cada NUEVA oferta tiene 30 s desde que llega al teléfono.
