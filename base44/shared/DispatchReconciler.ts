@@ -194,22 +194,57 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
       // Un huérfano vencido NO abre Pendientes por su cuenta. Si todavía queda
       // capacidad en la zona, debe volver al mismo motor autoritativo que recorre
       // la cola. Solo rejectRide puede decidir que la cadena quedó realmente agotada.
-      const zoneCandidate = await findNextDriverInZone(b44, order, reservedDriverId).catch(() => null);
-      if (zoneCandidate && b44.functions?.invoke) {
+      const zoneCandidate = await findNextDriverInZone(b44, order, reservedDriverId);
+      if (zoneCandidate) {
+        // rejectRide exige que el Driver vuelva a poseer la oferta exacta. En este
+        // caso 4B justamente perdió ese vínculo, así que primero lo restauramos por
+        // CAS. Si no podemos restaurarlo, fallamos cerrado: nunca abrimos Pendientes.
+        if (!driver) throw new Error('ORPHAN_DRIVER_NOT_FOUND');
+        const driverBusyElsewhere =
+          driver.status === 'en_viaje' ||
+          Boolean(driver.active_order_id) ||
+          Boolean(driver.active_ride_id) ||
+          Boolean(driver.reserved_order_id && driver.reserved_order_id !== order.id);
+        if (driverBusyElsewhere) throw new Error('ORPHAN_DRIVER_BUSY');
+
+        const restored = await b44.entities.Driver.updateMany(
+          {
+            id: reservedDriverId,
+            status: driver.status,
+            dispatch_status: driver.dispatch_status,
+            reserved_order_id: driver.reserved_order_id ?? null,
+            active_order_id: driver.active_order_id ?? null,
+            active_ride_id: driver.active_ride_id ?? null,
+            reservation_token: driver.reservation_token ?? null
+          },
+          { $set: {
+            status: 'disponible',
+            dispatch_status: 'automatic_pending',
+            reserved_order_id: order.id,
+            reservation_token: order.reservation_token,
+            active_order_id: null,
+            active_ride_id: null,
+            current_base: order.assigned_base || driver.current_base
+          } }
+        );
+        const restoredCount = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
+        if (restoredCount !== 1) throw new Error('ORPHAN_RESTORE_CONCURRENT_CHANGE');
+        if (!b44.functions?.invoke) throw new Error('REJECT_ENGINE_UNAVAILABLE');
+
         const routed = await b44.functions.invoke('rejectRide', {
           orderId: order.id,
           driverId: reservedDriverId,
           assignmentAttempt: Number(order.assignment_attempt || 1),
           source: 'timeout',
           internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
-        }).catch(() => null);
+        });
         const routedData = routed?.data || routed;
         await pushResult({
           status: routedData?.success === true ? 'repaired' : 'concurrent_change',
           issueType: 'ORPHAN_EXPIRED_OFFER',
           orderId: order.id,
           driverIds: [reservedDriverId],
-          actions: routedData?.success === true ? ['Oferta vencida reenviada al motor autoritativo'] : [],
+          actions: routedData?.success === true ? ['Oferta vencida restaurada y reenviada al motor autoritativo'] : [],
           correlationId,
           matchedCount: routedData?.success === true ? 1 : 0
         });
