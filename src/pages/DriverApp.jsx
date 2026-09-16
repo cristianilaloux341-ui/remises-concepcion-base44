@@ -1542,8 +1542,26 @@ export default function DriverApp() {
     }
   };
   const handleReject = async () => {
-    const realId = getRealOrderId(offeredOrder?.id);
-    await stopNativeRideAlert(realId, "handleReject");
+    // Congelar los datos de ESTA oferta antes de tocar cualquier estado visual.
+    // El rechazo al servidor sale primero: apagar sonido/notificaciones nunca debe
+    // demorar ni hacer perder la acción que hace avanzar el viaje al siguiente móvil.
+    const rejectedOrderId = offeredOrder?.id;
+    const realId = getRealOrderId(rejectedOrderId);
+    const rejectedAttempt = Number(offeredOrder?.assignment_attempt || 1);
+    const rejectedDriverId = myDriverId;
+
+    let rejectPromise = null;
+    if (realId && rejectedDriverId) {
+      rejectPromise = base44.functions.invoke("rejectRide", {
+        orderId: realId,
+        driverId: rejectedDriverId,
+        assignmentAttempt: rejectedAttempt,
+        sessionToken: getSessionToken()
+      });
+    }
+
+    // Desde acá todo es limpieza local y NO bloquea el rechazo.
+    stopNativeRideAlert(realId, "handleReject");
     stopAlert();
     clearInterval(alertIntervalRef.current);
     prevOfferedId.current = null;
@@ -1553,37 +1571,31 @@ export default function DriverApp() {
       if(realId){
         Capacitor.Plugins.ForegroundService?.markRideResolved({
           orderId: realId,
-          assignmentAttempt: offeredOrder.assignment_attempt || 1,
+          assignmentAttempt: rejectedAttempt,
           resolutionType: "REJECTED"
         }).catch(()=>{});
       }
     }
 
-    if (offeredOrder?.id) ignoredOrdersRef.current.add(offeredOrder.id);
-    setLocalOverride({ status: "disponible", _ignoredOrderId: offeredOrder?.id });
+    if (rejectedOrderId) ignoredOrdersRef.current.add(rejectedOrderId);
+    setLocalOverride({ status: "disponible", _ignoredOrderId: rejectedOrderId });
 
-    if (realId) {
+    if (rejectPromise) {
       try {
-        await base44.functions.invoke("rejectRide", {
-          orderId: realId,
-          driverId: myDriverId,
-          assignmentAttempt: offeredOrder?.assignment_attempt || 1,
-          sessionToken: getSessionToken()
-        });
+        const response = await rejectPromise;
+        const result = response?.data || response;
+        if (result?.success === false) {
+          console.error("rejectRide rechazó la acción", result);
+          checkedGhostRef.current = null;
+        }
       } catch (e) {
         console.error("No se pudo invocar rejectRide", e);
-        // IMPORTANTE: nunca liberar el Driver desde el teléfono si falla la red.
-        // El RideOrder puede seguir legítimamente en `ofrecido`; limpiar solo el
-        // Driver crea exactamente una oferta huérfana. El backend (rejectRide /
-        // timeout / reconciliador) es la única autoridad para cerrar la oferta.
+        // Nunca liberar el Driver directamente desde el teléfono si falla la red.
         checkedGhostRef.current = null;
       }
     }
 
-    // rejectRide es la única autoridad de cierre de la oferta: además de reasignar,
-    // envía la cancelación con el assignmentAttempt exacto del intento rechazado.
-    // No mandar una segunda cancelación desde la UI porque para entonces el viaje
-    // puede estar ya en el intento siguiente.
+    // rejectRide es la única autoridad de cierre y reasignación.
     window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
   };
   // Cargar config de minutos de bloqueo post-viaje
