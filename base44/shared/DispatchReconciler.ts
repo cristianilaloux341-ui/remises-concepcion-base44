@@ -1,4 +1,5 @@
 import { safeAuditLog } from './DispatchLogic.ts';
+import { findNextDriverInZone } from './driverSelection.ts';
 
 export type ReconciliationResult = {
   status: 'repaired' | 'no_action' | 'manual_review_required' | 'already_reconciled' | 'concurrent_change' | 'persistence_error';
@@ -190,6 +191,33 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
     if (driverOwnsOffer) continue;
 
     try {
+      // Un huérfano vencido NO abre Pendientes por su cuenta. Si todavía queda
+      // capacidad en la zona, debe volver al mismo motor autoritativo que recorre
+      // la cola. Solo rejectRide puede decidir que la cadena quedó realmente agotada.
+      const zoneCandidate = await findNextDriverInZone(b44, order, reservedDriverId).catch(() => null);
+      if (zoneCandidate && b44.functions?.invoke) {
+        const routed = await b44.functions.invoke('rejectRide', {
+          orderId: order.id,
+          driverId: reservedDriverId,
+          assignmentAttempt: Number(order.assignment_attempt || 1),
+          source: 'timeout',
+          internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch(() => null);
+        const routedData = routed?.data || routed;
+        await pushResult({
+          status: routedData?.success === true ? 'repaired' : 'concurrent_change',
+          issueType: 'ORPHAN_EXPIRED_OFFER',
+          orderId: order.id,
+          driverIds: [reservedDriverId],
+          actions: routedData?.success === true ? ['Oferta vencida reenviada al motor autoritativo'] : [],
+          correlationId,
+          matchedCount: routedData?.success === true ? 1 : 0
+        });
+        continue;
+      }
+
+      // Si el selector fresco confirma que ya no queda ningún candidato, recién
+      // entonces esta recuperación puede liberar el pasaje como Pendiente real.
       const res = await b44.entities.RideOrder.updateMany(
         {
           id: order.id,
@@ -233,7 +261,7 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
         issueType: 'ORPHAN_EXPIRED_OFFER',
         orderId: order.id,
         driverIds: [reservedDriverId],
-        actions: matched ? ['Oferta vencida devuelta a pendiente'] : [],
+        actions: matched ? ['Cadena agotada; oferta vencida liberada a pendiente'] : [],
         correlationId,
         matchedCount: matched
       });
