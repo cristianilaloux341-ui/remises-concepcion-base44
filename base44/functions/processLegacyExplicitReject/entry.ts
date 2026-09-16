@@ -164,6 +164,16 @@ Deno.serve(async (req) => {
         } }
       ).catch(()=>({updated:0}));
 
+      // Si la oferta tuvo que recuperarse desde pendiente, el worker original puede
+      // haber terminado con offer_changed. Rearmarlo sobre el MISMO attempt y el
+      // MISMO offerExpiresAt garantiza el salto al siguiente al cumplir los 30 s.
+      b44.functions.invoke('autoReassignOnTimeout', {
+        orderId:order.id,
+        driverId:driver.id,
+        assignmentAttempt,
+        internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+      }).catch((e:any)=>console.error('Legacy reject timeout rearm error:', e));
+
       await b44.entities.AuditLog.create({
         action:'LEGACY_REJECT_DEFERRED_TO_ORIGINAL_TIMEOUT',
         user_type:'sistema',
