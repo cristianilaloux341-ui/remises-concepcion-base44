@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
+import { getNextQueueTailAt, getNextQueuePosition, withQueueLock } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   let b44: any = null;
@@ -166,6 +167,57 @@ Deno.serve(async (req) => {
       }
     } else {
       currentReleased = true;
+    }
+
+    // REGLA DE COLA: rechazo explícito o timeout real pierde el turno y vuelve
+    // ÚLTIMO en la MISMA base. No-ACK es distinto: conserva exactamente su posición.
+    // El sellado se hace con el lock autoritativo de la base para que ninguna APK
+    // legacy pueda restaurar después la antigüedad anterior.
+    if (source !== 'delivery_unconfirmed' && queueBase) {
+      const placedTail = await withQueueLock(b44, queueBase, async () => {
+        const freshRows = await b44.entities.Driver.filter({ id:driverId });
+        const fresh = freshRows?.[0];
+        if (!fresh || fresh.status !== 'disponible' || fresh.active_order_id || fresh.active_ride_id || fresh.reserved_order_id) {
+          return { success:false, reason:'driver_busy_or_state_changed' };
+        }
+        const queueEnteredAt = await getNextQueueTailAt(b44, queueBase, driverId);
+        const position = await getNextQueuePosition(b44, queueBase, driverId);
+        const sealed = await b44.entities.Driver.updateMany(
+          { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
+          { $set:{
+            dispatch_status:'normal',
+            current_base:queueBase,
+            queue_entered_at:queueEnteredAt,
+            queue_authoritative_base:queueBase,
+            queue_authoritative_at:queueEnteredAt,
+            queue_authority_marker:position,
+            queue_position:position,
+            queue_left_at:null,
+            reservation_token:null,
+            manual_reservation_token:null,
+            driver_reservation_key:null
+          } }
+        );
+        const count = sealed?.updated ?? sealed?.modifiedCount ?? sealed?.matchedCount ?? 0;
+        return count === 1 ? { success:true, queueEnteredAt, position } : { success:false, reason:'seal_failed' };
+      });
+      if (placedTail?.success) {
+        await b44.entities.AuditLog.create({
+          action:'REJECT_REQUEUED_TO_TAIL',
+          user_type:'sistema',
+          user_name:'rejectRide',
+          details:`${driverId} perdió el turno y volvió último en ${queueBase}`,
+          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), source, baseName:queueBase, queueEnteredAt:placedTail.queueEnteredAt, queuePosition:placedTail.position }
+        }).catch(()=>{});
+      } else {
+        await b44.entities.AuditLog.create({
+          action:'REJECT_REQUEUE_TAIL_FAILED',
+          user_type:'sistema',
+          user_name:'rejectRide',
+          details:`No se pudo sellar al final de cola ${driverId} en ${queueBase}`,
+          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), source, baseName:queueBase, reason:placedTail?.reason || 'unknown' }
+        }).catch(()=>{});
+      }
     }
 
     // Cerrar la oferta anterior EN PARALELO. Un rechazo explícito o un timeout ya
