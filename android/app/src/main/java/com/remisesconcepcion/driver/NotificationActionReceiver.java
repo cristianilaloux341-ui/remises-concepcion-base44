@@ -47,16 +47,19 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                 // Enviar al servidor invocando la misma función que usa la aplicación web
                 String dName = driverName != null ? driverName.replace("\"", "\\\"") : "";
                 String bName = base != null ? base.replace("\"", "\\\"") : "";
+                String assignmentAttempt = intent.getStringExtra("assignmentAttempt");
+                String orderIdWithAttempt = orderId;
+                if (assignmentAttempt != null && !assignmentAttempt.isEmpty()) {
+                    orderIdWithAttempt = orderId + "_att_" + assignmentAttempt;
+                }
                 String payload = String.format("{\"action\":\"native_accept\", \"orderId\":\"%s\", \"driverId\":\"%s\", \"driverName\":\"%s\", \"base\":\"%s\"}", 
-                        orderId, driverId, dName, bName);
+                        orderIdWithAttempt, driverId, dName, bName);
                 sendToServer(apiUrl, payload, pendingResult);
 
-                // Abrir la app y pasar el parámetro para que React también se entere
+                // Abrir la app para mostrar inmediatamente el estado confirmado por servidor.
+                // NO reenviar radiocab_action=accept: eso ejecutaba un segundo acceptRide desde React.
                 Intent launchIntent = new Intent(context, MainActivity.class);
                 launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                launchIntent.putExtra("radiocab_action", "accept");
-                launchIntent.putExtra("orderId", orderId);
-                launchIntent.putExtra("assignmentAttempt", intent.getStringExtra("assignmentAttempt"));
                 context.startActivity(launchIntent);
                 
             } else if ("ACTION_REJECT".equals(action)) {
@@ -74,12 +77,11 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                 String payload = String.format("{\"action\":\"native_reject\", \"orderId\":\"%s\", \"driverId\":\"%s\"}", orderIdWithAttempt, driverId);
                 sendToServer(apiUrl, payload, pendingResult);
 
-                // Abrir la app y pasar el mismo intento de rechazo como respaldo.
+                // Abrir la app sólo para refrescar la interfaz.
+                // NO reenviar radiocab_action=reject: el servidor ya recibió native_reject y
+                // repetirlo desde React generaba dos rejectRide para un único toque.
                 Intent launchIntent = new Intent(context, MainActivity.class);
                 launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                launchIntent.putExtra("radiocab_action", "reject");
-                launchIntent.putExtra("orderId", orderId);
-                launchIntent.putExtra("assignmentAttempt", assignmentAttempt);
                 context.startActivity(launchIntent);
             }
         }
