@@ -98,7 +98,9 @@ public class RideAlertController {
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setContentIntent(openAppPendingIntent)
+                // Tocar el cuerpo/burbuja de la notificación equivale a ACEPTAR.
+                // El full-screen automático sólo muestra la oferta: no debe autoaceptar sin toque.
+                .setContentIntent(acceptPendingIntent)
                 .setFullScreenIntent(openAppPendingIntent, true)
                 .setDeleteIntent(dismissPendingIntent)
                 .addAction(0, "✅ ACEPTAR", acceptPendingIntent)
