@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
         const queueEnteredAt = await getNextQueueTailAt(b44, queueBase, driverId);
         const position = await getNextQueuePosition(b44, queueBase, driverId);
         const sealed = await b44.entities.Driver.updateMany(
-          { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
+          { id:driverId, status:'disponible', current_base:null, reserved_order_id:null, active_order_id:null, active_ride_id:null },
           { $set:{
             dispatch_status:'normal',
             current_base:queueBase,
