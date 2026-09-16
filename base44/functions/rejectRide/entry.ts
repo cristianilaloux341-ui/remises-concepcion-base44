@@ -407,10 +407,12 @@ Deno.serve(async (req) => {
   } catch (error:any) {
     console.error('RejectRide Error:',error);
 
-    // Si ya liberamos al móvil anterior y algo excepcional falló, el estado más
-    // seguro es Pendiente; nunca dejar una oferta activa apuntando a un móvil libre.
+    // Una falla interna NO convierte una reasignación activa en Pendientes.
+    // Si el móvil anterior ya fue liberado, conservamos la oferta y relanzamos
+    // el mismo motor autoritativo. Pendiente queda reservado a cadena agotada.
     if (b44 && lockOwner && lockOrderId && lockedOrder) {
       if (currentReleased) {
+        const retryOwner = lockOwner;
         await b44.entities.RideOrder.updateMany(
           {
             id:lockOrderId,
@@ -418,27 +420,23 @@ Deno.serve(async (req) => {
             reserved_driver_id:lockedOrder.reserved_driver_id,
             reservation_token:lockedOrder.reservation_token,
             assignment_attempt:lockedOrder.assignment_attempt,
-            processingOwnerId:lockOwner
+            processingOwnerId:retryOwner
           },
-          {
-            $set:{
-              status:'pendiente',
-              driver_id:null,
-              driver_name:null,
-              reserved_driver_id:null,
-              reservation_token:null,
-              manual_reservation_token:null,
-              assigned_at:null,
-              offerExpiresAt:null,
-              assigned_base:null,
-              processingAction:null,
-              processingOperationKey:null,
-              processingOwnerId:null,
-              processingLeaseExpiresAt:null,
-              processingPhase:null
-            }
-          }
+          { $set:{ processingLeaseExpiresAt:Date.now()+30000, processingPhase:'REASSIGNING' } }
         ).catch(()=>{});
+        await b44.entities.RideOrder.updateMany(
+          { id:lockOrderId, processingOwnerId:retryOwner, processingPhase:'REASSIGNING' },
+          { $set:{ processingOwnerId:null, processingAction:null, processingOperationKey:null, processingLeaseExpiresAt:null, processingPhase:null } }
+        ).catch(()=>{});
+        lockOwner = null;
+        b44.functions.invoke('rejectRide', {
+          orderId:lockOrderId,
+          driverId:lockedOrder.reserved_driver_id,
+          assignmentAttempt:Number(lockedOrder.assignment_attempt),
+          source: source === 'timeout' ? 'timeout' : 'explicit_reject',
+          legacyQueueEnteredAt,
+          internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch(()=>{});
       } else {
         await b44.entities.RideOrder.updateMany(
           { id:lockOrderId, processingOwnerId:lockOwner },
