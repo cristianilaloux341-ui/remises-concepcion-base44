@@ -381,7 +381,9 @@ Deno.serve(async (req) => {
           push_ack_assignment_attempt:null,
           delivery_retry_count:0,
           assigned_base:null,
-          processingAction:null,
+          // Marca explícita de Pendiente REAL: sólo la escribe Central después de
+          // que el selector autoritativo recorrió la zona y no encontró candidato.
+          processingAction:'PENDING_AUTHORIZED',
           processingOperationKey:null,
           processingOwnerId:null,
           processingLeaseExpiresAt:null,
