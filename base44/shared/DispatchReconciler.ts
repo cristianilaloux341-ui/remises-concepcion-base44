@@ -398,9 +398,20 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
       const base = activeBases.find(b => b.active_order_id === order.id);
       const driver = activeDrivers.find(d => d.reserved_order_id === order.id);
       if (!base && !driver) {
-        const res = await b44.entities.RideOrder.updateMany({ id: order.id, status: 'procesando_despacho', reservation_token: order.reservation_token }, { $set: { status: 'pendiente', driver_id: null, driver_name: null, reserved_driver_id: null, reservation_token: null } });
+        // Un procesamiento huérfano no autoriza Pendientes. Antes de publicar
+        // hay que consultar la cola real de la zona. Si todavía existe candidato,
+        // el reconciliador no puede degradar la orden a Pendientes.
+        const zoneCandidate = order.zone ? await findNextDriverInZone(b44, order, null) : null;
+        if (zoneCandidate) {
+          await pushResult({ status:'no_action', issueType:'ORPHAN_PROCESSING_ORDER', orderId:order.id, actions:['Hay candidato en zona; Pendientes bloqueado'], correlationId, matchedCount:0 });
+          continue;
+        }
+        const res = await b44.entities.RideOrder.updateMany(
+          { id: order.id, status: 'procesando_despacho', reservation_token: order.reservation_token },
+          { $set: { status:'pendiente', driver_id:null, driver_name:null, reserved_driver_id:null, reservation_token:null, processingAction:'PENDING_AUTHORIZED' } }
+        );
         const matched = res.matchedCount ?? res.modifiedCount ?? 0;
-        await pushResult({ status: matched ? 'repaired' : 'concurrent_change', issueType: 'ORPHAN_PROCESSING_ORDER', orderId: order.id, actions: ['Viaje devuelto a pendiente'], correlationId, matchedCount: matched });
+        await pushResult({ status: matched ? 'repaired' : 'concurrent_change', issueType: 'ORPHAN_PROCESSING_ORDER', orderId: order.id, actions: ['Sin candidatos en zona; Pendiente autorizado'], correlationId, matchedCount: matched });
       }
     }
   }
