@@ -683,39 +683,43 @@ Deno.serve(async (req) => {
           // de Pendientes en lugar de depender de un segundo evento realtime.
         }
 
-        // Si por compatibilidad quedó autoridad vieja mientras current_base ya es null,
-        // se elimina inmediatamente. Nunca se conserva turno fuera de una base.
+        // REGLA OPERATIVA INMUTABLE: un móvil ya agendado NO pierde su posición por
+        // GPS, heartbeat, reconexión, caché ni current_base=null técnico. Mientras siga
+        // disponible/normal y sin viaje o reserva, la autoridad de cola manda y se
+        // restaura la base anterior. Sólo una salida de servicio real o un pasaje puede
+        // quitarlo de posición; el cambio voluntario A->B se procesa explícitamente abajo.
         if (!normalizedExplicitQueueEntry && authoritativeBase && !currentBase) {
-          const cleared = await b44.entities.Driver.updateMany(
+          const restored = await b44.entities.Driver.updateMany(
             {
               id:driverId,
               status:'disponible',
               current_base:null,
+              dispatch_status:'normal',
               reserved_order_id:null,
               active_order_id:null,
               active_ride_id:null
             },
             { $set:{
-              queue_entered_at:null,
-              queue_authoritative_base:null,
-              queue_authoritative_at:null,
-              queue_authority_marker:null,
-              queue_position:null,
+              current_base:authoritativeBase,
+              queue_entered_at:authoritativeAt || currentAt,
+              queue_authoritative_base:authoritativeBase,
+              queue_authoritative_at:authoritativeAt || currentAt,
+              queue_authority_marker:acceptedMarker ?? marker,
+              queue_position:marker ?? acceptedMarker,
               queue_left_at:null
             } }
           ).catch(()=>({updated:0}));
-          const clearedCount = cleared?.updated ?? cleared?.modifiedCount ?? cleared?.matchedCount ?? 0;
-          if (clearedCount === 1) {
-            if (authoritativeBase) compactQueue(b44, authoritativeBase).catch(()=>null);
+          const restoredCount = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
+          if (restoredCount === 1) {
             await b44.entities.AuditLog.create({
-              action:'STALE_QUEUE_AUTHORITY_CLEARED_OUTSIDE_BASE',
+              action:'QUEUE_POSITION_PRESERVED_AGAINST_TECHNICAL_EXIT',
               user_type:'sistema',
               user_name:freshQueueDriver.name || 'Driver',
-              details:`${freshQueueDriver.name || driverId} quedó fuera de ${authoritativeBase}; se eliminó su antigüedad inmediatamente`,
-              metadata:{ driverId, previousBase:authoritativeBase, previousQueueAt:authoritativeAt }
+              details:`${freshQueueDriver.name || driverId} intentó quedar sin base por una escritura técnica; se preservó su posición en ${authoritativeBase}`,
+              metadata:{ driverId, baseName:authoritativeBase, preservedQueueAt:authoritativeAt || currentAt, preservedQueuePosition:marker ?? acceptedMarker }
             }).catch(()=>{});
           }
-          return Response.json({ success:true, repaired:clearedCount === 1, reason:'STALE_QUEUE_AUTHORITY_CLEARED_OUTSIDE_BASE' });
+          return Response.json({ success:true, repaired:restoredCount === 1, reason:'QUEUE_POSITION_PRESERVED_AGAINST_TECHNICAL_EXIT' });
         }
 
         // Cambio A->B: las APK instaladas hacen el cambio voluntario escribiendo
