@@ -139,14 +139,34 @@ export async function getNextQueuePosition(b44: any, baseName: string, excludeDr
   return maxPos + 1;
 }
 
-export async function compactQueueUnlocked(_b44: any, _baseName: string) {
-  // REGLA OPERATIVA: compactar no puede cambiar posiciones por sí solo.
-  // Una posición otorgada queda congelada hasta una acción operativa explícita
-  // (asignación/rechazo-vencimiento, salida real o reordenamiento del operador).
-  // Los escritores autorizados ya asignan la posición correspondiente bajo lock.
-  // Por eso esta función queda deliberadamente como no-op: evita que una limpieza,
-  // reconexión o estado técnico renumere 1°, 2°, 3° sin una acción real.
-  return;
+export async function compactQueueUnlocked(b44: any, baseName: string) {
+  // Compactación autoritativa: conserva EXACTAMENTE el orden relativo actual y
+  // elimina huecos (1,2,3,8 -> 1,2,3,4). Solo debe llamarse dentro del lock de cola
+  // y después de una acción operativa real; heartbeat/GPS/reconexión nunca la llaman.
+  if (!baseName) return;
+  const rows = await b44.entities.Driver.filter({
+    status: 'disponible',
+    queue_authoritative_base: baseName
+  }).catch(() => []);
+  const queue = getBaseQueue(Array.isArray(rows) ? rows : [], baseName);
+  for (let i = 0; i < queue.length; i++) {
+    const d = queue[i];
+    const wanted = i + 1;
+    if (Number(d.queue_position) === wanted && Number(d.queue_authority_marker) === wanted) continue;
+    const res = await b44.entities.Driver.updateMany(
+      {
+        id: d.id,
+        status: 'disponible',
+        queue_authoritative_base: baseName,
+        dispatch_status: d.dispatch_status ?? 'normal',
+        reserved_order_id: null,
+        active_order_id: null,
+        active_ride_id: null
+      },
+      { $set: { queue_position: wanted, queue_authority_marker: wanted } }
+    ).catch(() => ({ updated: 0 }));
+    if (mutationCount(res) !== 1) throw new Error(`QUEUE_COMPACT_RACE:${d.id}`);
+  }
 }
 
 export async function compactQueue(b44: any, baseName: string) {
