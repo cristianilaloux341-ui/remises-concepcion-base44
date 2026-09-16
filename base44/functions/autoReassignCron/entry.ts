@@ -145,52 +145,57 @@ Deno.serve(async (req) => {
             !driverOwnsOffer &&
             !(orphanOrder.processingOwnerId && Number(orphanOrder.processingLeaseExpiresAt || 0) > Date.now())
           ) {
-            const orphanRes = await b44.entities.RideOrder.updateMany(
+            // Nunca convertir un huérfano ofrecido a Pendientes desde el cron.
+            // Restauramos la propiedad exacta sólo si el Driver sigue libre y luego
+            // delegamos en rejectRide, que recorre la cola completa y es la única
+            // autoridad para decidir que no quedan candidatos.
+            if (!orphanDriver) throw new Error('ORPHAN_DRIVER_NOT_FOUND');
+            const driverBusyElsewhere =
+              orphanDriver.status === 'en_viaje' ||
+              Boolean(orphanDriver.active_order_id) ||
+              Boolean(orphanDriver.active_ride_id) ||
+              Boolean(orphanDriver.reserved_order_id && orphanDriver.reserved_order_id !== orphanOrder.id);
+            if (driverBusyElsewhere) throw new Error('ORPHAN_DRIVER_BUSY');
+
+            const restoredDriver = await b44.entities.Driver.updateMany(
               {
-                id: orphanOrder.id,
-                status: 'ofrecido',
-                reserved_driver_id: driverToExpire,
-                reservation_token: orphanOrder.reservation_token,
-                assignment_attempt: orphanOrder.assignment_attempt,
-                offerExpiresAt: orphanOrder.offerExpiresAt
+                id: driverToExpire,
+                status: orphanDriver.status,
+                dispatch_status: orphanDriver.dispatch_status,
+                reserved_order_id: orphanDriver.reserved_order_id ?? null,
+                active_order_id: orphanDriver.active_order_id ?? null,
+                active_ride_id: orphanDriver.active_ride_id ?? null,
+                reservation_token: orphanDriver.reservation_token ?? null
               },
-              {
-                $set: {
-                  status: 'pendiente',
-                  driver_id: null,
-                  driver_name: null,
-                  reserved_driver_id: null,
-                  reservation_token: null,
-                  manual_reservation_token: null,
-                  assigned_at: null,
-                  offerExpiresAt: null,
-                  assigned_base: null,
-                  processingAction: null,
-                  processingOperationKey: null,
-                  processingOwnerId: null,
-                  processingLeaseExpiresAt: null,
-                  processingPhase: null
-                }
-              }
-            ).catch(() => ({ matchedCount: 0, updated: 0 }));
-            const repaired = (orphanRes?.matchedCount ?? orphanRes?.modifiedCount ?? orphanRes?.updated ?? 0) === 1;
-            if (repaired) {
-              count++;
-              await b44.functions.invoke('sendPushNotification', {
-                action: 'cancel_multiple',
-                orderId: orphanOrder.id,
-                driversToCancel: [driverToExpire],
-                orderData: { assignmentAttempt: Number(orphanOrder.assignment_attempt) },
-                internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
-              }).catch(() => {});
-              await b44.entities.AuditLog.create({
-                action: 'ORPHAN_EXPIRED_OFFER_RECOVERED',
-                user_type: 'sistema',
-                user_name: 'autoReassignCron',
-                details: `Oferta vencida huérfana ${orphanOrder.id} devuelta a pendiente`,
-                metadata: { orderId: orphanOrder.id, driverId: driverToExpire, assignmentAttempt: orphanOrder.assignment_attempt }
-              }).catch(() => {});
-            }
+              { $set: {
+                status:'disponible',
+                dispatch_status:'automatic_pending',
+                reserved_order_id:orphanOrder.id,
+                reservation_token:orphanOrder.reservation_token,
+                active_order_id:null,
+                active_ride_id:null
+              } }
+            );
+            const restoredCount = restoredDriver?.updated ?? restoredDriver?.modifiedCount ?? restoredDriver?.matchedCount ?? 0;
+            if (restoredCount !== 1) throw new Error('ORPHAN_RESTORE_CONCURRENT_CHANGE');
+
+            const routed = await b44.functions.invoke('rejectRide', {
+              orderId: orphanOrder.id,
+              driverId: driverToExpire,
+              assignmentAttempt: Number(orphanOrder.assignment_attempt),
+              source: 'timeout',
+              internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+            });
+            const routedData = routed?.data || routed;
+            if (routedData?.success !== true) throw new Error(routedData?.error || 'ORPHAN_REJECT_ENGINE_FAILED');
+            count++;
+            await b44.entities.AuditLog.create({
+              action: 'ORPHAN_EXPIRED_OFFER_ROUTED',
+              user_type: 'sistema',
+              user_name: 'autoReassignCron',
+              details: `Oferta vencida huérfana ${orphanOrder.id} restaurada y enviada al motor autoritativo`,
+              metadata: { orderId: orphanOrder.id, driverId: driverToExpire, assignmentAttempt: orphanOrder.assignment_attempt }
+            }).catch(() => {});
           }
         }
       } catch(e) {
