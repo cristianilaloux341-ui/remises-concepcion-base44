@@ -64,15 +64,22 @@ public class NotificationActionReceiver extends BroadcastReceiver {
                 // Cerrar la notificación
                 notificationManager.cancel(notificationId);
                 
-                // Enviar al servidor
-                String payload = String.format("{\"action\":\"native_reject\", \"orderId\":\"%s\", \"driverId\":\"%s\"}", orderId, driverId);
+                // Enviar al servidor conservando el assignmentAttempt exacto.
+                // Así RECHAZAR actúa sobre esta oferta y nunca queda esperando el timeout.
+                String assignmentAttempt = intent.getStringExtra("assignmentAttempt");
+                String orderIdWithAttempt = orderId;
+                if (assignmentAttempt != null && !assignmentAttempt.isEmpty()) {
+                    orderIdWithAttempt = orderId + "_att_" + assignmentAttempt;
+                }
+                String payload = String.format("{\"action\":\"native_reject\", \"orderId\":\"%s\", \"driverId\":\"%s\"}", orderIdWithAttempt, driverId);
                 sendToServer(apiUrl, payload, pendingResult);
 
-                // Abrir la app y pasar el parámetro de rechazo
+                // Abrir la app y pasar el mismo intento de rechazo como respaldo.
                 Intent launchIntent = new Intent(context, MainActivity.class);
                 launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
                 launchIntent.putExtra("radiocab_action", "reject");
                 launchIntent.putExtra("orderId", orderId);
+                launchIntent.putExtra("assignmentAttempt", assignmentAttempt);
                 context.startActivity(launchIntent);
             }
         }
