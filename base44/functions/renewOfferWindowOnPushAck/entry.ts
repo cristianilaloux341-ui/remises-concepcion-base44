@@ -113,7 +113,8 @@ Deno.serve(async (req) => {
     }).catch(() => {});
 
     // Disparar watchdog corregido con la nueva fecha de vencimiento
-    await b44.functions.invoke('autoReassignOnTimeout', {
+    // (sin await para no bloquear la respuesta del webhook/cliente)
+    b44.functions.invoke('autoReassignOnTimeout', {
       orderId,
       driverId,
       assignmentAttempt: order.assignment_attempt,

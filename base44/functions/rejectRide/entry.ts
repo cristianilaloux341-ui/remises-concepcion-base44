@@ -296,10 +296,10 @@ Deno.serve(async (req) => {
           internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
         }).catch(e=>console.error('Error push rejectRide:',e));
 
-        // IMPORTANTE: esperar a que Base44 confirme el arranque del worker.
-        // Si lo dejamos fire-and-forget, esta función puede responder/terminar antes
-        // y la NUEVA oferta queda sin watchdog: llega a 00s y no salta al siguiente.
-        await b44.functions.invoke('autoReassignOnTimeout', {
+        // Lanzamos el watchdog sin await para que el operador/chofer no se quede
+        // bloqueado 8 segundos esperando que el worker termine su primer ciclo.
+        // Si el entorno serverless lo aborta, el cron de respaldo lo levantará.
+        b44.functions.invoke('autoReassignOnTimeout', {
           orderId,
           driverId:nextDriver.id,
           assignmentAttempt:newAttempt,

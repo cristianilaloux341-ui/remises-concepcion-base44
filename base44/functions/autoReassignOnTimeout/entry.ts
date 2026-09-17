@@ -202,6 +202,26 @@ Deno.serve(async (req) => {
       }
       
       // Si ya esperamos el tiempo final, dejamos que el código siga y ejecute el rechazo.
+      // PERO, como esperamos hasta 8 segundos, el ACK pudo haber llegado mientras dormíamos,
+      // actualizando offerExpiresAt o push_ack_at. Volvemos a leer para no reasignar prematuramente.
+      const checkOrder = await b44.entities.RideOrder.get(orderId).catch(()=>null);
+      if (!checkOrder || checkOrder.status !== 'ofrecido' || checkOrder.reserved_driver_id !== driverId || Number(checkOrder.assignment_attempt) !== Number(assignmentAttempt)) {
+          return Response.json({ ok:true, skipped:true, reason:'offer_changed_during_wait' });
+      }
+      
+      const newExpiresAt = Number(checkOrder.offerExpiresAt);
+      const newAcked = Boolean(checkOrder.push_ack_at && Number(checkOrder.push_ack_assignment_attempt) === Number(assignmentAttempt));
+      
+      if (newExpiresAt > expiresAt + 1000 || (!ackedThisAttempt && newAcked)) {
+          // El tiempo se extendió o entró el ACK. Volvemos a encadenar para respetar el nuevo tiempo.
+          b44.functions.invoke('autoReassignOnTimeout', {
+            orderId, driverId, assignmentAttempt, internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+          }).catch(e=>console.error('Timeout re-chain error:',e));
+          return Response.json({ ok:true, chained:true, reason:'ack_arrived_during_wait' });
+      }
+      
+      // Actualizamos ackedThisAttempt con la última verdad
+      ackedThisAttempt = newAcked;
     }
 
     // A los 30 s TOTALES se termina esta oferta. Con ACK es timeout normal; sin ACK
