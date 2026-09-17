@@ -561,6 +561,7 @@ export default function Agenda() {
           <Card><CardContent className="p-8 text-center text-muted-foreground font-bold">Sin viajes programados</CardContent></Card>
         ) : upcoming.map(ride => {
           const mins = minutesUntil(ride.scheduled_datetime);
+          const isDateValid = ride.scheduled_datetime && !isNaN(new Date(ride.scheduled_datetime).getTime());
           const isUrgent = mins <= (ride.notify_minutes_before ?? 10) && mins >= 0;
           const isOverdue = mins < 0;
           return (
@@ -576,8 +577,8 @@ export default function Agenda() {
                     <p className="text-sm text-black font-bold">{ride.client_phone}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-bold text-lg text-black">{ride.scheduled_datetime && !isNaN(new Date(ride.scheduled_datetime).getTime()) ? format(new Date(ride.scheduled_datetime), "HH:mm", { locale: es }) : "--:--"}</p>
-                    <p className="text-sm text-black font-bold">{ride.scheduled_datetime && !isNaN(new Date(ride.scheduled_datetime).getTime()) ? format(new Date(ride.scheduled_datetime), "dd/MM/yy") : "--/--/--"}</p>
+                    <p className="font-bold text-lg text-black">{isDateValid ? format(new Date(ride.scheduled_datetime), "HH:mm", { locale: es }) : "--:--"}</p>
+                    <p className="text-sm text-black font-bold">{isDateValid ? format(new Date(ride.scheduled_datetime), "dd/MM/yy") : "--/--/--"}</p>
                   </div>
                 </div>
 
@@ -640,20 +641,23 @@ export default function Agenda() {
       {past.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-bold text-black uppercase tracking-wide mt-6">Historial reciente</h2>
-          {past.map(ride => (
-            <Card key={ride.id} className="opacity-80">
-              <CardContent className="p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-bold text-black">{ride.client_name}</p>
-                  <p className="text-xs text-black font-medium">{ride.pickup_address}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-black font-bold">{ride.scheduled_datetime && !isNaN(new Date(ride.scheduled_datetime).getTime()) ? format(new Date(ride.scheduled_datetime), "dd/MM HH:mm") : "--/-- --:--"}</p>
-                  <Badge className={STATUS_COLORS[ride.status] + " border-0 text-xs font-bold"}>{ride.status}</Badge>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          {past.map(ride => {
+            const isDateValid = ride.scheduled_datetime && !isNaN(new Date(ride.scheduled_datetime).getTime());
+            return (
+              <Card key={ride.id} className="opacity-80">
+                <CardContent className="p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-black">{ride.client_name}</p>
+                    <p className="text-xs text-black font-medium">{ride.pickup_address}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-black font-bold">{isDateValid ? format(new Date(ride.scheduled_datetime), "dd/MM HH:mm") : "--/-- --:--"}</p>
+                    <Badge className={STATUS_COLORS[ride.status] + " border-0 text-xs font-bold"}>{ride.status}</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
