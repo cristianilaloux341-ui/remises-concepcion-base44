@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
             queue_position:pos,
             queue_authoritative_base:baseName,
             queue_authoritative_at:compatAt,
+            queue_entered_at:compatAt,
             queue_authority_marker:pos,
             manual_reorder_token:reorderToken,
             manual_reorder_at:reorderAt

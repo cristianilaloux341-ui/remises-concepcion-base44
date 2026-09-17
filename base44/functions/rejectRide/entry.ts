@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
-import { getNextQueueTailAt, getNextQueuePosition, withQueueLock } from '../../shared/queueOrder.ts';
+import { getNextQueueTailAt, getNextQueuePosition, withQueueLock, compactQueueUnlocked } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   let b44: any = null;
@@ -75,12 +75,10 @@ Deno.serve(async (req) => {
     }
     lockedOrder = order;
 
-    // Rechazo o timeout confirmado mantienen la lógica estable existente. En cambio,
-    // `delivery_unconfirmed` significa que el teléfono NUNCA confirmó recepción:
-    // se libera solamente la oferta y el chofer conserva base/posición exactas.
-    const queueNow = new Date().toISOString();
-    const queueBase = order.assigned_base || order.zone || null;
-    const releaseSet:any = {
+    // Determinamos si el chofer ya fue liberado previamente (APK legacy)
+    let legacyAlreadyReleased = false;
+    let actualDriver = null;
+    let releaseSet:any = {
       status: 'disponible',
       dispatch_status: 'normal',
       active_order_id: null,
@@ -90,6 +88,7 @@ Deno.serve(async (req) => {
       manual_reservation_token: null,
       driver_reservation_key: null
     };
+
     const releasedCurrent = await b44.entities.Driver.updateMany(
       {
         id: driverId,
@@ -101,39 +100,22 @@ Deno.serve(async (req) => {
       { $set: releaseSet }
     );
     const releasedCount = releasedCurrent.matchedCount ?? releasedCurrent.modifiedCount ?? releasedCurrent.updated ?? 0;
+    
     if (releasedCount !== 1) {
-      // Compatibilidad con v12.27/v12.29: esas APK primero liberan el Driver y
-      // recién después piden la reasignación. Si el workflow nos trae exactamente
-      // ese evento, adoptamos la liberación ya hecha en vez de restaurarla y competir
-      // con el teléfono. La validación exige que el Driver siga libre, sin otro viaje
-      // y con el mismo queue_entered_at observado en el evento que disparó esta llamada.
-      const currentDriver = source === 'legacy_client'
-        ? await b44.entities.Driver.get(driverId).catch(() => null)
-        : null;
-      const legacyAlreadyReleased = Boolean(
+      actualDriver = await b44.entities.Driver.get(driverId).catch(() => null);
+      legacyAlreadyReleased = Boolean(
         source === 'legacy_client' &&
-        currentDriver &&
-        currentDriver.status === 'disponible' &&
-        (currentDriver.dispatch_status == null || currentDriver.dispatch_status === 'normal') &&
-        !currentDriver.reserved_order_id &&
-        !currentDriver.active_order_id &&
-        !currentDriver.active_ride_id &&
-        (!legacyQueueEnteredAt || String(currentDriver.queue_entered_at || '') === String(legacyQueueEnteredAt))
+        actualDriver &&
+        actualDriver.status === 'disponible' &&
+        (actualDriver.dispatch_status == null || actualDriver.dispatch_status === 'normal') &&
+        !actualDriver.reserved_order_id &&
+        !actualDriver.active_order_id &&
+        !actualDriver.active_ride_id &&
+        (!legacyQueueEnteredAt || String(actualDriver.queue_entered_at || '') === String(legacyQueueEnteredAt))
       );
 
       if (legacyAlreadyReleased) {
         currentReleased = true;
-        await b44.entities.Driver.updateMany(
-          { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
-          { $set:{
-            current_base:null,
-            queue_entered_at:null,
-            queue_authoritative_base:null,
-            queue_authoritative_at:null,
-            queue_authority_marker:null,
-            queue_position:null
-          } }
-        ).catch(()=>{});
         await b44.entities.AuditLog.create({
           action:'LEGACY_DRIVER_RELEASE_ADOPTED',
           user_type:'sistema',
@@ -151,6 +133,53 @@ Deno.serve(async (req) => {
       }
     } else {
       currentReleased = true;
+      actualDriver = await b44.entities.Driver.get(driverId).catch(() => null);
+    }
+
+    // El móvil ha sido liberado del viaje. Ahora DEBE ir al final de la cola, tanto si 
+    // fue un release nuestro como un release legacy.
+    const queueBase = order.assigned_base || order.zone || actualDriver?.current_base || actualDriver?.queue_authoritative_base || null;
+    if (queueBase) {
+      // Bloqueamos la cola para posicionarlo último
+      await withQueueLock(b44, queueBase, async () => {
+        const nextPos = await getNextQueuePosition(b44, queueBase, driverId);
+        const nextQueueAt = await getNextQueueTailAt(b44, queueBase, driverId);
+        
+        const placed = await b44.entities.Driver.updateMany(
+          {
+            id: driverId,
+            status: 'disponible',
+            $or: [
+              { dispatch_status: 'normal' },
+              { dispatch_status: null }
+            ],
+            reserved_order_id: null,
+            active_order_id: null,
+            active_ride_id: null
+          },
+          { $set: {
+            current_base: queueBase,
+            queue_authoritative_base: queueBase,
+            queue_position: nextPos,
+            queue_authority_marker: nextPos,
+            queue_entered_at: nextQueueAt,
+            queue_authoritative_at: nextQueueAt,
+            queue_left_at: null
+          } }
+        );
+        
+        if ((placed?.updated ?? placed?.matchedCount ?? placed?.modifiedCount ?? 0) === 1) {
+            await b44.entities.AuditLog.create({
+              action:'DRIVER_SENT_TO_TAIL',
+              user_type:'sistema',
+              user_name:'rejectRide',
+              details:`Chofer ${driverId} pasó al último lugar en la base ${queueBase} (posición ${nextPos}) tras soltar oferta ${orderId}`,
+              metadata:{ orderId, driverId, baseName: queueBase, newPosition: nextPos, queueAt: nextQueueAt }
+            }).catch(()=>{});
+            
+            await compactQueueUnlocked(b44, queueBase).catch(e => console.error("Error compacting queue after tail placement", e));
+        }
+      });
     }
 
     // Cerrar la oferta anterior EN PARALELO. Un rechazo explícito o un timeout ya
