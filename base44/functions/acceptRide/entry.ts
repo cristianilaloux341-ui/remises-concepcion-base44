@@ -258,7 +258,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
 
   // 2. ADQUISICIÓN DEL LEASE
   const expectedLeaseVersion = order.processingLeaseVersion ?? 0;
-  const acquiredLeaseVersion = expectedLeaseVersion + 1;
+  let acquiredLeaseVersion = expectedLeaseVersion + 1;
   const acquireFilter = {
     id: rideOrderId,
     status: "ofrecido",
@@ -299,9 +299,67 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   await logStep(ctx, "ACQUIRE_LEASE_AFTER", start, acquireFilter, acquired, null, snapshotBefore, snapshotAfter);
 
   if (mutationCount(acquired) === 0) {
-    let retSnap = await captureState(b44, rideOrderId, driverId);
-    await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
-    return { status: "OPERATION_IN_PROGRESS", correlationId };
+    // Si otro proceso tiene un lease muy corto sobre ESTA MISMA oferta, ACEPTAR
+    // espera una sola vez y reintenta. No libera locks ajenos ni modifica la cola.
+    const blocked = await b44.entities.RideOrder.get(rideOrderId).catch(() => null);
+    const sameLiveOffer = Boolean(
+      blocked &&
+      blocked.status === "ofrecido" &&
+      blocked.reserved_driver_id === driverId &&
+      Number(blocked.assignment_attempt) === Number(assignmentAttempt) &&
+      (blocked.offerExpiresAt == null || Number(blocked.offerExpiresAt) > Date.now())
+    );
+
+    if (sameLiveOffer && blocked.processingOwnerId && Number(blocked.processingLeaseExpiresAt || 0) > Date.now()) {
+      const waitMs = Math.min(1200, Math.max(150, Number(blocked.processingLeaseExpiresAt) - Date.now() + 25));
+      await new Promise(r => setTimeout(r, waitMs));
+
+      const retryOrder = await b44.entities.RideOrder.get(rideOrderId).catch(() => null);
+      if (
+        retryOrder &&
+        retryOrder.status === "ofrecido" &&
+        retryOrder.reserved_driver_id === driverId &&
+        Number(retryOrder.assignment_attempt) === Number(assignmentAttempt) &&
+        (retryOrder.offerExpiresAt == null || Number(retryOrder.offerExpiresAt) > Date.now())
+      ) {
+        const retryExpectedVersion = retryOrder.processingLeaseVersion ?? 0;
+        const retryAcquiredVersion = retryExpectedVersion + 1;
+        const retry = await b44.entities.RideOrder.updateMany(
+          {
+            id: rideOrderId,
+            status: "ofrecido",
+            reserved_driver_id: driverId,
+            assignment_attempt: assignmentAttempt,
+            processingLeaseVersion: retryExpectedVersion,
+            $or: [
+              { processingOwnerId: null },
+              { processingOwnerId: { $exists: false } },
+              { processingLeaseExpiresAt: { $lt: Date.now() } }
+            ]
+          },
+          { $set: {
+              processingOwnerId: ownerId,
+              processingLeaseExpiresAt: Date.now() + 30000,
+              processingAction: "ACCEPT",
+              processingPhase: "ACQUIRED",
+              processingOperationKey: operationKey
+            },
+            $inc: { processingLeaseVersion: 1 }
+          }
+        ).catch(() => null);
+
+        if (mutationCount(retry) === 1) {
+          acquiredLeaseVersion = retryAcquiredVersion;
+          acquired = retry;
+        }
+      }
+    }
+
+    if (mutationCount(acquired) === 0) {
+      let retSnap = await captureState(b44, rideOrderId, driverId);
+      await logStep(ctx, "FUNCTION_RETURN", Date.now(), null, null, null, retSnap, retSnap, "SUCCESS");
+      return { status: "OPERATION_IN_PROGRESS", correlationId };
+    }
   }
 
   // 3. VALIDACIÓN POST-LEASE
