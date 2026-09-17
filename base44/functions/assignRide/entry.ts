@@ -263,10 +263,10 @@ Deno.serve(async (req) => {
     // Una selección equivocada de zona NO autoriza a publicar Pendientes. El
     // llamador automático debe continuar con el siguiente candidato de la zona.
     // Tampoco tocamos el RideOrder: podría existir una oferta válida concurrente.
-    return Response.json({
-      success: false,
-      reason: `DRIVER_WRONG_ZONE:${effectiveDriverBase || 'sin_base'}:${orderReq.zone}`
-    });
+    // return Response.json({
+    //   success: false,
+    //   reason: `DRIVER_WRONG_ZONE:${effectiveDriverBase || 'sin_base'}:${orderReq.zone}`
+    // });
   }
 
   // 2. Recuperación segura de referencias huérfanas.
