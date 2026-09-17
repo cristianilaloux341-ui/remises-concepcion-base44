@@ -24,7 +24,12 @@ export default function PendingRidesOverlay({
         order?.status === "pendiente" &&
         !order.driver_id &&
         !order.reserved_driver_id &&
-        !order.preassigned_driver_id
+        !order.preassigned_driver_id &&
+        (!order.processingOwnerId || (order.processingLeaseExpiresAt && order.processingLeaseExpiresAt < Date.now())) &&
+        order.processingPhase !== 'REASSIGNING' &&
+        !(Number(order.offerExpiresAt) > Date.now() && Number(order.assignment_attempt || 0) > 0) &&
+        !String(order.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]') &&
+        !['ACCEPT', 'START', 'FINISH'].includes(String(order.lastCompletedAction || '').toUpperCase())
       )
       .sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0)),
     [orders]

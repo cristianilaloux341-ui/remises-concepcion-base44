@@ -169,17 +169,37 @@ Deno.serve(async (req) => {
         }
       }
 
+      // En entornos serverless, setTimeout largos (ej: 15s) pueden ser suspendidos
+      // por la plataforma. Para no quedarnos colgados en 0s, invocamos la continuación
+      // delegando en otro proceso o usando el cron. Pero como queremos que sea exacto,
+      // usaremos un bucle corto o devolveremos para que el cron lo levante.
+      // Sin embargo, para mantener el tiempo real, Base44 Workflow es mejor.
+      // Como workaround inmediato: si faltan menos de 15s, vamos a esperar.
+      // Si el edge runtime nos mata, el autoReassignCron lo recoge al minuto.
       const freshNow = Date.now();
       const nextWakeAt = retryCount === 0 && freshNow < reminderAt ? reminderAt : expiresAt;
-      const waitMs = Math.min(15000, Math.max(500, nextWakeAt - freshNow));
+      // Para evitar que la plataforma (V8 Isolate) suspenda o mate el proceso por
+      // exceder el límite de ejecución (ej. 10s), encadenamos llamadas cortas de 8 segundos.
+      // Así mantenemos el proceso vivo sin depender del cron de 5 minutos.
+      const maxSafeWaitMs = 8000;
+      const targetWaitMs = Math.max(500, nextWakeAt - freshNow);
+      const isFinalWait = targetWaitMs <= maxSafeWaitMs;
+      const waitMs = Math.min(maxSafeWaitMs, targetWaitMs);
+      
       await new Promise(r => setTimeout(r, waitMs));
-      await b44.functions.invoke('autoReassignOnTimeout', {
-        orderId,
-        driverId,
-        assignmentAttempt,
-        internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
-      }).catch(e=>console.error('Timeout chain error:',e));
-      return Response.json({ ok:true, chained:true, remainingMs:Math.max(0, expiresAt - Date.now()), ackedThisAttempt });
+      
+      // Si era una espera parcial, re-invocamos para continuar la cadena.
+      if (!isFinalWait) {
+        b44.functions.invoke('autoReassignOnTimeout', {
+          orderId,
+          driverId,
+          assignmentAttempt,
+          internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch(e=>console.error('Timeout chain error:',e));
+        return Response.json({ ok:true, chained:true, remainingMs:Math.max(0, expiresAt - Date.now()), ackedThisAttempt });
+      }
+      
+      // Si ya esperamos el tiempo final, dejamos que el código siga y ejecute el rechazo.
     }
 
     // A los 30 s TOTALES se termina esta oferta. Con ACK es timeout normal; sin ACK

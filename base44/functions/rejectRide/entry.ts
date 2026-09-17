@@ -103,15 +103,12 @@ Deno.serve(async (req) => {
     
     if (releasedCount !== 1) {
       actualDriver = await b44.entities.Driver.get(driverId).catch(() => null);
+      // Permitir que timeout también adopte una liberación previa.
+      // Si el móvil perdió la reserva por algún bug/desconexión, el viaje no debe quedar atascado.
       legacyAlreadyReleased = Boolean(
-        source === 'legacy_client' &&
         actualDriver &&
-        actualDriver.status === 'disponible' &&
-        (actualDriver.dispatch_status == null || actualDriver.dispatch_status === 'normal') &&
-        !actualDriver.reserved_order_id &&
-        !actualDriver.active_order_id &&
-        !actualDriver.active_ride_id &&
-        (!legacyQueueEnteredAt || String(actualDriver.queue_entered_at || '') === String(legacyQueueEnteredAt))
+        actualDriver.reserved_order_id !== orderId &&
+        actualDriver.reservation_token !== order.reservation_token
       );
 
       if (legacyAlreadyReleased) {
