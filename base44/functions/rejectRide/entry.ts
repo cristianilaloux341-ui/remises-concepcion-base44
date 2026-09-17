@@ -80,34 +80,16 @@ Deno.serve(async (req) => {
     // se libera solamente la oferta y el chofer conserva base/posición exactas.
     const queueNow = new Date().toISOString();
     const queueBase = order.assigned_base || order.zone || null;
-    const releaseSet:any = source === 'delivery_unconfirmed'
-      ? {
-          status:'disponible',
-          dispatch_status:'normal',
-          active_order_id:null,
-          active_ride_id:null,
-          reserved_order_id:null,
-          reservation_token:null,
-          manual_reservation_token:null,
-          driver_reservation_key:null
-        }
-      : {
-          status:'disponible',
-          dispatch_status:'normal',
-          // Rechazo/timeout real: conservar exactamente la lógica estable actual.
-          current_base:null,
-          queue_entered_at:null,
-          queue_authoritative_base:null,
-          queue_authoritative_at:null,
-          queue_authority_marker:null,
-          queue_position:null,
-          active_order_id:null,
-          active_ride_id:null,
-          reserved_order_id:null,
-          reservation_token:null,
-          manual_reservation_token:null,
-          driver_reservation_key:null
-        };
+    const releaseSet:any = {
+      status: 'disponible',
+      dispatch_status: 'normal',
+      active_order_id: null,
+      active_ride_id: null,
+      reserved_order_id: null,
+      reservation_token: null,
+      manual_reservation_token: null,
+      driver_reservation_key: null
+    };
     const releasedCurrent = await b44.entities.Driver.updateMany(
       {
         id: driverId,
@@ -169,57 +151,6 @@ Deno.serve(async (req) => {
       }
     } else {
       currentReleased = true;
-    }
-
-    // REGLA DE COLA: rechazo explícito o timeout real pierde el turno y vuelve
-    // ÚLTIMO en la MISMA base. No-ACK es distinto: conserva exactamente su posición.
-    // El sellado se hace con el lock autoritativo de la base para que ninguna APK
-    // legacy pueda restaurar después la antigüedad anterior.
-    if (source !== 'delivery_unconfirmed' && queueBase) {
-      const placedTail = await withQueueLock(b44, queueBase, async () => {
-        const freshRows = await b44.entities.Driver.filter({ id:driverId });
-        const fresh = freshRows?.[0];
-        if (!fresh || fresh.status !== 'disponible' || fresh.active_order_id || fresh.active_ride_id || fresh.reserved_order_id) {
-          return { success:false, reason:'driver_busy_or_state_changed' };
-        }
-        const queueEnteredAt = await getNextQueueTailAt(b44, queueBase, driverId);
-        const position = await getNextQueuePosition(b44, queueBase, driverId);
-        const sealed = await b44.entities.Driver.updateMany(
-          { id:driverId, status:'disponible', current_base:null, reserved_order_id:null, active_order_id:null, active_ride_id:null },
-          { $set:{
-            dispatch_status:'normal',
-            current_base:queueBase,
-            queue_entered_at:queueEnteredAt,
-            queue_authoritative_base:queueBase,
-            queue_authoritative_at:queueEnteredAt,
-            queue_authority_marker:position,
-            queue_position:position,
-            queue_left_at:null,
-            reservation_token:null,
-            manual_reservation_token:null,
-            driver_reservation_key:null
-          } }
-        );
-        const count = sealed?.updated ?? sealed?.modifiedCount ?? sealed?.matchedCount ?? 0;
-        return count === 1 ? { success:true, queueEnteredAt, position } : { success:false, reason:'seal_failed' };
-      });
-      if (placedTail?.success) {
-        await b44.entities.AuditLog.create({
-          action:'REJECT_REQUEUED_TO_TAIL',
-          user_type:'sistema',
-          user_name:'rejectRide',
-          details:`${driverId} perdió el turno y volvió último en ${queueBase}`,
-          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), source, baseName:queueBase, queueEnteredAt:placedTail.queueEnteredAt, queuePosition:placedTail.position }
-        }).catch(()=>{});
-      } else {
-        await b44.entities.AuditLog.create({
-          action:'REJECT_REQUEUE_TAIL_FAILED',
-          user_type:'sistema',
-          user_name:'rejectRide',
-          details:`No se pudo sellar al final de cola ${driverId} en ${queueBase}`,
-          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), source, baseName:queueBase, reason:placedTail?.reason || 'unknown' }
-        }).catch(()=>{});
-      }
     }
 
     // Cerrar la oferta anterior EN PARALELO. Un rechazo explícito o un timeout ya

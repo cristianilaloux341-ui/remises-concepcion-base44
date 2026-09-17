@@ -383,63 +383,58 @@ Deno.serve(async (req) => {
       }
 
       // La oferta ya cambió de dueño/estado antes de que corriera este evento legacy.
-      // NO borrar la reinserción que rejectRide pudo haber hecho server-side. La regla
-      // actual es rechazo/timeout = último de la misma base. Si todavía no existe una
-      // reinserción autoritativa, la completamos acá con cola fresca del servidor.
+      // La regla actual es rechazo/timeout = CONSERVA SU MISMA POSICIÓN en la base.
+      // Restablecemos la base y posición exacta que tenía el chofer antes de la oferta
+      // para evitar que la APK vieja (que pone la base en null temporalmente) le haga 
+      // perder el lugar.
       const releasedDriver = await b44.entities.Driver.get(driverId).catch(()=>null);
       const queueBase = legacyOrder?.assigned_base || legacyOrder?.zone || oldData.current_base || eventData.current_base || null;
       const previousAuthorityAt = oldData.queue_authoritative_at || oldData.queue_entered_at || null;
-      const alreadyQueuedAtTailAuthority = Boolean(
-        releasedDriver && queueBase &&
-        releasedDriver.status === 'disponible' &&
-        (releasedDriver.dispatch_status == null || releasedDriver.dispatch_status === 'normal') &&
-        !releasedDriver.reserved_order_id && !releasedDriver.active_order_id && !releasedDriver.active_ride_id &&
-        releasedDriver.current_base === queueBase &&
-        releasedDriver.queue_authoritative_base === queueBase &&
-        releasedDriver.queue_authoritative_at &&
-        (!previousAuthorityAt || String(releasedDriver.queue_authoritative_at) !== String(previousAuthorityAt))
-      );
-
-      let reconciled = alreadyQueuedAtTailAuthority;
-      let queueAt = releasedDriver?.queue_authoritative_at || null;
-      if (!reconciled && releasedDriver && queueBase &&
+      
+      let reconciled = false;
+      if (releasedDriver && queueBase &&
           releasedDriver.status === 'disponible' &&
           (releasedDriver.dispatch_status == null || releasedDriver.dispatch_status === 'normal') &&
           !releasedDriver.reserved_order_id && !releasedDriver.active_order_id && !releasedDriver.active_ride_id &&
           (!releasedDriver.current_base || releasedDriver.current_base === queueBase)) {
-        const placed = await placeDriverLastLocked(
-          queueBase,
-          driverId,
+        
+        const res = await b44.entities.Driver.updateMany(
           {
-            id:driverId,
-            status:'disponible',
+            id: driverId,
+            status: 'disponible',
             $or:[{ current_base:null }, { current_base:queueBase }],
-            reserved_order_id:null,
-            active_order_id:null,
-            active_ride_id:null
+            reserved_order_id: null,
+            active_order_id: null,
+            active_ride_id: null
           },
-          { current_base:queueBase, queue_authority_marker:null }
+          {
+            $set: {
+              current_base: queueBase,
+              queue_authoritative_base: queueBase,
+              queue_entered_at: oldData.queue_entered_at || previousAuthorityAt,
+              queue_authoritative_at: previousAuthorityAt,
+              queue_position: oldData.queue_position || releasedDriver.queue_position,
+              queue_authority_marker: oldData.queue_authority_marker || releasedDriver.queue_authority_marker
+            }
+          }
         );
-        queueAt = placed.queueAt;
-        reconciled = placed.count === 1;
+        reconciled = (res?.updated ?? res?.modifiedCount ?? res?.matchedCount ?? 0) === 1;
       }
 
       await b44.entities.AuditLog.create({
-        action:'LEGACY_RELEASE_RECONCILED_TO_QUEUE_TAIL',
+        action:'LEGACY_RELEASE_RECONCILED_POSITION_KEPT',
         user_type:'sistema',
         user_name:eventData.name || oldData.name || 'Driver',
-        details:`Cierre legacy conciliado sin borrar la cola server-side de ${driverId}`,
+        details:`Cierre legacy conciliado; ${driverId} conservó su posición en cola server-side en ${queueBase}`,
         metadata:{
           driverId,
           orderId:legacyOrderId,
           baseName:queueBase,
-          queueAt,
-          preservedExistingServerRequeue:alreadyQueuedAtTailAuthority,
           reconciled
         }
       }).catch(()=>{});
 
-      return Response.json({ success:true, repaired:reconciled, reason:'LEGACY_RELEASE_RECONCILED_TO_QUEUE_TAIL' });
+      return Response.json({ success:true, repaired:reconciled, reason:'LEGACY_RELEASE_RECONCILED_POSITION_KEPT' });
     }
 
     // AUTORIDAD SERVER-SIDE DE COLA.
