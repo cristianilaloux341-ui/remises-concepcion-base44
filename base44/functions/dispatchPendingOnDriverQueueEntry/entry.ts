@@ -225,14 +225,30 @@ Deno.serve(async (req) => {
       !oldData.active_ride_id && !eventData.active_ride_id
     );
 
-    if (technicalBaseDrop) {
+    const technicalTimestampOverwrite = Boolean(
+      eventData && oldData &&
+      oldData.status === 'disponible' &&
+      eventData.status === 'disponible' &&
+      oldData.current_base &&
+      eventData.current_base === oldData.current_base &&
+      oldData.queue_authoritative_base === oldData.current_base &&
+      Number.isFinite(Number(oldData.queue_position)) && Number(oldData.queue_position) > 0 &&
+      eventData.queue_entered_at !== oldData.queue_entered_at &&
+      (oldData.dispatch_status == null || oldData.dispatch_status === 'normal') &&
+      (eventData.dispatch_status == null || eventData.dispatch_status === 'normal') &&
+      !oldData.reserved_order_id && !eventData.reserved_order_id &&
+      !oldData.active_order_id && !eventData.active_order_id &&
+      !oldData.active_ride_id && !eventData.active_ride_id
+    );
+
+    if (technicalBaseDrop || technicalTimestampOverwrite) {
       const previousBase = oldData.current_base;
       const previousAt = oldData.queue_authoritative_at || oldData.queue_entered_at || null;
       const restored = await b44.entities.Driver.updateMany(
         {
           id:driverId,
           status:'disponible',
-          current_base:null,
+          $or: [{ current_base: null }, { current_base: previousBase }],
           dispatch_status:eventData.dispatch_status ?? 'normal',
           reserved_order_id:null,
           active_order_id:null,
@@ -252,10 +268,10 @@ Deno.serve(async (req) => {
 
       if (restoredCount === 1) {
         await b44.entities.AuditLog.create({
-          action:'LEGACY_TECHNICAL_BASE_NULL_RESTORED',
+          action: technicalBaseDrop ? 'LEGACY_TECHNICAL_BASE_NULL_RESTORED' : 'TECHNICAL_TIMESTAMP_OVERWRITE_RESTORED',
           user_type:'sistema',
           user_name:eventData.name || oldData.name || 'Driver',
-          details:`Se ignoró current_base=null técnico de APK legacy y ${eventData.name || oldData.name || driverId} conservó posición ${oldData.queue_position} en ${previousBase}`,
+          details:`Se ignoró un cambio técnico (null o timestamp) y ${eventData.name || oldData.name || driverId} conservó posición ${oldData.queue_position} en ${previousBase}`,
           metadata:{
             driverId,
             baseName:previousBase,
@@ -266,7 +282,7 @@ Deno.serve(async (req) => {
         }).catch(()=>{});
       }
 
-      return Response.json({ success:true, repaired:restoredCount === 1, reason:'LEGACY_TECHNICAL_BASE_NULL_RESTORED' });
+      return Response.json({ success:true, repaired:restoredCount === 1, reason: technicalBaseDrop ? 'LEGACY_TECHNICAL_BASE_NULL_RESTORED' : 'TECHNICAL_TIMESTAMP_OVERWRITE_RESTORED' });
     }
 
     // Compatibilidad v12.27/v12.29: esas APK todavía implementan RECHAZAR liberando
