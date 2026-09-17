@@ -7,6 +7,13 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'F4') {
+    e.preventDefault();
+    window.location.reload();
+  }
+});
+
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 
 import AppLayout from '@/components/layout/AppLayout';

@@ -32,11 +32,14 @@ export default function AppLayout() {
   // Accesos directos de teclado
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (['F1', 'F2', 'F3', 'F5', 'F7'].includes(e.key)) {
+      if (['F1', 'F2', 'F3', 'F4', 'F5', 'F7'].includes(e.key)) {
         e.preventDefault();
         e.stopPropagation();
         
         switch (e.key) {
+          case 'F4':
+            window.location.reload();
+            break;
           case 'F1':
             if (location.pathname !== '/orders/new') {
               navigate('/orders/new');

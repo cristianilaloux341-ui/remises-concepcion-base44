@@ -373,7 +373,44 @@ function safeTime(dt) {
   return isNaN(t) ? 0 : t;
 }
 
+import React from "react";
+
+class AgendaErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, info: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    this.setState({ info });
+    console.error("Agenda Error:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 space-y-4">
+          <h1 className="text-2xl font-bold text-red-600">Error en la vista de Agenda</h1>
+          <p className="text-sm font-mono bg-slate-100 p-4 rounded text-black">{String(this.state.error)}</p>
+          <p className="text-xs font-mono bg-slate-100 p-4 rounded text-black whitespace-pre-wrap">{this.state.info?.componentStack}</p>
+          <Button onClick={() => window.location.reload()}>Recargar página</Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function Agenda() {
+  return (
+    <AgendaErrorBoundary>
+      <AgendaContent />
+    </AgendaErrorBoundary>
+  );
+}
+
+function AgendaContent() {
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();

@@ -16,7 +16,34 @@ function minutesUntil(datetime) {
   return differenceInMinutes(d, new Date());
 }
 
+import React from "react";
+
+class AgendaAlertErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+  componentDidCatch(error, info) {
+    console.error("AgendaAlert Error:", error, info);
+  }
+  render() {
+    if (this.state.hasError) return null; // Si la alerta se rompe, simplemente no mostramos alertas, pero NO rompemos la app entera.
+    return this.props.children;
+  }
+}
+
 export default function AgendaAlert() {
+  return (
+    <AgendaAlertErrorBoundary>
+      <AgendaAlertContent />
+    </AgendaAlertErrorBoundary>
+  );
+}
+
+function AgendaAlertContent() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const notifiedRef = useRef(new Set());
