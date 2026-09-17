@@ -23,7 +23,7 @@ if (!Capacitor.Plugins.ForegroundService) {
 }
 
 import RideMap from "@/components/map/RideMap";
-import { BASES, reassignAfterReject, getEffectiveQueueBase } from "@/lib/dispatchLogic";
+import { BASES, reassignAfterReject, getEffectiveQueueBase, getBaseQueue } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
 import DriverMessages from "@/components/driver/DriverMessages";
 import DriverMessageModal from "@/components/driver/DriverMessageModal";
@@ -239,14 +239,7 @@ function IdleScreen({ driver, drivers, driversLoading = false, selectedBase, onB
   // eso mostraba posiciones provisorias (1° -> 3° -> 5°) que parecían cambios reales.
   const driverList = debugArray(drivers, 'drivers_in_IdleScreen');
   const serverSelf = driverList.find(d => d.id === driver.id);
-  const baseQueue = driverList
-    .filter(d => getEffectiveQueueBase(d) === driver.current_base && d.status === "disponible")
-    .sort((a, b) => {
-      const posA = Number.isFinite(Number(a.queue_position)) && Number(a.queue_position) > 0 ? Number(a.queue_position) : Infinity;
-      const posB = Number.isFinite(Number(b.queue_position)) && Number(b.queue_position) > 0 ? Number(b.queue_position) : Infinity;
-      if (posA !== posB) return posA - posB;
-      return (a.id || "").localeCompare(b.id || "");
-    });
+  const baseQueue = getBaseQueue(driverList, driver.current_base);
   const myPosition = debugArray(baseQueue, 'baseQueue').findIndex(d => d.id === driver.id) + 1;
   const positionReady = !driversLoading && Boolean(
     serverSelf &&
@@ -264,7 +257,7 @@ function IdleScreen({ driver, drivers, driversLoading = false, selectedBase, onB
         </div>
         <div className="space-y-2 flex-1">
           {BASES.filter(b => b !== driver.current_base).map(b => {
-            const count = drivers.filter(d => getEffectiveQueueBase(d) === b && d.status === "disponible").length;
+            const count = getBaseQueue(drivers, b).length;
             return (
               <button
                 key={b}
@@ -403,7 +396,7 @@ function IdleScreen({ driver, drivers, driversLoading = false, selectedBase, onB
       </div>
       <div className="space-y-2 flex-1">
         {BASES.map(b => {
-          const count = drivers.filter(d => getEffectiveQueueBase(d) === b && d.status === "disponible").length;
+          const count = getBaseQueue(drivers, b).length;
           return (
             <button
               key={b}
