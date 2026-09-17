@@ -88,6 +88,17 @@ const AuthenticatedApp = () => {
   const [nativeAppId, setNativeAppId] = useState(null);
 
   useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'F4') {
+        e.preventDefault();
+        window.location.reload();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       CapApp.getInfo().then(info => setNativeAppId(info.id)).catch(console.error);
     }
