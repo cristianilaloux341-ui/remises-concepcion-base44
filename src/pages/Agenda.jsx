@@ -90,8 +90,8 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
 
   // Filtrar clientes cuando cambia el nombre o teléfono
   useEffect(() => {
-    const nameQ = form.client_name.toLowerCase().trim();
-    const phoneQ = form.client_phone.toLowerCase().trim();
+    const nameQ = (form.client_name || "").toLowerCase().trim();
+    const phoneQ = (form.client_phone || "").toLowerCase().trim();
     
     if (!nameQ && !phoneQ) {
       setFilteredClients([]);
@@ -100,8 +100,8 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
     }
 
     const filtered = clients.filter(c => {
-      const matchName = nameQ ? c.name?.toLowerCase().includes(nameQ) : false;
-      const matchPhone = phoneQ ? c.phone?.toLowerCase().includes(phoneQ) : false;
+      const matchName = nameQ ? (c.name || "").toLowerCase().includes(nameQ) : false;
+      const matchPhone = phoneQ ? (c.phone || "").toLowerCase().includes(phoneQ) : false;
       return matchName || matchPhone;
     }).slice(0, 6);
     
@@ -440,6 +440,7 @@ export default function Agenda() {
         if (recurrence && recurrence.type !== "none" && recurrence.endDate) {
            let current = new Date(form.scheduled_datetime);
            const end = new Date(recurrence.endDate);
+           if (isNaN(end.getTime()) || isNaN(current.getTime())) return await base44.entities.ScheduledRide.create(records[0]); // Anti-cuelgue
            end.setHours(23, 59, 59, 999);
            let count = 0;
 
@@ -456,6 +457,8 @@ export default function Agenda() {
                } else if (recurrence.type === "custom") {
                    current = addDays(current, 1);
                    if (!recurrence.days.includes(current.getDay())) continue;
+               } else {
+                   break;
                }
 
                if (current > end) break;
