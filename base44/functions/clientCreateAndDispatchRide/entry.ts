@@ -39,9 +39,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Pendiente REAL: dejar una marca explícita para que las protecciones de
-    // compatibilidad distingan este caso de una escritura transitoria de APK vieja.
-    // La búsqueda anterior ya recorrió todos los candidatos elegibles de la zona.
+    // Si no hay móvil disponible en esa zona, queda en Pendientes.
     if (!assigned) {
       await b44.entities.RideOrder.update(order.id, {
         status: "pendiente",
@@ -50,8 +48,7 @@ Deno.serve(async (req) => {
         reserved_driver_id: null,
         assigned_base: null,
         reservation_token: null,
-        offerExpiresAt: null,
-        processingAction: "PENDING_AUTHORIZED"
+        offerExpiresAt: null
       });
     }
 
