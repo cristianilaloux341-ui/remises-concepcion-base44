@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
       const nextWakeAt = retryCount === 0 && freshNow < reminderAt ? reminderAt : expiresAt;
       const waitMs = Math.min(15000, Math.max(500, nextWakeAt - freshNow));
       await new Promise(r => setTimeout(r, waitMs));
-      b44.functions.invoke('autoReassignOnTimeout', {
+      await b44.functions.invoke('autoReassignOnTimeout', {
         orderId,
         driverId,
         assignmentAttempt,
