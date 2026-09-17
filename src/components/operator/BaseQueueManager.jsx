@@ -467,8 +467,13 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
     if (d.status !== "disponible") return false;
     const mobileId = String(d.vehicle_model || "");
     const mobileNumber = parseInt(mobileId, 10);
-    const movil = moviles?.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
-    if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
+    const movil = moviles?.find(m =>
+      m.id === mobileId ||
+      m.numero_movil === mobileNumber ||
+      m.driver_id === d.id ||
+      (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id))
+    );
+    if (!movil || movil.activo === false || movil.fuera_de_servicio === true || movil.suspension_motivo) {
       return false;
     }
     return true;
