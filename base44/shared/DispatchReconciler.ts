@@ -96,6 +96,21 @@ export async function runReconciliation(b44: any, options: { graceMs?: number, n
     }
   }
 
+  // Case 2.5: Móvil con active_order_id de un viaje que ya no existe o tomó otro
+  for (const d of activeDrivers.filter(d => d.active_order_id && !d.active_ride_id)) {
+    const order = activeOrders.find(o => o.id === d.active_order_id);
+    if (!order || (order.status === 'aceptado' && order.driver_id !== d.id)) {
+      try {
+        const res = await b44.entities.Driver.updateMany(
+          { id: d.id, active_order_id: d.active_order_id, dispatch_status: d.dispatch_status },
+          { $set: { dispatch_status: 'normal', active_order_id: null, active_ride_id: null, reserved_order_id: null, reservation_token: null, manual_reservation_token: null } }
+        );
+        const matched = res.matchedCount ?? res.modifiedCount ?? 0;
+        await pushResult({ status: matched ? 'repaired' : 'concurrent_change', issueType: 'STALE_ACTIVE_ORDER_ID', driverIds: [d.id], actions: ['Driver liberado de active_order_id fantasma'], correlationId, matchedCount: matched });
+      } catch (e) {}
+    }
+  }
+
   // Case 3: Driver manual_pending sin RideOrder
   for (const d of activeDrivers.filter(d => d.dispatch_status === 'manual_pending')) {
     const order = activeOrders.find(o => o.id === d.reserved_order_id && o.manual_reservation_token === d.manual_reservation_token);
