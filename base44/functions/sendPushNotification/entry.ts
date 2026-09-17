@@ -168,6 +168,7 @@ async function sendWebPush(subscription, payload, vapidPublicKey, vapidPrivateKe
     method: 'POST',
     headers,
     body: encrypted,
+    signal: AbortSignal.timeout(5000),
   });
 
   return res.status;
@@ -526,7 +527,8 @@ Deno.serve(async (req) => {
              const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
              tokenRes = await fetch('https://oauth2.googleapis.com/token', {
                method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-               body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+               body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+               signal: AbortSignal.timeout(5000)
              }).then(r => r.json());
              if (tokenRes.access_token) {
                cachedAccessToken = tokenRes.access_token;
@@ -560,6 +562,7 @@ Deno.serve(async (req) => {
            try {
              const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
                method: 'POST', headers: { 'Authorization': `Bearer ${cachedAccessToken}`, 'Content-Type': 'application/json' },
+               signal: AbortSignal.timeout(5000),
                body: JSON.stringify({
                  message: {
                    token: driver.fcm_token,
@@ -595,6 +598,7 @@ Deno.serve(async (req) => {
                const syncRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
                  method: 'POST',
                  headers: { 'Authorization': `Bearer ${cachedAccessToken}`, 'Content-Type': 'application/json' },
+                 signal: AbortSignal.timeout(5000),
                  body: JSON.stringify({
                    message: {
                      token: driver.fcm_token,
@@ -668,7 +672,7 @@ Deno.serve(async (req) => {
            const rsaKey = await crypto.subtle.importKey("pkcs8", binaryDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
            const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", rsaKey, new TextEncoder().encode(`${jwtHeader}.${jwtPayload}`));
            const jwt = `${jwtHeader}.${jwtPayload}.${toBase64Url(signature)}`;
-           const tokenRes = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}` }).then(r => r.json());
+           const tokenRes = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: AbortSignal.timeout(5000), body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}` }).then(r => r.json());
            if (tokenRes.access_token) { cachedAccessToken = tokenRes.access_token; cachedAccessTokenExp = now + 3500; }
          }
          
@@ -682,7 +686,8 @@ Deno.serve(async (req) => {
            };
            const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
              method: 'POST', headers: { 'Authorization': `Bearer ${cachedAccessToken}`, 'Content-Type': 'application/json' },
-             body: JSON.stringify(fcmPayload)
+             body: JSON.stringify(fcmPayload),
+             signal: AbortSignal.timeout(5000)
            });
            if (!fcmRes.ok) {
              const errText = await fcmRes.text();
@@ -769,7 +774,8 @@ Deno.serve(async (req) => {
                const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
                  method: 'POST',
                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                 body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+                 body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+                 signal: AbortSignal.timeout(5000)
                }).then(r => r.json());
                
                if (tokenRes.access_token) {
@@ -812,7 +818,8 @@ Deno.serve(async (req) => {
                    'Authorization': `Bearer ${cachedAccessToken}`,
                    'Content-Type': 'application/json'
                  },
-                 body: JSON.stringify(fcmPayload)
+                 body: JSON.stringify(fcmPayload),
+                 signal: AbortSignal.timeout(5000)
                });
                if (!fcmRes.ok) {
                  const errText = await fcmRes.text();
