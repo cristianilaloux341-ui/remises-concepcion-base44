@@ -264,11 +264,19 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     status: "ofrecido",
     reserved_driver_id: driverId,
     assignment_attempt: assignmentAttempt,
-    processingLeaseVersion: expectedLeaseVersion,
-    $or: [
-      { processingOwnerId: null },
-      { processingOwnerId: { $exists: false } },
-      { processingLeaseExpiresAt: { $lt: Date.now() } }
+    $and: [
+      { $or: [
+        { processingLeaseVersion: expectedLeaseVersion },
+        ...(expectedLeaseVersion === 0 ? [
+          { processingLeaseVersion: null },
+          { processingLeaseVersion: { $exists: false } }
+        ] : [])
+      ] },
+      { $or: [
+        { processingOwnerId: null },
+        { processingOwnerId: { $exists: false } },
+        { processingLeaseExpiresAt: { $lt: Date.now() } }
+      ] }
     ]
   };
   const acquireUpdate = {
@@ -330,11 +338,19 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
             status: "ofrecido",
             reserved_driver_id: driverId,
             assignment_attempt: assignmentAttempt,
-            processingLeaseVersion: retryExpectedVersion,
-            $or: [
-              { processingOwnerId: null },
-              { processingOwnerId: { $exists: false } },
-              { processingLeaseExpiresAt: { $lt: Date.now() } }
+            $and: [
+              { $or: [
+                { processingLeaseVersion: retryExpectedVersion },
+                ...(retryExpectedVersion === 0 ? [
+                  { processingLeaseVersion: null },
+                  { processingLeaseVersion: { $exists: false } }
+                ] : [])
+              ] },
+              { $or: [
+                { processingOwnerId: null },
+                { processingOwnerId: { $exists: false } },
+                { processingLeaseExpiresAt: { $lt: Date.now() } }
+              ] }
             ]
           },
           { $set: {
