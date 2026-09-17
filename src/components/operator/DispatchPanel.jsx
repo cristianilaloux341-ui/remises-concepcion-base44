@@ -183,8 +183,7 @@ function OfferCountdown({ order }) {
       return;
     }
 
-    // Autoridad principal: offerExpiresAt. Si todavía no llegó a Central,
-    // usar assigned_at + los 30 s configurados actualmente como respaldo visual.
+    // Autoridad principal: offerExpiresAt (que ahora sí se extiende cuando el chofer lo recibe para darle 30s reales).
     const configuredSeconds = 30;
     const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : NaN;
     const expiresMs = order.offerExpiresAt != null

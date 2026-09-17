@@ -394,11 +394,10 @@ Deno.serve(async (req) => {
 
       // 5. Trigger Reassignment if needed
       if (targetOrderStatus === "ofrecido" && autoReassignActive) {
-        // En lugar de esperar a que termine, lo invocamos asincrónicamente.
+        // Watchdog que ahora respeta si el push_ack corrió el vencimiento
         b44.functions.invoke("autoReassignOnTimeout", {
           orderId: orderId,
           driverId: driverId,
-          timeoutSeconds: timeoutSeconds,
           assignmentAttempt: newAttempt,
           internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
         }).catch((e: any) => console.error("AutoReassign Trigger Error:", e));

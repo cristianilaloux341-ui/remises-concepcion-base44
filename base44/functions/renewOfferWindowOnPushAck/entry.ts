@@ -72,10 +72,9 @@ Deno.serve(async (req) => {
     const ackMs = Number.isFinite(rawAckMs) ? Math.min(rawAckMs, now) : now;
     const ackAt = new Date(ackMs).toISOString();
     const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : now;
-    const targetExpiry = assignedMs + 30000;
-
-    // El ACK ya no renueva ni extiende la oferta. Sólo confirma que el teléfono la
-    // recibió. El vencimiento permanece clavado a 30 s desde assigned_at.
+    // El cliente pide EXPLÍCITAMENTE que el chofer tenga 30 segundos REALES "sí o sí".
+    // Si el push tardó X segundos por Doze mode, iniciamos los 30s desde que lo recibió (ACK).
+    const targetExpiry = ackMs + 30000;
 
     const updateRes = await b44.entities.RideOrder.updateMany(
       {
@@ -99,23 +98,31 @@ Deno.serve(async (req) => {
     }
 
     await b44.entities.AuditLog.create({
-      action: 'OFFER_ACK_RECORDED_NO_EXTENSION',
+      action: 'OFFER_ACK_RECORDED_RENEWED',
       user_type: 'sistema',
       user_name: order.driver_name || driver.name || 'Sistema',
-      details: `ACK registrado sin extender la ventana: la oferta conserva su techo absoluto de 30 s.`, 
+      details: `ACK registrado. Se renovó el reloj a 30s reales desde recepción para compensar demoras de red.`, 
       metadata: {
         orderId,
         driverId,
         assignmentAttempt: order.assignment_attempt,
         previousOfferExpiresAt: currentExpiry,
         renewedOfferExpiresAt: targetExpiry,
-        extensionMs: 0
+        extensionMs: targetExpiry - currentExpiry
       }
     }).catch(() => {});
 
+    // Disparar watchdog corregido con la nueva fecha de vencimiento
+    await b44.functions.invoke('autoReassignOnTimeout', {
+      orderId,
+      driverId,
+      assignmentAttempt: order.assignment_attempt,
+      internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+    }).catch(e => console.error('Error lanzando watchdog corregido', e));
+
     return Response.json({
       success: true,
-      renewed: false,
+      renewed: true,
       orderId,
       driverId,
       assignmentAttempt: order.assignment_attempt,

@@ -74,8 +74,7 @@ Deno.serve(async (req) => {
       if (matchingAck) {
         const ackMs = new Date(matchingAck.created_date).getTime();
         const ackAt = new Date(ackMs).toISOString();
-        const assignedBaseMs = order.assigned_at ? new Date(order.assigned_at).getTime() : ackMs;
-        const ackExpiry = assignedBaseMs + 30000;
+        const ackExpiry = ackMs + 30000; // Pedido explícito: 30s reales desde el ACK
         const adopted = await b44.entities.RideOrder.updateMany(
           {
             id:orderId,
@@ -103,7 +102,7 @@ Deno.serve(async (req) => {
             action:'ACK_RECOVERED_BEFORE_TIMEOUT',
             user_type:'sistema',
             user_name:'autoReassignOnTimeout',
-            details:`ACK ya existente recuperado sin extender el techo absoluto de 30 s de ${orderId}`,
+            details:`ACK recuperado. Se extendieron los 30s reales desde el ACK de ${orderId}`,
             metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), ackAt, offerExpiresAt:ackExpiry }
           }).catch(()=>{});
         }
@@ -120,7 +119,10 @@ Deno.serve(async (req) => {
       // Dos avisos dentro de UNA sola ventana: el inicial en t=0 y, si el viaje
       // sigue ofrecido sin aceptar/rechazar, un único refuerzo en t=15 s. El refuerzo
       // conserva exactamente el mismo assignment_attempt y NO modifica offerExpiresAt.
-      if (retryCount === 0 && nowMs >= reminderAt) {
+      // Reminders have been known to overlap with the timeout. To keep it simple, we skip the 15s push if they are already on the real countdown.
+      // Or we can leave it. The problem is reminderAt might be out of date if expiresAt jumped.
+      const realReminderAt = expiresAt - 15000;
+      if (retryCount === 0 && nowMs >= realReminderAt) {
         const reminderCas = await b44.entities.RideOrder.updateMany(
           {
             id:orderId,
@@ -157,7 +159,7 @@ Deno.serve(async (req) => {
             action:'OFFER_15S_REMINDER_SENT',
             user_type:'sistema',
             user_name:'autoReassignOnTimeout',
-            details:`Segundo y último aviso de la oferta ${orderId} a los 15 s; el vencimiento original no se modificó.`,
+            details:`Segundo y último aviso de la oferta ${orderId}; faltan 15s para el límite real.`,
             metadata:{
               orderId,
               driverId,
@@ -177,7 +179,7 @@ Deno.serve(async (req) => {
       // Como workaround inmediato: si faltan menos de 15s, vamos a esperar.
       // Si el edge runtime nos mata, el autoReassignCron lo recoge al minuto.
       const freshNow = Date.now();
-      const nextWakeAt = retryCount === 0 && freshNow < reminderAt ? reminderAt : expiresAt;
+      const nextWakeAt = retryCount === 0 && freshNow < realReminderAt ? realReminderAt : expiresAt;
       // Para evitar que la plataforma (V8 Isolate) suspenda o mate el proceso por
       // exceder el límite de ejecución (ej. 10s), encadenamos llamadas cortas de 8 segundos.
       // Así mantenemos el proceso vivo sin depender del cron de 5 minutos.
