@@ -5,7 +5,37 @@
     "client_name": {
       "type": "string"
     },
+    "client_phone": {
+      "type": "string"
+    },
+    "client_id": {
+      "type": "string"
+    },
     "pickup_address": {
+      "type": "string"
+    },
+    "pickup_lat": {
+      "type": "number"
+    },
+    "pickup_lng": {
+      "type": "number"
+    },
+    "dropoff_address": {
+      "type": "string"
+    },
+    "dropoff_addresses": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dropoff_lat": {
+      "type": "number"
+    },
+    "dropoff_lng": {
+      "type": "number"
+    },
+    "zone": {
       "type": "string"
     },
     "status": {
@@ -25,14 +55,62 @@
       ],
       "default": "pendiente"
     },
+    "payment_method": {
+      "type": "string",
+      "enum": [
+        "Efectivo",
+        "Transferencia"
+      ],
+      "default": "Efectivo"
+    },
+    "reservation_token": {
+      "type": "string"
+    },
+    "manual_reservation_token": {
+      "type": "string"
+    },
+    "reserved_driver_id": {
+      "type": "string"
+    },
+    "preassigned_driver_id": {
+      "type": "string"
+    },
+    "preassignment_token": {
+      "type": "string"
+    },
+    "preassigned_at": {
+      "type": "string"
+    },
+    "assigned_base": {
+      "type": "string"
+    },
     "driver_id": {
       "type": "string"
     },
     "driver_name": {
       "type": "string"
     },
-    "reserved_driver_id": {
+    "offered_driver_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "fare": {
+      "type": "number"
+    },
+    "notes": {
       "type": "string"
+    },
+    "claimed_from_pending": {
+      "type": "boolean"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "operador",
+        "cliente"
+      ]
     },
     "assignment_attempt": {
       "type": "number",
@@ -44,11 +122,147 @@
         "null"
       ]
     },
-    "offered_driver_ids": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
+    "push_ack_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "push_ack_assignment_attempt": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "delivery_retry_count": {
+      "type": "number",
+      "default": 0
+    },
+    "processingOwnerId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "processingLeaseVersion": {
+      "type": "number",
+      "default": 0
+    },
+    "processingLeaseExpiresAt": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "processingAction": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "processingPhase": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "processingOperationKey": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastCompletedOperationKey": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastCompletedAction": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastCompletedResult": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastCompletedAt": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "lastCompletedOfferVersion": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "pendingEffectKey": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pendingEffectType": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pendingEffectStatus": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pendingEffectVersion": {
+      "type": "number",
+      "default": 0
+    },
+    "pendingEffectCorrelationId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "effectOwnerId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "effectLeaseExpiresAt": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "effectAttemptCount": {
+      "type": "number",
+      "default": 0
+    },
+    "lastCompletedEffectKey": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastEffectError": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastEffectAttemptAt": {
+      "type": [
+        "number",
+        "null"
+      ]
     }
   },
   "required": [
