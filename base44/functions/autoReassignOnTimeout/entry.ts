@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
       // Aceptación/rechazo legítimo ganó el lease por milisegundos. Releer pronto;
       // nunca competir ni liberar al chofer por atrás.
       await new Promise(r => setTimeout(r, 1000));
-      b44.functions.invoke('autoReassignOnTimeout', {
+      await b44.functions.invoke('autoReassignOnTimeout', {
         orderId,
         driverId,
         assignmentAttempt:Number(assignmentAttempt),
