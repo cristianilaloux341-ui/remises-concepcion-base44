@@ -1680,10 +1680,11 @@ export default function DriverApp() {
 
     ignoredOrdersRef.current.add(currentOrderId);
     setReceiptOrder({ ...activeOrder, importe_final: finalFare || activeOrder.importe_real_actual || activeOrder.importe_estimado });
-    lastRideBaseRef.current = activeOrder.assigned_base || myDriver?.current_base || null;
+    const base = activeOrder.assigned_base || myDriver?.current_base || null;
+    lastRideBaseRef.current = base;
 
     const queueEnteredAt = new Date().toISOString();
-    setLocalOverride({ status: "disponible", current_base: null, _ignoredOrderId: currentOrderId });
+    setLocalOverride({ status: "disponible", current_base: base, _ignoredOrderId: currentOrderId });
     // La finalización ya fue confirmada por backend. Liberar únicamente si el
     // móvil todavía sigue vinculado a ESTE viaje; una respuesta tardía no pisa otro.
     await base44.entities.Driver.updateMany(
@@ -1691,7 +1692,7 @@ export default function DriverApp() {
       { $set: {
         status: "disponible",
         dispatch_status: "normal",
-        current_base: null,
+        current_base: base,
         active_order_id: null,
         active_ride_id: null,
         reserved_order_id: null,
@@ -1985,7 +1986,7 @@ export default function DriverApp() {
       { $set: {
         status: "disponible",
         dispatch_status: "normal",
-        current_base: null,
+        current_base: base,
         queue_entered_at: ts,
         active_order_id: null,
         active_ride_id: null,
@@ -1999,7 +2000,7 @@ export default function DriverApp() {
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
       return;
     }
-    setLocalOverride({ status: "disponible", current_base: null, queue_entered_at: ts });
+    setLocalOverride({ status: "disponible", current_base: base, queue_entered_at: ts });
     setLibreBlockedSegs(0); // al anular no aplica bloqueo
     localStorage.removeItem(`libre_block_started_at_${myDriverId}`);
 
