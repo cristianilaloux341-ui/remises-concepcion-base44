@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
     return Response.json({ success: false, reason: 'missing_params' }, { status: 400 });
   }
 
-  if (!(await verifyRequestAuth(b44, payload, { allowDriverId: driverId }))) {
+  if (!(await verifyRequestAuth(b44, payload, { allowOperator: true, allowDriverId: driverId }))) {
     return Response.json({ success: false, reason: 'unauthorized' }, { status: 401 });
   }
 
