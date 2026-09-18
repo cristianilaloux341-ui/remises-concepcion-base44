@@ -1095,7 +1095,7 @@ export default function DriverApp() {
     !o.preassigned_driver_id &&
     (!o.processingOwnerId || (o.processingLeaseExpiresAt && o.processingLeaseExpiresAt < Date.now())) &&
     o.processingPhase !== 'REASSIGNING' &&
-    !(Number(o.offerExpiresAt) > Date.now() && Number(o.assignment_attempt || 0) > 0) &&
+    !(o.offerExpiresAt != null && Number.isFinite(Number(o.offerExpiresAt)) && Number(o.assignment_attempt || 0) > 0) &&
     !String(o.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]') &&
     !['ACCEPT', 'START', 'FINISH'].includes(String(o.lastCompletedAction || '').toUpperCase())
   ).length;
