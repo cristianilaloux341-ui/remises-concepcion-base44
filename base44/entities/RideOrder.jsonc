@@ -134,6 +134,18 @@
         "null"
       ]
     },
+    "alert_presented_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "alert_presented_assignment_attempt": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
     "delivery_retry_count": {
       "type": "number",
       "default": 0
