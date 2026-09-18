@@ -188,8 +188,8 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
         } 
       }
     ).catch(() => ({ updated: 0 }));
-    if (mutationCount(res) !== 1) throw new Error(`QUEUE_COMPACT_RACE:${d.id}`);
-  }
+    if (mutationCount(res) !== 1) continue;
+    }
 }
 
 export async function compactQueue(b44: any, baseName: string) {

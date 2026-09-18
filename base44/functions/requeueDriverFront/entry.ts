@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
 
         const res = await b44.entities.Driver.updateMany(filter, { $set:set }).catch(()=>({updated:0}));
         const count = res?.updated ?? res?.modifiedCount ?? res?.matchedCount ?? 0;
-        if (count !== 1) throw new Error(`QUEUE_FRONT_RACE:${d.id}`);
+        if (count !== 1) continue;
       }
 
       await b44.entities.AuditLog.create({

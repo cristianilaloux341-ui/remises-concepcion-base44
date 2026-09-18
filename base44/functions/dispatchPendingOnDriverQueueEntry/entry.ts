@@ -259,8 +259,6 @@ Deno.serve(async (req) => {
           queue_entered_at:oldData.queue_entered_at || previousAt,
           queue_authoritative_base:previousBase,
           queue_authoritative_at:previousAt,
-          queue_authority_marker:oldData.queue_authority_marker ?? oldData.queue_position,
-          queue_position:oldData.queue_position,
           queue_left_at:null
         } }
       ).catch(()=>({updated:0}));
@@ -428,9 +426,7 @@ Deno.serve(async (req) => {
               current_base: queueBase,
               queue_authoritative_base: queueBase,
               queue_entered_at: oldData.queue_entered_at || previousAuthorityAt,
-              queue_authoritative_at: previousAuthorityAt,
-              queue_position: oldData.queue_position || releasedDriver.queue_position,
-              queue_authority_marker: oldData.queue_authority_marker || releasedDriver.queue_authority_marker
+              queue_authoritative_at: previousAuthorityAt
             }
           }
         );
@@ -592,7 +588,6 @@ Deno.serve(async (req) => {
                 { queue_authoritative_at: null }, { queue_authoritative_at: { $exists:false } },
                 { queue_authoritative_at: { $ne: oldData.queue_authoritative_at } },
                 { queue_entered_at: { $ne: oldData.queue_entered_at } },
-                { queue_position: { $ne: oldData.queue_position } },
                 { manual_reorder_token: { $ne: oldData.manual_reorder_token ?? null } }
               ]
             },
@@ -601,8 +596,6 @@ Deno.serve(async (req) => {
               queue_entered_at: oldData.queue_entered_at,
               queue_authoritative_base: oldData.queue_authoritative_base,
               queue_authoritative_at: oldData.queue_authoritative_at,
-              queue_authority_marker: oldData.queue_authority_marker ?? null,
-              queue_position: oldData.queue_position ?? null,
               manual_reorder_token: oldData.manual_reorder_token ?? null,
               manual_reorder_at: oldData.manual_reorder_at ?? null
             } }
@@ -756,8 +749,6 @@ Deno.serve(async (req) => {
               queue_entered_at:authoritativeAt || currentAt,
               queue_authoritative_base:authoritativeBase,
               queue_authoritative_at:authoritativeAt || currentAt,
-              queue_authority_marker:acceptedMarker ?? marker,
-              queue_position:marker ?? acceptedMarker,
               queue_left_at:null
             } }
           ).catch(()=>({updated:0}));

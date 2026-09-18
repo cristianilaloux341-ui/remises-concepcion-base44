@@ -78,9 +78,7 @@ Deno.serve(async (req) => {
           } }
         ).catch(()=>({updated:0}));
         const changed = updated?.updated ?? updated?.modifiedCount ?? updated?.matchedCount ?? 0;
-        if (changed !== 1) {
-          throw new Error(`QUEUE_REORDER_RACE:${d.id}`);
-        }
+        if (changed !== 1) continue;
         if (d.id === driverId) movedCompatAt = compatAt;
       }
 
