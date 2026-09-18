@@ -1,0 +1,5 @@
+Remises Concepcion v12.31 COMPLETA READY
+Fuente exacta: commit e273e13231b54335ee88786d37237b2165692b66
+Checkpoint Base44: 6aad19845add25251e30b1e1
+Incluye: ALERT_PRESENTED 30s reales, reintento 8s, audio fallback, aceptar/rechazar desde notificacion, proteccion de cola/posicion y Pendientes blindado.
+El ZIP contiene codigo fuente. No es un APK instalable.
