@@ -55,7 +55,7 @@ const BASE_COLORS = {
   "7-Don Bosco": "bg-orange-500", "8-Monumento": "bg-cyan-500",
 };
 
-function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
+function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {}, movilById = {} }) {
   const queryClient = useQueryClient();
   const [addingDriver, setAddingDriver] = useState("");
 
@@ -202,7 +202,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
               {queue.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">Cola vacía</p>
               ) : queue.map((driver, idx) => {
-                const nroMovil = movilByPlate[driver.vehicle_plate?.toUpperCase()];
+                const nroMovil = movilById[String(driver.vehicle_model || "")] || movilByPlate[driver.vehicle_plate?.toUpperCase()];
                 return (
                   <Draggable key={driver.id} draggableId={driver.id} index={idx}>
                     {(provided, snapshot) => (
@@ -416,7 +416,10 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
 
 export default function BaseQueueManager({ drivers, moviles = [] }) {
   // Mapa patente → número de móvil para lookup rápido
-  const movilByPlate = Object.fromEntries(moviles.map(m => [m.dominio?.toUpperCase(), m.numero_movil]));
+  const movilByPlate = Object.fromEntries(moviles.filter(m => m.dominio).map(m => [m.dominio.toUpperCase(), m.numero_movil]));
+  // Fuente principal: Driver.vehicle_model guarda el ID real de la entidad Movil.
+  // La patente queda solo como fallback legacy; nunca extraemos dígitos del ID como número de móvil.
+  const movilById = Object.fromEntries(moviles.map(m => [String(m.id), m.numero_movil]));
   const [editingBase, setEditingBase] = useState(null);
 
   const isDriverWorking = (d) => {
@@ -463,7 +466,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                 {queue.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-2">Vacía</p>
                 ) : queue.slice(0, 4).map((driver, idx) => {
-                  const nroMovil = movilByPlate[driver.vehicle_plate?.toUpperCase()];
+                  const nroMovil = movilById[String(driver.vehicle_model || "")] || movilByPlate[driver.vehicle_plate?.toUpperCase()];
                   return (
                     <div key={driver.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-muted/50">
                       <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
@@ -499,6 +502,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
             drivers={workingDrivers}
             onClose={() => setEditingBase(null)}
             movilByPlate={movilByPlate}
+            movilById={movilById}
           />
         )}
       </DraggableModal>
