@@ -21,6 +21,12 @@ Deno.serve(async (req) => {
   const current = currentRows?.[0];
   if (!current) return Response.json({ success: false, reason: 'driver_not_found' }, { status: 404 });
 
+  const bloqueoHasta = Number(current?.bloqueo_post_aceptacion_hasta);
+  if (bloqueoHasta > Date.now()) {
+    const minutosRestantes = Math.ceil((bloqueoHasta - Date.now()) / 60000);
+    return Response.json({ success: false, reason: 'driver_blocked', message: `Esperá ${minutosRestantes} minutos para quedar libre` }, { status: 403 });
+  }
+
   const currentPos = Number(current?.queue_position);
   const alreadyAuthoritative = current?.status === 'disponible' &&
     (current?.dispatch_status == null || current.dispatch_status === 'normal') &&

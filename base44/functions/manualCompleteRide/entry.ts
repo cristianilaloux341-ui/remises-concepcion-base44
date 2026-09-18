@@ -100,7 +100,8 @@ Deno.serve(async (req) => {
             reserved_order_id: null,
             reservation_token: null,
             manual_reservation_token: null,
-            driver_reservation_key: null
+            driver_reservation_key: null,
+            bloqueo_post_aceptacion_hasta: null
           }
         }
       ).catch(() => ({ updated: 0 }));

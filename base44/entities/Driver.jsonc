@@ -222,6 +222,10 @@
     "last_active": {
       "type": "string",
       "format": "date"
+    },
+    "bloqueo_post_aceptacion_hasta": {
+      "type": "number",
+      "description": "Timestamp (ms) hasta el cual el chofer est\u00e1 bloqueado para nuevos pasajes y quedar libre"
     }
   },
   "required": [

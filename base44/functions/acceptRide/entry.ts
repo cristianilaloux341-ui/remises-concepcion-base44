@@ -450,6 +450,12 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   const reservedDriverVersion = expectedDriverVersion + 1;
   const reservationKey = crypto.randomUUID();
 
+  // Configuración de bloqueo post-aceptación
+  const tarifas = await b44.entities.TarifaConfig.list();
+  const config = tarifas && tarifas.length > 0 ? tarifas[0] : null;
+  const minutosBloqueo = Number(config?.minutos_bloqueo_post_aceptacion) || 0;
+  const bloqueoHasta = minutosBloqueo > 0 ? Date.now() + (minutosBloqueo * 60000) : null;
+
   // Un chofer solamente puede aceptar si está realmente disponible y sin otro viaje activo.
   // Esto impide que una asignación manual o un doble toque pisen un viaje en curso.
   const reserveDriverFilter = {
@@ -469,7 +475,8 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
         active_ride_id: rideOrderId, 
         reserved_order_id: rideOrderId, 
         driver_reservation_key: reservationKey, 
-        driver_reservation_version: reservedDriverVersion 
+        driver_reservation_version: reservedDriverVersion,
+        bloqueo_post_aceptacion_hasta: bloqueoHasta
       } 
   };
 
@@ -645,6 +652,15 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
        user_name: driver.name,
        details: `Chofer aceptó viaje ${order.id} mediante protocolo V2 (Key: ${operationKey})`
     });
+    if (bloqueoHasta) {
+      await b44.entities.AuditLog.create({
+         action: 'DRIVER_POST_ACCEPT_BLOCK_STARTED',
+         user_type: 'chofer',
+         user_name: driver.name,
+         details: `Inició ventana de bloqueo de ${minutosBloqueo} minutos tras aceptar viaje`,
+         metadata: { driverId, orderId: rideOrderId, minutos: minutosBloqueo, origin: 'aceptacion' }
+      });
+    }
   } catch (e) {
     console.error("No se pudo escribir el AuditLog final", e);
   }

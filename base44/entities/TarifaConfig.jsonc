@@ -74,6 +74,11 @@
       "default": 0,
       "description": "Minutos que debe esperar el chofer antes de poder ponerse libre luego de completar un viaje (0 = sin restricci\u00f3n)"
     },
+    "minutos_bloqueo_post_aceptacion": {
+      "type": "number",
+      "default": 0,
+      "description": "Minutos que debe esperar el chofer (bloqueado) desde que acepta una oferta"
+    },
     "tiempo_maximo_respuesta_segundos": {
       "type": "number",
       "default": 60,

@@ -74,13 +74,15 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
       ? excludeDriverId.has(d.id)
       : Boolean(excludeDriverId && d.id === excludeDriverId);
     const isAlreadyOffered = offeredDriverIds.includes(d.id);
+    const isBlocked = Number(d.bloqueo_post_aceptacion_hasta) > Date.now();
     return isDriverWorking(d) && 
            !d.active_order_id && 
            !d.active_ride_id && 
            !d.reserved_order_id && 
            (d.dispatch_status == null || d.dispatch_status === 'normal') &&
            !isExcluded &&
-           !isAlreadyOffered;
+           !isAlreadyOffered &&
+           !isBlocked;
   });
 
   const sameBaseQueue = available

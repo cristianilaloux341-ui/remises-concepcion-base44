@@ -19,6 +19,7 @@ const DEFAULTS = {
   nocturna_hora_inicio: 22,
   nocturna_hora_fin: 6,
   minutos_libre_post_viaje: 0,
+  minutos_bloqueo_post_aceptacion: 0,
   tiempo_maximo_respuesta_segundos: 60,
   auto_reasignacion_activa: true,
   auto_aceptar_viajes: false,
@@ -75,6 +76,7 @@ export default function TarifaConfigPanel() {
          nocturna_hora_inicio: config.nocturna_hora_inicio ?? DEFAULTS.nocturna_hora_inicio,
          nocturna_hora_fin: config.nocturna_hora_fin ?? DEFAULTS.nocturna_hora_fin,
          minutos_libre_post_viaje: config.minutos_libre_post_viaje ?? DEFAULTS.minutos_libre_post_viaje,
+         minutos_bloqueo_post_aceptacion: config.minutos_bloqueo_post_aceptacion ?? DEFAULTS.minutos_bloqueo_post_aceptacion,
          tiempo_maximo_respuesta_segundos: config.tiempo_maximo_respuesta_segundos ?? DEFAULTS.tiempo_maximo_respuesta_segundos,
          auto_reasignacion_activa: config.auto_reasignacion_activa ?? DEFAULTS.auto_reasignacion_activa,
          auto_aceptar_viajes: config.auto_aceptar_viajes ?? DEFAULTS.auto_aceptar_viajes,
@@ -412,6 +414,27 @@ export default function TarifaConfigPanel() {
                   className="pr-14"
                   value={form.minutos_libre_post_viaje}
                   onChange={(e) => handleChange("minutos_libre_post_viaje", e.target.value)}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">min</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-4 border-t">
+            <p className="text-sm font-semibold text-slate-800">Tiempo de bloqueo post-aceptación</p>
+            <p className="text-sm text-muted-foreground">
+              Minutos que debe esperar el chofer antes de poder volver a ponerse libre o recibir una nueva oferta luego de ACEPTAR un viaje. <strong>0 = sin restricción</strong>.
+            </p>
+            <div className="space-y-1.5 max-w-xs">
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={0}
+                  max={60}
+                  step={1}
+                  className="pr-14"
+                  value={form.minutos_bloqueo_post_aceptacion}
+                  onChange={(e) => handleChange("minutos_bloqueo_post_aceptacion", e.target.value)}
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">min</span>
               </div>

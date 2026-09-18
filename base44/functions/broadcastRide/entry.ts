@@ -30,6 +30,7 @@ Deno.serve(async (req) => {
     // por otra operación concurrente. La cola/base no es requisito para recibir.
     const targetDriverIds = availableDrivers
       .filter(d => !d.reserved_order_id && !d.active_order_id && !d.active_ride_id && (d.dispatch_status == null || d.dispatch_status === "normal"))
+      .filter(d => Number(d.bloqueo_post_aceptacion_hasta || 0) < Date.now())
       .filter(d => d.fcm_token || d.push_subscription)
       .map(d => d.id);
 

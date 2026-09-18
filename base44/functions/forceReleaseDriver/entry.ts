@@ -42,9 +42,20 @@ Deno.serve(async (req) => {
       { id: driverId },
       { $set: {
         status:'disponible', dispatch_status:'normal', active_order_id:null, active_ride_id:null,
-        reserved_order_id:null, reservation_token:null, manual_reservation_token:null, driver_reservation_key:null
+        reserved_order_id:null, reservation_token:null, manual_reservation_token:null, driver_reservation_key:null,
+        bloqueo_post_aceptacion_hasta:null
       }}
     );
+
+    if (driver.bloqueo_post_aceptacion_hasta && Number(driver.bloqueo_post_aceptacion_hasta) > Date.now()) {
+      await b44.entities.AuditLog.create({
+        action: 'DRIVER_POST_ACCEPT_BLOCK_RELEASED',
+        user_type: 'sistema',
+        user_name: 'forceReleaseDriver',
+        details: 'Se liberó la ventana de bloqueo post-aceptación por liberación forzada',
+        metadata: { driverId, origin: 'aceptacion' }
+      }).catch(() => {});
+    }
 
     await b44.entities.AuditLog.create({
       action:'DRIVER_FORCE_RELEASE_99', user_type:'operador', user_name: payload.operatorName || 'Central',
