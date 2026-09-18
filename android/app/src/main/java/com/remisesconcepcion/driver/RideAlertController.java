@@ -35,7 +35,7 @@ public class RideAlertController {
         return instance;
     }
 
-    public synchronized void startAlert(final Context context, final String orderId, String title, String body, Intent acceptIntent, Intent rejectIntent, final Intent openAppIntent) {
+    public synchronized boolean startAlert(final Context context, final String orderId, String title, String body, Intent acceptIntent, Intent rejectIntent, final Intent openAppIntent) {
         currentAlertInstanceId = java.util.UUID.randomUUID().toString();
         Log.e(TAG, "==== START ALERT INVOCADO ====\n" +
                 "Instancia: " + currentAlertInstanceId + "\n" +
@@ -128,18 +128,42 @@ public class RideAlertController {
 
         android.app.Notification notification = builder.build();
         notification.flags |= android.app.Notification.FLAG_INSISTENT;
-        notificationManager.notify(reqCode, notification);
 
-        // --- MANEJO DE AUDIO ROBUSTO: REMOVIDO POR INCOMPATIBILIDAD CON ANDROID 14+ ---
-        // Se confía enteramente en NotificationCompat y FLAG_INSISTENT
+        try {
+            // ALERT_PRESENTED sólo se informa si Android realmente admite publicar
+            // la notificación y el canal urgente no está bloqueado.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !notificationManager.areNotificationsEnabled()) {
+                Log.e(TAG, "ALERT_NOT_PRESENTED - notificaciones deshabilitadas para la app");
+                currentOrderId = null;
+                return false;
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationChannel activeChannel = notificationManager.getNotificationChannel(channelId);
+                if (activeChannel != null && activeChannel.getImportance() == NotificationManager.IMPORTANCE_NONE) {
+                    Log.e(TAG, "ALERT_NOT_PRESENTED - canal de viajes deshabilitado");
+                    currentOrderId = null;
+                    return false;
+                }
+            }
 
+            notificationManager.notify(reqCode, notification);
+            Log.e(TAG, "FCM_NOTIFICATION_CREATED - ID " + reqCode + " WITH FLAG_INSISTENT");
+        } catch (Exception e) {
+            Log.e(TAG, "ALERT_NOT_PRESENTED - Android rechazó la publicación", e);
+            currentOrderId = null;
+            return false;
+        }
+
+        // Failsafe local contado desde la publicación real. El servidor conserva
+        // la autoridad a 30 s y normalmente enviará cancelación/reasignación antes.
         timeoutRunnable = new Runnable() {
             @Override
             public void run() {
-                stopAlert(context, orderId, "Vencimiento");
+                stopAlert(context, orderId, "Vencimiento de failsafe nativo posterior a ALERT_PRESENTED");
             }
         };
-        timeoutHandler.postDelayed(timeoutRunnable, 60000);
+        timeoutHandler.postDelayed(timeoutRunnable, 35000);
+        return true;
     }
 
     private String currentAlertInstanceId;
