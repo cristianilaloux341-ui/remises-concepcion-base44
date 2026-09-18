@@ -41,6 +41,44 @@ Deno.serve(async (req) => {
       return Response.json({ success:false, reason:'STALE_OR_EXPIRED' });
     }
 
+    // BARRERA ABSOLUTA DE TIEMPO: ningún worker, cron ni instancia vieja puede
+    // procesar timeout/delivery_unconfirmed antes del offerExpiresAt autoritativo.
+    // El rechazo explícito del chofer no usa esta barrera porque sí debe ser inmediato.
+    if (source === 'timeout' || source === 'delivery_unconfirmed') {
+      const authoritativeExpiry = Number(order.offerExpiresAt);
+      if (Number.isFinite(authoritativeExpiry) && Date.now() < authoritativeExpiry) {
+        const remainingMs = Math.max(0, authoritativeExpiry - Date.now());
+        await b44.entities.AuditLog.create({
+          action:'PREMATURE_REJECT_ENGINE_BLOCKED',
+          user_type:'sistema',
+          user_name:'rejectRide',
+          details:`Bloqueada reasignación prematura de ${orderId}; faltaban ${remainingMs} ms.`,
+          metadata:{
+            orderId,
+            driverId,
+            assignmentAttempt:Number(assignmentAttempt),
+            source,
+            offerExpiresAt:authoritativeExpiry,
+            remainingMs
+          }
+        }).catch(()=>{});
+
+        b44.functions.invoke('autoReassignOnTimeout', {
+          orderId,
+          driverId,
+          assignmentAttempt:Number(assignmentAttempt),
+          internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch(e=>console.error('Premature reject blocked re-chain error:',e));
+
+        return Response.json({
+          success:false,
+          reason:'OFFER_STILL_ACTIVE',
+          remainingMs,
+          offerExpiresAt:authoritativeExpiry
+        });
+      }
+    }
+
     // RECHAZAR y TIMEOUT usan exactamente el mismo motor. Primero tomamos un lease
     // atómico sobre ESTA oferta; así aceptar/rechazar/vencer nunca pueden procesarla
     // simultáneamente.
