@@ -8,7 +8,7 @@ import DraggableModal from "@/components/ui/draggable-modal";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { GripVertical } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getBaseQueue, BASES } from "@/lib/dispatchLogic";
+import { getBaseQueue, getEffectiveQueueBase, BASES } from "@/lib/dispatchLogic";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { ArrowUp, ArrowDown, XCircle, Plus, Clock, Settings, Zap } from "lucide-react";
@@ -422,28 +422,57 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
   const movilById = Object.fromEntries(moviles.map(m => [String(m.id), m.numero_movil]));
   const [editingBase, setEditingBase] = useState(null);
 
-  const isDriverWorking = (d) => {
-    if (d.status !== "disponible") return false;
+  const getLinkedMovil = (d) => {
     const mobileId = String(d.vehicle_model || "");
     const mobileNumber = parseInt(mobileId, 10);
-    const movil = moviles?.find(m =>
+    return moviles?.find(m =>
       m.id === mobileId ||
       m.numero_movil === mobileNumber ||
       m.driver_id === d.id ||
       (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id))
     );
-    if (!movil || movil.activo === false || movil.fuera_de_servicio === true || movil.suspension_motivo) {
-      return false;
-    }
-    return true;
   };
+
+  const isDriverEnabled = (d) => {
+    const movil = getLinkedMovil(d);
+    return Boolean(
+      movil &&
+      movil.activo !== false &&
+      movil.fuera_de_servicio !== true &&
+      !movil.suspension_motivo
+    );
+  };
+
+  const isDriverWorking = (d) => d.status === "disponible" && isDriverEnabled(d);
   const workingDrivers = drivers.filter(isDriverWorking);
+  const enabledDrivers = drivers.filter(isDriverEnabled);
+
+  // Visibilidad ≠ elegibilidad de despacho.
+  // Un móvil ofrecido/reservado/en viaje sigue perteneciendo visualmente a su base,
+  // pero NO participa de getBaseQueue ni recibe otro pasaje.
+  const getBusyDriversForBase = (baseName) => enabledDrivers.filter(d => {
+    if (d.status === "no_disponible") return false;
+    if (getEffectiveQueueBase(d) !== baseName) return false;
+    return (
+      d.status !== "disponible" ||
+      (d.dispatch_status != null && d.dispatch_status !== "normal") ||
+      Boolean(d.reserved_order_id || d.active_order_id || d.active_ride_id)
+    );
+  });
+
+  const getBusyLabel = (d) => {
+    if (d.status === "en_viaje" || d.active_ride_id || d.active_order_id) return "EN VIAJE";
+    if (d.dispatch_status === "automatic_pending" || d.dispatch_status === "manual_pending" || d.reserved_order_id) return "OFRECIDO";
+    return "OCUPADO";
+  };
 
   return (
     <>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         {BASES.map(baseName => {
           const queue = getBaseQueue(workingDrivers, baseName);
+          const busyDrivers = getBusyDriversForBase(baseName);
+          const visibleCount = queue.length + busyDrivers.length;
           const color = BASE_COLORS[baseName] || "bg-primary";
           return (
             <Card key={baseName} className="overflow-hidden">
@@ -454,7 +483,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                     <CardTitle className="text-sm font-semibold">{baseName}</CardTitle>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Badge variant="secondary" className="text-xs">{queue.length}</Badge>
+                    <Badge variant="secondary" className="text-xs">{visibleCount}</Badge>
                     <Button size="icon" variant="ghost" className="h-6 w-6"
                       onClick={() => setEditingBase(baseName)}>
                       <Settings className="w-3 h-3" />
@@ -463,26 +492,47 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                 </div>
               </CardHeader>
               <CardContent className="px-4 pb-4 space-y-1.5">
-                {queue.length === 0 ? (
+                {visibleCount === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-2">Vacía</p>
-                ) : queue.slice(0, 4).map((driver, idx) => {
-                  const nroMovil = movilById[String(driver.vehicle_model || "")] || movilByPlate[driver.vehicle_plate?.toUpperCase()];
-                  return (
-                    <div key={driver.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-muted/50">
-                      <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-                        {idx + 1}
-                      </span>
-                      <div className="flex-1 min-w-0 flex items-center">
-                        <p className="text-xs font-medium truncate text-primary font-bold">
-                          {getDriverDisplay(nroMovil || driver.vehicle_model || driver.vehicle_plate, driver.name)}
-                        </p>
-                        <ConnectivityIndicator lastActive={driver.last_active} />
-                      </div>
-                    </div>
-                  );
-                })}
-                {queue.length > 4 && (
-                  <p className="text-xs text-muted-foreground text-center">+{queue.length - 4} más</p>
+                ) : (
+                  <>
+                    {queue.slice(0, 4).map((driver, idx) => {
+                      const nroMovil = movilById[String(driver.vehicle_model || "")] || movilByPlate[driver.vehicle_plate?.toUpperCase()];
+                      return (
+                        <div key={driver.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-muted/50">
+                          <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                            {idx + 1}
+                          </span>
+                          <div className="flex-1 min-w-0 flex items-center">
+                            <p className="text-xs font-medium truncate text-primary font-bold">
+                              {getDriverDisplay(nroMovil || driver.vehicle_model || driver.vehicle_plate, driver.name)}
+                            </p>
+                            <ConnectivityIndicator lastActive={driver.last_active} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {queue.length > 4 && (
+                      <p className="text-xs text-muted-foreground text-center">+{queue.length - 4} libres más</p>
+                    )}
+                    {busyDrivers.map((driver) => {
+                      const nroMovil = movilById[String(driver.vehicle_model || "")] || movilByPlate[driver.vehicle_plate?.toUpperCase()];
+                      return (
+                        <div key={`busy-${driver.id}`} className="flex items-center gap-2 p-1.5 rounded-lg border border-dashed">
+                          <span className="text-[10px] font-bold shrink-0">•</span>
+                          <div className="flex-1 min-w-0 flex items-center">
+                            <p className="text-xs font-medium truncate">
+                              {getDriverDisplay(nroMovil || driver.vehicle_model || driver.vehicle_plate, driver.name)}
+                            </p>
+                            <ConnectivityIndicator lastActive={driver.last_active} />
+                          </div>
+                          <span className="text-[9px] font-semibold text-muted-foreground shrink-0">
+                            {getBusyLabel(driver)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </>
                 )}
               </CardContent>
             </Card>
