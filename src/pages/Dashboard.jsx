@@ -125,7 +125,12 @@ export default function Dashboard() {
       if (!order?.id) continue;
       const isNew = !knownOrderIdsRef.current.has(order.id);
       knownOrderIdsRef.current.add(order.id);
-      if (isNew && order.status === "pendiente") newPending.push(order);
+      const isLegacyTransientPending =
+        order.status === "pendiente" &&
+        order.offerExpiresAt != null &&
+        Number.isFinite(Number(order.offerExpiresAt)) &&
+        Number(order.assignment_attempt || 0) > 0;
+      if (isNew && order.status === "pendiente" && !isLegacyTransientPending) newPending.push(order);
     }
 
     for (const order of newPending) {
@@ -228,8 +233,15 @@ export default function Dashboard() {
     }
   };
 
-  const activeOrders = orders.filter(o => ["pendiente", "preasignado_proximo", "ofrecido", "aceptado", "en_camino", "en_viaje"].includes(o.status));
-  const pendingOrders = orders.filter(o => o.status === "pendiente");
+  const isVisiblePending = (o) =>
+    o.status === "pendiente" &&
+    !(o.offerExpiresAt != null && Number.isFinite(Number(o.offerExpiresAt)) && Number(o.assignment_attempt || 0) > 0);
+
+  const activeOrders = orders.filter(o =>
+    ["preasignado_proximo", "ofrecido", "aceptado", "en_camino", "en_viaje"].includes(o.status) ||
+    isVisiblePending(o)
+  );
+  const pendingOrders = orders.filter(isVisiblePending);
   const claimedPendingOrders = activeOrders.filter(o =>
     o.claimed_from_pending &&
     ["preasignado_proximo", "aceptado", "en_camino", "en_viaje"].includes(o.status)
