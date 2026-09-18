@@ -445,6 +445,14 @@ Deno.serve(async (req) => {
       
       // Actualizamos ackedThisAttempt con la última verdad
       ackedThisAttempt = newAcked;
+
+      // FIX: Si el proceso despertó solo para la evaluación intermedia (ej. 15s) y aún queda tiempo para los 30s reales, encadenamos y esperamos.
+      if (Date.now() + 2000 < newExpiresAt) {
+          b44.functions.invoke('autoReassignOnTimeout', {
+            orderId, driverId, assignmentAttempt, internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+          }).catch(e=>console.error('Timeout re-chain error after reminder:',e));
+          return Response.json({ ok:true, chained:true, reason:'continue_to_full_timeout' });
+      }
     }
 
     // A los 30 s TOTALES se termina esta oferta. Con ACK es timeout normal; sin ACK
