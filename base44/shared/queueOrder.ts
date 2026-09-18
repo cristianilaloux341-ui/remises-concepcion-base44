@@ -114,7 +114,7 @@ export async function getNextQueueTailAt(b44: any, baseName: string, excludeDriv
   for (const d of drivers || []) {
     if (!d || d.id === excludeDriverId) continue;
     if (getEffectiveQueueBase(d) !== baseName) continue;
-    // Evaluamos TODOS los timestamps en la base para garantizar monotonía estricta
+    // Ya no ignoramos choferes en viaje para el timestamp, porque queremos garantizar monotonía total
     const raw = d.queue_authoritative_at || d.queue_entered_at || null;
     const ms = raw ? new Date(raw).getTime() : NaN;
     if (Number.isFinite(ms)) nextMs = Math.max(nextMs, ms + 10);
@@ -132,8 +132,7 @@ export async function getNextQueuePosition(b44: any, baseName: string, excludeDr
   for (const d of drivers || []) {
     if (!d || d.id === excludeDriverId) continue;
     if (getEffectiveQueueBase(d) !== baseName) continue;
-    // CRÍTICO: Nunca ignorar choferes ocupados o con ofertas. Su posición es 
-    // válida y ocupada. Ignorarlos causa posiciones duplicadas al entrar nuevos móviles.
+    if (d.status === 'en_viaje' || d.active_ride_id || d.active_order_id || d.reserved_order_id) continue;
     const pos = Number(d.queue_position);
     if (Number.isFinite(pos) && pos > 0) maxPos = Math.max(maxPos, pos);
   }
@@ -146,14 +145,10 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
   // y después de una acción operativa real; heartbeat/GPS/reconexión nunca la llaman.
   if (!baseName) return;
   const rows = await b44.entities.Driver.filter({
+    status: 'disponible',
     queue_authoritative_base: baseName
   }).catch(() => []);
-  
-  // CRÍTICO: Compactamos TODOS los choferes en la base, incluso si están ocupados
-  // o con ofertas. Ignorarlos crearía posiciones duplicadas cuando vuelvan a estar
-  // disponibles o cuando la cola avance.
-  const inBase = (Array.isArray(rows) ? rows : []).filter(d => getEffectiveQueueBase(d) === baseName);
-  const queue = sortQueue(inBase);
+  const queue = getBaseQueue(Array.isArray(rows) ? rows : [], baseName);
   
   // Para que el APK (que a veces ordena por timestamp localmente) vea el mismo orden sin huecos,
   // asignamos fechas secuenciales hacia atrás desde "ahora" o mantenemos el orden temporal.
@@ -175,10 +170,15 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
         continue;
     }
     
-    await b44.entities.Driver.updateMany(
+    const res = await b44.entities.Driver.updateMany(
       {
         id: d.id,
-        queue_authoritative_base: baseName
+        status: 'disponible',
+        queue_authoritative_base: baseName,
+        dispatch_status: d.dispatch_status ?? 'normal',
+        reserved_order_id: null,
+        active_order_id: null,
+        active_ride_id: null
       },
       { $set: { 
           queue_position: wanted, 
@@ -188,9 +188,7 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
         } 
       }
     ).catch(() => ({ updated: 0 }));
-    // No lanzamos error si no coincide. Si un móvil salió de la base (cambió queue_authoritative_base)
-    // durante la compactación, simplemente ignoramos el update. La misma salida
-    // disparará otra compactación inmediatamente.
+    if (mutationCount(res) !== 1) throw new Error(`QUEUE_COMPACT_RACE:${d.id}`);
   }
 }
 
