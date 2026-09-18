@@ -58,7 +58,9 @@ Deno.serve(async (req) => {
     const fresh = freshRows?.[0];
     if (!fresh) return { success:false, reason:'driver_not_found' };
 
+    const freshBase = fresh.queue_authoritative_base || fresh.current_base || null;
     if (
+      freshBase !== previousBase ||
       fresh.status !== 'disponible' ||
       (fresh.dispatch_status != null && fresh.dispatch_status !== 'normal') ||
       fresh.reserved_order_id ||
