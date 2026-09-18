@@ -1899,12 +1899,18 @@ export default function DriverApp() {
   const handleGoOffService = async () => {
     if (libreBlockedSegs > 0) return; // bloqueado
     try {
+      const queueLeftAt = new Date().toISOString();
+      const previousBase = myDriver?.queue_authoritative_base || myDriver?.current_base || null;
       await updateOperationalStateIfIdle("disponible", {
         status: "no_disponible",
         dispatch_status: "normal",
         current_base: null,
+        queue_entered_at: null,
         queue_authoritative_base: null,
         queue_authoritative_at: null,
+        queue_authority_marker: null,
+        queue_position: null,
+        queue_left_at: queueLeftAt,
         active_order_id: null,
         active_ride_id: null,
         reserved_order_id: null,
@@ -1912,6 +1918,13 @@ export default function DriverApp() {
         manual_reservation_token: null,
         driver_reservation_key: null
       });
+      base44.entities.AuditLog.create({
+        action: "DRIVER_OFF_SERVICE_FROM_APK",
+        user_type: "chofer",
+        user_name: myDriver?.name || "Chofer",
+        details: `${myDriver?.name || myDriverId} salió de servicio desde la APK`,
+        metadata: { driverId: myDriverId, previousBase, queueLeftAt, source: "driver_apk" }
+      }).catch(() => {});
       setLocalOverride({ status: "no_disponible", current_base: null });
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } catch (error) {
@@ -1947,6 +1960,7 @@ export default function DriverApp() {
 
   const handleGoOnService = async () => {
     try {
+      const serviceStartedAt = new Date().toISOString();
       await updateOperationalStateIfIdle("no_disponible", {
         status: "disponible",
         dispatch_status: "normal",
@@ -1954,14 +1968,23 @@ export default function DriverApp() {
         queue_entered_at: null,
         queue_authoritative_base: null,
         queue_authoritative_at: null,
+        queue_authority_marker: null,
+        queue_position: null,
         active_order_id: null,
         active_ride_id: null,
         reserved_order_id: null,
         reservation_token: null,
         manual_reservation_token: null,
         driver_reservation_key: null,
-        last_active: new Date().toISOString()
+        last_active: serviceStartedAt
       });
+      base44.entities.AuditLog.create({
+        action: "DRIVER_ON_SERVICE_FROM_APK",
+        user_type: "chofer",
+        user_name: myDriver?.name || "Chofer",
+        details: `${myDriver?.name || myDriverId} entró en servicio desde la APK`,
+        metadata: { driverId: myDriverId, serviceStartedAt, source: "driver_apk" }
+      }).catch(() => {});
       setLocalOverride({ status: "disponible", current_base: null });
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
     } catch (error) {
