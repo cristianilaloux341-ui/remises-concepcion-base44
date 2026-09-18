@@ -21,6 +21,10 @@ Deno.serve(async (req) => {
   const current = currentRows?.[0];
   if (!current) return Response.json({ success: false, reason: 'driver_not_found' }, { status: 404 });
 
+  if (current.bloqueo_post_aceptacion_hasta && Number(current.bloqueo_post_aceptacion_hasta) > Date.now()) {
+    return Response.json({ success: false, reason: 'driver_blocked_post_acceptance' }, { status: 403 });
+  }
+
   const currentPos = Number(current?.queue_position);
   const alreadyAuthoritative = current?.status === 'disponible' &&
     (current?.dispatch_status == null || current.dispatch_status === 'normal') &&
