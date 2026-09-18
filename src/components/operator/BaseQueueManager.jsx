@@ -381,13 +381,19 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       const data = res?.data || res;
       if (data?.success !== true && data?.idempotent !== true) {
         const fresh = await base44.entities.Driver.get(driver.id);
-        const alreadyThere = fresh?.current_base === baseName && fresh?.status === "disponible" &&
+        const pos = Number(fresh?.queue_position);
+        const marker = Number(fresh?.queue_authority_marker);
+        const alreadyThere = fresh?.current_base === baseName &&
+          fresh?.queue_authoritative_base === baseName &&
+          fresh?.status === "disponible" &&
           (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
+          Number.isFinite(pos) && pos > 0 &&
+          Number.isFinite(marker) && marker === pos &&
           !fresh?.reserved_order_id && !fresh?.active_order_id && !fresh?.active_ride_id;
         if (!alreadyThere) throw new Error(data?.reason || "El móvil cambió de estado; no se modificó su posición.");
       }
       
-      // Forzar recarga rápida de la UI, ya que mutation invalidaría react-query pero acá no estamos usando el useMutation de BaseQueueManager sino update directo
+      // Forzar recarga rápida de la UI después del commit server-side.
       window.dispatchEvent(new Event("force-driver-refresh"));
     } catch (err) {
     }
