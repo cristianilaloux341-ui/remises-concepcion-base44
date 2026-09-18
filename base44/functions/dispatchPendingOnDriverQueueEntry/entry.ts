@@ -252,13 +252,18 @@ Deno.serve(async (req) => {
           dispatch_status:eventData.dispatch_status ?? 'normal',
           reserved_order_id:null,
           active_order_id:null,
-          active_ride_id:null
+          active_ride_id:null,
+          queue_position:eventData.queue_position ?? null,
+          queue_authority_marker:eventData.queue_authority_marker ?? null,
+          manual_reorder_token:eventData.manual_reorder_token ?? null
         },
         { $set:{
           current_base:previousBase,
           queue_entered_at:oldData.queue_entered_at || previousAt,
           queue_authoritative_base:previousBase,
           queue_authoritative_at:previousAt,
+          queue_position:oldData.queue_position,
+          queue_authority_marker:oldData.queue_authority_marker ?? oldData.queue_position,
           queue_left_at:null
         } }
       ).catch(()=>({updated:0}));
@@ -583,11 +588,16 @@ Deno.serve(async (req) => {
               id: driverId,
               status: 'disponible',
               current_base: oldData.current_base,
+              queue_position: freshQueueDriver.queue_position ?? null,
+              queue_authority_marker: freshQueueDriver.queue_authority_marker ?? null,
+              manual_reorder_token: freshQueueDriver.manual_reorder_token ?? null,
               $or: [
                 { queue_authoritative_base: null }, { queue_authoritative_base: { $exists:false } },
                 { queue_authoritative_at: null }, { queue_authoritative_at: { $exists:false } },
                 { queue_authoritative_at: { $ne: oldData.queue_authoritative_at } },
                 { queue_entered_at: { $ne: oldData.queue_entered_at } },
+                { queue_position: { $ne: oldData.queue_position } },
+                { queue_authority_marker: { $ne: oldData.queue_authority_marker ?? oldData.queue_position } },
                 { manual_reorder_token: { $ne: oldData.manual_reorder_token ?? null } }
               ]
             },
@@ -596,6 +606,8 @@ Deno.serve(async (req) => {
               queue_entered_at: oldData.queue_entered_at,
               queue_authoritative_base: oldData.queue_authoritative_base,
               queue_authoritative_at: oldData.queue_authoritative_at,
+              queue_position: oldData.queue_position,
+              queue_authority_marker: oldData.queue_authority_marker ?? oldData.queue_position,
               manual_reorder_token: oldData.manual_reorder_token ?? null,
               manual_reorder_at: oldData.manual_reorder_at ?? null
             } }
@@ -742,13 +754,18 @@ Deno.serve(async (req) => {
               dispatch_status:'normal',
               reserved_order_id:null,
               active_order_id:null,
-              active_ride_id:null
+              active_ride_id:null,
+              queue_position:freshQueueDriver.queue_position ?? null,
+              queue_authority_marker:freshQueueDriver.queue_authority_marker ?? null,
+              manual_reorder_token:freshQueueDriver.manual_reorder_token ?? null
             },
             { $set:{
               current_base:authoritativeBase,
               queue_entered_at:authoritativeAt || currentAt,
               queue_authoritative_base:authoritativeBase,
               queue_authoritative_at:authoritativeAt || currentAt,
+              queue_position:oldData.queue_position,
+              queue_authority_marker:oldData.queue_authority_marker ?? oldData.queue_position,
               queue_left_at:null
             } }
           ).catch(()=>({updated:0}));
@@ -796,8 +813,27 @@ Deno.serve(async (req) => {
             }).catch(()=>{});
           } else {
             const restored = await b44.entities.Driver.updateMany(
-              { id:driverId, status:'disponible', current_base:currentBase, reserved_order_id:null, active_order_id:null, active_ride_id:null },
-              { $set:{ current_base:authoritativeBase, queue_entered_at:oldData?.queue_entered_at ?? currentAt } }
+              {
+                id:driverId,
+                status:'disponible',
+                current_base:currentBase,
+                reserved_order_id:null,
+                active_order_id:null,
+                active_ride_id:null,
+                queue_authoritative_base:authoritativeBase,
+                queue_position:marker ?? null,
+                queue_authority_marker:acceptedMarker ?? null,
+                manual_reorder_token:freshQueueDriver.manual_reorder_token ?? null
+              },
+              { $set:{
+                current_base:authoritativeBase,
+                queue_entered_at:oldData?.queue_entered_at ?? currentAt,
+                queue_authoritative_base:oldData?.queue_authoritative_base ?? authoritativeBase,
+                queue_authoritative_at:oldData?.queue_authoritative_at ?? authoritativeAt,
+                queue_position:oldData?.queue_position ?? marker,
+                queue_authority_marker:oldData?.queue_authority_marker ?? oldData?.queue_position ?? acceptedMarker ?? marker,
+                queue_left_at:null
+              } }
             ).catch(()=>({updated:0}));
             const count = restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0;
             if (count === 1) {
