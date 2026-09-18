@@ -78,8 +78,31 @@ public class MyFirebaseMessagingService extends MessagingService {
             //     return;
             // }
             
+            String apiUrl = data.get("apiUrl");
+            String driverId = data.get("driverId");
+
+            // PUSH_RECEIVED: FCM llegó al proceso nativo. Esta bandera activa el
+            // protocolo ALERT_PRESENTED únicamente en esta v12.31 nueva.
+            if (apiUrl != null && orderId != null && driverId != null) {
+                String ackPayload = String.format(
+                        "{\"action\":\"native_ack\", \"orderId\":\"%s\", \"driverId\":\"%s\", \"assignmentAttempt\":%d, \"supportsAlertPresented\":true}",
+                        orderId, driverId, incomingAttempt);
+                sendSignalToServer(apiUrl, ackPayload, "PUSH_RECEIVED");
+            }
+
             Log.e(TAG, "Construyendo notificación interactiva nativa para viaje...");
-            showInteractiveNotification(data);
+            boolean alertPresented = showInteractiveNotification(data);
+
+            // ALERT_PRESENTED se envía sólo después de que NotificationManager
+            // aceptó publicar la oferta. Recién desde aquí corren los 30 s reales.
+            if (alertPresented && apiUrl != null && orderId != null && driverId != null) {
+                String shownPayload = String.format(
+                        "{\"action\":\"native_alert_presented\", \"orderId\":\"%s\", \"driverId\":\"%s\", \"assignmentAttempt\":%d, \"supportsAlertPresented\":true}",
+                        orderId, driverId, incomingAttempt);
+                sendSignalToServer(apiUrl, shownPayload, "ALERT_PRESENTED");
+            } else if (!alertPresented) {
+                Log.e(TAG, "ALERT_PRESENTED NO enviado: Android no confirmó publicación del alerta.");
+            }
         }
 
         if ("mensaje".equals(type) || "chat".equals(type)) {
@@ -102,7 +125,31 @@ public class MyFirebaseMessagingService extends MessagingService {
         super.onMessageReceived(remoteMessage);
     }
 
-    private void showInteractiveNotification(Map<String, String> data) {
+    private void sendSignalToServer(String apiUrl, String jsonPayload, String signalName) {
+        if (apiUrl == null || apiUrl.isEmpty()) return;
+
+        new Thread(() -> {
+            try {
+                java.net.URL url = new java.net.URL(apiUrl);
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                try (java.io.OutputStream os = conn.getOutputStream()) {
+                    byte[] input = jsonPayload.getBytes("utf-8");
+                    os.write(input, 0, input.length);
+                }
+                int code = conn.getResponseCode();
+                Log.e(TAG, signalName + " enviado nativamente. HTTP " + code);
+            } catch (Exception e) {
+                Log.e(TAG, "Error enviando señal nativa " + signalName, e);
+            }
+        }).start();
+    }
+
+    private boolean showInteractiveNotification(Map<String, String> data) {
         String orderId = data.get("orderId");
         String driverId = data.get("driverId");
         String driverName = data.get("driverName");
@@ -138,8 +185,10 @@ public class MyFirebaseMessagingService extends MessagingService {
         openAppIntent.putExtra("orderId", orderId);
         openAppIntent.putExtra("assignmentAttempt", data.get("assignmentAttempt"));
 
-        // Delegar la alerta al controlador centralizado
-        RideAlertController.getInstance().startAlert(context, orderId, title, body, acceptIntent, rejectIntent, openAppIntent);
+        // Delegar la alerta al controlador centralizado. true significa
+        // que Android aceptó publicar la notificación urgente.
+        return RideAlertController.getInstance().startAlert(
+                context, orderId, title, body, acceptIntent, rejectIntent, openAppIntent);
     }
 
     @Override
