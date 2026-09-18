@@ -657,7 +657,7 @@ Deno.serve(async (req) => {
         // current_base/queue_entered_at viejos en caché. Nunca se hereda antigüedad.
         const enteredService = Boolean(
           currentBase && oldData && eventData &&
-          oldData.status !== 'disponible' && eventData.status === 'disponible'
+          oldData.status === 'no_disponible' && eventData.status === 'disponible'
         );
         if (enteredService) {
           const placed = await placeDriverLastLocked(
