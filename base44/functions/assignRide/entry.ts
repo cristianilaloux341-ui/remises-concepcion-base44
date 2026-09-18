@@ -205,14 +205,86 @@ Deno.serve(async (req) => {
 
   // 1. Verificar si el móvil está ocupado con OTRO viaje real activo (seguridad para no robar viajes)
   const activeStatuses = new Set(['ofrecido', 'aceptado', 'en_camino', 'en_viaje']);
-  const conflictingOrders = [...assignedOrders, ...reservedOrders].filter(
+  let conflictingOrders = [...assignedOrders, ...reservedOrders].filter(
     (existing: any) => existing.id !== orderId && activeStatuses.has(existing.status)
   );
+
+  // Reparación segura de "viajes fantasma": puede quedar un RideOrder como en_viaje
+  // aunque finishRide haya confirmado el cierre y el Driver ya esté libre/sin referencias.
+  // Ese registro viejo no debe bloquear todos los próximos push del móvil.
+  if (
+    conflictingOrders.length > 0 &&
+    driverReq.status === 'disponible' &&
+    !driverReq.reserved_order_id &&
+    !driverReq.active_order_id &&
+    !driverReq.active_ride_id
+  ) {
+    const conflictIds = conflictingOrders.map((o:any) => o.id).filter(Boolean);
+    const finishLogs = conflictIds.length
+      ? await b44.entities.AuditLog.filter({
+          action:'FINISH_RIDE_COMMITTED',
+          'metadata.orderId':{ $in: conflictIds }
+        }).catch(() => [])
+      : [];
+
+    const finishedAtByOrder = new Map<string,string>();
+    for (const log of finishLogs || []) {
+      const finishedOrderId = log?.metadata?.orderId;
+      if (!finishedOrderId) continue;
+      const at = log.created_date || new Date().toISOString();
+      const previous = finishedAtByOrder.get(finishedOrderId);
+      if (!previous || new Date(at).getTime() > new Date(previous).getTime()) {
+        finishedAtByOrder.set(finishedOrderId, at);
+      }
+    }
+
+    if (finishedAtByOrder.size > 0) {
+      for (const stale of conflictingOrders) {
+        const finishedAt = finishedAtByOrder.get(stale.id);
+        if (!finishedAt) continue;
+
+        const repaired = await b44.entities.RideOrder.updateMany(
+          {
+            id:stale.id,
+            driver_id:driverId,
+            status:{ $in:['ofrecido','aceptado','en_camino','en_viaje'] }
+          },
+          { $set:{
+            status:'completado',
+            reserved_driver_id:null,
+            reservation_token:null,
+            manual_reservation_token:null,
+            offerExpiresAt:null,
+            processingOwnerId:null,
+            processingPhase:null,
+            processingAction:null,
+            processingOperationKey:null,
+            taximetro_iniciado:false,
+            ride_finished_at:stale.ride_finished_at || finishedAt,
+            lastCompletedAction:'FINISH',
+            updated_date:finishedAt
+          } }
+        ).catch(() => ({ updated:0 }));
+
+        const repairedCount = repaired?.updated ?? repaired?.modifiedCount ?? repaired?.matchedCount ?? 0;
+        if (repairedCount === 1) {
+          await b44.entities.AuditLog.create({
+            action:'STALE_ACTIVE_RIDE_REPAIRED_BEFORE_ASSIGN',
+            user_type:'sistema',
+            user_name:'assignRide',
+            details:`Se reparó viaje fantasma ${stale.id} antes de asignar un nuevo pasaje a ${driverReq.name || driverId}`,
+            metadata:{ orderId:stale.id, driverId, finishCommittedAt:finishedAt }
+          }).catch(()=>{});
+        }
+      }
+
+      conflictingOrders = conflictingOrders.filter((existing:any) => !finishedAtByOrder.has(existing.id));
+    }
+  }
   
   if (conflictingOrders.length > 0) {
-    // Nunca cancelar automáticamente otro pasaje para destrabar un móvil.
-    // Mientras tenga un viaje activo, este móvil simplemente no es candidato.
-    // El pasaje que intentamos asignar conserva su estado y el despacho automático seguirá buscando.
+    // Nunca cancelar automáticamente otro pasaje real para destrabar un móvil.
+    // Sólo se ignoran/reparan arriba conflictos con FINISH_RIDE_COMMITTED comprobado.
     return Response.json({
       success: false,
       reason: 'DRIVER_ALREADY_BUSY'
