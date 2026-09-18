@@ -217,7 +217,9 @@ Deno.serve(async (req) => {
     // Regla comercial: cada NUEVA oferta tiene un techo absoluto de 30 s desde que
     // Central la compromete. El ACK no reinicia el reloj; a los 15 s puede haber un
     // único refuerzo y a los 30 s se reasigna si no hubo respuesta.
-    const timeoutSeconds = 30;
+    // Techo de entrega antes de ALERT_PRESENTED. Cuando Android confirma
+    // que el alerta fue publicado, handleNativePushAction fija presented_at + 30 s.
+    const deliveryHardCapSeconds = 50;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     const excluded = new Set<string>([...(order.offered_driver_ids || []), driverId].filter(Boolean));
 
@@ -237,7 +239,7 @@ Deno.serve(async (req) => {
 
         const newAttempt = Number(assignmentAttempt) + 1;
         const assignedAt = new Date().toISOString();
-        const expiresAt = Date.now() + timeoutSeconds*1000;
+        const expiresAt = Date.now() + deliveryHardCapSeconds*1000;
         // Cada salto es una oferta NUEVA. offered_driver_ids queda sólo como historial
         // para no volver a ofrecer a quienes ya pasaron; la identidad activa se
         // reemplaza por completo con nextDriver + token + newAttempt.
@@ -265,6 +267,8 @@ Deno.serve(async (req) => {
               assigned_at:assignedAt,
               push_ack_at:null,
               push_ack_assignment_attempt:null,
+              alert_presented_at:null,
+              alert_presented_assignment_attempt:null,
               delivery_retry_count:0,
               processingAction:null,
               processingOperationKey:null,
@@ -341,6 +345,8 @@ Deno.serve(async (req) => {
           offerExpiresAt:null,
           push_ack_at:null,
           push_ack_assignment_attempt:null,
+          alert_presented_at:null,
+          alert_presented_assignment_attempt:null,
           delivery_retry_count:0,
           assigned_base:null,
           // Marca explícita de Pendiente REAL: sólo la escribe Central después de
