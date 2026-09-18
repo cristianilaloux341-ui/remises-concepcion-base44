@@ -146,6 +146,12 @@
         "null"
       ]
     },
+    "alert_presented_protocol_attempt": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
     "delivery_retry_count": {
       "type": "number",
       "default": 0
