@@ -1776,69 +1776,63 @@ export default function DriverApp() {
     return res;
   };
 
-  // Entrada/cambio de base autoritativo: la decisión de si el móvil YA estaba en
-  // esa base se toma contra el servidor, no contra la copia local de la APK.
-  // Así una reconexión o estado atrasado jamás puede renovar queue_entered_at y
-  // mandar al móvil al final sin haber salido realmente de la base.
+  // ÚNICA puerta de entrada/cambio de base de la APK.
+  // La app NO escribe current_base ni campos queue_* directamente. El backend
+  // enterDriverQueue toma el lock, calcula el último puesto y sella todo en una
+  // única operación; así nunca existe el estado "en base pero queue_position=null".
   const enterBaseServerSafe = async (base) => {
-    const ts = new Date().toISOString();
-    const res = await base44.entities.Driver.updateMany(
-      {
-        id: myDriverId,
-        status: "disponible",
-        dispatch_status: "normal",
-        reserved_order_id: null,
-        active_order_id: null,
-        active_ride_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null,
-        current_base: { $ne: base }
-      },
-      { $set: {
-        current_base: base,
-        status: "disponible",
-        dispatch_status: "normal",
-        queue_entered_at: ts,
-        // La app sólo solicita la entrada. El servidor decide el puesto real y lo
-        // sella detrás del último; nunca publicar una posición provisoria local.
-        queue_authoritative_base: null,
-        queue_authoritative_at: null,
-        queue_authority_marker: null,
-        queue_position: null,
-        active_order_id: null,
-        active_ride_id: null,
-        reserved_order_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null
-      } }
-    );
-    const changed = res?.updated ?? res?.modifiedCount ?? res?.matchedCount ?? 0;
-    if (changed > 0) {
-      // Esperar únicamente el sello autoritativo de ESTA entrada. Hasta entonces la
-      // UI no debe asumir 1°, 2° ni ningún puesto por la hora del teléfono.
-      for (let attempt = 0; attempt < 8; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 250));
+    const isSealedInBase = (driver) => {
+      const pos = Number(driver?.queue_position);
+      const marker = Number(driver?.queue_authority_marker);
+      return driver?.status === "disponible" &&
+        (driver?.dispatch_status == null || driver?.dispatch_status === "normal") &&
+        driver?.current_base === base &&
+        driver?.queue_authoritative_base === base &&
+        Number.isFinite(pos) && pos > 0 &&
+        Number.isFinite(marker) && marker === pos &&
+        !driver?.reserved_order_id && !driver?.active_order_id && !driver?.active_ride_id;
+    };
+
+    let lastError = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await base44.functions.invoke("enterDriverQueue", {
+          driverId: myDriverId,
+          baseName: base,
+          sessionToken: getSessionToken()
+        });
+        const data = res?.data || res;
+        if (data?.success !== true && data?.idempotent !== true) {
+          throw new Error(data?.reason || "QUEUE_ENTRY_FAILED");
+        }
+
+        // Confirmación de lectura: evita mostrar una posición local inventada.
+        for (let check = 0; check < 12; check++) {
+          const fresh = await base44.entities.Driver.get(myDriverId).catch(() => null);
+          if (isSealedInBase(fresh)) {
+            return fresh.queue_authoritative_at || fresh.queue_entered_at || data?.queueEnteredAt || data?.serverNow;
+          }
+          await new Promise(resolve => setTimeout(resolve, 250));
+        }
+
+        // La función server-side ya confirmó el commit atómico. Si el realtime/GET
+        // tarda en reflejarlo, no volver a escribir la cola desde el teléfono.
+        return data?.queueEnteredAt || data?.serverNow || new Date().toISOString();
+      } catch (error) {
+        lastError = error;
+        // Una respuesta de red perdida puede ocultar un commit exitoso. Antes de
+        // reintentar, verificar el estado real y tratarlo como éxito si ya quedó sellado.
         const fresh = await base44.entities.Driver.get(myDriverId).catch(() => null);
-        if (fresh?.current_base === base &&
-            fresh?.queue_authoritative_base === base &&
-            fresh?.queue_authoritative_at) {
-          return fresh.queue_authoritative_at;
+        if (isSealedInBase(fresh)) {
+          return fresh.queue_authoritative_at || fresh.queue_entered_at;
+        }
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 400 * (attempt + 1)));
         }
       }
-      throw new Error("QUEUE_AUTHORITY_NOT_CONFIRMED");
     }
 
-    // Un CAS en cero puede significar simplemente que el servidor ya lo tenía en
-    // esa misma base. En ese caso conservar su antigüedad real; no es un error.
-    const fresh = await base44.entities.Driver.get(myDriverId);
-    const alreadyThere = fresh?.current_base === base &&
-      fresh?.status === "disponible" &&
-      (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
-      !fresh?.reserved_order_id && !fresh?.active_order_id && !fresh?.active_ride_id;
-    if (alreadyThere) return fresh.queue_authoritative_at || fresh.queue_entered_at || ts;
-    throw new Error("DRIVER_BUSY_OR_STATE_CHANGED");
+    throw lastError || new Error("QUEUE_AUTHORITY_NOT_CONFIRMED");
   };
 
   const handleEnterBase = async (base = selectedBase) => {
