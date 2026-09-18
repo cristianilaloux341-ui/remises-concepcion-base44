@@ -1925,90 +1925,30 @@ export default function DriverApp() {
     }
   };
 
-  // Anular viaje aceptado: vuelve al principio de la base asignada y el viaje pasa al siguiente
+  // Un viaje ya aceptado NUNCA puede volver a Pendientes directamente
+  // desde la APK. La Central/servidor conserva la autoridad sobre esa transición.
   const handleCancelRide = async () => {
     if (!activeOrder) return;
 
-    // Protección contra el click-through observado en producción: durante los
-    // primeros 4 segundos la pantalla puede haber aparecido debajo del dedo que
-    // acaba de tocar ACEPTAR. En ese lapso jamás se procesa una anulación.
+    // Protección contra click-through al aparecer la pantalla recién aceptada.
     const msSinceShown = Date.now() - (activeOrderShownAtRef.current || Date.now());
     if (msSinceShown < 4000) return;
 
-    const confirmed = window.confirm(
-      `¿Seguro que querés anular el viaje de ${activeOrder.client_name || "este pasajero"}? Quedará pendiente para revisión de la Central.`
+    window.alert(
+      "Un viaje ya aceptado no puede enviarse a Pendientes desde el teléfono. Para anularlo, comunicate con Central."
     );
-    if (!confirmed) return;
 
-    if (activeOrder.claimed_from_pending) {
-      window.alert("Este pasaje fue tomado desde Pendientes. Solo puede cancelarlo la Central o el cliente.");
-      return;
-    }
-    const base = activeOrder.assigned_base || myDriver?.current_base || null;
-    
-    // Lo marcamos pendiente y conservamos quiénes ya lo vieron SOLO como historial.
-    // Ese historial no bloquea que el mismo móvil pueda recibirlo otra vez si vuelve a corresponderle.
-    const updatedOfferedIds = [...new Set([...(activeOrder.offered_driver_ids || []), myDriverId])];
-    await updateOrder.mutateAsync({ 
-      id: activeOrder.id, 
-      data: { 
-        status: "pendiente", 
-        driver_id: null, 
-        reserved_driver_id: null,
-        driver_name: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        // Viaje ya aceptado y devuelto: queda fuera del despacho automático
-        // hasta que la Central decida reactivarlo.
-        offered_driver_ids: [myDriverId],
-        notes: `${activeOrder.notes || ""} [REVISION_CENTRAL_CANCELADO_CHOFER]`.trim()
-      } 
-    });
-    
     base44.entities.AuditLog.create({
-      action: "cancelar_viaje",
+      action: "CANCELACION_CHOFER_SOLICITADA",
       user_type: "chofer",
       user_name: myDriver?.name || "Chofer",
-      details: `Anuló el viaje de ${activeOrder.client_name} - Reasignando al siguiente`
+      details: `Solicitó anular el viaje ${activeOrder.id}; la APK no modificó el viaje ni liberó el móvil.`,
+      metadata: {
+        orderId: activeOrder.id,
+        driverId: myDriverId,
+        status: activeOrder.status
+      }
     }).catch(() => {});
-
-    // Si el chofer anula un viaje que ya tenía, vuelve disponible pero al FINAL
-    // de su cola/base. Posición 1 queda reservada para cancelación del cliente/operador.
-    const ts = new Date().toISOString();
-    const releaseCancelledRide = await base44.entities.Driver.updateMany(
-      {
-        id: myDriverId,
-        $or: [
-          { active_order_id: activeOrder.id },
-          { active_ride_id: activeOrder.id },
-          { reserved_order_id: activeOrder.id }
-        ]
-      },
-      { $set: {
-        status: "disponible",
-        dispatch_status: "normal",
-        current_base: base,
-        queue_entered_at: ts,
-        active_order_id: null,
-        active_ride_id: null,
-        reserved_order_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null
-      } }
-    );
-    if ((releaseCancelledRide.updated ?? releaseCancelledRide.modifiedCount ?? 0) < 1) {
-      window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
-      return;
-    }
-    setLocalOverride({ status: "disponible", current_base: base, queue_entered_at: ts });
-    setLibreBlockedSegs(0); // al anular no aplica bloqueo
-    localStorage.removeItem(`libre_block_started_at_${myDriverId}`);
-
-    // MODO SEGURO: un viaje YA ACEPTADO que el chofer cancela NO se reasigna
-    // automáticamente. Queda pendiente para que el operador decida a quién reactivarlo.
-    // Esto evita cadenas de reasignación/cancelación mientras estabilizamos el despacho.
-    window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
   };
 
   const handleGoOnService = async () => {
