@@ -409,6 +409,11 @@ Deno.serve(async (req) => {
       const releasedDriver = await b44.entities.Driver.get(driverId).catch(()=>null);
       const queueBase = legacyOrder?.assigned_base || legacyOrder?.zone || oldData.current_base || eventData.current_base || null;
       const previousAuthorityAt = oldData.queue_authoritative_at || oldData.queue_entered_at || null;
+      const previousQueuePosition = Number(oldData.queue_position);
+      const hasPreviousQueuePosition =
+        oldData.queue_authoritative_base === queueBase &&
+        Number.isFinite(previousQueuePosition) &&
+        previousQueuePosition > 0;
       
       let reconciled = false;
       if (releasedDriver && queueBase &&
@@ -424,14 +429,21 @@ Deno.serve(async (req) => {
             $or:[{ current_base:null }, { current_base:queueBase }],
             reserved_order_id: null,
             active_order_id: null,
-            active_ride_id: null
+            active_ride_id: null,
+            queue_position: releasedDriver.queue_position ?? null,
+            queue_authority_marker: releasedDriver.queue_authority_marker ?? null,
+            manual_reorder_token: releasedDriver.manual_reorder_token ?? null
           },
           {
             $set: {
               current_base: queueBase,
               queue_authoritative_base: queueBase,
               queue_entered_at: oldData.queue_entered_at || previousAuthorityAt,
-              queue_authoritative_at: previousAuthorityAt
+              queue_authoritative_at: previousAuthorityAt,
+              ...(hasPreviousQueuePosition ? {
+                queue_position: previousQueuePosition,
+                queue_authority_marker: oldData.queue_authority_marker ?? previousQueuePosition
+              } : {})
             }
           }
         );
