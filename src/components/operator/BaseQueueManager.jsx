@@ -425,11 +425,13 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
   const getLinkedMovil = (d) => {
     const mobileId = String(d.vehicle_model || "");
     const mobileNumber = parseInt(mobileId, 10);
+    const driverPlate = String(d.vehicle_plate || "").replace(/\s+/g, "").toUpperCase();
     return moviles?.find(m =>
       m.id === mobileId ||
       m.numero_movil === mobileNumber ||
       m.driver_id === d.id ||
-      (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id))
+      (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id)) ||
+      (driverPlate && String(m.dominio || "").replace(/\s+/g, "").toUpperCase() === driverPlate)
     );
   };
 
