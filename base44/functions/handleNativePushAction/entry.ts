@@ -25,63 +25,118 @@ Deno.serve(async (req) => {
       : null;
     const nativeAssignmentAttempt = attemptFromPayload ?? attemptFromOrderId;
     const realOrderId = String(orderId).replace(/_att_\d+$/, '');
+    const supportsAlertPresented =
+      payload.supportsAlertPresented === true ||
+      String(payload.supportsAlertPresented || '').toLowerCase() === 'true';
 
     if (action === "native_ack") {
       const driver = await b44.entities.Driver.get(driverId).catch(() => null);
       const order = await b44.entities.RideOrder.get(realOrderId).catch(() => null);
 
-      // PUSH_RECEIVED: confirma que FCM llegó al proceso nativo. NO modifica
-      // offerExpiresAt. Los 30 s reales empiezan únicamente con ALERT_PRESENTED.
+      // PUSH_RECEIVED confirma que FCM llegó al proceso nativo. La nueva
+      // v12.31 se identifica explícitamente con supportsAlertPresented=true.
+      // Sólo en ese protocolo ampliamos el TECHO DE ENTREGA hasta assigned_at+50s;
+      // la ventana de respuesta de 30s sigue esperando ALERT_PRESENTED.
       let ackRecorded = false;
+      let protocolEnabled = false;
       if (
         order &&
         order.status === "ofrecido" &&
         order.reserved_driver_id === driverId &&
         (nativeAssignmentAttempt == null || Number(order.assignment_attempt) === Number(nativeAssignmentAttempt))
       ) {
-        const receivedAt = new Date().toISOString();
-        const ackResult = await b44.entities.RideOrder.updateMany(
-          {
-            id: realOrderId,
-            status: "ofrecido",
-            reserved_driver_id: driverId,
-            reservation_token: order.reservation_token,
-            assignment_attempt: order.assignment_attempt,
-            $or: [
-              { push_ack_assignment_attempt: null },
-              { push_ack_assignment_attempt: { $exists: false } },
-              { push_ack_assignment_attempt: { $ne: Number(order.assignment_attempt) } }
-            ]
-          },
-          {
-            $set: {
-              push_ack_at: receivedAt,
-              push_ack_assignment_attempt: order.assignment_attempt
+        const ackAlreadyRecorded =
+          Boolean(order.push_ack_at) &&
+          Number(order.push_ack_assignment_attempt) === Number(order.assignment_attempt);
+        const receivedAt = ackAlreadyRecorded ? order.push_ack_at : new Date().toISOString();
+        const presentedAlready =
+          Boolean(order.alert_presented_at) &&
+          Number(order.alert_presented_assignment_attempt) === Number(order.assignment_attempt);
+
+        if (supportsAlertPresented) {
+          const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : Date.now();
+          const deliveryHardCap = assignedMs + 50000;
+          const currentExpiry = Number(order.offerExpiresAt);
+          const targetExpiry = presentedAlready
+            ? currentExpiry
+            : Math.max(Number.isFinite(currentExpiry) ? currentExpiry : 0, deliveryHardCap);
+
+          const protocolResult = await b44.entities.RideOrder.updateMany(
+            {
+              id: realOrderId,
+              status: "ofrecido",
+              reserved_driver_id: driverId,
+              reservation_token: order.reservation_token,
+              assignment_attempt: order.assignment_attempt
+            },
+            {
+              $set: {
+                push_ack_at: receivedAt,
+                push_ack_assignment_attempt: order.assignment_attempt,
+                alert_presented_protocol_attempt: order.assignment_attempt,
+                offerExpiresAt: targetExpiry
+              }
             }
-          }
-        );
-        ackRecorded =
-          (ackResult?.updated ?? ackResult?.matchedCount ?? ackResult?.modifiedCount ?? 0) === 1;
+          );
+          protocolEnabled =
+            (protocolResult?.updated ?? protocolResult?.matchedCount ?? protocolResult?.modifiedCount ?? 0) === 1;
+          ackRecorded = protocolEnabled && !ackAlreadyRecorded;
+        } else if (!ackAlreadyRecorded) {
+          const ackResult = await b44.entities.RideOrder.updateMany(
+            {
+              id: realOrderId,
+              status: "ofrecido",
+              reserved_driver_id: driverId,
+              reservation_token: order.reservation_token,
+              assignment_attempt: order.assignment_attempt,
+              $or: [
+                { push_ack_assignment_attempt: null },
+                { push_ack_assignment_attempt: { $exists: false } },
+                { push_ack_assignment_attempt: { $ne: Number(order.assignment_attempt) } }
+              ]
+            },
+            {
+              $set: {
+                push_ack_at: receivedAt,
+                push_ack_assignment_attempt: order.assignment_attempt
+              }
+            }
+          );
+          ackRecorded =
+            (ackResult?.updated ?? ackResult?.matchedCount ?? ackResult?.modifiedCount ?? 0) === 1;
+        }
       }
 
-      // Sólo el primer ACK del intento dispara el workflow de reintento; ACKs
-      // duplicados del mismo FCM/reenvío no crean otra ventana ni otro reintento.
+      // Sólo el primer ACK genera push_ack_recibido para no duplicar workflows.
       await b44.entities.AuditLog.create({
         action: ackRecorded ? "push_ack_recibido" : "push_ack_ignorado",
         user_type: "sistema",
         user_name: driver?.name || "Chofer",
         details: ackRecorded
-          ? `PUSH_RECEIVED confirmado. El reloj de 30 s todavía no comenzó; espera ALERT_PRESENTED.`
-          : `ACK duplicado o de una oferta que ya cambió; no se modificó el reloj.`,
+          ? (supportsAlertPresented
+              ? `PUSH_RECEIVED v12.31 confirmado. Esperando ALERT_PRESENTED antes de iniciar los 30 s.`
+              : `PUSH_RECEIVED legacy confirmado.`)
+          : `ACK duplicado o de una oferta que ya cambió; no se abrió otra ventana.`,
         metadata: {
           orderId: realOrderId,
           driverId,
           assignmentAttempt: order?.assignment_attempt ?? nativeAssignmentAttempt ?? null,
-          ackRecorded
+          ackRecorded,
+          supportsAlertPresented,
+          protocolEnabled
         }
       }).catch(() => {});
 
-      return Response.json({ success: true, ackRecorded });
+      if (protocolEnabled && order) {
+        b44.functions.invoke("autoReassignOnTimeout", {
+          orderId: realOrderId,
+          driverId,
+          assignmentAttempt: order.assignment_attempt,
+          internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+        }).catch((e: any) => console.error("Error despertando watchdog tras PUSH_RECEIVED v12.31", e));
+      }
+
+      return Response.json({ success: true, ackRecorded, protocolEnabled });
     } else if (action === "native_alert_presented") {
       const driver = await b44.entities.Driver.get(driverId).catch(() => null);
       const order = await b44.entities.RideOrder.get(realOrderId).catch(() => null);
@@ -131,6 +186,7 @@ Deno.serve(async (req) => {
           $set: {
             alert_presented_at: presentedAt,
             alert_presented_assignment_attempt: order.assignment_attempt,
+            alert_presented_protocol_attempt: order.assignment_attempt,
             offerExpiresAt: targetExpiry
           }
         }
