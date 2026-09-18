@@ -41,7 +41,7 @@ public class RideAlertController {
         }
     }
 
-    public synchronized boolean startAlert(final Context context, final String orderId, String title, String body, Intent acceptIntent, Intent rejectIntent, final Intent openAppIntent) {
+    public synchronized void startAlert(final Context context, final String orderId, String title, String body, Intent acceptIntent, Intent rejectIntent, final Intent openAppIntent) {
         logDebug("startAlert: Intentando iniciar alerta para orderId=" + orderId);
         
         // Si ya hay algo sonando, detenerlo primero
@@ -128,46 +128,22 @@ public class RideAlertController {
         }
 
         android.app.Notification notification = builder.build();
-        // FLAG_INSISTENT fuerza al sistema operativo a repetir el sonido mientras la
-        // oferta siga viva. El servidor enviará la orden de cierre al resolverse.
+        // FLAG_INSISTENT fuerza al sistema operativo a repetir el sonido indefinidamente sin importar el estado de doze
         notification.flags |= android.app.Notification.FLAG_INSISTENT;
+        notificationManager.notify(reqCode, notification);
+        Log.e(TAG, "FCM_NOTIFICATION_CREATED - ID " + reqCode + " WITH FLAG_INSISTENT");
 
-        try {
-            // No declaramos ALERT_PRESENTED si Android tiene bloqueadas las
-            // notificaciones o el canal fue deshabilitado por el usuario.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !notificationManager.areNotificationsEnabled()) {
-                Log.e(TAG, "ALERT_NOT_PRESENTED - notificaciones deshabilitadas para la app");
-                currentOrderId = null;
-                return false;
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                NotificationChannel activeChannel = notificationManager.getNotificationChannel(channelId);
-                if (activeChannel != null && activeChannel.getImportance() == NotificationManager.IMPORTANCE_NONE) {
-                    Log.e(TAG, "ALERT_NOT_PRESENTED - canal de viajes deshabilitado");
-                    currentOrderId = null;
-                    return false;
-                }
-            }
+        // --- SOLUCIÓN CRÍTICA DE SONIDO EN MAIN THREAD REMOVIDA ---
+        // Se confía enteramente en NotificationCompat y FLAG_INSISTENT por incompatibilidad de MediaPlayer con Android 14+
 
-            notificationManager.notify(reqCode, notification);
-            Log.e(TAG, "FCM_NOTIFICATION_CREATED - ID " + reqCode + " WITH FLAG_INSISTENT");
-        } catch (Exception e) {
-            Log.e(TAG, "ALERT_NOT_PRESENTED - Android rechazó la publicación de la notificación", e);
-            currentOrderId = null;
-            return false;
-        }
-
-        // Failsafe local: empieza en el mismo punto en que se publicó el alerta.
-        // 35 s da margen de red al vencimiento autoritativo de 30 s del servidor.
-        // Normalmente el push de cancelación/reasignación la corta antes.
+        // Temporizador de vencimiento (60s)
         timeoutRunnable = new Runnable() {
             @Override
             public void run() {
-                stopAlert(context, orderId, "Vencimiento de failsafe nativo posterior a ALERT_PRESENTED");
+                stopAlert(context, orderId, "Vencimiento de temporizador nativo");
             }
         };
-        timeoutHandler.postDelayed(timeoutRunnable, 35000);
-        return true;
+        timeoutHandler.postDelayed(timeoutRunnable, 60000);
     }
 
     public synchronized void stopAlert(Context context, String orderId, String reason) {

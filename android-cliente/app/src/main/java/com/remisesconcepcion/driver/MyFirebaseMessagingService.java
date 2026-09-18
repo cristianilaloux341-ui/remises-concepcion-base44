@@ -83,30 +83,15 @@ public class MyFirebaseMessagingService extends MessagingService {
                 return;
             }
             
+            Log.e(TAG, "Construyendo notificación interactiva nativa para viaje...");
+            showInteractiveNotification(data);
+            
+            // 3. Enviar ACK de recepción (Fire-and-forget) al servidor de forma nativa
             String apiUrl = data.get("apiUrl");
             String driverId = data.get("driverId");
-
-            // 3. PUSH_RECEIVED sale apenas FCM entra al proceso nativo. La bandera
-            // supportsAlertPresented activa el protocolo nuevo sólo para esta APK.
             if (apiUrl != null && orderId != null && driverId != null) {
-                String ackPayload = String.format(
-                        "{\"action\":\"native_ack\", \"orderId\":\"%s\", \"driverId\":\"%s\", \"assignmentAttempt\":%d, \"supportsAlertPresented\":true}",
-                        orderId, driverId, incomingAttempt);
-                sendSignalToServer(apiUrl, ackPayload, "PUSH_RECEIVED");
-            }
-
-            Log.e(TAG, "Construyendo notificación interactiva nativa para viaje...");
-            boolean alertPresented = showInteractiveNotification(data);
-
-            // 4. ALERT_PRESENTED se emite únicamente si Android aceptó publicar la
-            // notificación. Recién esta señal abre los 30 s reales en el servidor.
-            if (alertPresented && apiUrl != null && orderId != null && driverId != null) {
-                String shownPayload = String.format(
-                        "{\"action\":\"native_alert_presented\", \"orderId\":\"%s\", \"driverId\":\"%s\", \"assignmentAttempt\":%d, \"supportsAlertPresented\":true}",
-                        orderId, driverId, incomingAttempt);
-                sendSignalToServer(apiUrl, shownPayload, "ALERT_PRESENTED");
-            } else if (!alertPresented) {
-                Log.e(TAG, "ALERT_PRESENTED NO enviado: Android no confirmó publicación del alerta.");
+                String payload = String.format("{\"action\":\"native_ack\", \"orderId\":\"%s\", \"driverId\":\"%s\"}", orderId, driverId);
+                sendAckToServer(apiUrl, payload);
             }
         }
 
@@ -123,7 +108,7 @@ public class MyFirebaseMessagingService extends MessagingService {
         super.onMessageReceived(remoteMessage);
     }
 
-    private void sendSignalToServer(String apiUrl, String jsonPayload, String signalName) {
+    private void sendAckToServer(String apiUrl, String jsonPayload) {
         new Thread(() -> {
             try {
                 java.net.URL url = new java.net.URL(apiUrl);
@@ -138,14 +123,14 @@ public class MyFirebaseMessagingService extends MessagingService {
                     os.write(input, 0, input.length);
                 }
                 int code = conn.getResponseCode();
-                Log.e(TAG, signalName + " enviado nativamente. HTTP " + code);
+                Log.e(TAG, "ACK de Push enviado nativamente. HTTP " + code);
             } catch (Exception e) {
-                Log.e(TAG, "Error enviando señal nativa " + signalName, e);
+                Log.e(TAG, "Error enviando ACK nativo", e);
             }
         }).start();
     }
 
-    private boolean showInteractiveNotification(Map<String, String> data) {
+    private void showInteractiveNotification(Map<String, String> data) {
         String orderId = data.get("orderId");
         String driverId = data.get("driverId");
         String driverName = data.get("driverName");
@@ -176,10 +161,8 @@ public class MyFirebaseMessagingService extends MessagingService {
         Intent openAppIntent = new Intent(context, MainActivity.class);
         openAppIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
-        // Delegar la alerta al controlador centralizado. true significa que
-        // NotificationManager.notify() fue aceptado y el canal está habilitado.
-        return RideAlertController.getInstance().startAlert(
-                context, orderId, title, body, acceptIntent, rejectIntent, openAppIntent);
+        // Delegar la alerta al controlador centralizado
+        RideAlertController.getInstance().startAlert(context, orderId, title, body, acceptIntent, rejectIntent, openAppIntent);
     }
 
     @Override
