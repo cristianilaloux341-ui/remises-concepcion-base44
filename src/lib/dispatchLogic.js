@@ -34,6 +34,16 @@ export function sortQueue(driversArray) {
     const posA = Number.isFinite(Number(a.queue_position)) && Number(a.queue_position) > 0 ? Number(a.queue_position) : Infinity;
     const posB = Number.isFinite(Number(b.queue_position)) && Number(b.queue_position) > 0 ? Number(b.queue_position) : Infinity;
     if (posA !== posB) return posA - posB;
+
+    // Si excepcionalmente dos móviles comparten posición, mostrar primero al que
+    // realmente tiene más antigüedad en la cola. Evita que la UI desempate por ID
+    // y muestre un orden distinto al que después normaliza el servidor.
+    const atA = new Date(a.queue_authoritative_at || a.queue_entered_at || 0).getTime();
+    const atB = new Date(b.queue_authoritative_at || b.queue_entered_at || 0).getTime();
+    const safeAtA = Number.isFinite(atA) && atA > 0 ? atA : Infinity;
+    const safeAtB = Number.isFinite(atB) && atB > 0 ? atB : Infinity;
+    if (safeAtA !== safeAtB) return safeAtA - safeAtB;
+
     return (a.id || "").localeCompare(b.id || "");
   });
 }
