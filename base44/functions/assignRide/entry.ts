@@ -302,11 +302,9 @@ Deno.serve(async (req) => {
 
     // 2. Config ya cargada en paralelo con las validaciones anteriores.
     const config = tarifaConfigs[0] || {};
-    // Regla operativa fija: 30 s TOTALES por móvil. El ACK no extiende este techo.
-    // Antes de que Android confirme que el alerta fue presentado damos un
-    // techo de entrega de 50 s. En cuanto llega ALERT_PRESENTED, el servidor
-    // reemplaza este valor por 30 s reales desde esa presentación.
-    const deliveryHardCapSeconds = 50;
+    // Compatibilidad: toda oferta nace con los 30 s históricos. Sólo la
+    // nueva v12.31 puede activar el protocolo ALERT_PRESENTED desde native_ack.
+    const timeoutSeconds = 30;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     // Una asignación manual siempre debe esperar la aceptación del chofer.
     const autoAceptarViajes = payload.requireDriverConfirmation === true
@@ -321,11 +319,11 @@ Deno.serve(async (req) => {
     // Set protege además contra datos históricos duplicados.
     const offeredIds = [...new Set([...(orderReq.offered_driver_ids || []), driverId])];
 
-    // offerExpiresAt sigue siendo la única autoridad de tiempo, pero mientras
-    // todavía no sabemos si Android mostró el alerta representa solamente el techo
-    // de entrega. ALERT_PRESENTED lo sustituye por presented_at + 30 s.
+    // offerExpiresAt sigue siendo la única autoridad de tiempo.
+    // En APK legacy son los 30 s normales. La nueva v12.31, al confirmar soporte
+    // del protocolo, obtiene un techo de entrega antes de ALERT_PRESENTED.
     const assignedAt = new Date().toISOString();
-    const offerExpiresAt = Date.now() + (deliveryHardCapSeconds * 1000);
+    const offerExpiresAt = Date.now() + (timeoutSeconds * 1000);
 
     // Update memory object for Push payload
     orderReq.assignment_attempt = newAttempt;
@@ -338,6 +336,7 @@ Deno.serve(async (req) => {
     orderReq.push_ack_assignment_attempt = null;
     orderReq.alert_presented_at = null;
     orderReq.alert_presented_assignment_attempt = null;
+    orderReq.alert_presented_protocol_attempt = null;
     orderReq.delivery_retry_count = 0;
     if (requestedManual) {
       orderReq.notes = String(orderReq.notes || '')
@@ -396,6 +395,7 @@ Deno.serve(async (req) => {
           push_ack_assignment_attempt: null,
           alert_presented_at: null,
           alert_presented_assignment_attempt: null,
+          alert_presented_protocol_attempt: null,
           delivery_retry_count: 0
         });
       }
