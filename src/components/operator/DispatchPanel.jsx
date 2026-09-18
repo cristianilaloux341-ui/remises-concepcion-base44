@@ -214,7 +214,10 @@ function OfferCountdown({ order }) {
 export default function DispatchPanel({ orders, drivers, bases, moviles, onOrderClick }) {
   const [dispatchingAll, setDispatchingAll] = useState(false);
 
-  const pending = orders.filter(o => o.status === "pendiente");
+  const pending = orders.filter(o =>
+    o.status === "pendiente" &&
+    !(o.offerExpiresAt != null && Number.isFinite(Number(o.offerExpiresAt)) && Number(o.assignment_attempt || 0) > 0)
+  );
   const active = orders.filter(o => ["ofrecido", "aceptado", "en_camino", "en_viaje"].includes(o.status));
 
   const handleDispatchAll = async () => {
