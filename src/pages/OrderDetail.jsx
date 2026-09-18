@@ -134,15 +134,11 @@ export default function OrderDetail() {
         { id: { $in: toCancel }, $or: [{ active_order_id: order.id }, { active_ride_id: order.id }, { reserved_order_id: order.id }] },
         {
           $set: {
+            // Cancelar el pasaje libera únicamente el estado comercial. La cola
+            // NO se borra: base/posición siguen siendo autoridad server-side y así
+            // nunca existe una ventana donde el móvil desaparezca de Central.
             status: "disponible",
             dispatch_status: "normal",
-            current_base: null,
-            queue_entered_at: null,
-            queue_authoritative_base: null,
-            queue_authoritative_at: null,
-            queue_authority_marker: null,
-            queue_position: null,
-            queue_left_at: null,
             active_order_id: null,
             active_ride_id: null,
             reserved_order_id: null,
