@@ -100,28 +100,17 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
 
   const removeMutation = useMutation({
     mutationFn: async (driver) => {
-      const res = await base44.entities.Driver.updateMany(
-        {
-          id: driver.id,
-          current_base: baseName,
-          status: "disponible",
-          dispatch_status: "normal",
-          reserved_order_id: null,
-          active_order_id: null,
-          active_ride_id: null
-        },
-        { $set: {
-          current_base: null, status: "no_disponible", queue_entered_at: null,
-          queue_authoritative_base: null, queue_authoritative_at: null,
-          queue_authority_marker: null, queue_position: null, queue_left_at: null,
-          dispatch_status: "normal", active_order_id: null, active_ride_id: null,
-          reserved_order_id: null, reservation_token: null,
-          manual_reservation_token: null, driver_reservation_key: null
-        } }
-      );
-      const changed = res?.updated ?? res?.modifiedCount ?? res?.matchedCount ?? 0;
-      if (changed < 1) throw new Error("El móvil cambió de estado o recibió un pasaje. No se lo sacó de la lista.");
-      return res;
+      const sessionToken = sessionStorage.getItem('local_operator_token') || null;
+      const res = await base44.functions.invoke('leaveDriverQueue', {
+        driverId: driver.id,
+        source: "central_queue_editor",
+        sessionToken
+      });
+      const data = res?.data || res;
+      if (data?.success !== true && data?.idempotent !== true) {
+        throw new Error(data?.reason || "El móvil cambió de estado o recibió un pasaje. No se lo sacó de la lista.");
+      }
+      return data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["drivers"] }),
   });
@@ -156,49 +145,38 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {} }) {
         throw new Error(`El móvil tiene un viaje u oferta activa. Esperá a que termine antes de ponerlo en ${baseName}.`);
       }
 
-      // Entrada autoritativa: la copia `driver` del modal puede estar atrasada.
-      // El servidor decide si realmente cambia de base; si YA estaba aquí, el CAS
-      // no escribe y conserva intacta su antigüedad.
-      const ts = new Date().toISOString();
-      const entered = await base44.entities.Driver.updateMany(
-        {
-          id: driver.id,
-          status: "disponible",
-          dispatch_status: "normal",
-          reserved_order_id: null,
-          active_order_id: null,
-          active_ride_id: null,
-          current_base: { $ne: baseName }
-        },
-        { $set: {
-          current_base: baseName,
-          status: "disponible",
-          dispatch_status: "normal",
-          queue_entered_at: ts,
-          // La Central solicita la entrada pero NO inventa la posición. El workflow
-          // server-side sellará queue_authoritative_* detrás del último real.
-          queue_authoritative_base: null,
-          queue_authoritative_at: null,
-          queue_authority_marker: null,
-          queue_position: null,
-          active_order_id: null,
-          active_ride_id: null,
-          reserved_order_id: null,
-          reservation_token: null,
-          manual_reservation_token: null,
-          driver_reservation_key: null
-        } }
-      );
-      const changed = entered?.updated ?? entered?.modifiedCount ?? entered?.matchedCount ?? 0;
-      if (changed > 0) return base44.entities.Driver.get(driver.id);
-
-      const fresh = await base44.entities.Driver.get(driver.id);
-      if (fresh?.current_base === baseName && fresh?.status === "disponible" &&
-          (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
-          !fresh?.reserved_order_id && !fresh?.active_order_id && !fresh?.active_ride_id) {
-        return fresh;
+      // Misma entrada atómica que usa la APK: Central nunca publica un estado
+      // intermedio con queue_position=null.
+      const sessionToken = sessionStorage.getItem('local_operator_token') || null;
+      const entered = await base44.functions.invoke('enterDriverQueue', {
+        driverId: driver.id,
+        baseName,
+        sessionToken
+      });
+      const data = entered?.data || entered;
+      if (data?.success !== true && data?.idempotent !== true) {
+        throw new Error(data?.reason || `El móvil cambió de estado. No se modificó su posición en ${baseName}.`);
       }
-      throw new Error(`El móvil cambió de estado. No se modificó su posición en ${baseName}.`);
+
+      for (let check = 0; check < 8; check++) {
+        const fresh = await base44.entities.Driver.get(driver.id).catch(() => null);
+        const pos = Number(fresh?.queue_position);
+        const marker = Number(fresh?.queue_authority_marker);
+        if (fresh?.current_base === baseName &&
+            fresh?.queue_authoritative_base === baseName &&
+            fresh?.status === "disponible" &&
+            (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
+            Number.isFinite(pos) && pos > 0 &&
+            Number.isFinite(marker) && marker === pos &&
+            !fresh?.reserved_order_id && !fresh?.active_order_id && !fresh?.active_ride_id) {
+          return fresh;
+        }
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
+      // El backend ya confirmó el commit. Si la lectura todavía viene atrasada,
+      // refrescar la Central sin volver a escribir la cola.
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drivers"] });
@@ -366,21 +344,17 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     // Salida de servicio rápida con .00 o .0
     if (baseNumStr === "00" || baseNumStr === "0") {
     try {
-      await base44.entities.Driver.update(driver.id, {
-        current_base: null,
-        status: "no_disponible",
-        dispatch_status: "normal",
-        reserved_order_id: null,
-        queue_entered_at: null,
-        queue_authoritative_base: null,
-        queue_authoritative_at: null,
-        active_order_id: null,
-        active_ride_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null
+      const sessionToken = sessionStorage.getItem('local_operator_token') || null;
+      const res = await base44.functions.invoke('leaveDriverQueue', {
+        driverId: driver.id,
+        source: "central_quick_assign",
+        sessionToken
       });
-        window.dispatchEvent(new Event("force-driver-refresh"));
+      const data = res?.data || res;
+      if (data?.success !== true && data?.idempotent !== true) {
+        throw new Error(data?.reason || "No se pudo sacar el móvil de servicio.");
+      }
+      window.dispatchEvent(new Event("force-driver-refresh"));
       } catch (err) {
       }
       setIsProcessing(false);
@@ -397,9 +371,11 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     try {
       // Se utiliza la misma función estricta que los choferes para prevenir
       // condiciones de carrera y garantizar el orden exacto en base.
+      const sessionToken = sessionStorage.getItem('local_operator_token') || null;
       const res = await base44.functions.invoke('enterDriverQueue', {
         driverId: driver.id,
-        baseName: baseName
+        baseName: baseName,
+        sessionToken
       });
       
       const data = res?.data || res;
