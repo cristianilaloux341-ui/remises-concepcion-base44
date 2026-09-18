@@ -89,13 +89,15 @@ export default function Dashboard() {
   const dashboardDriverIds = [...new Set(drivers.map(d => d.id).filter(Boolean))].sort();
   const dashboardMobileIds = [...new Set(drivers.map(d => String(d.vehicle_model || "")).filter(Boolean))].sort();
   const dashboardMobileNumbers = [...new Set(drivers.map(d => parseInt(String(d.vehicle_model || ""), 10)).filter(Number.isFinite))].sort((a, b) => a - b);
+  const dashboardMobilePlates = [...new Set(drivers.map(d => String(d.vehicle_plate || "").trim()).filter(Boolean))].sort();
 
   const { data: moviles = [] } = useQuery({
-    queryKey: ["moviles_dashboard", dashboardDriverIds.join(","), dashboardMobileIds.join(","), dashboardMobileNumbers.join(",")],
+    queryKey: ["moviles_dashboard", dashboardDriverIds.join(","), dashboardMobileIds.join(","), dashboardMobileNumbers.join(","), dashboardMobilePlates.join(",")],
     queryFn: () => {
       const clauses = [];
       if (dashboardMobileIds.length) clauses.push({ id: { $in: dashboardMobileIds } });
       if (dashboardMobileNumbers.length) clauses.push({ numero_movil: { $in: dashboardMobileNumbers } });
+      if (dashboardMobilePlates.length) clauses.push({ dominio: { $in: dashboardMobilePlates } });
       if (dashboardDriverIds.length) {
         clauses.push({ driver_id: { $in: dashboardDriverIds } });
         clauses.push({ driver_ids: { $in: dashboardDriverIds } });
@@ -255,11 +257,13 @@ export default function Dashboard() {
     if (d.status !== "disponible") return false;
     const mobileId = String(d.vehicle_model || "");
     const mobileNumber = parseInt(mobileId, 10);
+    const driverPlate = String(d.vehicle_plate || "").replace(/\s+/g, "").toUpperCase();
     const movil = moviles?.find(m =>
       m.id === mobileId ||
       m.numero_movil === mobileNumber ||
       m.driver_id === d.id ||
-      (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id))
+      (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id)) ||
+      (driverPlate && String(m.dominio || "").replace(/\s+/g, "").toUpperCase() === driverPlate)
     );
     if (!movil || movil.activo === false || movil.fuera_de_servicio === true || movil.suspension_motivo) {
       return false;
