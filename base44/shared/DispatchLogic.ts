@@ -108,7 +108,7 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
       reserved_driver_id: driver.id,
       manual_reservation_token: null
     };
-    for (const field of ['driver_name', 'assigned_base', 'assigned_at', 'offerExpiresAt', 'assignment_attempt', 'offered_driver_ids', 'notes', 'push_ack_at', 'push_ack_assignment_attempt', 'delivery_retry_count']) {
+    for (const field of ['driver_name', 'assigned_base', 'assigned_at', 'offerExpiresAt', 'assignment_attempt', 'offered_driver_ids', 'notes', 'push_ack_at', 'push_ack_assignment_attempt', 'alert_presented_at', 'alert_presented_assignment_attempt', 'delivery_retry_count']) {
       if (order[field] !== undefined) offerSet[field] = order[field];
     }
 
