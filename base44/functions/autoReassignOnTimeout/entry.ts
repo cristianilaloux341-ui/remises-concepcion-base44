@@ -46,6 +46,229 @@ Deno.serve(async (req) => {
       ).catch(()=>{});
     }
 
+    const alertPresentedProtocolEnabled =
+      Number(order.alert_presented_protocol_attempt) === Number(assignmentAttempt);
+
+    // ── v12.31: ventana real desde ALERT_PRESENTED ──────────────────────────
+    // Esta rama sólo existe para APKs que se identificaron explícitamente con
+    // supportsAlertPresented=true. Las APK anteriores siguen por el camino legacy
+    // de abajo sin ningún cambio de comportamiento.
+    if (alertPresentedProtocolEnabled) {
+      let protocolExpiresAt = expiresAt;
+      let presentedThisAttempt = Boolean(
+        order.alert_presented_at &&
+        Number(order.alert_presented_assignment_attempt) === Number(assignmentAttempt)
+      );
+      let protocolRetryCount = Number(order.delivery_retry_count || 0);
+
+      const assignedMs = order.assigned_at
+        ? new Date(order.assigned_at).getTime()
+        : Date.now();
+      const ackedThisAttempt = Boolean(
+        order.push_ack_at &&
+        Number(order.push_ack_assignment_attempt) === Number(assignmentAttempt)
+      );
+      const rawAckMs = ackedThisAttempt ? new Date(order.push_ack_at).getTime() : NaN;
+      const retryAnchorMs = Number.isFinite(rawAckMs) ? rawAckMs : assignedMs;
+      const deliveryRetryAt = retryAnchorMs + 8000;
+
+      let nowMs = Date.now();
+
+      // Si FCM llegó pero Android todavía no confirmó que publicó el alerta,
+      // reenviamos UNA sola vez a los 8 s. Conserva el mismo assignment_attempt.
+      if (
+        !presentedThisAttempt &&
+        protocolRetryCount === 0 &&
+        nowMs >= deliveryRetryAt &&
+        nowMs < protocolExpiresAt
+      ) {
+        const retryCas = await b44.entities.RideOrder.updateMany(
+          {
+            id: orderId,
+            status: 'ofrecido',
+            reserved_driver_id: driverId,
+            reservation_token: order.reservation_token,
+            assignment_attempt: Number(assignmentAttempt),
+            alert_presented_protocol_attempt: Number(assignmentAttempt),
+            $or: [
+              { delivery_retry_count: 0 },
+              { delivery_retry_count: null },
+              { delivery_retry_count: { $exists: false } }
+            ]
+          },
+          { $set: { delivery_retry_count: 1 } }
+        ).catch(() => ({ updated: 0 }));
+
+        const retryWon =
+          (retryCas?.updated ?? retryCas?.matchedCount ?? retryCas?.modifiedCount ?? 0) === 1;
+
+        // Aunque otro worker haya ganado el CAS, para este worker el reintento ya
+        // se considera consumido y no debe volver a competir.
+        protocolRetryCount = 1;
+
+        if (retryWon) {
+          const retryPush = await b44.functions.invoke('sendPushNotification', {
+            action: 'send',
+            driverId,
+            orderId,
+            orderData: {
+              pickup_address: order.pickup_address,
+              dropoff_address: order.dropoff_address,
+              fare: order.fare,
+              notes: order.notes,
+              assignmentAttempt: Number(assignmentAttempt)
+            },
+            internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+          }).catch((e: any) => ({ data: { ok: false, error: e?.message || String(e) } }));
+
+          await b44.entities.AuditLog.create({
+            action: 'OFFER_DELIVERY_RETRY_SENT_8S',
+            user_type: 'sistema',
+            user_name: 'autoReassignOnTimeout',
+            details: `Sin ALERT_PRESENTED a los 8 s; se reenvió una vez la misma oferta ${orderId}.`,
+            metadata: {
+              orderId,
+              driverId,
+              assignmentAttempt: Number(assignmentAttempt),
+              offerExpiresAt: protocolExpiresAt,
+              retryPushOk: (retryPush?.data || retryPush)?.ok !== false
+            }
+          }).catch(() => {});
+        }
+      }
+
+      nowMs = Date.now();
+      if (protocolExpiresAt > nowMs) {
+        let nextWakeAt = protocolExpiresAt;
+        if (
+          !presentedThisAttempt &&
+          protocolRetryCount === 0 &&
+          deliveryRetryAt > nowMs
+        ) {
+          nextWakeAt = Math.min(deliveryRetryAt, protocolExpiresAt);
+        }
+
+        const targetWaitMs = Math.max(500, nextWakeAt - nowMs);
+        const maxSafeWaitMs = 8000;
+        const isFinalWait = targetWaitMs <= maxSafeWaitMs;
+        const waitMs = Math.min(maxSafeWaitMs, targetWaitMs);
+
+        await new Promise(r => setTimeout(r, waitMs));
+
+        if (!isFinalWait) {
+          b44.functions.invoke('autoReassignOnTimeout', {
+            orderId,
+            driverId,
+            assignmentAttempt,
+            internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+          }).catch(e => console.error('ALERT_PRESENTED timeout chain error:', e));
+
+          return Response.json({
+            ok: true,
+            chained: true,
+            protocol: 'alert_presented',
+            remainingMs: Math.max(0, protocolExpiresAt - Date.now())
+          });
+        }
+
+        // Después de cada espera releemos. ALERT_PRESENTED puede haber cambiado
+        // offerExpiresAt de techo de entrega a presented_at + 30 s.
+        const checkOrder = await b44.entities.RideOrder.get(orderId).catch(() => null);
+        if (
+          !checkOrder ||
+          checkOrder.status !== 'ofrecido' ||
+          checkOrder.reserved_driver_id !== driverId ||
+          Number(checkOrder.assignment_attempt) !== Number(assignmentAttempt)
+        ) {
+          return Response.json({ ok: true, skipped: true, reason: 'offer_changed_during_wait' });
+        }
+
+        const newExpiresAt = Number(checkOrder.offerExpiresAt);
+        presentedThisAttempt = Boolean(
+          checkOrder.alert_presented_at &&
+          Number(checkOrder.alert_presented_assignment_attempt) === Number(assignmentAttempt)
+        );
+
+        // Si todavía queda tiempo, esta fue una vigilia intermedia (por ejemplo
+        // el punto de reintento de 8 s) o ALERT_PRESENTED movió el vencimiento.
+        if (Number.isFinite(newExpiresAt) && newExpiresAt > Date.now()) {
+          b44.functions.invoke('autoReassignOnTimeout', {
+            orderId,
+            driverId,
+            assignmentAttempt,
+            internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+          }).catch(e => console.error('ALERT_PRESENTED re-chain error:', e));
+
+          return Response.json({
+            ok: true,
+            chained: true,
+            protocol: 'alert_presented',
+            reason: presentedThisAttempt ? 'response_window_active' : 'delivery_window_active',
+            remainingMs: Math.max(0, newExpiresAt - Date.now())
+          });
+        }
+
+        protocolExpiresAt = newExpiresAt;
+      }
+
+      // Última lectura antes de tocar la cola/reasignación: evita perder una
+      // aceptación o un ALERT_PRESENTED que ganó por milisegundos.
+      const finalOrder = await b44.entities.RideOrder.get(orderId).catch(() => null);
+      if (
+        !finalOrder ||
+        finalOrder.status !== 'ofrecido' ||
+        finalOrder.reserved_driver_id !== driverId ||
+        Number(finalOrder.assignment_attempt) !== Number(assignmentAttempt)
+      ) {
+        return Response.json({ ok: true, skipped: true, reason: 'offer_changed_before_timeout' });
+      }
+
+      const finalExpiresAt = Number(finalOrder.offerExpiresAt);
+      if (Number.isFinite(finalExpiresAt) && finalExpiresAt > Date.now()) {
+        b44.functions.invoke('autoReassignOnTimeout', {
+          orderId,
+          driverId,
+          assignmentAttempt,
+          internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch(e => console.error('ALERT_PRESENTED final re-chain error:', e));
+        return Response.json({ ok: true, chained: true, reason: 'expiry_moved_forward' });
+      }
+
+      const finalPresented = Boolean(
+        finalOrder.alert_presented_at &&
+        Number(finalOrder.alert_presented_assignment_attempt) === Number(assignmentAttempt)
+      );
+
+      const source = finalPresented ? 'timeout' : 'delivery_unconfirmed';
+      const rejectResponse = await b44.functions.invoke('rejectRide', {
+        orderId,
+        driverId,
+        assignmentAttempt: Number(assignmentAttempt),
+        source,
+        internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+      });
+      const rejectData = rejectResponse?.data || rejectResponse;
+
+      if (rejectData?.reason === 'PROCESSING_IN_PROGRESS') {
+        await new Promise(r => setTimeout(r, 1000));
+        b44.functions.invoke('autoReassignOnTimeout', {
+          orderId,
+          driverId,
+          assignmentAttempt: Number(assignmentAttempt),
+          internalKey: Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch(e => console.error('Deferred ALERT_PRESENTED timeout retry:', e));
+        return Response.json({ ok: true, deferred: true, reason: 'processing_in_progress' });
+      }
+
+      return Response.json({
+        ok: rejectData?.success !== false,
+        protocol: 'alert_presented',
+        deliveryUnconfirmed: !finalPresented,
+        timeoutProcessed: finalPresented,
+        result: rejectData
+      });
+    }
+
     let ackedThisAttempt = Boolean(
       order.push_ack_at &&
       Number(order.push_ack_assignment_attempt) === Number(assignmentAttempt)
