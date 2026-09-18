@@ -33,6 +33,17 @@ export function sortQueue(driversArray: any[]) {
     const posA = Number.isFinite(Number(a.queue_position)) && Number(a.queue_position) > 0 ? Number(a.queue_position) : Infinity;
     const posB = Number.isFinite(Number(b.queue_position)) && Number(b.queue_position) > 0 ? Number(b.queue_position) : Infinity;
     if (posA !== posB) return posA - posB;
+
+    // Un empate de queue_position es un estado inválido, pero puede existir
+    // transitoriamente si un móvil reaparece después de haber estado oculto/ocupado
+    // mientras la base se compactaba. En ese caso nunca desempatar por ID:
+    // preservar la antigüedad real de cola y luego compactar bajo lock.
+    const atA = new Date(a.queue_authoritative_at || a.queue_entered_at || 0).getTime();
+    const atB = new Date(b.queue_authoritative_at || b.queue_entered_at || 0).getTime();
+    const safeAtA = Number.isFinite(atA) && atA > 0 ? atA : Infinity;
+    const safeAtB = Number.isFinite(atB) && atB > 0 ? atB : Infinity;
+    if (safeAtA !== safeAtB) return safeAtA - safeAtB;
+
     return (a.id || "").localeCompare(b.id || "");
   });
 }
