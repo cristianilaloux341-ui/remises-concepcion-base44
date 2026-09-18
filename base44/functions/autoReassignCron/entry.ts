@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
+import { compactQueue } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -206,6 +207,7 @@ Deno.serve(async (req) => {
     // --- BLOQUE B: solo Cancelados/Rechazados ---
     // Los viajes aceptados o iniciados nunca se resetean automáticamente por antigüedad.
     const allToReset = [...recentlyCancelledOrders];
+    const basesToCompact = new Set<string>();
     
     for (const order of allToReset) {
       if (order.status === 'completado') continue;
@@ -223,11 +225,13 @@ Deno.serve(async (req) => {
 
         for (const dId of driversToFree) {
           try {
+            const currentDriver = await b44.entities.Driver.get(dId).catch(() => null);
+            const queueBase = currentDriver?.queue_authoritative_base || currentDriver?.current_base || null;
             const newDriverStatus = "disponible";
             
             // CAS: liberar únicamente si el móvil todavía apunta a ESTA orden.
             // Evita que el cron borre una reserva nueva creada por otro operador.
-            await b44.entities.Driver.updateMany(
+            const released = await b44.entities.Driver.updateMany(
               { id: dId, $or: [
                 { reserved_order_id: order.id },
                 { active_order_id: order.id },
@@ -244,13 +248,27 @@ Deno.serve(async (req) => {
                   driver_reservation_key: null
               } }
             );
-            count++;
+
+            const releasedCount = released?.updated ?? released?.modifiedCount ?? released?.matchedCount ?? 0;
+            if (releasedCount === 1 && queueBase) basesToCompact.add(queueBase);
+            if (releasedCount === 1) count++;
           } catch(e) {
             console.error("Error liberando driver", dId, e);
           }
         }
         
         // Esta rama procesa únicamente cancelados/rechazados; nunca reabre el viaje como pendiente.
+      }
+    }
+
+    // Si un móvil reaparece después de haber estado oculto/ocupado mientras la base
+    // se compactaba, puede traer una queue_position vieja y duplicar un puesto.
+    // Recompactamos sólo las bases realmente afectadas y siempre bajo el lock de cola.
+    for (const baseName of basesToCompact) {
+      try {
+        await compactQueue(b44, baseName);
+      } catch (e) {
+        console.error("Error compactando cola tras liberar cancelado/rechazado", baseName, e);
       }
     }
 
