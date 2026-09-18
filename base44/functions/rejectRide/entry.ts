@@ -135,8 +135,10 @@ Deno.serve(async (req) => {
 
     // El móvil ha sido liberado del viaje. Ahora DEBE ir al final de la cola, tanto si 
     // fue un release nuestro como un release legacy.
+    // EXCEPCIÓN: Si es delivery_unconfirmed, el móvil NO debe perder su lugar.
+    const isDeliveryUnconfirmed = source === 'delivery_unconfirmed';
     const queueBase = order.assigned_base || order.zone || actualDriver?.current_base || actualDriver?.queue_authoritative_base || null;
-    if (queueBase) {
+    if (queueBase && !isDeliveryUnconfirmed) {
       // Bloqueamos la cola para posicionarlo último
       await withQueueLock(b44, queueBase, async () => {
         const nextPos = await getNextQueuePosition(b44, queueBase, driverId);
