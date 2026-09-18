@@ -23,6 +23,8 @@ public class RideAlertController {
     
     private static RideAlertController instance;
     private String currentOrderId;
+    private MediaPlayer mediaPlayer;
+    private Vibrator vibrator;
     private Handler timeoutHandler = new Handler(Looper.getMainLooper());
     private Runnable timeoutRunnable;
 
@@ -154,6 +156,11 @@ public class RideAlertController {
             return false;
         }
 
+        // Segundo camino de audio, independiente del sonido del canal. Si Android
+        // deja sonar la notificación, ambos caminos apuntan al mismo horn; si el
+        // canal falla/silencia el sonido, MediaPlayer intenta mantener el aviso.
+        startPersistentAudio(context);
+
         // Failsafe local contado desde la publicación real. El servidor conserva
         // la autoridad a 30 s y normalmente enviará cancelación/reasignación antes.
         timeoutRunnable = new Runnable() {
@@ -207,11 +214,107 @@ public class RideAlertController {
             timeoutRunnable = null;
         }
 
+        if (mediaPlayer != null) {
+            try {
+                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
+                mediaPlayer.release();
+            } catch (Exception e) {
+                Log.e(TAG, "Error deteniendo MediaPlayer de alerta", e);
+            } finally {
+                mediaPlayer = null;
+            }
+        }
+
+        if (vibrator != null) {
+            try { vibrator.cancel(); } catch (Exception e) {
+                Log.e(TAG, "Error deteniendo vibración de alerta", e);
+            }
+            vibrator = null;
+        }
+
         if (orderId != null) {
             NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             notificationManager.cancel(orderId.hashCode());
         }
         currentOrderId = null;
+    }
+
+    /**
+     * Refuerzo usado por MainActivity cuando el full-screen logra abrirse.
+     * No crea otra alerta ni otro reloj: sólo asegura audio para la oferta activa.
+     */
+    public synchronized void playAudioFallback(Context context) {
+        if (currentOrderId == null) return;
+        try {
+            if (mediaPlayer != null && mediaPlayer.isPlaying()) return;
+        } catch (Exception ignored) {}
+        startPersistentAudio(context);
+    }
+
+    private synchronized void startPersistentAudio(Context context) {
+        if (currentOrderId == null) return;
+
+        try {
+            if (mediaPlayer != null) {
+                try {
+                    if (mediaPlayer.isPlaying()) return;
+                    mediaPlayer.release();
+                } catch (Exception ignored) {}
+                mediaPlayer = null;
+            }
+
+            int soundResId = context.getResources().getIdentifier("horn", "raw", context.getPackageName());
+            Uri soundUri = soundResId != 0
+                    ? Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResId)
+                    : RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            if (soundUri == null) return;
+
+            android.media.AudioManager audioManager =
+                    (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                try {
+                    audioManager.requestAudioFocus(
+                            null,
+                            android.media.AudioManager.STREAM_ALARM,
+                            android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
+                } catch (Exception e) {
+                    Log.e(TAG, "No se pudo obtener AudioFocus de alarma", e);
+                }
+            }
+
+            MediaPlayer nextPlayer = new MediaPlayer();
+            nextPlayer.setWakeMode(context, PowerManager.PARTIAL_WAKE_LOCK);
+            nextPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build());
+            nextPlayer.setDataSource(context, soundUri);
+            nextPlayer.setLooping(true);
+            nextPlayer.setVolume(1.0f, 1.0f);
+            nextPlayer.prepare();
+            nextPlayer.start();
+            mediaPlayer = nextPlayer;
+
+            vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator != null) {
+                long[] pattern = {0, 500, 200, 500, 200, 1000};
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0));
+                } else {
+                    vibrator.vibrate(pattern, 0);
+                }
+            }
+
+            Log.e(TAG, "AUDIO_FALLBACK_ACTIVE - horn persistente para " + currentOrderId);
+        } catch (Exception e) {
+            Log.e(TAG, "No se pudo iniciar audio fallback persistente", e);
+            if (mediaPlayer != null) {
+                try { mediaPlayer.release(); } catch (Exception ignored) {}
+                mediaPlayer = null;
+            }
+            // El sonido del NotificationChannel + FLAG_INSISTENT sigue siendo el
+            // camino primario si este refuerzo no puede arrancar.
+        }
     }
 
     private String baseOrderId(String orderId) {
