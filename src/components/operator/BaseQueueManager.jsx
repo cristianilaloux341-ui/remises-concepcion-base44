@@ -395,46 +395,20 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     }
 
     try {
-      // La Central también valida contra estado fresco del servidor. Repetir
-      // "98.2" cuando el 98 YA está en Plaza no renueva su hora ni lo manda último,
-      // aunque esta PC tenga una copia atrasada del Driver.
-      const ts = new Date().toISOString();
-      const entered = await base44.entities.Driver.updateMany(
-        {
-          id: driver.id,
-          status: "disponible",
-          dispatch_status: "normal",
-          reserved_order_id: null,
-          active_order_id: null,
-          active_ride_id: null,
-          current_base: { $ne: baseName }
-        },
-        { $set: {
-          current_base: baseName,
-          status: "disponible",
-          dispatch_status: "normal",
-          queue_entered_at: ts,
-          // La Central solicita la entrada pero NO inventa la posición. El workflow
-          // server-side sellará queue_authoritative_* detrás del último real.
-          queue_authoritative_base: null,
-          queue_authoritative_at: null,
-          queue_authority_marker: null,
-          queue_position: null,
-          active_order_id: null,
-          active_ride_id: null,
-          reserved_order_id: null,
-          reservation_token: null,
-          manual_reservation_token: null,
-          driver_reservation_key: null
-        } }
-      );
-      const changed = entered?.updated ?? entered?.modifiedCount ?? entered?.matchedCount ?? 0;
-      if (changed < 1) {
+      // Se utiliza la misma función estricta que los choferes para prevenir
+      // condiciones de carrera y garantizar el orden exacto en base.
+      const res = await base44.functions.invoke('enterDriverQueue', {
+        driverId: driver.id,
+        baseName: baseName
+      });
+      
+      const data = res?.data || res;
+      if (data?.success !== true && data?.idempotent !== true) {
         const fresh = await base44.entities.Driver.get(driver.id);
         const alreadyThere = fresh?.current_base === baseName && fresh?.status === "disponible" &&
           (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
           !fresh?.reserved_order_id && !fresh?.active_order_id && !fresh?.active_ride_id;
-        if (!alreadyThere) throw new Error("El móvil cambió de estado; no se modificó su posición.");
+        if (!alreadyThere) throw new Error(data?.reason || "El móvil cambió de estado; no se modificó su posición.");
       }
       
       // Forzar recarga rápida de la UI, ya que mutation invalidaría react-query pero acá no estamos usando el useMutation de BaseQueueManager sino update directo
