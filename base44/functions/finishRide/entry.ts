@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 import { verifyRequestAuth } from '../../shared/security.ts';
+import { getNextQueuePosition, getNextQueueTailAt, withQueueLock } from '../../shared/queueOrder.ts';
 
 function mutationCount(result: any): number {
   return Math.max(
@@ -47,6 +48,117 @@ Deno.serve(async (req) => {
     return Response.json({ success: false, reason: 'wrong_driver' });
   }
 
+  const releaseDriverAfterFinish = async (currentDriver:any) => {
+    const fresh = await b44.entities.Driver.get(driverId).catch(() => currentDriver);
+    if (!fresh) return { success:false, reason:'driver_not_found' };
+
+    const hasNextRide = Boolean(fresh.next_order_id && fresh.next_order_token);
+    const returnBase = order.assigned_base || fresh.current_base || fresh.queue_authoritative_base ||
+      currentDriver?.current_base || currentDriver?.queue_authoritative_base || null;
+
+    // Si hay próximo viaje, no exponer al móvil como libre en una cola: claimNextRide
+    // debe promover primero ese viaje. Si no hay base conocida, sólo limpiar el vínculo.
+    if (hasNextRide || !returnBase) {
+      const cleared = await b44.entities.Driver.updateMany(
+        {
+          id:driverId,
+          $or:[
+            { reserved_order_id:orderId },
+            { active_order_id:orderId },
+            { active_ride_id:orderId },
+            {
+              reserved_order_id:null,
+              active_order_id:null,
+              active_ride_id:null
+            }
+          ]
+        },
+        { $set:{
+          status:'disponible',
+          dispatch_status:'normal',
+          current_base: hasNextRide ? null : (fresh.current_base || null),
+          queue_entered_at: hasNextRide ? null : (fresh.queue_entered_at || null),
+          queue_authoritative_base: hasNextRide ? null : (fresh.queue_authoritative_base || null),
+          queue_authoritative_at: hasNextRide ? null : (fresh.queue_authoritative_at || null),
+          queue_authority_marker: hasNextRide ? null : (fresh.queue_authority_marker ?? null),
+          queue_position: hasNextRide ? null : (fresh.queue_position ?? null),
+          reserved_order_id:null,
+          reservation_token:null,
+          manual_reservation_token:null,
+          driver_reservation_key:null,
+          active_order_id:null,
+          active_ride_id:null,
+          bloqueo_post_aceptacion_hasta:null
+        } }
+      );
+      return { success:mutationCount(cleared) >= 1, hasNextRide, returnBase };
+    }
+
+    // Viaje normal terminado: volver visible en la base en el MISMO flujo server-side.
+    // No depender de un segundo write del teléfono, que podía tardar minutos o no llegar.
+    return await withQueueLock(b44, returnBase, async () => {
+      const latest = await b44.entities.Driver.get(driverId).catch(() => fresh);
+      const cleanAndVisible = Boolean(
+        latest?.status === 'disponible' &&
+        latest?.dispatch_status === 'normal' &&
+        !latest?.reserved_order_id && !latest?.active_order_id && !latest?.active_ride_id &&
+        latest?.current_base === returnBase &&
+        latest?.queue_authoritative_base === returnBase &&
+        Number(latest?.queue_position) > 0
+      );
+      if (cleanAndVisible) {
+        return { success:true, alreadyVisible:true, returnBase, position:Number(latest.queue_position) };
+      }
+
+      const queueAt = await getNextQueueTailAt(b44, returnBase, driverId);
+      const position = await getNextQueuePosition(b44, returnBase, driverId);
+      const released = await b44.entities.Driver.updateMany(
+        {
+          id:driverId,
+          $or:[
+            { reserved_order_id:orderId },
+            { active_order_id:orderId },
+            { active_ride_id:orderId },
+            {
+              reserved_order_id:null,
+              active_order_id:null,
+              active_ride_id:null
+            }
+          ]
+        },
+        { $set:{
+          status:'disponible',
+          dispatch_status:'normal',
+          current_base:returnBase,
+          queue_entered_at:queueAt,
+          queue_authoritative_base:returnBase,
+          queue_authoritative_at:queueAt,
+          queue_authority_marker:position,
+          queue_position:position,
+          queue_left_at:null,
+          reserved_order_id:null,
+          reservation_token:null,
+          manual_reservation_token:null,
+          driver_reservation_key:null,
+          active_order_id:null,
+          active_ride_id:null,
+          bloqueo_post_aceptacion_hasta:null
+        } }
+      );
+      const releasedCount = mutationCount(released);
+      if (releasedCount === 1) {
+        await b44.entities.AuditLog.create({
+          action:'FINISH_RIDE_DRIVER_VISIBLE_IN_BASE',
+          user_type:'sistema',
+          user_name:'finishRide',
+          details:`Al finalizar ${orderId}, ${latest?.name || driverId} quedó visible inmediatamente en ${returnBase}`,
+          metadata:{ orderId, driverId, baseName:returnBase, queuePosition:position, queueAt }
+        }).catch(()=>{});
+      }
+      return { success:releasedCount === 1, returnBase, position };
+    });
+  };
+
   const checkAndRepairDriver = async (currentDriver) => {
     // Releer antes de decidir: finishRide compite con workflows que pueden limpiar
     // el Driver milisegundos después de completar el RideOrder. Un snapshot viejo
@@ -54,12 +166,21 @@ Deno.serve(async (req) => {
     const freshDriver = await b44.entities.Driver.get(driverId).catch(() => currentDriver);
     const isClean = (d:any) => Boolean(
       d &&
-      ['disponible', 'no_disponible'].includes(d.status) &&
       !d.active_ride_id &&
       !d.active_order_id &&
       !d.reserved_order_id &&
       !d.reservation_token &&
-      !d.manual_reservation_token
+      !d.manual_reservation_token &&
+      (
+        d.status === 'no_disponible' ||
+        Boolean(d.next_order_id && d.next_order_token) ||
+        (
+          d.status === 'disponible' &&
+          d.current_base &&
+          d.queue_authoritative_base === d.current_base &&
+          Number(d.queue_position) > 0
+        )
+      )
     );
 
     if (isClean(freshDriver)) {
@@ -67,12 +188,9 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, idempotent: true, reason: 'ALREADY_PROCESSED' });
     }
 
-    const fixRes = await b44.entities.Driver.updateMany(
-      { id: driverId, $or: [{ reserved_order_id: orderId }, { active_order_id: orderId }, { active_ride_id: orderId }] },
-      { $set: { status: 'disponible', dispatch_status: 'normal', current_base: null, queue_entered_at: null, queue_authoritative_base: null, queue_authoritative_at: null, queue_authority_marker: null, queue_position: null, reserved_order_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null, active_order_id: null, active_ride_id: null, bloqueo_post_aceptacion_hasta: null } }
-    );
-    if (mutationCount(fixRes) >= 1) {
-      await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Repaired driver state', metadata: { orderId, driverId } });
+    const repaired = await releaseDriverAfterFinish(freshDriver);
+    if (repaired?.success) {
+      await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Repaired driver state and visibility', metadata: { orderId, driverId, baseName:repaired.returnBase || null, position:repaired.position || null } });
       return Response.json({ success: true, idempotent: true, note: 'repaired_driver', reason: 'ALREADY_PROCESSED' });
     }
 
@@ -84,8 +202,8 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, idempotent: true, note: 'concurrent_cleanup', reason: 'ALREADY_PROCESSED' });
     }
 
-    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: `Failed to repair driver, raw: ${JSON.stringify(fixRes)}`, metadata: { orderId, driverId } });
-    return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION', db_result: fixRes });
+    await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_PARTIAL_FAILURE', user_type: 'sistema', user_name: 'finishRide', details: 'Failed to repair driver visibility/state', metadata: { orderId, driverId } });
+    return Response.json({ success: false, reason: 'PARTIAL_STATE_REQUIRES_RECONCILIATION' });
   };
 
   if (order.status === 'completado') {
@@ -183,12 +301,9 @@ Deno.serve(async (req) => {
     return Response.json({ success: false, reason: 'race_condition_or_invalid_state', db_result: uOrder });
   }
 
-  const uDriver = await b44.entities.Driver.updateMany(
-    { id: driverId, $or: [{ reserved_order_id: orderId }, { active_order_id: orderId }, { active_ride_id: orderId }] },
-    { $set: { status: 'disponible', dispatch_status: 'normal', current_base: null, queue_entered_at: null, queue_authoritative_base: null, queue_authoritative_at: null, queue_authority_marker: null, queue_position: null, reserved_order_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null, active_order_id: null, active_ride_id: null, bloqueo_post_aceptacion_hasta: null } }
-  );
+  const releasedDriver = await releaseDriverAfterFinish(driver);
 
-  if (mutationCount(uDriver) < 1) {
+  if (!releasedDriver?.success) {
     return await checkAndRepairDriver(driver);
   }
 
