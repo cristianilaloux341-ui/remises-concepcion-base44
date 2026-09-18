@@ -303,7 +303,10 @@ Deno.serve(async (req) => {
     // 2. Config ya cargada en paralelo con las validaciones anteriores.
     const config = tarifaConfigs[0] || {};
     // Regla operativa fija: 30 s TOTALES por móvil. El ACK no extiende este techo.
-    const timeoutSeconds = 30;
+    // Antes de que Android confirme que el alerta fue presentado damos un
+    // techo de entrega de 50 s. En cuanto llega ALERT_PRESENTED, el servidor
+    // reemplaza este valor por 30 s reales desde esa presentación.
+    const deliveryHardCapSeconds = 50;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     // Una asignación manual siempre debe esperar la aceptación del chofer.
     const autoAceptarViajes = payload.requireDriverConfirmation === true
@@ -318,10 +321,11 @@ Deno.serve(async (req) => {
     // Set protege además contra datos históricos duplicados.
     const offeredIds = [...new Set([...(orderReq.offered_driver_ids || []), driverId])];
 
-    // Cada asignación crea una ventana propia de 30 s TOTALES. acceptRide usa
-    // offerExpiresAt como autoridad y ningún ACK puede extenderla.
+    // offerExpiresAt sigue siendo la única autoridad de tiempo, pero mientras
+    // todavía no sabemos si Android mostró el alerta representa solamente el techo
+    // de entrega. ALERT_PRESENTED lo sustituye por presented_at + 30 s.
     const assignedAt = new Date().toISOString();
-    const offerExpiresAt = Date.now() + (timeoutSeconds * 1000);
+    const offerExpiresAt = Date.now() + (deliveryHardCapSeconds * 1000);
 
     // Update memory object for Push payload
     orderReq.assignment_attempt = newAttempt;
@@ -332,6 +336,8 @@ Deno.serve(async (req) => {
     orderReq.offerExpiresAt = offerExpiresAt;
     orderReq.push_ack_at = null;
     orderReq.push_ack_assignment_attempt = null;
+    orderReq.alert_presented_at = null;
+    orderReq.alert_presented_assignment_attempt = null;
     orderReq.delivery_retry_count = 0;
     if (requestedManual) {
       orderReq.notes = String(orderReq.notes || '')
@@ -388,13 +394,16 @@ Deno.serve(async (req) => {
           offerExpiresAt: offerExpiresAt,
           push_ack_at: null,
           push_ack_assignment_attempt: null,
+          alert_presented_at: null,
+          alert_presented_assignment_attempt: null,
           delivery_retry_count: 0
         });
       }
 
       // 5. Trigger Reassignment if needed
       if (targetOrderStatus === "ofrecido" && autoReassignActive) {
-        // Watchdog que ahora respeta si el push_ack corrió el vencimiento
+        // Watchdog: reintenta entrega si no hay ALERT_PRESENTED y vence
+        // únicamente contra la fecha autoritativa de offerExpiresAt.
         b44.functions.invoke("autoReassignOnTimeout", {
           orderId: orderId,
           driverId: driverId,
