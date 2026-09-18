@@ -418,18 +418,66 @@ Deno.serve(async (req) => {
       const newExpiresAt = Number(checkOrder.offerExpiresAt) || expiresAt;
       ackedThisAttempt = Boolean(checkOrder.push_ack_at && Number(checkOrder.push_ack_assignment_attempt) === Number(assignmentAttempt));
       
-      // Si aún queda tiempo (más de 1 segundo de gracia), encadenamos y volvemos a esperar
-      if (Date.now() + 1000 < newExpiresAt) {
+      // BARRERA ESTRICTA: mientras falte aunque sea 1 ms para el vencimiento
+      // autoritativo, este worker NO puede liberar ni reasignar la oferta.
+      if (Date.now() < newExpiresAt) {
           b44.functions.invoke('autoReassignOnTimeout', {
             orderId, driverId, assignmentAttempt, internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
           }).catch(e=>console.error('Timeout re-chain error:',e));
-          return Response.json({ ok:true, chained:true, reason:'continue_to_full_timeout' });
+          return Response.json({
+            ok:true,
+            chained:true,
+            reason:'continue_to_exact_expiry',
+            remainingMs:Math.max(0, newExpiresAt - Date.now())
+          });
       }
     }
 
-    // A los 30 s TOTALES se termina esta oferta. Con ACK es timeout normal; sin ACK
-    // es entrega no confirmada. En ambos casos el pasaje sigue al siguiente móvil y
-    // jamás se abre una tercera ventana para este mismo móvil.
+    // Última barrera absoluta antes de tocar rejectRide. Releer desde base evita
+    // que una ejecución vieja/intermedia (por ejemplo la de ~15 s) pueda usar un
+    // expiresAt obsoleto y sacar el pasaje antes de tiempo.
+    const timeoutGuardOrder = await b44.entities.RideOrder.get(orderId).catch(()=>null);
+    if (
+      !timeoutGuardOrder ||
+      timeoutGuardOrder.status !== 'ofrecido' ||
+      timeoutGuardOrder.reserved_driver_id !== driverId ||
+      Number(timeoutGuardOrder.assignment_attempt) !== Number(assignmentAttempt)
+    ) {
+      return Response.json({ ok:true, skipped:true, reason:'offer_changed_before_final_timeout' });
+    }
+
+    const timeoutGuardExpiry = Number(timeoutGuardOrder.offerExpiresAt);
+    if (Number.isFinite(timeoutGuardExpiry) && Date.now() < timeoutGuardExpiry) {
+      const remainingMs = Math.max(0, timeoutGuardExpiry - Date.now());
+      await b44.entities.AuditLog.create({
+        action:'PREMATURE_TIMEOUT_BLOCKED',
+        user_type:'sistema',
+        user_name:'autoReassignOnTimeout',
+        details:`Bloqueado timeout prematuro de ${orderId}; la oferta todavía sigue vigente.`,
+        metadata:{
+          orderId,
+          driverId,
+          assignmentAttempt:Number(assignmentAttempt),
+          offerExpiresAt:timeoutGuardExpiry,
+          remainingMs
+        }
+      }).catch(()=>{});
+      b44.functions.invoke('autoReassignOnTimeout', {
+        orderId,
+        driverId,
+        assignmentAttempt:Number(assignmentAttempt),
+        internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+      }).catch(e=>console.error('Premature timeout blocked re-chain error:',e));
+      return Response.json({ ok:true, chained:true, reason:'premature_timeout_blocked', remainingMs });
+    }
+
+    ackedThisAttempt = Boolean(
+      timeoutGuardOrder.push_ack_at &&
+      Number(timeoutGuardOrder.push_ack_assignment_attempt) === Number(assignmentAttempt)
+    );
+
+    // Recién con offerExpiresAt vencido se termina esta oferta. Con ACK es timeout
+    // normal; sin ACK es entrega no confirmada.
     if (!ackedThisAttempt) {
       const deliveryResult = await b44.functions.invoke('rejectRide', {
         orderId,
