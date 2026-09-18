@@ -27,7 +27,7 @@ export default function PendingRidesOverlay({
         !order.preassigned_driver_id &&
         (!order.processingOwnerId || (order.processingLeaseExpiresAt && order.processingLeaseExpiresAt < Date.now())) &&
         order.processingPhase !== 'REASSIGNING' &&
-        !(Number(order.offerExpiresAt) > Date.now() && Number(order.assignment_attempt || 0) > 0) &&
+        !(order.offerExpiresAt != null && Number.isFinite(Number(order.offerExpiresAt)) && Number(order.assignment_attempt || 0) > 0) &&
         !String(order.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]') &&
         !['ACCEPT', 'START', 'FINISH'].includes(String(order.lastCompletedAction || '').toUpperCase())
       )
