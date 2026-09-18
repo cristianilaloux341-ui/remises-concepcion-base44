@@ -1899,34 +1899,18 @@ export default function DriverApp() {
   const handleGoOffService = async () => {
     if (libreBlockedSegs > 0) return; // bloqueado
     try {
-      const queueLeftAt = new Date().toISOString();
-      const previousBase = myDriver?.queue_authoritative_base || myDriver?.current_base || null;
-      await updateOperationalStateIfIdle("disponible", {
-        status: "no_disponible",
-        dispatch_status: "normal",
-        current_base: null,
-        queue_entered_at: null,
-        queue_authoritative_base: null,
-        queue_authoritative_at: null,
-        queue_authority_marker: null,
-        queue_position: null,
-        queue_left_at: queueLeftAt,
-        active_order_id: null,
-        active_ride_id: null,
-        reserved_order_id: null,
-        reservation_token: null,
-        manual_reservation_token: null,
-        driver_reservation_key: null
+      const res = await base44.functions.invoke("leaveDriverQueue", {
+        driverId: myDriverId,
+        source: "driver_apk",
+        sessionToken: getSessionToken()
       });
-      base44.entities.AuditLog.create({
-        action: "DRIVER_OFF_SERVICE_FROM_APK",
-        user_type: "chofer",
-        user_name: myDriver?.name || "Chofer",
-        details: `${myDriver?.name || myDriverId} salió de servicio desde la APK`,
-        metadata: { driverId: myDriverId, previousBase, queueLeftAt, source: "driver_apk" }
-      }).catch(() => {});
+      const data = res?.data || res;
+      if (data?.success !== true && data?.idempotent !== true) {
+        throw new Error(data?.reason || "LEAVE_QUEUE_FAILED");
+      }
       setLocalOverride({ status: "no_disponible", current_base: null });
       window.dispatchEvent(new CustomEvent("radiocab_reconnect"));
+      window.dispatchEvent(new CustomEvent("force-driver-refresh"));
     } catch (error) {
       window.alert("No se pudo salir de servicio. Revisá Internet e intentá nuevamente.");
     }
