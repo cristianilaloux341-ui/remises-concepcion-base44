@@ -398,9 +398,9 @@ export default function TarifaConfigPanel() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-3">
-            <p className="text-sm font-semibold text-slate-800">Tiempo de espera post-viaje</p>
+            <p className="text-sm font-semibold text-slate-800">Tiempo de bloqueo (post-aceptación)</p>
             <p className="text-sm text-muted-foreground">
-              Minutos que debe esperar el chofer antes de poder ponerse libre luego de completar un viaje. <strong>0 = sin restricción</strong>.
+              Minutos que debe esperar el chofer antes de poder volver a ponerse libre luego de aceptar un viaje. <strong>0 = sin restricción</strong>.
             </p>
             <div className="space-y-1.5 max-w-xs">
               <div className="relative">
