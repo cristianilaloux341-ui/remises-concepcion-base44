@@ -265,12 +265,58 @@ Deno.serve(async (req) => {
           ).catch(() => null);
 
           if ((restored?.updated ?? restored?.modifiedCount ?? restored?.matchedCount ?? 0) === 1) {
+            const restoredExpiry = Number(body.old_data.offerExpiresAt);
+            const restoredAttempt = Number(body.old_data.assignment_attempt || 1);
+            const alreadyExpired = Number.isFinite(restoredExpiry) && restoredExpiry <= Date.now();
+
             await base44.asServiceRole.entities.AuditLog.create({
               action:'LEGACY_OFFER_TO_PENDING_ROLLBACK_BLOCKED', user_type:'sistema',
               user_name:body.old_data.driver_name || 'Chofer',
               details:`Se cerró Pendientes y se restauró la oferta legacy ${orderId}`,
-              metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:body.old_data.assignment_attempt, driverWasReclaimed:!ownerStillOwnsExactOffer }
+              metadata:{
+                orderId,
+                driverId:ownerDriverId,
+                assignmentAttempt:restoredAttempt,
+                driverWasReclaimed:!ownerStillOwnsExactOffer,
+                alreadyExpired
+              }
             }).catch(()=>{});
+
+            // Si la APK legacy devolvió la orden a Pendientes justo al vencer,
+            // no basta con restaurarla: hay que pasar INMEDIATAMENTE por el único
+            // motor autorizado de timeout/rechazo para mandar al chofer al final
+            // y continuar con el siguiente móvil válido de la zona.
+            if (alreadyExpired && ownerDriverId) {
+              const routed = await base44.asServiceRole.functions.invoke('rejectRide', {
+                orderId,
+                driverId:ownerDriverId,
+                assignmentAttempt:restoredAttempt,
+                source:'timeout',
+                internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+              }).catch((e:any) => ({ data:{ success:false, error:e?.message || String(e) } }));
+
+              const routedData = routed?.data || routed;
+              await base44.asServiceRole.entities.AuditLog.create({
+                action:'LEGACY_EXPIRED_ROLLBACK_ROUTED',
+                user_type:'sistema',
+                user_name:'sendPushNotification',
+                details:`Rollback legacy vencido de ${orderId} enviado inmediatamente a rejectRide`,
+                metadata:{
+                  orderId,
+                  driverId:ownerDriverId,
+                  assignmentAttempt:restoredAttempt,
+                  result:routedData?.reassigned_to || null,
+                  success:routedData?.success !== false
+                }
+              }).catch(()=>{});
+
+              return Response.json({
+                ok:routedData?.success !== false,
+                reason:'legacy_expired_rollback_routed',
+                result:routedData
+              });
+            }
+
             return Response.json({ ok:true, reason:'legacy_offered_rollback_blocked' });
           }
 
