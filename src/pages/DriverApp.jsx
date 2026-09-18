@@ -1089,7 +1089,15 @@ export default function DriverApp() {
   );
   
   const pendingBoardCount = debugArray(safeOrders, "safeOrders").filter(o =>
-    o.status === "pendiente" && !o.driver_id && !o.reserved_driver_id && !o.preassigned_driver_id
+    o.status === "pendiente" && 
+    !o.driver_id && 
+    !o.reserved_driver_id && 
+    !o.preassigned_driver_id &&
+    (!o.processingOwnerId || (o.processingLeaseExpiresAt && o.processingLeaseExpiresAt < Date.now())) &&
+    o.processingPhase !== 'REASSIGNING' &&
+    !(Number(o.offerExpiresAt) > Date.now() && Number(o.assignment_attempt || 0) > 0) &&
+    !String(o.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]') &&
+    !['ACCEPT', 'START', 'FINISH'].includes(String(o.lastCompletedAction || '').toUpperCase())
   ).length;
 
   // Broadcast desactivado
