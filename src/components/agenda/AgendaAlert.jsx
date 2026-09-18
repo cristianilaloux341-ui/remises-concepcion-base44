@@ -13,7 +13,7 @@ function minutesUntil(datetime) {
   if (!datetime) return Infinity;
   const d = new Date(datetime);
   if (isNaN(d.getTime())) return Infinity;
-  return differenceInMinutes(d, new Date());
+  return (d.getTime() - Date.now()) / 60000;
 }
 
 import React from "react";
@@ -54,7 +54,7 @@ function AgendaAlertContent() {
   const { data: rides = [] } = useQuery({
     queryKey: ["scheduled"],
     queryFn: () => base44.entities.ScheduledRide.list("-scheduled_datetime", 200),
-    refetchInterval: 15000,
+    refetchInterval: 5000,
   });
 
   const handleDispatch = (ride) => {
@@ -151,7 +151,7 @@ function AgendaAlertContent() {
           // Notificación del sistema
           if (typeof Notification !== "undefined") {
             const notify = () => new Notification(`⏰ ¡AGENDA! ${r.client_name}`, {
-              body: `${r.pickup_address}${r.dropoff_address ? " → " + r.dropoff_address : ""} — en ${Math.max(0, mins)} min`,
+              body: `${r.pickup_address}${r.dropoff_address ? " → " + r.dropoff_address : ""} — en ${Math.max(0, Math.ceil(mins))} min`,
               requireInteraction: true,
               icon: "/icon-192.png",
             });
@@ -165,7 +165,7 @@ function AgendaAlertContent() {
     };
 
     check();
-    const interval = setInterval(check, 15000);
+    const interval = setInterval(check, 5000);
     return () => clearInterval(interval);
   }, [rides]);
 
@@ -191,7 +191,7 @@ function AgendaAlertContent() {
                   <div>
                     <p className="font-black text-white text-lg leading-tight">¡AGENDA PRÓXIMA!</p>
                     <p className="text-amber-100 text-xs font-medium">
-                      {mins > 0 ? `En ${mins} minuto${mins !== 1 ? "s" : ""}` : "¡Ahora!"}
+                      {mins > 0 ? `En ${Math.ceil(mins)} minuto${Math.ceil(mins) !== 1 ? "s" : ""}` : "¡Ahora!"}
                       {" — "}{hora}hs
                     </p>
                   </div>

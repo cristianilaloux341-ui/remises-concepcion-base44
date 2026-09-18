@@ -364,7 +364,7 @@ function minutesUntil(datetime) {
   if (!datetime) return Infinity;
   const d = new Date(datetime);
   if (isNaN(d.getTime())) return Infinity;
-  return differenceInMinutes(d, new Date());
+  return (d.getTime() - Date.now()) / 60000;
 }
 
 function safeTime(dt) {
@@ -609,7 +609,7 @@ function AgendaContent() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-bold text-black text-lg">{ride.client_name}</p>
                       <Badge className={STATUS_COLORS[ride.status] + " border-0 text-xs font-bold"}>{ride.status}</Badge>
-                      {isUrgent && <Badge className="bg-amber-500 text-white border-0 text-xs animate-pulse">¡{Math.max(0, mins)} min!</Badge>}
+                      {isUrgent && <Badge className="bg-amber-500 text-white border-0 text-xs animate-pulse">¡{Math.max(0, Math.ceil(mins))} min!</Badge>}
                     </div>
                     <p className="text-sm text-black font-bold">{ride.client_phone}</p>
                   </div>
