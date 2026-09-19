@@ -234,19 +234,28 @@ function IdleScreen({ driver, drivers, driversLoading = false, selectedBase, onB
 
   const isInBase = driver.current_base && driver.status === "disponible";
 
-  // La posición se calcula SOLO con la colección confirmada por servidor.
-  // Antes inyectábamos el `driver` local mientras realtime todavía estaba llegando;
-  // eso mostraba posiciones provisorias (1° -> 3° -> 5°) que parecían cambios reales.
+  // POSICIÓN AUTORITATIVA: jamás recalcular el puesto contando la lista local.
+  // La única verdad es queue_position sellada por el servidor y confirmada por
+  // queue_authority_marker. Si todavía no llegó esa lectura, mostramos sincronizando.
   const driverList = debugArray(drivers, 'drivers_in_IdleScreen');
   const serverSelf = driverList.find(d => d.id === driver.id);
-  const baseQueue = getBaseQueue(driverList, driver.current_base);
-  const myPosition = debugArray(baseQueue, 'baseQueue').findIndex(d => d.id === driver.id) + 1;
+  const serverPosition = Number(serverSelf?.queue_position);
+  const serverMarker = Number(serverSelf?.queue_authority_marker);
   const positionReady = !driversLoading && Boolean(
     serverSelf &&
-    serverSelf.current_base === driver.current_base &&
     serverSelf.status === "disponible" &&
-    myPosition > 0
+    (serverSelf.dispatch_status == null || serverSelf.dispatch_status === "normal") &&
+    serverSelf.current_base === driver.current_base &&
+    serverSelf.queue_authoritative_base === driver.current_base &&
+    Number.isFinite(serverPosition) &&
+    serverPosition > 0 &&
+    Number.isFinite(serverMarker) &&
+    serverMarker === serverPosition &&
+    !serverSelf.reserved_order_id &&
+    !serverSelf.active_order_id &&
+    !serverSelf.active_ride_id
   );
+  const myPosition = positionReady ? serverPosition : 0;
 
   if (changingBase) {
     return (
