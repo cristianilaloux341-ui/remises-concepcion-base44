@@ -402,68 +402,35 @@ Deno.serve(async (req) => {
       }
 
       // La oferta ya cambió de dueño/estado antes de que corriera este evento legacy.
-      // La regla actual es rechazo/timeout = CONSERVA SU MISMA POSICIÓN en la base.
-      // Restablecemos la base y posición exacta que tenía el chofer antes de la oferta
-      // para evitar que la APK vieja (que pone la base en null temporalmente) le haga 
-      // perder el lugar.
+      // Este snapshot tardío NO es autoridad de cola. Rechazo/timeout se resuelve
+      // exclusivamente en rejectRide, que aplica la ida al final una sola vez mediante
+      // last_queue_penalty_key. Restaurar oldData aquí podría devolver al móvil una
+      // posición anterior después de que el servidor ya lo penalizó correctamente.
       const releasedDriver = await b44.entities.Driver.get(driverId).catch(()=>null);
       const queueBase = legacyOrder?.assigned_base || legacyOrder?.zone || oldData.current_base || eventData.current_base || null;
-      const previousAuthorityAt = oldData.queue_authoritative_at || oldData.queue_entered_at || null;
-      const previousQueuePosition = Number(oldData.queue_position);
-      const hasPreviousQueuePosition =
-        oldData.queue_authoritative_base === queueBase &&
-        Number.isFinite(previousQueuePosition) &&
-        previousQueuePosition > 0;
-      
-      let reconciled = false;
-      if (releasedDriver && queueBase &&
-          releasedDriver.status === 'disponible' &&
-          (releasedDriver.dispatch_status == null || releasedDriver.dispatch_status === 'normal') &&
-          !releasedDriver.reserved_order_id && !releasedDriver.active_order_id && !releasedDriver.active_ride_id &&
-          (!releasedDriver.current_base || releasedDriver.current_base === queueBase)) {
-        
-        const res = await b44.entities.Driver.updateMany(
-          {
-            id: driverId,
-            status: 'disponible',
-            $or:[{ current_base:null }, { current_base:queueBase }],
-            reserved_order_id: null,
-            active_order_id: null,
-            active_ride_id: null,
-            queue_position: releasedDriver.queue_position ?? null,
-            queue_authority_marker: releasedDriver.queue_authority_marker ?? null,
-            manual_reorder_token: releasedDriver.manual_reorder_token ?? null
-          },
-          {
-            $set: {
-              current_base: queueBase,
-              queue_authoritative_base: queueBase,
-              queue_entered_at: oldData.queue_entered_at || previousAuthorityAt,
-              queue_authoritative_at: previousAuthorityAt,
-              ...(hasPreviousQueuePosition ? {
-                queue_position: previousQueuePosition,
-                queue_authority_marker: oldData.queue_authority_marker ?? previousQueuePosition
-              } : {})
-            }
-          }
-        );
-        reconciled = (res?.updated ?? res?.modifiedCount ?? res?.matchedCount ?? 0) === 1;
-      }
+      const penaltyKey = `TAIL:${legacyOrderId}:${Number(legacyOrder?.assignment_attempt || 1)}:${driverId}`;
+      const tailAlreadyApplied = Boolean(
+        releasedDriver?.last_queue_penalty_key === penaltyKey ||
+        (releasedDriver?.last_queue_penalty_base === queueBase && releasedDriver?.last_queue_penalty_key)
+      );
 
       await b44.entities.AuditLog.create({
-        action:'LEGACY_RELEASE_RECONCILED_POSITION_KEPT',
+        action:'LEGACY_RELEASE_STALE_SNAPSHOT_IGNORED',
         user_type:'sistema',
         user_name:eventData.name || oldData.name || 'Driver',
-        details:`Cierre legacy conciliado; ${driverId} conservó su posición en cola server-side en ${queueBase}`,
+        details:`Cierre legacy tardío ignorado para ${driverId}; la cola server-side no se modifica`,
         metadata:{
           driverId,
           orderId:legacyOrderId,
           baseName:queueBase,
-          reconciled
+          penaltyKey,
+          tailAlreadyApplied,
+          currentQueuePosition:releasedDriver?.queue_position ?? null,
+          currentQueueAuthoritativeAt:releasedDriver?.queue_authoritative_at ?? null
         }
       }).catch(()=>{});
 
-      return Response.json({ success:true, repaired:reconciled, reason:'LEGACY_RELEASE_RECONCILED_POSITION_KEPT' });
+      return Response.json({ success:true, repaired:false, reason:'LEGACY_RELEASE_STALE_SNAPSHOT_IGNORED' });
     }
 
     // AUTORIDAD SERVER-SIDE DE COLA.
@@ -966,30 +933,30 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, skipped: true, reason: 'NO_EXPLICIT_QUEUE_ENTRY_FOR_PENDING_DISPATCH' });
     }
 
-    // Trazabilidad de cola: registrar toda modificación REAL de antigüedad. Esto no
-    // cambia posiciones; solo permite saber si vino de una entrada, rechazo, timeout
-    // o una acción manual y detectar cualquier escritura inesperada en producción.
-    if (eventData && oldData && eventData.queue_entered_at !== oldData.queue_entered_at) {
+    // Desde este punto el snapshot del trigger es sólo evidencia histórica.
+    // Si la entrada/cambio fue normalizada por Base, ninguna decisión posterior puede
+    // reutilizar queue_entered_at/queue_position del evento legacy. Releemos el Driver
+    // y usamos exclusivamente la autoridad server-side para el drenaje de Pendientes.
+    const triggerDriver = await b44.entities.Driver.get(driverId).catch(() => null);
+
+    // Trazabilidad: para entradas normalizadas registramos la autoridad REAL que quedó
+    // en Base, no el timestamp viejo que venía en eventData.
+    if (normalizedExplicitQueueEntry && triggerDriver) {
       await b44.entities.AuditLog.create({
-        action: 'QUEUE_TIMESTAMP_CHANGED',
+        action: 'QUEUE_SERVER_AUTHORITY_CONFIRMED',
         user_type: 'sistema',
-        user_name: eventData.name || oldData.name || 'Driver',
-        details: `Cambió antigüedad de cola de ${eventData.name || oldData.name || driverId}`,
+        user_name: triggerDriver.name || eventData?.name || oldData?.name || 'Driver',
+        details: `Autoridad de cola confirmada por Base para ${triggerDriver.name || driverId}`,
         metadata: {
           driverId,
-          oldQueueEnteredAt: oldData.queue_entered_at ?? null,
-          newQueueEnteredAt: eventData.queue_entered_at ?? null,
-          oldBase: oldData.current_base ?? null,
-          newBase: eventData.current_base ?? null,
-          oldStatus: oldData.status ?? null,
-          newStatus: eventData.status ?? null,
-          oldDispatchStatus: oldData.dispatch_status ?? null,
-          newDispatchStatus: eventData.dispatch_status ?? null
+          baseName: triggerDriver.queue_authoritative_base ?? triggerDriver.current_base ?? null,
+          queuePosition: triggerDriver.queue_position ?? null,
+          queueEnteredAt: triggerDriver.queue_entered_at ?? null,
+          queueAuthoritativeAt: triggerDriver.queue_authoritative_at ?? null,
+          sourceEventQueueEnteredAt: eventData?.queue_entered_at ?? null
         }
       }).catch(() => {});
     }
-
-    const triggerDriver = await b44.entities.Driver.get(driverId).catch(() => null);
     if (!triggerDriver) {
       return Response.json({ success: true, skipped: true, reason: 'DRIVER_NOT_FOUND' });
     }
