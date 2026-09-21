@@ -105,77 +105,18 @@ export default function OrderDetail() {
     }
   };
 
-  // When cancelling an active order, put the assigned driver first in queue
+  // Cancelación autoritativa: Central pide la acción; backend libera vínculos,
+  // conserva la regla comercial de devolver primero y registra la transición.
   const cancelOrder = async () => {
-    await base44.entities.RideOrder.update(order.id, {
-      status: "cancelado",
-      offerExpiresAt: null,
-      processingAction: null,
-      processingOperationKey: null,
-      processingOwnerId: null,
-      processingLeaseExpiresAt: null,
-      processingPhase: null
+    const response = await base44.functions.invoke("operatorOrderAction", {
+      action: "cancel",
+      orderId: order.id,
+      sessionToken: sessionStorage.getItem("local_operator_token")
     });
-    
-    // offered_driver_ids es historial: no usar jamás como fallback.
-    // Solo enviar cancelación al móvil activamente asignado o reservado.
-    const toCancel = [...new Set([order.driver_id, order.reserved_driver_id, order.preassigned_driver_id])].filter(Boolean);
-
-    if (order.preassigned_driver_id) {
-      await base44.entities.Driver.updateMany(
-        { id: order.preassigned_driver_id, next_order_id: order.id },
-        { $set: { next_order_id: null, next_order_token: null } }
-      ).catch(() => {});
+    if (!response?.data?.success) {
+      alert(response?.data?.reason || "No se pudo cancelar el pasaje.");
+      return;
     }
-    
-    if (toCancel.length > 0) {
-      // Liberar únicamente móviles que todavía sigan vinculados a ESTA orden.
-      await base44.entities.Driver.updateMany(
-        { id: { $in: toCancel }, $or: [{ active_order_id: order.id }, { active_ride_id: order.id }, { reserved_order_id: order.id }] },
-        {
-          $set: {
-            // Cancelar el pasaje libera únicamente el estado comercial. La cola
-            // NO se borra: base/posición siguen siendo autoridad server-side y así
-            // nunca existe una ventana donde el móvil desaparezca de Central.
-            status: "disponible",
-            dispatch_status: "normal",
-            active_order_id: null,
-            active_ride_id: null,
-            reserved_order_id: null,
-            reservation_token: null,
-            manual_reservation_token: null,
-            driver_reservation_key: null
-          }
-        }
-      );
-
-      if (order.driver_id && !order.preassigned_driver_id) {
-        // Excepción comercial existente: una cancelación hecha por Central devuelve
-        // el móvil 1° a la base del pasaje. La posición se decide en backend bajo lock;
-        // el timestamp sólo se proyecta para las APK v12.27/v12.29.
-        const returnBase = order.assigned_base || order.zone || null;
-        if (returnBase) {
-          const sessionToken = sessionStorage.getItem("local_operator_token");
-          const requeue = await base44.functions.invoke("requeueDriverFront", {
-            driverId: order.driver_id,
-            baseName: returnBase,
-            sessionToken
-          });
-          if (!requeue?.data?.success) {
-            console.error("No se pudo reinsertar primero tras cancelación:", requeue?.data?.reason);
-          }
-        }
-      }
-      
-      const sessionToken = sessionStorage.getItem("local_operator_token");
-      base44.functions.invoke("sendPushNotification", {
-        action: "cancel_multiple",
-        driversToCancel: toCancel,
-        orderId: order.id,
-        sessionToken
-      }).catch(e => console.error("Cancel push error:", e));
-    }
-    
     queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
   };
 
