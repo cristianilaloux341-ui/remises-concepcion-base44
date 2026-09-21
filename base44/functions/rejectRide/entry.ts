@@ -109,9 +109,49 @@ Deno.serve(async (req) => {
       }
     );
     if ((lockRes.matchedCount ?? lockRes.modifiedCount ?? lockRes.updated ?? 0) !== 1) {
-      return Response.json({ success:false, reason:'PROCESSING_IN_PROGRESS' });
+      if (source !== 'timeout' && source !== 'delivery_unconfirmed') {
+        const deadline = Date.now() + 5000;
+        while (Date.now() < deadline) {
+          await new Promise(resolve => setTimeout(resolve, 250));
+          const fresh = await b44.entities.RideOrder.get(orderId).catch(() => null);
+          if (!fresh || fresh.status !== 'ofrecido' || fresh.reserved_driver_id !== driverId ||
+              Number(fresh.assignment_attempt) !== Number(assignmentAttempt)) {
+            return Response.json({ success:true, alreadyResolved:true, reason:'EXPLICIT_REJECT_ALREADY_RESOLVED' });
+          }
+          const leaseExpired = !fresh.processingOwnerId || !Number(fresh.processingLeaseExpiresAt) ||
+            Number(fresh.processingLeaseExpiresAt) < Date.now();
+          if (!leaseExpired) continue;
+          const retryOwner = `explicit_reject_retry:${orderId}:${driverId}:${assignmentAttempt}:${crypto.randomUUID()}`;
+          const retryLease = await b44.entities.RideOrder.updateMany(
+            { id:orderId, status:'ofrecido', reserved_driver_id:driverId, reservation_token:fresh.reservation_token,
+              assignment_attempt:assignmentAttempt,
+              $or:[{processingOwnerId:null},{processingOwnerId:{$exists:false}},{processingLeaseExpiresAt:{$lt:Date.now()}}] },
+            { $set:{ processingOwnerId:retryOwner, processingAction:'REJECT',
+              processingOperationKey:`explicit_reject:${orderId}:${assignmentAttempt}`,
+              processingLeaseExpiresAt:Date.now()+30000, processingPhase:'REASSIGNING' } }
+          ).catch(()=>({updated:0}));
+          if ((retryLease?.matchedCount ?? retryLease?.modifiedCount ?? retryLease?.updated ?? 0) === 1) {
+            lockOwner = retryOwner; lockedOrder = fresh; break;
+          }
+        }
+        if (!lockOwner || !lockedOrder) {
+          await b44.entities.AuditLog.create({
+            action:'EXPLICIT_REJECT_DEFERRED_RETRY', user_type:'sistema', user_name:'rejectRide',
+            details:`Rechazo explícito ${orderId} quedó detrás de lease; se relanza sin esperar timeout`,
+            metadata:{orderId,driverId,assignmentAttempt:Number(assignmentAttempt)}
+          }).catch(()=>{});
+          b44.functions.invoke('rejectRide',{
+            orderId,driverId,assignmentAttempt:Number(assignmentAttempt),source:'explicit_reject',
+            internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+          }).catch(()=>{});
+          return Response.json({success:true,deferred:true,reason:'EXPLICIT_REJECT_DEFERRED_RETRY'});
+        }
+      } else {
+        return Response.json({ success:false, reason:'PROCESSING_IN_PROGRESS' });
+      }
+    } else {
+      lockedOrder = order;
     }
-    lockedOrder = order;
 
     // Determinamos si el chofer ya fue liberado previamente (APK legacy)
     let legacyAlreadyReleased = false;
