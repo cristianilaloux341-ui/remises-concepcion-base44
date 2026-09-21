@@ -1020,7 +1020,8 @@ Deno.serve(async (req) => {
           Number(order.assignment_attempt || 0) > 0 &&
           Number.isFinite(offerExpiry) &&
           offerExpiry > nowMs;
-        return !heldForReview && !lifecycleAlreadyAdvanced && !reassigning && !legacyOfferWindowStillLive;
+        const serverAuthorizedPending = order.processingAction === 'PENDING_AUTHORIZED';
+        return serverAuthorizedPending && !heldForReview && !lifecycleAlreadyAdvanced && !reassigning && !legacyOfferWindowStillLive;
       });
 
       if (eligiblePendings.length === 0) {
