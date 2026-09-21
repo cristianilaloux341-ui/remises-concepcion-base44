@@ -33,6 +33,22 @@ async function guardOfferedReservationIntegrity(b44:any, driverId:string) {
   const now = Date.now();
   const expiresAt = Number(order.offerExpiresAt);
   const expired = Number.isFinite(expiresAt) && expiresAt <= now;
+  const rejectIntents = await b44.entities.AuditLog.filter({
+    action:'EXPLICIT_REJECT_INTENT_CONFIRMED',
+    'metadata.orderId':order.id,
+    'metadata.driverId':driverId,
+    'metadata.assignmentAttempt':Number(order.assignment_attempt || 1)
+  }, '-created_date', 2).catch(()=>[]);
+  if ((rejectIntents || []).length > 0) {
+    await b44.entities.AuditLog.create({
+      action:'DRIVER_OFFER_RESTORE_SUPPRESSED_AFTER_EXPLICIT_REJECT',
+      user_type:'sistema',
+      user_name:'DriverStateGuard',
+      details:`No se restauró vínculo ${driverId}/${order.id}: rechazo explícito autoritativo del mismo intento`,
+      metadata:{ orderId:order.id, driverId, assignmentAttempt:Number(order.assignment_attempt || 1) }
+    }).catch(()=>{});
+    return { repaired:false, reason:'EXPLICIT_REJECT_HAS_PRIORITY' };
+  }
   const driverBusyElsewhere =
     driver.status === 'en_viaje' ||
     Boolean(driver.active_order_id) ||
