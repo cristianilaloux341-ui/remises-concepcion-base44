@@ -151,8 +151,8 @@ export async function assignDriverToOrder(order, driver, options = {}) {
   return res.data;
 }
 
-// Auto-dispatch: intenta asignar por zona; si no hay nadie → deja en pendiente
-// Retorna: "assigned" | "no_drivers"
+// LEGACY COMPAT ONLY. No debe ser llamado por Central ni por la APK activa.
+// El backend es la única autoridad para cadena A→B→C y para autorizar Pendientes.
 export async function autoDispatch(order, drivers, bases) {
   // Un viaje aceptado y luego cancelado por el chofer queda reservado para que
   // la Central decida; nunca vuelve solo a la rueda automática.
@@ -177,23 +177,8 @@ export async function autoDispatch(order, drivers, bases) {
     }
   }
 
-  // Agotada la cola de la zona, se deja pendiente para que un chofer lo tome.
-  // No se usa distancia ni se recorre otra zona automáticamente.
-  await base44.entities.RideOrder.update(order.id, {
-    status: "pendiente",
-    driver_id: null,
-    reserved_driver_id: null,
-    driver_name: null,
-    assigned_base: null,
-    reservation_token: null,
-    manual_reservation_token: null,
-    offerExpiresAt: null,
-    processingAction: null,
-    processingOperationKey: null,
-    processingOwnerId: null,
-    processingLeaseExpiresAt: null,
-    processingPhase: null
-  });
+  // Sin candidato local: NO escribir RideOrder. Pendiente sólo puede nacer
+  // del motor server-side después de agotar la cadena autoritativa.
   return "no_drivers";
 }
 
@@ -211,16 +196,8 @@ export async function reassignAfterReject(order, drivers, bases) {
   const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
 
   if (!available.length || !autoReassignActive) {
-    const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) 
-      ? sessionStorage.getItem("local_operator_token") 
-      : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
-    await base44.entities.RideOrder.update(order.id, {
-      status: "pendiente",
-      driver_id: null,
-      reserved_driver_id: null,
-      driver_name: null,
-      reservation_token: null
-    });
+    // Compatibilidad visual solamente. La APK legacy no tiene autoridad para
+    // convertir el viaje en Pendiente ni para liberar la reserva.
     return !autoReassignActive ? "manual" : "sin_moviles";
   }
 
@@ -239,26 +216,8 @@ export async function reassignAfterReject(order, drivers, bases) {
     }
   }
 
-  // Agotada la cola de la zona, se pasa a Pendientes.
-  // No se reasigna por distancia ni a otra zona.
-  const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token")) 
-      ? sessionStorage.getItem("local_operator_token") 
-      : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
-  await base44.entities.RideOrder.update(order.id, {
-    status: "pendiente",
-    driver_id: null,
-    reserved_driver_id: null,
-    driver_name: null,
-    assigned_base: null,
-    reservation_token: null,
-    manual_reservation_token: null,
-    offerExpiresAt: null,
-    processingAction: null,
-    processingOperationKey: null,
-    processingOwnerId: null,
-    processingLeaseExpiresAt: null,
-    processingPhase: null
-  });
+  // Agotada la vista local: no mutar el viaje. rejectRide/timeout server-side
+  // es quien recorre la cola y, sólo al agotarla, marca PENDING_AUTHORIZED.
   return "sin_moviles";
 }
 
