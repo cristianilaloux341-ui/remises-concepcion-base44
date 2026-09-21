@@ -281,6 +281,7 @@ Deno.serve(async (req) => {
     const eligiblePendings = pendingOrders
       .filter((order: any) =>
         Boolean(order.zone) &&
+        order.processingAction === 'PENDING_AUTHORIZED' &&
         order.processingPhase !== 'REASSIGNING' &&
         !(Number.isFinite(Number(order.offerExpiresAt)) && Number(order.offerExpiresAt) > Date.now() && Number(order.assignment_attempt || 0) > 0) &&
         !String(order.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]') &&
