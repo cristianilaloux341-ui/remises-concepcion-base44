@@ -335,10 +335,10 @@ Deno.serve(async (req) => {
     // Una selección equivocada de zona NO autoriza a publicar Pendientes. El
     // llamador automático debe continuar con el siguiente candidato de la zona.
     // Tampoco tocamos el RideOrder: podría existir una oferta válida concurrente.
-    // return Response.json({
-    //   success: false,
-    //   reason: `DRIVER_WRONG_ZONE:${effectiveDriverBase || 'sin_base'}:${orderReq.zone}`
-    // });
+    return Response.json({
+      success: false,
+      reason: `DRIVER_WRONG_ZONE:${effectiveDriverBase || 'sin_base'}:${orderReq.zone}`
+    });
   }
 
   // 2. Recuperación segura de referencias huérfanas.
@@ -410,6 +410,7 @@ Deno.serve(async (req) => {
     orderReq.alert_presented_assignment_attempt = null;
     orderReq.alert_presented_protocol_attempt = null;
     orderReq.delivery_retry_count = 0;
+    orderReq.pending_reason = null;
     if (requestedManual) {
       orderReq.notes = String(orderReq.notes || '')
         .replace(/\s*\[REVISION_CENTRAL_CANCELADO_CHOFER\]\s*/g, ' ')
