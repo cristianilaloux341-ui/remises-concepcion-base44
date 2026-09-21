@@ -289,10 +289,41 @@ Deno.serve(async (req) => {
         '-created_date',
         5
       ).catch(()=>[]);
-      const matchingAck = (ackLogs || []).find((log:any) => {
+      const inCurrentWindow = (log:any) => {
         const logMs = new Date(log.created_date || 0).getTime();
-        return Number.isFinite(logMs) && (!Number.isFinite(assignedMs) || assignedMs <= 0 || logMs >= assignedMs - 1000);
-      });
+        return Number.isFinite(logMs) &&
+          (!Number.isFinite(assignedMs) || assignedMs <= 0 || logMs >= assignedMs - 1000);
+      };
+      const windowLogs = (ackLogs || []).filter(inCurrentWindow);
+      const structuredLogs = windowLogs.filter((log:any) => log?.metadata?.assignmentAttempt != null);
+      const exactStructured = structuredLogs.filter((log:any) =>
+        Number(log.metadata.assignmentAttempt) === Number(assignmentAttempt)
+      );
+      const legacyUnstructured = windowLogs.filter((log:any) => log?.metadata?.assignmentAttempt == null);
+
+      // Si el ACK trae attempt, sólo puede adoptar el attempt exacto. Para APK
+      // legacy sin attempt sólo adoptamos un único candidato inequívoco y nunca
+      // si coexistieron ACK estructurados de otro intento.
+      const matchingAck = exactStructured[0] ||
+        (structuredLogs.length === 0 && legacyUnstructured.length === 1 ? legacyUnstructured[0] : null);
+
+      if (!matchingAck && windowLogs.length > 0) {
+        await b44.entities.AuditLog.create({
+          action:'LEGACY_ACK_AMBIGUOUS',
+          user_type:'sistema',
+          user_name:'autoReassignOnTimeout',
+          details:`ACK legacy no adoptado por ambigüedad para ${orderId} / intento ${assignmentAttempt}`,
+          metadata:{
+            orderId,
+            driverId,
+            assignmentAttempt:Number(assignmentAttempt),
+            candidateCount:windowLogs.length,
+            structuredCount:structuredLogs.length,
+            exactStructuredCount:exactStructured.length,
+            legacyUnstructuredCount:legacyUnstructured.length
+          }
+        }).catch(()=>{});
+      }
 
       if (matchingAck) {
         const ackMs = new Date(matchingAck.created_date).getTime();
