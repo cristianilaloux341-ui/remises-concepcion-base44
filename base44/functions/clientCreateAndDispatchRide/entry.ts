@@ -48,8 +48,17 @@ Deno.serve(async (req) => {
         reserved_driver_id: null,
         assigned_base: null,
         reservation_token: null,
-        offerExpiresAt: null
+        offerExpiresAt: null,
+        processingAction: "PENDING_AUTHORIZED",
+        pending_reason: "ZONE_EXHAUSTED_AT_CREATE"
       });
+      await b44.entities.AuditLog.create({
+        action: "PENDING_AUTHORIZED",
+        user_type: "sistema",
+        user_name: "clientCreateAndDispatchRide",
+        details: `Pendiente autorizado para ${order.id}: zona sin candidatos`,
+        metadata: { orderId: order.id, zone: order.zone || null, reason: "ZONE_EXHAUSTED_AT_CREATE" }
+      }).catch(() => {});
     }
 
     return Response.json({
