@@ -23,7 +23,7 @@ if (!Capacitor.Plugins.ForegroundService) {
 }
 
 import RideMap from "@/components/map/RideMap";
-import { BASES, reassignAfterReject, getEffectiveQueueBase, getBaseQueue } from "@/lib/dispatchLogic";
+import { BASES, getEffectiveQueueBase, getBaseQueue } from "@/lib/dispatchLogic";
 import InstallBanner from "@/components/driver/InstallBanner";
 import DriverMessages from "@/components/driver/DriverMessages";
 import DriverMessageModal from "@/components/driver/DriverMessageModal";
