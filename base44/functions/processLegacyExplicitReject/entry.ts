@@ -178,6 +178,17 @@ Deno.serve(async (req) => {
     // el traspaso atómico ofrecido(A) -> ofrecido(B) cuando existe otro candidato;
     // `pendiente` sólo es válido si realmente se agotó la cadena de candidatos.
     const assignmentAttempt = Number(order.assignment_attempt || 1);
+
+    // Intención estructurada: desde este punto el rechazo explícito de ESTE
+    // order+driver+attempt tiene prioridad sobre restauraciones legacy.
+    await b44.entities.AuditLog.create({
+      action:'EXPLICIT_REJECT_INTENT_CONFIRMED',
+      user_type:'sistema',
+      user_name:driverName,
+      details:`Rechazo explícito vinculado autoritativamente a ${order.id} / intento ${assignmentAttempt}`,
+      metadata:{ orderId:order.id, driverId:driver.id, assignmentAttempt, legacyAuditLogId:log.id || null }
+    }).catch(()=>{});
+
     const rejectRes = await b44.functions.invoke('rejectRide', {
       orderId:order.id,
       driverId:driver.id,
