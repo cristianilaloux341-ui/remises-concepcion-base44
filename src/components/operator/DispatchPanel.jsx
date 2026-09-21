@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Zap, User, MapPin, Loader2, ChevronRight, Car, CheckCircle2, Radio } from "lucide-react";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
-import { autoDispatch, assignDriverToOrder, getBaseQueue } from "@/lib/dispatchLogic";
+import { assignDriverToOrder, getBaseQueue } from "@/lib/dispatchLogic";
 import { getDriverDisplay } from "@/lib/utils";
 import { resolveActiveDriverForMobile } from "@/lib/mobileDriverResolver";
 
@@ -32,8 +32,13 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
 
   const handleAutoAssign = async () => {
     setDispatching(true);
-    // Pasamos ONLY los drivers verdaderamente disponibles (para evitar móviles suspendidos)
-    await autoDispatch(order, availableDrivers, bases);
+    // La Central no recorre candidatos ni escribe Pendientes. Solicita al backend
+    // una única asignación sobre el primer candidato autoritativo de la zona.
+    if (!suggestedDriver) {
+      setDispatching(false);
+      return;
+    }
+    await assignDriverToOrder(order, suggestedDriver, { requireDriverConfirmation: true });
     
     const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
     base44.entities.AuditLog.create({
@@ -235,9 +240,19 @@ export default function DispatchPanel({ orders, drivers, bases, moviles, onOrder
     };
     const actuallyAvailable = drivers.filter(d => isDriverWorking(d));
 
-    await Promise.all(
-      pending.map(order => autoDispatch(order, actuallyAvailable, bases))
-    );
+    // Serial: nunca despachar varios pedidos con la misma foto de cola.
+    // Cada asignación relee la cola después de reservar el viaje anterior.
+    for (const order of pending) {
+      const zoneQueue = order.zone ? getBaseQueue(actuallyAvailable, order.zone) : [];
+      const candidate = zoneQueue[0] || null;
+      if (!candidate) continue;
+      try {
+        await assignDriverToOrder(order, candidate, { requireDriverConfirmation: true });
+        candidate.reserved_order_id = order.id; // evita reutilizarlo en esta pasada local
+      } catch (e) {
+        console.warn("Despacho serial rechazado por backend", order.id, e);
+      }
+    }
     setDispatchingAll(false);
   };
 
