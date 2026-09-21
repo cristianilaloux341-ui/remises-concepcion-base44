@@ -217,68 +217,15 @@ export default function OrderDetail() {
   };
 
   const returnToPending = async () => {
-    // Si había un conductor asignado o pre-reservado, liberarlo completamente.
-    // Primero se limpia el chofer y recién después se reactiva la orden para que
-    // nunca vuelva a circular con una reserva/lease de una asignación anterior.
-    const toCancel = [...new Set([order.driver_id, order.reserved_driver_id])].filter(Boolean);
-    if (order.preassigned_driver_id) {
-      await base44.entities.Driver.updateMany(
-        { id: order.preassigned_driver_id, next_order_id: order.id },
-        { $set: { next_order_id: null, next_order_token: null } }
-      ).catch(() => {});
-    }
-    if (toCancel.length > 0) {
-      try {
-        await base44.entities.Driver.updateMany(
-          { id: { $in: toCancel }, $or: [{ active_order_id: order.id }, { active_ride_id: order.id }, { reserved_order_id: order.id }] },
-          {
-            $set: {
-              status: "disponible",
-              dispatch_status: "normal",
-              active_order_id: null,
-              active_ride_id: null,
-              reserved_order_id: null,
-              reservation_token: null,
-              manual_reservation_token: null,
-              driver_reservation_key: null
-            }
-          }
-        );
-      } catch (e) {
-        console.error("Error liberando conductores", e);
-        alert("No se pudo liberar el móvil anterior. El pasaje no fue reactivado.");
-        return;
-      }
-    }
-
-    await updateMutation.mutateAsync({
-      id: order.id,
-      data: {
-        status: "pendiente",
-        driver_id: null,
-        driver_name: null,
-        assigned_base: null,
-        reserved_driver_id: null,
-        preassigned_driver_id: null,
-        preassignment_token: null,
-        preassigned_at: null,
-        claimed_from_pending: false,
-        reservation_token: null,
-        manual_reservation_token: null,
-        offerExpiresAt: null,
-        processingAction: null,
-        processingOperationKey: null,
-        processingOwnerId: null,
-        processingLeaseExpiresAt: null,
-        processingPhase: null,
-        pendingEffectType: null,
-        pendingEffectKey: null,
-        pendingEffectStatus: null,
-        pendingEffectCorrelationId: null,
-        effectOwnerId: null,
-        effectLeaseExpiresAt: null
-      }
+    const response = await base44.functions.invoke("operatorOrderAction", {
+      action: "reactivate",
+      orderId: order.id,
+      sessionToken: sessionStorage.getItem("local_operator_token")
     });
+    if (!response?.data?.success) {
+      alert(response?.data?.reason || "No se pudo reactivar el pasaje.");
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
   };
 
