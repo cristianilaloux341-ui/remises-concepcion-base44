@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getBaseQueue, getEffectiveQueueBase, BASES } from "@/lib/dispatchLogic";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowUp, ArrowDown, XCircle, Plus, Clock, Settings, Zap } from "lucide-react";
+import { ArrowUp, ArrowDown, XCircle, Plus, Clock, Settings, Zap, TriangleAlert } from "lucide-react";
 import { getDriverDisplay } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
@@ -422,6 +422,52 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
   const movilById = Object.fromEntries(moviles.map(m => [String(m.id), m.numero_movil]));
   const [editingBase, setEditingBase] = useState(null);
 
+  // Respaldo visual de cola: compara únicamente movimientos del MISMO móvil
+  // dentro de la MISMA base. No escribe ni corrige posiciones.
+  const previousQueueRef = useRef(new Map());
+  const [queueMovementAlerts, setQueueMovementAlerts] = useState({});
+
+  useEffect(() => {
+    const previous = previousQueueRef.current;
+    const next = new Map();
+    const alerts = {};
+
+    for (const d of drivers || []) {
+      const base = getEffectiveQueueBase(d);
+      const pos = Number(d.queue_position);
+      if (!base || !Number.isFinite(pos) || pos <= 0) continue;
+
+      const current = { base, pos };
+      const before = previous.get(d.id);
+
+      if (before && before.base === current.base && before.pos !== current.pos) {
+        alerts[d.id] = {
+          base: current.base,
+          from: before.pos,
+          to: current.pos,
+          detectedAt: Date.now()
+        };
+      }
+      next.set(d.id, current);
+    }
+
+    previousQueueRef.current = next;
+    if (Object.keys(alerts).length) {
+      setQueueMovementAlerts(prev => ({ ...prev, ...alerts }));
+    }
+  }, [drivers]);
+
+  useEffect(() => {
+    if (!Object.keys(queueMovementAlerts).length) return;
+    const timer = setInterval(() => {
+      const cutoff = Date.now() - 30000;
+      setQueueMovementAlerts(prev => Object.fromEntries(
+        Object.entries(prev).filter(([, movement]) => movement.detectedAt >= cutoff)
+      ));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [queueMovementAlerts]);
+
   const getLinkedMovil = (d) => {
     const mobileId = String(d.vehicle_model || "");
     const mobileNumber = parseInt(mobileId, 10);
@@ -509,6 +555,15 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                             <p className="text-xs font-medium truncate text-primary font-bold">
                               {getDriverDisplay(nroMovil || driver.vehicle_model || driver.vehicle_plate, driver.name)}
                             </p>
+                            {queueMovementAlerts[driver.id]?.base === baseName && (
+                              <span
+                                className="ml-1 inline-flex items-center gap-0.5 text-[10px] font-extrabold text-red-600 shrink-0"
+                                title={`Movimiento detectado dentro de ${baseName}: ${queueMovementAlerts[driver.id].from}° → ${queueMovementAlerts[driver.id].to}°`}
+                              >
+                                <TriangleAlert className="w-3.5 h-3.5" />
+                                {queueMovementAlerts[driver.id].from}°→{queueMovementAlerts[driver.id].to}°
+                              </span>
+                            )}
                             <ConnectivityIndicator lastActive={driver.last_active} />
                           </div>
                         </div>
