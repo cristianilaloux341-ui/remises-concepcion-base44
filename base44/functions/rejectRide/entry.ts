@@ -177,11 +177,23 @@ Deno.serve(async (req) => {
     const isDeliveryUnconfirmed = source === 'delivery_unconfirmed';
     const queueBase = order.assigned_base || order.zone || actualDriver?.current_base || actualDriver?.queue_authoritative_base || null;
     if (queueBase && !isDeliveryUnconfirmed) {
-      // Bloqueamos la cola para posicionarlo último
+      const penaltyKey = `TAIL:${orderId}:${Number(assignmentAttempt)}:${driverId}`;
+      // Marca + posición en el mismo CAS: un retry del mismo intento no penaliza dos veces.
       await withQueueLock(b44, queueBase, async () => {
+        const freshDriver = await b44.entities.Driver.get(driverId).catch(() => null);
+        if (freshDriver?.last_queue_penalty_key === penaltyKey) {
+          await b44.entities.AuditLog.create({
+            action:'TAIL_ALREADY_APPLIED',
+            user_type:'sistema',
+            user_name:'rejectRide',
+            details:`Penalización de cola ya aplicada para ${orderId} / intento ${assignmentAttempt}`,
+            metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), baseName:queueBase, penaltyKey }
+          }).catch(()=>{});
+          return;
+        }
+
         const nextPos = await getNextQueuePosition(b44, queueBase, driverId);
         const nextQueueAt = await getNextQueueTailAt(b44, queueBase, driverId);
-        
         const placed = await b44.entities.Driver.updateMany(
           {
             id: driverId,
@@ -192,7 +204,8 @@ Deno.serve(async (req) => {
             ],
             reserved_order_id: null,
             active_order_id: null,
-            active_ride_id: null
+            active_ride_id: null,
+            last_queue_penalty_key:{ $ne:penaltyKey }
           },
           { $set: {
             current_base: queueBase,
@@ -201,20 +214,21 @@ Deno.serve(async (req) => {
             queue_authority_marker: nextPos,
             queue_entered_at: nextQueueAt,
             queue_authoritative_at: nextQueueAt,
-            queue_left_at: null
+            queue_left_at: null,
+            last_queue_penalty_key: penaltyKey,
+            last_queue_penalty_base: queueBase
           } }
         );
-        
+
         if ((placed?.updated ?? placed?.matchedCount ?? placed?.modifiedCount ?? 0) === 1) {
-            await b44.entities.AuditLog.create({
-              action:'DRIVER_SENT_TO_TAIL',
-              user_type:'sistema',
-              user_name:'rejectRide',
-              details:`Chofer ${driverId} pasó al último lugar en la base ${queueBase} (posición ${nextPos}) tras soltar oferta ${orderId}`,
-              metadata:{ orderId, driverId, baseName: queueBase, newPosition: nextPos, queueAt: nextQueueAt }
-            }).catch(()=>{});
-            
-            await compactQueueUnlocked(b44, queueBase).catch(e => console.error("Error compacting queue after tail placement", e));
+          await b44.entities.AuditLog.create({
+            action:'DRIVER_SENT_TO_TAIL',
+            user_type:'sistema',
+            user_name:'rejectRide',
+            details:`Chofer ${driverId} pasó al último lugar en la base ${queueBase} (posición ${nextPos}) tras soltar oferta ${orderId}`,
+            metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), baseName:queueBase, newPosition:nextPos, queueAt:nextQueueAt, penaltyKey }
+          }).catch(()=>{});
+          await compactQueueUnlocked(b44, queueBase).catch(e => console.error("Error compacting queue after tail placement", e));
         }
       });
     }
@@ -390,6 +404,7 @@ Deno.serve(async (req) => {
           // Marca explícita de Pendiente REAL: sólo la escribe Central después de
           // que el selector autoritativo recorrió la zona y no encontró candidato.
           processingAction:'PENDING_AUTHORIZED',
+          pending_reason:'CHAIN_EXHAUSTED',
           processingOperationKey:null,
           processingOwnerId:null,
           processingLeaseExpiresAt:null,
@@ -441,7 +456,7 @@ Deno.serve(async (req) => {
           orderId:lockOrderId,
           driverId:lockedOrder.reserved_driver_id,
           assignmentAttempt:Number(lockedOrder.assignment_attempt),
-          source: source === 'timeout' ? 'timeout' : 'explicit_reject',
+          source,
           legacyQueueEnteredAt,
           internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
         }).catch(()=>{});
