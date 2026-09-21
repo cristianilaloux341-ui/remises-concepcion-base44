@@ -215,6 +215,31 @@ Deno.serve(async (req) => {
         ).catch(()=>{});
       } else {
         const ownerDriverId = body.old_data.reserved_driver_id || body.old_data.driver_id;
+        const rollbackAttempt = Number(body.old_data.assignment_attempt || 1);
+        let explicitRejectIntent = false;
+        if (ownerDriverId) {
+          for (let i=0; i<6 && !explicitRejectIntent; i++) {
+            if (i > 0) await new Promise(resolve => setTimeout(resolve, 250));
+            const intents = await base44.asServiceRole.entities.AuditLog.filter({
+              action:'EXPLICIT_REJECT_INTENT_CONFIRMED',
+              'metadata.orderId':orderId,
+              'metadata.driverId':ownerDriverId,
+              'metadata.assignmentAttempt':rollbackAttempt
+            }, '-created_date', 1).catch(()=>[]);
+            explicitRejectIntent = (intents || []).length > 0;
+          }
+        }
+        if (explicitRejectIntent) {
+          await base44.asServiceRole.entities.AuditLog.create({
+            action:'LEGACY_ROLLBACK_SUPPRESSED_AFTER_EXPLICIT_REJECT',
+            user_type:'sistema',
+            user_name:body.old_data.driver_name || 'Chofer',
+            details:`No se restauró la oferta ${orderId}: rechazo explícito autoritativo del mismo intento`,
+            metadata:{ orderId, driverId:ownerDriverId, assignmentAttempt:rollbackAttempt }
+          }).catch(()=>{});
+          return Response.json({ ok:true, reason:'explicit_reject_wins_over_legacy_restore' });
+        }
+
         const ownerDriver = ownerDriverId
           ? await base44.asServiceRole.entities.Driver.get(ownerDriverId).catch(() => null)
           : null;
