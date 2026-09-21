@@ -179,6 +179,11 @@ Deno.serve(async (req) => {
         order.preassigned_driver_id) {
       return Response.json({ success: false, reason: 'already_taken' });
     }
+    // Pendientes es una salida explícita del servidor, no sinónimo de status=pendiente.
+    // Evita que una escritura legacy/transitoria pueda ser tomada por otro móvil.
+    if (order.processingAction !== 'PENDING_AUTHORIZED') {
+      return Response.json({ success: false, reason: 'pending_not_authorized' });
+    }
 
     // REGLA ORIGINAL DE PENDIENTES: si todavía existe un móvil realmente disponible
     // en la zona del pasaje, la cartelera NO puede apropiárselo. Debe seguir por el
