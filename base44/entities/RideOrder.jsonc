@@ -281,6 +281,19 @@
         "number",
         "null"
       ]
+    },
+    "pending_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "NEW_NO_DRIVER",
+        "CHAIN_EXHAUSTED",
+        "MANUAL_RETURN",
+        null
+      ],
+      "description": "Clasificaci\u00f3n server-side de Pendiente p\u00fablico autorizado"
     }
   },
   "required": [
