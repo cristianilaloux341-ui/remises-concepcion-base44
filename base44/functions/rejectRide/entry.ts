@@ -277,10 +277,10 @@ Deno.serve(async (req) => {
     });
 
     const config = (await b44.entities.TarifaConfig.list())[0] || {};
-    // Compatibilidad: cada nueva oferta nace con los 30 s históricos.
-    // La v12.31 nueva puede ampliar sólo el techo de ENTREGA cuando confirme
-    // explícitamente soporte de ALERT_PRESENTED.
-    const timeoutSeconds = 30;
+    // La nueva oferta nace sin reloj comercial. La duración configurada se aplica
+    // únicamente cuando el siguiente teléfono confirme ALERT_PRESENTED.
+    const configuredResponseSeconds = Number(config.tiempo_maximo_respuesta_segundos);
+    const timeoutSeconds = Number.isFinite(configuredResponseSeconds) && configuredResponseSeconds > 0 ? configuredResponseSeconds : 30;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     const excluded = new Set<string>([...(order.offered_driver_ids || []), driverId].filter(Boolean));
 
@@ -300,7 +300,7 @@ Deno.serve(async (req) => {
 
         const newAttempt = Number(assignmentAttempt) + 1;
         const assignedAt = new Date().toISOString();
-        const expiresAt = Date.now() + timeoutSeconds*1000;
+        const expiresAt = null;
         // Cada salto es una oferta NUEVA. offered_driver_ids queda sólo como historial
         // para no volver a ofrecer a quienes ya pasaron; la identidad activa se
         // reemplaza por completo con nextDriver + token + newAttempt.
@@ -323,7 +323,7 @@ Deno.serve(async (req) => {
               reservation_token:token,
               manual_reservation_token:null,
               assigned_base:nextDriver.current_base || nextDriver.queue_authoritative_base || order.zone || null,
-              offerExpiresAt:expiresAt,
+              offerExpiresAt:null,
               assignment_attempt:newAttempt,
               assigned_at:assignedAt,
               push_ack_at:null,
