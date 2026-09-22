@@ -783,12 +783,20 @@ Deno.serve(async (req) => {
         // la intención de cambio; jamás aporta prioridad ni posición. El servidor
         // vuelve a colocar al móvil al final de la nueva base bajo lock.
         if (!normalizedExplicitQueueEntry && authoritativeBase && currentBase && authoritativeBase !== currentBase) {
+          const attemptedBaseAt = (eventData?.queue_authoritative_at || eventData?.queue_entered_at) ?? null;
+          const signedBaseMove = await verifyReorderToken(
+            eventData?.manual_reorder_token ?? null,
+            driverId,
+            currentBase,
+            attemptedBaseAt
+          );
+          // current_base + timestamp no alcanza: una reconexión/caché legacy puede
+          // reproducir esa pareja. El cambio A→B requiere intención firmada.
           const explicitDriverBaseEntry = Boolean(
             eventData && oldData &&
             oldData.current_base === authoritativeBase &&
             eventData.current_base === currentBase &&
-            eventData.queue_entered_at &&
-            eventData.queue_entered_at !== oldData.queue_entered_at
+            signedBaseMove
           );
 
           if (explicitDriverBaseEntry) {
