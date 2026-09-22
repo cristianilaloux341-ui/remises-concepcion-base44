@@ -113,13 +113,32 @@ Deno.serve(async (req) => {
   ]);
 
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
-  const effectiveDriverBase = driverReq.current_base || driverReq.queue_authoritative_base || null;
+  const effectiveDriverBase = driverReq.queue_authoritative_base || driverReq.current_base || null;
+  const activeStatuses = new Set(['ofrecido', 'aceptado', 'en_camino', 'en_viaje']);
+  let conflictingOrders = [...assignedOrders, ...reservedOrders].filter(
+    (existing:any, index:number, all:any[]) =>
+      existing.id !== orderId &&
+      activeStatuses.has(existing.status) &&
+      all.findIndex((x:any)=>x.id === existing.id) === index
+  );
+  const hasCurrentRide = Boolean(
+    driverReq.active_order_id || driverReq.active_ride_id || driverReq.reserved_order_id ||
+    conflictingOrders.length > 0
+  );
+  const hasNextRide = Boolean(driverReq.next_order_id);
 
-  // Invariante de servicio: ningún móvil sin base activa puede recibir pasajes,
-  // tampoco por asignación manual. `status=disponible` con current_base=null es
-  // un estado intermedio/fantasma (por ejemplo app cerrada o antes de elegir base),
-  // no significa que esté en posición para trabajar.
-  if (driverReq.status !== 'disponible' || !effectiveDriverBase) {
+  // Capacidad uniforme: dos pasajes por móvil, sin importar origen.
+  if (hasCurrentRide && hasNextRide) {
+    return Response.json({ success:false, reason:'DRIVER_CAPACITY_FULL' });
+  }
+
+  // Un móvil con un primer pasaje puede recibir exactamente un segundo. Ese segundo
+  // se guarda como próximo y jamás pisa active/reserved del primero.
+  const assignAsNext = hasCurrentRide && !hasNextRide;
+
+  // Fuera de servicio sigue bloqueado. Para el segundo slot no exigimos status=disponible
+  // ni base actual: un móvil ocupado justamente ya no pertenece a la cola/base.
+  if (driverReq.status === 'no_disponible' || (!assignAsNext && (driverReq.status !== 'disponible' || !effectiveDriverBase))) {
     await b44.entities.AuditLog.create({
       action: 'OFF_SERVICE_ASSIGN_BLOCKED',
       user_type: 'sistema',
@@ -202,11 +221,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 1. Verificar si el móvil está ocupado con OTRO viaje real activo (seguridad para no robar viajes)
-  const activeStatuses = new Set(['ofrecido', 'aceptado', 'en_camino', 'en_viaje']);
-  let conflictingOrders = [...assignedOrders, ...reservedOrders].filter(
-    (existing: any) => existing.id !== orderId && activeStatuses.has(existing.status)
-  );
+  // Los conflictos reales ya fueron contados como slot 1. No se bloquea por tener
+  // un viaje: sólo se bloquea cuando los dos slots están ocupados.
 
   // Reparación segura de "viajes fantasma": puede quedar un RideOrder como en_viaje
   // aunque finishRide haya confirmado el cierre y el Driver ya esté libre/sin referencias.
@@ -281,15 +297,6 @@ Deno.serve(async (req) => {
     }
   }
   
-  if (conflictingOrders.length > 0) {
-    // Nunca cancelar automáticamente otro pasaje real para destrabar un móvil.
-    // Sólo se ignoran/reparan arriba conflictos con FINISH_RIDE_COMMITTED comprobado.
-    return Response.json({
-      success: false,
-      reason: 'DRIVER_ALREADY_BUSY'
-    });
-  }
-
   if (driverReq.status === 'no_disponible') {
     return Response.json({
       success: false,
@@ -338,6 +345,56 @@ Deno.serve(async (req) => {
       success: false,
       reason: `DRIVER_WRONG_ZONE:${effectiveDriverBase || 'sin_base'}:${orderReq.zone}`
     });
+  }
+
+  // Segundo slot: reservar como próximo mediante CAS. Sirve igual para común,
+  // requerido, Central o cualquier entrada que use assignRide.
+  if (assignAsNext) {
+    const nextToken = crypto.randomUUID();
+    const driverNext = await b44.entities.Driver.updateMany(
+      {
+        id:driverId,
+        status:{ $ne:'no_disponible' },
+        $or:[{next_order_id:null},{next_order_id:{ $exists:false }}]
+      },
+      { $set:{ next_order_id:orderId, next_order_token:nextToken } }
+    );
+    const wonNext = (driverNext?.matchedCount ?? driverNext?.modifiedCount ?? driverNext?.updated ?? 0) === 1;
+    if (!wonNext) return Response.json({success:false,reason:'DRIVER_CAPACITY_FULL'});
+
+    const orderNext = await b44.entities.RideOrder.updateMany(
+      {
+        id:orderId,
+        status:{ $in:['pendiente','procesando_despacho','esperando_confirmacion_manual'] },
+        $or:[{preassigned_driver_id:null},{preassigned_driver_id:{ $exists:false }}]
+      },
+      { $set:{
+        status:'preasignado_proximo',
+        driver_id:driverId,
+        driver_name:driverReq.name,
+        preassigned_driver_id:driverId,
+        preassignment_token:nextToken,
+        preassigned_at:new Date().toISOString(),
+        assigned_base:effectiveDriverBase || orderReq.zone || null,
+        pending_reason:null
+      }}
+    );
+    const wonOrder = (orderNext?.matchedCount ?? orderNext?.modifiedCount ?? orderNext?.updated ?? 0) === 1;
+    if (!wonOrder) {
+      await b44.entities.Driver.updateMany(
+        {id:driverId,next_order_id:orderId,next_order_token:nextToken},
+        {$set:{next_order_id:null,next_order_token:null}}
+      );
+      return Response.json({success:false,reason:'ORDER_CHANGED'});
+    }
+    await b44.entities.AuditLog.create({
+      action:'SECOND_RIDE_ASSIGNED',
+      user_type:'sistema',
+      user_name:'assignRide',
+      details:`Segundo pasaje ${orderId} reservado para ${driverReq.name || driverId}`,
+      metadata:{orderId,driverId,source:forceManual ? 'manual_or_required' : 'dispatch'}
+    }).catch(()=>{});
+    return Response.json({success:true,assigned:true,mode:'next',orderId,driverId});
   }
 
   // 2. Recuperación segura de referencias huérfanas.
