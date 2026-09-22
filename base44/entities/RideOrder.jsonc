@@ -75,6 +75,10 @@
     "preassigned_driver_id": {
       "type": "string"
     },
+    "second_slot_offer": {
+      "type": "boolean",
+      "default": false
+    },
     "preassignment_token": {
       "type": "string"
     },

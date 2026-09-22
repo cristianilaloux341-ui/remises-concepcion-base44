@@ -336,8 +336,49 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Segundo slot: reservar como próximo mediante CAS. Sirve igual para común,
-  // requerido, Central o cualquier entrada que use assignRide.
+  // Si el cliente pidió específicamente ESTE móvil y ya está ocupado, el segundo
+  // cupo se RESERVA pero todavía no se confirma. Se envía una oferta real al teléfono;
+  // recién ACEPTAR la convierte en preasignado_proximo.
+  const requestedSecondSlotOffer = assignAsNext &&
+    orderReq.requested_driver_only === true && orderReq.requested_driver_id === driverId;
+  if (requestedSecondSlotOffer) {
+    const nextToken = crypto.randomUUID();
+    const newAttempt = Number(orderReq.assignment_attempt || 0) + 1;
+    const assignedAt = new Date().toISOString();
+    const driverNext = await b44.entities.Driver.updateMany(
+      { id:driverId, status:{ $ne:'no_disponible' },
+        $and:[
+          { $or:[{next_order_id:null},{next_order_id:{ $exists:false }}] },
+          { $or:[{active_order_id:{ $ne:null }},{active_ride_id:{ $ne:null }},{reserved_order_id:{ $ne:null }}] }
+        ] },
+      { $set:{next_order_id:orderId,next_order_token:nextToken} }
+    );
+    if ((driverNext.matchedCount ?? driverNext.modifiedCount ?? driverNext.updated ?? 0) !== 1)
+      return Response.json({success:false,reason:'DRIVER_CAPACITY_FULL'});
+
+    const offered = await b44.entities.RideOrder.updateMany(
+      {id:orderId,status:{ $in:['pendiente','procesando_despacho','esperando_confirmacion_manual'] }},
+      {$set:{status:'ofrecido',driver_id:driverId,driver_name:driverReq.name,reserved_driver_id:driverId,
+        reservation_token:nextToken,second_slot_offer:true,assignment_attempt:newAttempt,assigned_at:assignedAt,
+        assigned_base:null,offerExpiresAt:null,push_ack_at:null,push_ack_assignment_attempt:null,
+        alert_presented_at:null,alert_presented_assignment_attempt:null,alert_presented_protocol_attempt:null,
+        delivery_retry_count:0,pending_reason:null},$addToSet:{offered_driver_ids:driverId}}
+    );
+    if ((offered.matchedCount ?? offered.modifiedCount ?? offered.updated ?? 0) !== 1) {
+      await b44.entities.Driver.updateMany({id:driverId,next_order_id:orderId,next_order_token:nextToken},{$set:{next_order_id:null,next_order_token:null}});
+      return Response.json({success:false,reason:'ORDER_CHANGED'});
+    }
+    b44.functions.invoke('sendPushNotification',{action:'send',driverId,orderId,orderData:{
+      pickup_address:orderReq.pickup_address,dropoff_address:orderReq.dropoff_address,fare:orderReq.fare,
+      notes:orderReq.notes,assignmentAttempt:newAttempt},internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')}).catch(()=>{});
+    b44.functions.invoke('autoReassignOnTimeout',{orderId,driverId,assignmentAttempt:newAttempt,internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')}).catch(()=>{});
+    await b44.entities.AuditLog.create({action:'SECOND_RIDE_OFFERED_REQUIRED',user_type:'sistema',user_name:'assignRide',
+      details:`Segundo pasaje requerido ${orderId} ofrecido a ${driverReq.name || driverId}; espera aceptación.`,
+      metadata:{orderId,driverId,assignmentAttempt:newAttempt}}).catch(()=>{});
+    return Response.json({success:true,assigned:true,mode:'next_offer',orderId,driverId});
+  }
+
+  // Segundo slot ordinario: reservar como próximo mediante CAS.
   if (assignAsNext) {
     const nextToken = crypto.randomUUID();
     const driverNext = await b44.entities.Driver.updateMany(
