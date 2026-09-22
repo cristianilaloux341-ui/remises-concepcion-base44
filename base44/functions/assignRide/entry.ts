@@ -373,8 +373,9 @@ Deno.serve(async (req) => {
 
     // 2. Config ya cargada en paralelo con las validaciones anteriores.
     const config = tarifaConfigs[0] || {};
-    // Compatibilidad: toda oferta nace con los 30 s históricos. Sólo la
-    // nueva v12.31 puede activar el protocolo ALERT_PRESENTED desde native_ack.
+    // Motor nuevo: los 30 s NO nacen al asignar. Sólo ALERT_PRESENTED puede
+    // crear offerExpiresAt = presented_at + 30 s. Antes de eso existe entrega,
+    // con un único reintento técnico, pero no un timeout comercial.
     const timeoutSeconds = 30;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     // Una asignación manual siempre debe esperar la aceptación del chofer.
@@ -390,11 +391,10 @@ Deno.serve(async (req) => {
     // Set protege además contra datos históricos duplicados.
     const offeredIds = [...new Set([...(orderReq.offered_driver_ids || []), driverId])];
 
-    // offerExpiresAt sigue siendo la única autoridad de tiempo.
-    // En APK legacy son los 30 s normales. La nueva v12.31, al confirmar soporte
-    // del protocolo, obtiene un techo de entrega antes de ALERT_PRESENTED.
+    // La oferta nace SIN vencimiento comercial. handleNativePushAction es el único
+    // que lo crea cuando el teléfono confirma native_alert_presented.
     const assignedAt = new Date().toISOString();
-    const offerExpiresAt = Date.now() + (timeoutSeconds * 1000);
+    const offerExpiresAt = null;
 
     // Update memory object for Push payload
     orderReq.assignment_attempt = newAttempt;
@@ -462,7 +462,7 @@ Deno.serve(async (req) => {
           assigned_base: effectiveDriverBase,
           driver_name: driverReq.name,
           assigned_at: assignedAt,
-          offerExpiresAt: offerExpiresAt,
+          offerExpiresAt: null,
           push_ack_at: null,
           push_ack_assignment_attempt: null,
           alert_presented_at: null,
@@ -474,8 +474,8 @@ Deno.serve(async (req) => {
 
       // 5. Trigger Reassignment if needed
       if (targetOrderStatus === "ofrecido" && autoReassignActive) {
-        // Watchdog: reintenta entrega si no hay ALERT_PRESENTED y vence
-        // únicamente contra la fecha autoritativa de offerExpiresAt.
+        // Watchdog de entrega/presentación. No puede generar timeout comercial
+        // mientras ALERT_PRESENTED no haya creado offerExpiresAt.
         b44.functions.invoke("autoReassignOnTimeout", {
           orderId: orderId,
           driverId: driverId,
