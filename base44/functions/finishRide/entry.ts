@@ -59,7 +59,9 @@ Deno.serve(async (req) => {
       !d.active_order_id &&
       !d.reserved_order_id &&
       !d.reservation_token &&
-      !d.manual_reservation_token
+      !d.manual_reservation_token &&
+      !d.next_order_id &&
+      !d.next_order_token
     );
 
     if (isClean(freshDriver)) {
@@ -215,7 +217,11 @@ Deno.serve(async (req) => {
         if (mutationCount(orderPromote) === 1) {
           const driverPromote = await b44.entities.Driver.updateMany(
             {id:driverId,next_order_id:nextOrderId,next_order_token:nextToken,
-             $or:[{active_order_id:null},{active_order_id:{$exists:false}}]},
+             $and:[
+               {$or:[{active_order_id:null},{active_order_id:{$exists:false}}]},
+               {$or:[{active_ride_id:null},{active_ride_id:{$exists:false}}]},
+               {$or:[{reserved_order_id:null},{reserved_order_id:{$exists:false}}]}
+             ]},
             {$set:{status:'en_viaje',dispatch_status:'normal',active_order_id:nextOrderId,
                    active_ride_id:nextOrderId,next_order_id:null,next_order_token:null}}
           );
@@ -229,9 +235,11 @@ Deno.serve(async (req) => {
           } else {
             // Revertir únicamente nuestra promoción si el Driver cambió en la carrera.
             await b44.entities.RideOrder.updateMany(
-              {id:nextOrderId,status:'aceptado',driver_id:driverId},
-              {$set:{status:'preasignado_proximo',preassigned_driver_id:driverId,
-                     preassignment_token:nextToken,preassigned_at:next.preassigned_at || new Date().toISOString()}}
+              {id:nextOrderId,status:'aceptado',driver_id:driverId,
+               $or:[{preassigned_driver_id:null},{preassigned_driver_id:{$exists:false}}]},
+              {$set:{status:'preasignado_proximo',driver_id:driverId,driver_name:fresh.name,
+                     preassigned_driver_id:driverId,preassignment_token:nextToken,
+                     preassigned_at:next.preassigned_at || new Date().toISOString()}}
             ).catch(()=>{});
           }
         }
