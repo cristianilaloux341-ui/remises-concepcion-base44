@@ -238,11 +238,19 @@ Deno.serve(async (req) => {
     const hasCurrentRide = !!(
       driver.active_order_id || driver.active_ride_id || driver.reserved_order_id
     );
+    const hasNextRide = !!driver.next_order_id;
+    // Contrato comercial: máximo DOS pasajes vinculados por móvil.
+    // Slot 1 = viaje actual/reservado. Slot 2 = próximo viaje, incluso si ambos
+    // fueron tomados desde Pendientes. Dos llamadas concurrentes compiten por
+    // next_order_id mediante CAS y sólo una puede ganar.
+    if (hasCurrentRide && hasNextRide) {
+      return Response.json({ success:false, reason:'driver_capacity_full' });
+    }
     const queueAsNext = asNext === true || hasCurrentRide;
 
     if (queueAsNext) {
-      if (driver.next_order_id) {
-        return Response.json({ success: false, reason: 'driver_already_has_next' });
+      if (hasNextRide) {
+        return Response.json({ success: false, reason: 'driver_capacity_full' });
       }
 
       const driverRes = await b44.entities.Driver.updateMany(
@@ -252,12 +260,21 @@ Deno.serve(async (req) => {
           $or: [
             { next_order_id: null },
             { next_order_id: { $exists: false } }
-          ]
+          ],
+          // Si ya posee un viaje actual, éste es exactamente el segundo slot.
+          // Si asNext fue pedido sin viaje actual, también se reserva sólo un slot próximo.
+          ...(hasCurrentRide ? {} : {
+            $and: [
+              { $or:[{active_order_id:null},{active_order_id:{$exists:false}}] },
+              { $or:[{active_ride_id:null},{active_ride_id:{$exists:false}}] },
+              { $or:[{reserved_order_id:null},{reserved_order_id:{$exists:false}}] }
+            ]
+          })
         },
         { $set: { next_order_id: orderId, next_order_token: token } }
       );
       if (!changed(driverRes)) {
-        return Response.json({ success: false, reason: 'driver_already_has_next' });
+        return Response.json({ success: false, reason: 'driver_capacity_full' });
       }
 
       const orderRes = await b44.entities.RideOrder.updateMany(
