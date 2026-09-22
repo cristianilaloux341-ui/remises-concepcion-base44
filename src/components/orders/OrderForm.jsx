@@ -210,26 +210,23 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       setDetectingZone(true);
       let zone = null;
       
-      // Si la sugerencia trae coordenadas exactas (Geoapify/OSM), el polígono manda.
-      // Esto evita que una memoria vieja de calle completa asigne una zona incorrecta
-      // cuando esa misma calle atraviesa más de una zona.
+      // 1) Memoria propia confirmada: una dirección exacta ya aprendida manda.
+      // Esto evita repetir errores de geocodificadores que devuelven el centro de una calle
+      // o las mismas coordenadas para alturas distintas.
+      zone = await detectZoneFromAddress(form.pickup_address);
+      if (!isCurrent()) return;
+
+      // 2) Si todavía no la conocemos y la sugerencia trae coordenadas, resolver por polígonos.
       const selectedCoords = (form.pickup_lat && form.pickup_lng)
         ? { lat: form.pickup_lat, lng: form.pickup_lng }
         : null;
 
-      if (selectedCoords) {
+      if (!zone && selectedCoords) {
         zone = await detectZoneFromCoords(selectedCoords.lat, selectedCoords.lng);
         if (!isCurrent()) return;
       }
 
-      // Sin coordenadas seleccionadas, usar primero la memoria local para no hacer
-      // consultas externas innecesarias en direcciones ya conocidas.
-      if (!zone && !selectedCoords) {
-        zone = await detectZoneFromAddress(form.pickup_address);
-        if (!isCurrent()) return;
-      }
-
-      // Último recurso: geocodificar el texto y resolver por el polígono real.
+      // 3) Último recurso: geocodificar el texto y resolver por el polígono real.
       if (!zone && !selectedCoords) {
         const coords = await geocodeAddress(form.pickup_address);
         if (!isCurrent()) return;
