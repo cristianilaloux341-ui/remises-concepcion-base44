@@ -12,6 +12,15 @@ Deno.serve(async (req) => {
     if (!order) return Response.json({ success:false, reason:'ORDER_NOT_FOUND' }, { status:404 });
     if (order.status !== 'pendiente') return Response.json({ success:false, reason:'ORDER_NOT_PENDING' }, { status:409 });
 
+    const centralReviewOnly = order.pending_reason === 'REQUESTED_DRIVER_NOT_ACCEPTED' ||
+      order.processingAction === 'CENTRAL_REVIEW_REQUIRED_DRIVER';
+
+    // Un requerido no aceptado queda congelado para decisión humana. Nunca puede
+    // reactivar por sí solo la cadena automática; Central debe elegir otro móvil.
+    if (centralReviewOnly && !driverId) {
+      return Response.json({ success:false, reason:'REQUESTED_DRIVER_OPERATOR_SELECTION_REQUIRED' }, { status:409 });
+    }
+
     let targetId = driverId || null;
     if (!targetId) {
       const zoneKey = String(order.zone || '').trim().toLowerCase();
@@ -22,6 +31,23 @@ Deno.serve(async (req) => {
       targetId = next?.id || null;
     }
     if (!targetId) return Response.json({ success:false, reason:'NO_ELIGIBLE_DRIVER' }, { status:409 });
+
+    // Al elegir explícitamente otro móvil, la retención deja de ser exclusiva del
+    // requerido original. assignRide hará la nueva oferta canónica.
+    if (centralReviewOnly && driverId) {
+      const releaseHold = await b44.entities.RideOrder.updateMany(
+        { id:orderId, status:'pendiente', pending_reason:'REQUESTED_DRIVER_NOT_ACCEPTED' },
+        { $set:{
+          requested_driver_only:false,
+          requested_driver_id:null,
+          pending_reason:'MANUAL_RETURN',
+          processingAction:null
+        } }
+      );
+      if ((releaseHold.matchedCount ?? releaseHold.modifiedCount ?? releaseHold.updated ?? 0) !== 1) {
+        return Response.json({ success:false, reason:'ORDER_CHANGED_BEFORE_OPERATOR_REASSIGN' }, { status:409 });
+      }
+    }
 
     const res = await b44.functions.invoke('assignRide', {
       orderId,
