@@ -139,7 +139,12 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
       { $set: offerSet }
     );
     if ((rideRes.matchedCount ?? rideRes.modifiedCount ?? rideRes.updated ?? 0) !== 1) {
-      await b44.entities.Driver.updateMany({ id: driver.id, reservation_token: token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } });
+      // Rollback quirúrgico: liberar sólo si ESTE token todavía posee la reserva.
+      // No tocar cola/base/posición; perder la carrera de un pasaje no penaliza al móvil.
+      await b44.entities.Driver.updateMany(
+        { id: driver.id, status:'disponible', dispatch_status:'automatic_pending', reserved_order_id:order.id, reservation_token:token },
+        { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } }
+      );
       return false;
     }
 
@@ -184,11 +189,17 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
     return true;
   } catch (e) {
     if (e.message.includes('INJECTED_FAILURE_AT_AFTER_AUTO_DRIVER_RESERVE')) {
-      await b44.entities.Driver.updateMany({ id: driver.id, reservation_token: token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } });
+      await b44.entities.Driver.updateMany(
+        { id:driver.id, status:'disponible', dispatch_status:'automatic_pending', reserved_order_id:order.id, reservation_token:token },
+        { $set:{ dispatch_status:'normal', reserved_order_id:null, reservation_token:null } }
+      );
     } else {
       // Revert ride back to procesando_despacho and release driver (for any other error to prevent stuck state)
       await b44.entities.RideOrder.updateMany({ id: order.id, status: 'ofrecido', reservation_token: token }, { $set: { status: 'procesando_despacho', driver_id: null, reserved_driver_id: null, driver_name: null } });
-      await b44.entities.Driver.updateMany({ id: driver.id, reservation_token: token }, { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } });
+      await b44.entities.Driver.updateMany(
+        { id:driver.id, status:'disponible', dispatch_status:'automatic_pending', reserved_order_id:order.id, reservation_token:token },
+        { $set:{ dispatch_status:'normal', reserved_order_id:null, reservation_token:null } }
+      );
       if (e.message.includes('INJECTED_FAILURE_AT_BEFORE_PUSH')) {
         await safeAuditLog(b44, { action: 'DELIVERY_ERROR', user_type: 'sistema', user_name: 'System', details: e.message }, failureInjector);
       }
