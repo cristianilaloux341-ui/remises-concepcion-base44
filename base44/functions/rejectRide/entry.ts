@@ -276,6 +276,58 @@ Deno.serve(async (req) => {
       }).catch(()=>{});
     });
 
+    // Un móvil pedido expresamente por el cliente es una ruta distinta de una
+    // asignación manual común de Central. Si no lo toma, NO recorrer A→B→C y NO
+    // publicar en Pendientes de choferes: queda retenido sólo para el operador.
+    const requestedDriverFailed = order.requested_driver_only === true && order.requested_driver_id === driverId;
+    if (requestedDriverFailed) {
+      const held = await b44.entities.RideOrder.updateMany(
+        {
+          id:orderId,
+          status:'ofrecido',
+          reserved_driver_id:driverId,
+          reservation_token:order.reservation_token,
+          assignment_attempt:assignmentAttempt,
+          processingOwnerId:lockOwner
+        },
+        { $set:{
+          status:'pendiente',
+          driver_id:null,
+          driver_name:null,
+          reserved_driver_id:null,
+          reservation_token:null,
+          manual_reservation_token:null,
+          assigned_at:null,
+          assigned_base:null,
+          offerExpiresAt:null,
+          push_ack_at:null,
+          push_ack_assignment_attempt:null,
+          alert_presented_at:null,
+          alert_presented_assignment_attempt:null,
+          alert_presented_protocol_attempt:null,
+          delivery_retry_count:0,
+          processingAction:'CENTRAL_REVIEW_REQUIRED_DRIVER',
+          pending_reason:'REQUESTED_DRIVER_NOT_ACCEPTED',
+          processingOperationKey:null,
+          processingOwnerId:null,
+          processingLeaseExpiresAt:null,
+          processingPhase:null
+        }, $addToSet:{ offered_driver_ids:driverId } }
+      );
+      if ((held.matchedCount ?? held.modifiedCount ?? held.updated ?? 0) !== 1) {
+        throw new Error('ORDER_CHANGED_BEFORE_REQUESTED_DRIVER_HOLD');
+      }
+      lockOwner = null;
+      await b44.entities.AuditLog.create({
+        action:'REQUESTED_DRIVER_NOT_ACCEPTED',
+        user_type:'sistema',
+        user_name:'rejectRide',
+        details:`El móvil requerido no tomó ${orderId}; retenido exclusivamente para decisión de Central.`,
+        metadata:{orderId,driverId,assignmentAttempt:Number(assignmentAttempt),source,visibleToDrivers:false}
+      }).catch(()=>{});
+      return Response.json({success:true,reassigned_to:null,centralReview:true,reason:'REQUESTED_DRIVER_NOT_ACCEPTED',source});
+    }
+
     const config = (await b44.entities.TarifaConfig.list())[0] || {};
     // La nueva oferta nace sin reloj comercial. La duración configurada se aplica
     // únicamente cuando el siguiente teléfono confirme ALERT_PRESENTED.
