@@ -32,13 +32,13 @@ export default function AppLayout() {
   // Accesos directos de teclado
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (['F1', 'F2', 'F3', 'F4', 'F5', 'F7'].includes(e.key)) {
+      if (['F1', 'F2', 'F3', 'F4', 'F7', 'F8'].includes(e.key)) {
         e.preventDefault();
         e.stopPropagation();
         
         switch (e.key) {
           case 'F4':
-            window.location.reload();
+            navigate('/orders');
             break;
           case 'F1':
             if (location.pathname !== '/orders/new') {
@@ -57,10 +57,10 @@ export default function AppLayout() {
             navigate('/agenda', { state: { openNew: true } });
             break;
           case 'F3':
-            navigate('/agenda');
+            navigate('/clients');
             break;
-          case 'F5':
-            navigate('/orders');
+          case 'F8':
+            navigate('/messages');
             break;
           case 'F7':
             navigate('/'); // Dashboard (viajes en curso)
