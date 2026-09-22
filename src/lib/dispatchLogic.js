@@ -360,10 +360,15 @@ export async function detectZoneFromCoords(lat, lng) {
   return null;
 }
 
-// Detects the zone for an address using the ZoneMapping entity (editable dictionary)
-// Returns { zone, confidence } or null if no match found
+// Detecta primero desde la memoria propia de direcciones confirmadas.
+// ZoneMapping queda sólo como compatibilidad para datos históricos.
 export async function detectZoneFromAddress(address) {
   if (!address || address.trim().length < 2) return null;
+
+  const addressNorm = _normalize(address);
+  const history = await base44.entities.AddressHistory.list("-last_used", 2000).catch(() => []);
+  const learned = history.find(h => (h.normalized_address || _normalize(h.address)) === addressNorm && h.zone_confirmed && h.zone);
+  if (learned) return learned.zone;
 
   const mappings = await getZoneMappingsCached();
   if (!mappings.length) return null;
