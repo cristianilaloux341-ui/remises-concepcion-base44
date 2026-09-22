@@ -3,10 +3,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 /**
  * Compatibilidad del workflow histórico "Renew Offer Window On Push Ack".
  *
- * - APK legacy: conserva el comportamiento previo de 30 s desde el ACK cuando
- *   ese ACK llega por AuditLog/JS y todavía no fue copiado al RideOrder.
- * - v12.31 ALERT_PRESENTED: el native_ack marca alert_presented_protocol_attempt.
- *   En ese caso este workflow NO toca offerExpiresAt; sólo despierta el watchdog.
+ * Contrato nuevo: ACK sólo confirma transporte. Nunca crea, renueva ni extiende
+ * offerExpiresAt. La ventana comercial nace exclusivamente en ALERT_PRESENTED.
  */
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -48,6 +46,21 @@ Deno.serve(async (req) => {
 
     const protocolEnabled =
       Number(order.alert_presented_protocol_attempt) === Number(order.assignment_attempt);
+
+    // Autoridad única: ACK != alerta visible. Esta ruta histórica queda reducida
+    // a registrar/despertar; jamás puede fabricar un reloj comercial.
+    if (!order.push_ack_at || Number(order.push_ack_assignment_attempt) !== Number(order.assignment_attempt)) {
+      await b44.entities.RideOrder.updateMany(
+        { id:orderId, status:'ofrecido', reserved_driver_id:driverId, reservation_token:order.reservation_token, assignment_attempt:order.assignment_attempt },
+        { $set:{ push_ack_at:new Date().toISOString(), push_ack_assignment_attempt:order.assignment_attempt } }
+      ).catch(()=>{});
+    }
+    b44.functions.invoke('autoReassignOnTimeout', {
+      orderId, driverId, assignmentAttempt:Number(order.assignment_attempt), internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+    }).catch(()=>{});
+    return Response.json({ success:true, protocolEnabled, renewed:false, offerExpiresAt:order.offerExpiresAt ?? null, reason:'ACK_TRANSPORT_ONLY' });
+
+    /* LEGACY_DISABLED_ACK_WINDOW
 
     if (protocolEnabled) {
       // Nuevo protocolo: ACK != alerta visible. No renovar desde ACK.
@@ -138,6 +151,7 @@ Deno.serve(async (req) => {
       offerExpiresAt: targetExpiry,
       timeoutSeconds: 30
     });
+    */
   } catch (error: any) {
     console.error('renewOfferWindowOnPushAck error', error);
     return Response.json({ success: false, error: error?.message || String(error) }, { status: 500 });
