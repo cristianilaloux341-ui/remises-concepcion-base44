@@ -25,7 +25,7 @@
     ]
   },
   "trigger": {
-    "condition": "${ ((.trigger.changed_fields | index(\"status\") != null) or (.trigger.changed_fields | index(\"reserved_driver_id\") != null) or (.trigger.changed_fields | index(\"offered_driver_ids\") != null)) and (.trigger.data.status != \"cancelado\" or .trigger.old_data.status != \"cancelado\") }",
+    "condition": "${ false }",
     "config": {
       "trigger_type": "entity",
       "events": [
@@ -35,7 +35,7 @@
       "entity_name": "RideOrder"
     }
   },
-  "description": "",
+  "description": "LEGACY DESHABILITADO 2026-09-22: sendPushNotification queda como transporte expl\u00edcito; no reaccionar a escrituras RideOrder ni reparar estado desde workflow.",
   "x-base44-migrated-from-automation": {
     "legacy_payload_function": "sendPushNotification"
   }
