@@ -211,16 +211,6 @@ export default function OrderDetail() {
             </Button>
           ) : (
             <>
-              {order.status !== "pendiente" && order.status !== "completado" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={returnToPending}
-                >
-                  <RefreshCw className="w-4 h-4" /> Volver a Pendiente
-                </Button>
-              )}
               {order.status === "completado" && (
                 <RideTicket order={order} />
               )}
