@@ -123,33 +123,11 @@ Deno.serve(async (req) => {
       activeStatuses.has(existing.status) &&
       all.findIndex((x:any)=>x.id === existing.id) === index
   );
-  const hasCurrentRide = Boolean(
-    driverReq.active_order_id || driverReq.active_ride_id || driverReq.reserved_order_id ||
-    conflictingOrders.length > 0
-  );
-  const hasNextRide = Boolean(driverReq.next_order_id);
-
-  // Capacidad uniforme: dos pasajes por móvil, sin importar origen.
-  if (hasCurrentRide && hasNextRide) {
-    return Response.json({ success:false, reason:'DRIVER_CAPACITY_FULL' });
-  }
-
-  // Un móvil con un primer pasaje puede recibir exactamente un segundo. Ese segundo
-  // se guarda como próximo y jamás pisa active/reserved del primero.
-  const assignAsNext = hasCurrentRide && !hasNextRide;
-
-  // Fuera de servicio sigue bloqueado. Para el segundo slot no exigimos status=disponible
-  // ni base actual: un móvil ocupado justamente ya no pertenece a la cola/base.
-  if (driverReq.status === 'no_disponible' || (!assignAsNext && (driverReq.status !== 'disponible' || !effectiveDriverBase))) {
-    await b44.entities.AuditLog.create({
-      action: 'OFF_SERVICE_ASSIGN_BLOCKED',
-      user_type: 'sistema',
-      user_name: 'assignRide',
-      details: `Bloqueada asignación de ${orderId} a ${driverReq.name || driverId}: móvil fuera de servicio o sin base`,
-      metadata: { orderId, driverId, status: driverReq.status ?? null, current_base: driverReq.current_base ?? null, queue_authoritative_base: driverReq.queue_authoritative_base ?? null }
-    }).catch(() => {});
-    return Response.json({ success: false, reason: 'DRIVER_OFF_SERVICE_OR_NO_BASE' });
-  }
+  // La capacidad se calcula DESPUÉS de reparar posibles conflictos fantasma.
+  // Evita reservar erróneamente el slot 2 por una orden ya finalizada.
+  let hasCurrentRide = false;
+  let hasNextRide = Boolean(driverReq.next_order_id);
+  let assignAsNext = false;
 
   // Evita repetir la misma consulta dentro del bloque atómico.
   orderReq.__pilotValidated = true;
@@ -299,11 +277,20 @@ Deno.serve(async (req) => {
     }
   }
   
-  if (driverReq.status === 'no_disponible') {
-    return Response.json({
-      success: false,
-      reason: 'El móvil está fuera de turno. No puede recibir viajes hasta que inicie servicio.'
-    });
+  hasCurrentRide = Boolean(
+    driverReq.active_order_id || driverReq.active_ride_id || driverReq.reserved_order_id ||
+    conflictingOrders.length > 0
+  );
+  hasNextRide = Boolean(driverReq.next_order_id);
+  if (hasCurrentRide && hasNextRide) {
+    return Response.json({ success:false, reason:'DRIVER_CAPACITY_FULL' });
+  }
+  assignAsNext = hasCurrentRide && !hasNextRide;
+
+  // Fuera de servicio siempre bloquea. Para slot 1 se exige disponibilidad/base;
+  // para slot 2 no: el móvil ocupado está deliberadamente fuera de la cola.
+  if (driverReq.status === 'no_disponible' || (!assignAsNext && (driverReq.status !== 'disponible' || !effectiveDriverBase))) {
+    return Response.json({ success:false, reason:'DRIVER_OFF_SERVICE_OR_NO_BASE' });
   }
 
   // Nueva Validación estricta de Zona (Server-Side)
@@ -337,7 +324,7 @@ Deno.serve(async (req) => {
 
   // La selección automática jamás cruza zonas. Solamente una asignación manual
   // autenticada de Central puede elegir otro móvil como excepción de emergencia.
-  if (orderReq.zone && effectiveDriverBase !== orderReq.zone && !isManualAuthorized) {
+  if (!assignAsNext && orderReq.zone && effectiveDriverBase !== orderReq.zone && !isManualAuthorized) {
     console.warn(`[STRICT ZONE] Rechazado assign de Viaje ${orderId} (Zona: ${orderReq.zone}) a Móvil ${driverId} (Base: ${effectiveDriverBase}). ManualAuth: ${isManualAuthorized}`);
     
     // Una selección equivocada de zona NO autoriza a publicar Pendientes. El
@@ -357,7 +344,16 @@ Deno.serve(async (req) => {
       {
         id:driverId,
         status:{ $ne:'no_disponible' },
-        $or:[{next_order_id:null},{next_order_id:{ $exists:false }}]
+        // Debe seguir existiendo el slot 1 al ganar el CAS. Así una foto vieja
+        // no puede crear un "próximo" sobre un móvil que quedó libre.
+        $and:[
+          { $or:[{next_order_id:null},{next_order_id:{ $exists:false }}] },
+          { $or:[
+            {active_order_id:{ $ne:null }},
+            {active_ride_id:{ $ne:null }},
+            {reserved_order_id:{ $ne:null }}
+          ] }
+        ]
       },
       { $set:{ next_order_id:orderId, next_order_token:nextToken } }
     );
