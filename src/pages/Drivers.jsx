@@ -215,7 +215,17 @@ function DriverHistory({ driverId, driverName, onClose }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (orderId) => base44.entities.RideOrder.delete(orderId),
+    mutationFn: async (orderId) => {
+      let localOperator = null;
+      try { localOperator = JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch {}
+      const response = await base44.functions.invoke("operatorDeleteRide", {
+        orderId,
+        sessionToken: sessionStorage.getItem("local_operator_token"),
+        operatorName: localOperator?.nombre || localOperator?.name || localOperator?.usuario || "Central"
+      });
+      if (!response?.data?.success) throw new Error(response?.data?.reason || "No se pudo eliminar el viaje");
+      return response.data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["driver-history", driverId] });
     },
