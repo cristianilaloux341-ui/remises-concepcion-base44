@@ -9,10 +9,7 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   // vigentes, el móvil continúa perteneciendo a su cola sin ninguna gracia temporal.
   const zoneDrivers = await b44.entities.Driver.filter({
     status: "disponible",
-    $or: [
-      { current_base: targetZone },
-      { queue_authoritative_base: targetZone }
-    ]
+    queue_authoritative_base: targetZone
   });
 
   // Driver.vehicle_model guarda el ID del móvil. No descargar toda la flota:
@@ -49,7 +46,7 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   };
 
   const isDriverWorking = (d: any) => {
-    if (d.status !== 'disponible' || !getEffectiveBase(d)) return false;
+    if (d.status !== 'disponible' || getEffectiveBase(d) !== targetZone) return false;
     const mobileId = String(d.vehicle_model || '');
     const mobileNumber = parseInt(mobileId, 10);
     const driverPlate = String(d.vehicle_plate || '').replace(/\s+/g, '').toUpperCase();
