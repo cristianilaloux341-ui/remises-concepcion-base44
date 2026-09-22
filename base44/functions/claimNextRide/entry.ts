@@ -263,7 +263,18 @@ Deno.serve(async (req) => {
           ],
           // Si ya posee un viaje actual, éste es exactamente el segundo slot.
           // Si asNext fue pedido sin viaje actual, también se reserva sólo un slot próximo.
-          ...(hasCurrentRide ? {} : {
+          ...(hasCurrentRide ? {
+            // El snapshot que decidió usar el segundo slot puede quedar viejo si el
+            // primer viaje termina en paralelo. Revalidar en el CAS que todavía
+            // existe un primer slot evita dejar un próximo viaje huérfano.
+            $and: [
+              { $or:[
+                { active_order_id:{ $ne:null } },
+                { active_ride_id:{ $ne:null } },
+                { reserved_order_id:{ $ne:null } }
+              ] }
+            ]
+          } : {
             $and: [
               { $or:[{active_order_id:null},{active_order_id:{$exists:false}}] },
               { $or:[{active_ride_id:null},{active_ride_id:{$exists:false}}] },
