@@ -35,8 +35,8 @@ Deno.serve(async (req) => {
 
       // PUSH_RECEIVED confirma que FCM llegó al proceso nativo. La nueva
       // v12.31 se identifica explícitamente con supportsAlertPresented=true.
-      // Sólo en ese protocolo ampliamos el TECHO DE ENTREGA hasta assigned_at+50s;
-      // la ventana de respuesta de 30s sigue esperando ALERT_PRESENTED.
+      // ACK es sólo PUSH_RECEIVED. La ventana comercial espera ALERT_PRESENTED
+      // y usa la duración configurada por la empresa.
       let ackRecorded = false;
       let protocolEnabled = false;
       if (
@@ -54,13 +54,8 @@ Deno.serve(async (req) => {
           Number(order.alert_presented_assignment_attempt) === Number(order.assignment_attempt);
 
         if (supportsAlertPresented) {
-          const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : Date.now();
-          const deliveryHardCap = assignedMs + 50000;
-          const currentExpiry = Number(order.offerExpiresAt);
-          const targetExpiry = presentedAlready
-            ? currentExpiry
-            : Math.max(Number.isFinite(currentExpiry) ? currentExpiry : 0, deliveryHardCap);
-
+          // ACK sólo confirma transporte. No crea, extiende ni acorta la ventana
+          // comercial. offerExpiresAt nace exclusivamente en ALERT_PRESENTED.
           const protocolResult = await b44.entities.RideOrder.updateMany(
             {
               id: realOrderId,
@@ -73,8 +68,7 @@ Deno.serve(async (req) => {
               $set: {
                 push_ack_at: receivedAt,
                 push_ack_assignment_attempt: order.assignment_attempt,
-                alert_presented_protocol_attempt: order.assignment_attempt,
-                offerExpiresAt: targetExpiry
+                alert_presented_protocol_attempt: order.assignment_attempt
               }
             }
           );
@@ -114,7 +108,7 @@ Deno.serve(async (req) => {
         user_name: driver?.name || "Chofer",
         details: ackRecorded
           ? (supportsAlertPresented
-              ? `PUSH_RECEIVED v12.31 confirmado. Esperando ALERT_PRESENTED antes de iniciar los 30 s.`
+              ? `PUSH_RECEIVED v12.31 confirmado. Esperando ALERT_PRESENTED antes de iniciar la ventana configurada.`
               : `PUSH_RECEIVED legacy confirmado.`)
           : `ACK duplicado o de una oferta que ya cambió; no se abrió otra ventana.`,
         metadata: {
