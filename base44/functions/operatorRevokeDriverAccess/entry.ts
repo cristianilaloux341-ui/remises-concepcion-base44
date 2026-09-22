@@ -1,4 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { verifyRequestAuth } from '../../shared/security.ts';
+import { withQueueLock, compactQueueUnlocked, getEffectiveQueueBase } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -7,13 +9,8 @@ Deno.serve(async (req) => {
     const { driverId, sessionToken, operatorName } = await req.json();
     if (!driverId) return Response.json({ success:false, reason:'DRIVER_ID_REQUIRED' }, { status:400 });
 
-    // Validar sesión operativa reutilizando la autoridad existente sin modificar viajes.
-    const auth = await b44.functions.invoke('authSystem', {
-      action:'validate_session',
-      payload:{ sessionToken },
-      sessionToken
-    }).catch(() => null);
-    if (auth?.data && auth.data.success === false) {
+    // Fail closed: sólo operador autenticado o llamada interna válida.
+    if (!(await verifyRequestAuth(b44, { ...await Promise.resolve({sessionToken}), sessionToken }, { allowOperator:true }))) {
       return Response.json({ success:false, reason:'UNAUTHORIZED' }, { status:401 });
     }
 
@@ -24,15 +21,43 @@ Deno.serve(async (req) => {
     // Si está trabajando, sólo se revoca la sesión/dispositivo.
     const busy = Boolean(driver.active_order_id || driver.active_ride_id || driver.reserved_order_id || driver.dispatch_status === 'reserved');
     const patch:any = { current_session_token:null, device_id:null };
-    if (!busy) patch.status = 'no_disponible';
-
-    await b44.entities.Driver.update(driverId, patch);
+    let queueRemoved = false;
+    if (!busy) {
+      const queueBase = getEffectiveQueueBase(driver);
+      if (queueBase) {
+        await withQueueLock(b44, queueBase, async () => {
+          const removed = await b44.entities.Driver.updateMany(
+            {id:driverId,status:'disponible',queue_authoritative_base:queueBase,
+             queue_position:driver.queue_position},
+            {$set:{status:'no_disponible',current_base:null,queue_entered_at:null,
+                   queue_authoritative_base:null,queue_authoritative_at:null,
+                   queue_authority_marker:null,queue_position:null,
+                   current_session_token:null,device_id:null}}
+          );
+          const count = Math.max(Number(removed?.updated||0),Number(removed?.modifiedCount||0),Number(removed?.matchedCount||0));
+          if (count !== 1) throw new Error('DRIVER_STATE_CHANGED_RETRY');
+          queueRemoved = true;
+          await compactQueueUnlocked(b44, queueBase);
+        });
+      } else {
+        patch.status = 'no_disponible';
+        patch.current_base = null;
+        patch.queue_entered_at = null;
+        patch.queue_authoritative_base = null;
+        patch.queue_authoritative_at = null;
+        patch.queue_authority_marker = null;
+        patch.queue_position = null;
+        await b44.entities.Driver.update(driverId, patch);
+      }
+    } else {
+      await b44.entities.Driver.update(driverId, patch);
+    }
     await b44.entities.AuditLog.create({
       action:'revocar_acceso',
       user_type:'operador',
       user_name:operatorName || 'Central',
       details:`Desvinculó el equipo del chofer ${driver.name || driverId}`,
-      metadata:{ driverId, busy, queueUntouched:true }
+      metadata:{ driverId, busy, queueRemoved }
     }).catch(() => {});
 
     return Response.json({ success:true, busy, statusChanged:!busy });
