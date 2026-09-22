@@ -33,7 +33,7 @@ const NAV_BY_ROLE = {
     { label: "Órdenes",   shortcut: "F4", path: "/orders",  icon: Car },
     { label: "Agenda",    shortcut: "F2", path: "/agenda",  icon: CalendarClock },
     { label: "Clientes",  shortcut: "F3", path: "/clients", icon: UserCheck },
-    { label: "Mensajes",  path: "/messages",icon: MessageSquare },
+    { label: "Mensajes",  shortcut: "F8", path: "/messages",icon: MessageSquare },
     { label: "Mapa",      path: "/map",     icon: MapPin },
     { label: "Chóferes",  path: "/drivers", icon: Users,    section: "Supervisión" },
     { label: "Móviles",   path: "/moviles", icon: Car },
@@ -43,14 +43,14 @@ const NAV_BY_ROLE = {
     { label: "Central",  shortcut: "F7", path: "/",         icon: LayoutDashboard },
     { label: "Órdenes",  shortcut: "F4", path: "/orders",   icon: Car },
     { label: "Agenda",   shortcut: "F2", path: "/agenda",   icon: CalendarClock },
-    { label: "Clientes", path: "/clients",  icon: UserCheck },
+    { label: "Clientes", shortcut: "F3", path: "/clients",  icon: UserCheck },
     { label: "Mensajes", shortcut: "F8", path: "/messages", icon: MessageSquare },
     { label: "Mapa",     path: "/map",      icon: MapPin },
   ],
   caja: [
-    { label: "Central",  path: "/",        icon: LayoutDashboard },
+    { label: "Central",  shortcut: "F7", path: "/",        icon: LayoutDashboard },
     { label: "Clientes", shortcut: "F3", path: "/clients", icon: UserCheck },
-    { label: "Agenda",   path: "/agenda",  icon: CalendarClock },
+    { label: "Agenda",   shortcut: "F2", path: "/agenda",  icon: CalendarClock },
   ],
 };
 
