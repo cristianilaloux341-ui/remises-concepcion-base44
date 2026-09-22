@@ -1787,7 +1787,7 @@ export default function DriverApp() {
 
   // ÚNICA puerta de entrada/cambio de base de la APK.
   // La app NO escribe current_base ni campos queue_* directamente. El backend
-  // enterDriverQueue toma el lock, calcula el último puesto y sella todo en una
+  // enterDriverBase toma el lock, calcula el último puesto y sella todo en una
   // única operación; así nunca existe el estado "en base pero queue_position=null".
   const enterBaseServerSafe = async (base) => {
     const isSealedInBase = (driver) => {
@@ -1805,7 +1805,7 @@ export default function DriverApp() {
     let lastError = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await base44.functions.invoke("enterDriverQueue", {
+        const res = await base44.functions.invoke("enterDriverBase", {
           driverId: myDriverId,
           baseName: base,
           sessionToken: getSessionToken()
