@@ -31,6 +31,6 @@
       }
     ]
   },
-  "description": "Compatibilidad v12.27/v12.29: un rechazo expl\u00edcito registrado por la APK entra de inmediato al motor rejectRide, sin esperar el timeout.",
+  "description": "LEGACY DESHABILITADO 2026-09-22: no restaurar ofertas ni estados desde AuditLog; rechazo/vencimiento pertenece al motor autoritativo.",
   "name": "Process Legacy Explicit Reject"
 }
