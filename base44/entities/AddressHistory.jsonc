@@ -1,19 +1,58 @@
 {
-  "name": "AddressHistory",
   "type": "object",
   "properties": {
     "address": {
       "type": "string",
-      "description": "Direcci\u00f3n completa (ej: '9 de Julio 1250')"
+      "description": "Direcci\u00f3n completa"
+    },
+    "normalized_address": {
+      "type": "string",
+      "description": "Clave normalizada para reutilizaci\u00f3n exacta"
+    },
+    "street": {
+      "type": "string"
+    },
+    "height": {
+      "type": "string"
+    },
+    "lat": {
+      "type": "number"
+    },
+    "lng": {
+      "type": "number"
+    },
+    "zone": {
+      "type": "string",
+      "enum": [
+        "1-Puerto",
+        "2-Plaza",
+        "3-Columna",
+        "4-Base",
+        "5-Cementerio",
+        "6-D\u00edaz V\u00e9lez",
+        "7-Don Bosco",
+        "8-Monumento"
+      ]
+    },
+    "zone_source": {
+      "type": "string",
+      "enum": [
+        "memory",
+        "polygon",
+        "operator",
+        "legacy"
+      ]
+    },
+    "zone_confirmed": {
+      "type": "boolean",
+      "default": false
     },
     "usage_count": {
       "type": "number",
-      "default": 1,
-      "description": "Cantidad de veces que fue usada"
+      "default": 1
     },
     "last_used": {
-      "type": "string",
-      "description": "ISO datetime del \u00faltimo uso"
+      "type": "string"
     }
   },
   "required": [
@@ -28,5 +67,6 @@
         "role": "admin"
       }
     }
-  }
+  },
+  "name": "AddressHistory"
 }
