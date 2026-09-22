@@ -389,18 +389,19 @@ Deno.serve(async (req) => {
 
     const nowMs = Date.now();
     const remainingMs = expiresAt - nowMs;
-    const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : (expiresAt - 30000);
-    const reminderAt = assignedMs + 15000;
     const retryCount = Number(order.delivery_retry_count || 0);
+    const presentedMsForReminder = order.alert_presented_at ? new Date(order.alert_presented_at).getTime() : NaN;
+    const configuredWindowMs = Number.isFinite(expiresAt) && Number.isFinite(presentedMsForReminder)
+      ? Math.max(0, expiresAt - presentedMsForReminder)
+      : 0;
+    // Un único refuerzo a mitad de la ventana comercial configurada.
+    // Ej.: 20 s => 10 s; 30 s => 15 s; 60 s => 30 s.
+    const realReminderAt = configuredWindowMs > 0 ? presentedMsForReminder + Math.floor(configuredWindowMs / 2) : NaN;
 
     if (remainingMs > 0) {
-      // Dos avisos dentro de UNA sola ventana: el inicial en t=0 y, si el viaje
-      // sigue ofrecido sin aceptar/rechazar, un único refuerzo en t=15 s. El refuerzo
-      // conserva exactamente el mismo assignment_attempt y NO modifica offerExpiresAt.
-      // Reminders have been known to overlap with the timeout. To keep it simple, we skip the 15s push if they are already on the real countdown.
-      // Or we can leave it. The problem is reminderAt might be out of date if expiresAt jumped.
-      const realReminderAt = expiresAt - 15000;
-      if (retryCount === 0 && nowMs >= realReminderAt) {
+      // Dos avisos dentro de UNA sola ventana: inicial al PRESENTED y un único
+      // refuerzo a mitad del tiempo configurado. Nunca modifica offerExpiresAt.
+      if (retryCount === 0 && Number.isFinite(realReminderAt) && nowMs >= realReminderAt) {
         const reminderCas = await b44.entities.RideOrder.updateMany(
           {
             id:orderId,
@@ -434,10 +435,10 @@ Deno.serve(async (req) => {
           }).catch((e:any)=>({ data:{ ok:false, error:e?.message || String(e) } }));
 
           await b44.entities.AuditLog.create({
-            action:'OFFER_15S_REMINDER_SENT',
+            action:'OFFER_MID_WINDOW_REMINDER_SENT',
             user_type:'sistema',
             user_name:'autoReassignOnTimeout',
-            details:`Segundo y último aviso de la oferta ${orderId}; faltan 15s para el límite real.`,
+            details:`Segundo y último aviso de la oferta ${orderId}; refuerzo a mitad de la ventana configurada.`,
             metadata:{
               orderId,
               driverId,
@@ -449,12 +450,12 @@ Deno.serve(async (req) => {
         }
       }
 
-      // En entornos serverless, setTimeout largos (ej: 15s) pueden ser suspendidos
+      // En entornos serverless, esperas largas pueden ser suspendidas
       // por la plataforma. Para no quedarnos colgados en 0s, invocamos la continuación
       // delegando en otro proceso o usando el cron. Pero como queremos que sea exacto,
       // usaremos un bucle corto o devolveremos para que el cron lo levante.
       // Sin embargo, para mantener el tiempo real, Base44 Workflow es mejor.
-      // Como workaround inmediato: si faltan menos de 15s, vamos a esperar.
+      // Si el próximo hito entra en una espera segura, esperamos; si no, encadenamos.
       // Si el edge runtime nos mata, el autoReassignCron lo recoge al minuto.
       const freshNow = Date.now();
       const nextWakeAt = retryCount === 0 && freshNow < realReminderAt ? realReminderAt : expiresAt;
@@ -489,7 +490,7 @@ Deno.serve(async (req) => {
     }
 
     // Última barrera absoluta antes de tocar rejectRide. Releer desde base evita
-    // que una ejecución vieja/intermedia (por ejemplo la de ~15 s) pueda usar un
+    // que una ejecución vieja/intermedia (por ejemplo la del recordatorio) pueda usar un
     // expiresAt obsoleto y sacar el pasaje antes de tiempo.
     const timeoutGuardOrder = await b44.entities.RideOrder.get(orderId).catch(()=>null);
     if (
