@@ -338,7 +338,7 @@ Deno.serve(async (req) => {
       if (matchingAck) {
         const ackMs = new Date(matchingAck.created_date).getTime();
         const ackAt = new Date(ackMs).toISOString();
-        const ackExpiry = ackMs + 30000; // Pedido explícito: 30s reales desde el ACK
+        const ackExpiry = null; // ACK sólo transporte: nunca crea ventana comercial
         const adopted = await b44.entities.RideOrder.updateMany(
           {
             id:orderId,
@@ -354,20 +354,18 @@ Deno.serve(async (req) => {
           },
           { $set:{
             push_ack_at:ackAt,
-            push_ack_assignment_attempt:Number(assignmentAttempt),
-            offerExpiresAt:ackExpiry
+            push_ack_assignment_attempt:Number(assignmentAttempt)
           } }
         ).catch(()=>({updated:0}));
         const adoptedCount = adopted?.updated ?? adopted?.matchedCount ?? adopted?.modifiedCount ?? 0;
         if (adoptedCount === 1) {
           ackedThisAttempt = true;
-          expiresAt = ackExpiry;
           await b44.entities.AuditLog.create({
             action:'ACK_RECOVERED_BEFORE_TIMEOUT',
             user_type:'sistema',
             user_name:'autoReassignOnTimeout',
-            details:`ACK recuperado. Se extendieron los 30s reales desde el ACK de ${orderId}`,
-            metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), ackAt, offerExpiresAt:ackExpiry }
+            details:`ACK recuperado como confirmación de transporte; no modifica la ventana comercial de ${orderId}`,
+            metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), ackAt }
           }).catch(()=>{});
         }
       }
