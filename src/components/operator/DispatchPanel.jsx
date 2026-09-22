@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Zap, User, MapPin, Loader2, ChevronRight, Car, CheckCircle2, Radio } from "lucide-react";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
-import { assignDriverToOrder, getBaseQueue } from "@/lib/dispatchLogic";
+import { getBaseQueue } from "@/lib/dispatchLogic";
 import { getDriverDisplay } from "@/lib/utils";
 import { resolveActiveDriverForMobile } from "@/lib/mobileDriverResolver";
 
