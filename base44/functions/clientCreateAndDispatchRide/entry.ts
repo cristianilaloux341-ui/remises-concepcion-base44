@@ -16,7 +16,9 @@ Deno.serve(async (req) => {
     });
 
     let assigned = false;
-    if (order.zone) {
+    const zoneKey = String(order.zone || "").trim().toLowerCase();
+    const isDirectPendingZone = zoneKey === "0" || zoneKey === "0-pendientes" || zoneKey === "0-pendiente";
+    if (order.zone && !isDirectPendingZone) {
       // Si el primer candidato pierde la reserva por concurrencia (otro pasaje lo
       // tomó entre la lectura y el CAS), continuar con el siguiente de ESTA MISMA
       // zona. Un intento fallido no debe mandar a Pendientes mientras quede otro
@@ -50,14 +52,16 @@ Deno.serve(async (req) => {
         reservation_token: null,
         offerExpiresAt: null,
         processingAction: "PENDING_AUTHORIZED",
-        pending_reason: "ZONE_EXHAUSTED_AT_CREATE"
+        pending_reason: isDirectPendingZone ? "ZONE_0_DIRECT_PENDING" : "ZONE_EXHAUSTED_AT_CREATE"
       });
       await b44.entities.AuditLog.create({
         action: "PENDING_AUTHORIZED",
         user_type: "sistema",
         user_name: "clientCreateAndDispatchRide",
-        details: `Pendiente autorizado para ${order.id}: zona sin candidatos`,
-        metadata: { orderId: order.id, zone: order.zone || null, reason: "ZONE_EXHAUSTED_AT_CREATE" }
+        details: isDirectPendingZone
+          ? `Pendiente autorizado para ${order.id}: Zona 0`
+          : `Pendiente autorizado para ${order.id}: zona sin candidatos`,
+        metadata: { orderId: order.id, zone: order.zone || null, reason: isDirectPendingZone ? "ZONE_0_DIRECT_PENDING" : "ZONE_EXHAUSTED_AT_CREATE" }
       }).catch(() => {});
     }
 
