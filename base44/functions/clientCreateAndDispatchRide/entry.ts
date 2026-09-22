@@ -32,12 +32,24 @@ Deno.serve(async (req) => {
       assigned = manualRes?.data?.success === true;
       const manualMode = manualRes?.data?.mode || null;
       if (!assigned) {
+        const requestedHold = requestedDriverOnly === true && Boolean(manualDriverId);
         await b44.entities.RideOrder.update(order.id, {
           status: "pendiente",
-          processingAction: "PENDING_AUTHORIZED",
-          pending_reason: "MANUAL_ASSIGN_FAILED"
+          driver_id:null,
+          reserved_driver_id:null,
+          reservation_token:null,
+          offerExpiresAt:null,
+          processingAction: requestedHold ? "CENTRAL_REVIEW_REQUIRED_DRIVER" : "PENDING_AUTHORIZED",
+          pending_reason: requestedHold ? "REQUESTED_DRIVER_NOT_ACCEPTED" : "MANUAL_ASSIGN_FAILED"
         });
-        return Response.json({ success:false, orderId:order.id, assigned:false, status:"pendiente", error:manualRes?.data?.reason || "MANUAL_ASSIGN_FAILED" }, { status:409 });
+        return Response.json({
+          success:false,
+          orderId:order.id,
+          assigned:false,
+          status:"pendiente",
+          centralReview:requestedHold,
+          error:manualRes?.data?.reason || "MANUAL_ASSIGN_FAILED"
+        }, { status:409 });
       }
       // Si el móvil ya tiene un viaje, assignRide puede ocupar su segundo slot.
       // Ese pasaje NO es una oferta viva: queda preasignado hasta que el backend
@@ -59,9 +71,13 @@ Deno.serve(async (req) => {
       // zona. Un intento fallido no debe mandar a Pendientes mientras quede otro
       // móvil elegible en la cola.
       const excludedDriverIds = new Set<string>();
-      const MAX_CANDIDATE_ATTEMPTS = 100;
+      const zoneSnapshot = await b44.entities.Driver.filter({
+        status:'disponible',
+        queue_authoritative_base:order.zone
+      }).catch(()=>[]);
+      const maxCandidateAttempts = Math.max(1, Math.min(100, Array.isArray(zoneSnapshot) ? zoneSnapshot.length : 0));
 
-      for (let attempt = 0; attempt < MAX_CANDIDATE_ATTEMPTS && !assigned; attempt++) {
+      for (let attempt = 0; attempt < maxCandidateAttempts && !assigned; attempt++) {
         const nextDriver = await findNextDriverInZone(b44, order, excludedDriverIds);
         if (!nextDriver) break;
 

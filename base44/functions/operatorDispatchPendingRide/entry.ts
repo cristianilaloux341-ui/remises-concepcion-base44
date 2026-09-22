@@ -58,7 +58,31 @@ Deno.serve(async (req) => {
       sessionToken:sessionToken || 'client_demo_token',
       internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
     });
-    if (!res?.data?.success) return Response.json({ success:false, reason:res?.data?.reason || 'ASSIGN_FAILED' }, { status:409 });
+    if (!res?.data?.success) {
+      // Si liberamos una retención de móvil requerido para que Central pruebe otro
+      // móvil y esa nueva asignación falla, el viaje NO puede quedar convertido en
+      // un pendiente común. Restauramos la retención sólo si sigue pendiente y sin dueño.
+      if (centralReviewOnly && driverId) {
+        await b44.entities.RideOrder.updateMany(
+          {
+            id:orderId,
+            status:'pendiente',
+            pending_reason:'MANUAL_RETURN',
+            $and:[
+              {$or:[{driver_id:null},{driver_id:{$exists:false}}]},
+              {$or:[{reserved_driver_id:null},{reserved_driver_id:{$exists:false}}]}
+            ]
+          },
+          { $set:{
+            requested_driver_only:true,
+            requested_driver_id:order.requested_driver_id || null,
+            pending_reason:'REQUESTED_DRIVER_NOT_ACCEPTED',
+            processingAction:'CENTRAL_REVIEW_REQUIRED_DRIVER'
+          } }
+        ).catch(()=>{});
+      }
+      return Response.json({ success:false, reason:res?.data?.reason || 'ASSIGN_FAILED' }, { status:409 });
+    }
     return Response.json({ success:true, driverId:targetId, status:'ofrecido' });
   } catch(e) {
     console.error('operatorDispatchPendingRide error', e);
