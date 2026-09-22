@@ -49,10 +49,6 @@ Deno.serve(async (req) => {
           Boolean(order.push_ack_at) &&
           Number(order.push_ack_assignment_attempt) === Number(order.assignment_attempt);
         const receivedAt = ackAlreadyRecorded ? order.push_ack_at : new Date().toISOString();
-        const presentedAlready =
-          Boolean(order.alert_presented_at) &&
-          Number(order.alert_presented_assignment_attempt) === Number(order.assignment_attempt);
-
         if (supportsAlertPresented) {
           // ACK sólo confirma transporte. No crea, extiende ni acorta la ventana
           // comercial. offerExpiresAt nace exclusivamente en ALERT_PRESENTED.
