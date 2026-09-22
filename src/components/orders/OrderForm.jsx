@@ -42,6 +42,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     notes: "",
     payment_method: "Efectivo",
     status: "pendiente",
+    requested_driver_only: false,
     ...order,
   });
 
@@ -305,7 +306,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
   const handleDriverChange = (driverId) => {
     if (driverId === "none" || !driverId) {
-      setForm(prev => ({ ...prev, driver_id: "", driver_name: "", status: "pendiente" }));
+      setForm(prev => ({ ...prev, driver_id: "", driver_name: "", requested_driver_only:false, status: "pendiente" }));
       setManualDriverInput("");
       return;
     }
@@ -740,6 +741,20 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
                   <X className="w-3 h-3" />
                 </Button>
               </div>
+            )}
+
+            {form.driver_id && (
+              <label className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={form.requested_driver_only === true}
+                  onChange={(e) => setForm(prev => ({ ...prev, requested_driver_only:e.target.checked }))}
+                />
+                <span className="text-xs text-blue-900">
+                  <strong>Requerido por el cliente.</strong> Si este móvil no acepta, queda sólo para revisión de Central y no pasa automáticamente a otro móvil.
+                </span>
+              </label>
             )}
 
             <div className="flex gap-2">
