@@ -1,5 +1,16 @@
 {
   "name": "Deep Dispatch Reconciler",
+  "description": "LEGACY DESHABILITADO 2026-09-22: no auto-despachar Pendientes ni reconciliar cola desde cambios gen\u00e9ricos de Driver",
+  "trigger": {
+    "condition": "${ false }",
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "update"
+      ],
+      "entity_name": "Driver"
+    }
+  },
   "definition": {
     "document": {
       "dsl": "1.0.0",
@@ -28,17 +39,6 @@
         }
       }
     ]
-  },
-  "description": "LEGACY DESHABILITADO 2026-09-22: no auto-despachar Pendientes ni reconciliar cola desde cambios gen\u00e9ricos de Driver",
-  "trigger": {
-    "condition": "${ false }",
-    "config": {
-      "trigger_type": "entity",
-      "events": [
-        "update"
-      ],
-      "entity_name": "Driver"
-    }
   },
   "x-base44-migrated-from-automation": {
     "legacy_payload_function": "dispatchReconciler"
