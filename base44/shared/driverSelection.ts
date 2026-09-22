@@ -28,14 +28,20 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   }
   if (plates.length) movilOr.push({ dominio: { $in: plates } });
 
-  // Base44 no resuelve de forma fiable `id: { $in: [...] }` sobre el ID nativo.
-  // `vehicle_model` ya guarda ese ID: resolver esos móviles por get() en paralelo
-  // y conservar el filter sólo como fallback para vínculos/numero/patente.
-  const [movilesById, movilesByFallback] = await Promise.all([
-    Promise.all(mobileIds.map((id: string) => b44.entities.Movil.get(id).catch(() => null))),
-    movilOr.length ? b44.entities.Movil.filter({ $or: movilOr }).catch(() => []) : Promise.resolve([])
-  ]);
-  const allMoviles = [...movilesById.filter(Boolean), ...movilesByFallback]
+  // Una selección A→B→C puede repetirse varias veces si otro despacho ganó el
+  // candidato por milisegundos. No hacemos un get() por cada móvil de la zona en
+  // cada intento: el filtro por vínculos/número/patente resuelve el lote primero y
+  // sólo consultamos por ID los vehicle_model que realmente hayan quedado sin
+  // resolver. Esto mantiene la misma validación sin multiplicar llamadas bajo carga.
+  const movilesByFallback = movilOr.length
+    ? await b44.entities.Movil.filter({ $or: movilOr }).catch(() => [])
+    : [];
+  const fallbackIds = new Set((movilesByFallback || []).map((m:any) => String(m.id || '')));
+  const unresolvedMobileIds = mobileIds.filter((id:string) => !fallbackIds.has(id));
+  const movilesById = unresolvedMobileIds.length
+    ? await Promise.all(unresolvedMobileIds.map((id:string) => b44.entities.Movil.get(id).catch(() => null)))
+    : [];
+  const allMoviles = [...movilesByFallback, ...movilesById.filter(Boolean)]
     .filter((m: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === m.id) === i);
 
   const getEffectiveBase = (d:any) => getEffectiveQueueBase(d);
