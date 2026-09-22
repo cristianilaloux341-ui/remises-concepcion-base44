@@ -279,8 +279,6 @@ Deno.serve(async (req) => {
     const config = (await b44.entities.TarifaConfig.list())[0] || {};
     // La nueva oferta nace sin reloj comercial. La duración configurada se aplica
     // únicamente cuando el siguiente teléfono confirme ALERT_PRESENTED.
-    const configuredResponseSeconds = Number(config.tiempo_maximo_respuesta_segundos);
-    const timeoutSeconds = Number.isFinite(configuredResponseSeconds) && configuredResponseSeconds > 0 ? configuredResponseSeconds : 30;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     const excluded = new Set<string>([...(order.offered_driver_ids || []), driverId].filter(Boolean));
 
