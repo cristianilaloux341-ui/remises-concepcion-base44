@@ -474,12 +474,23 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
     if (!data.client_id) delete data.client_id;
 
-    // Record address usage for autocomplete learning
-    if (data.pickup_address) recordAddressUsage(data.pickup_address, queryClient);
-    if (data.dropoff_address) recordAddressUsage(data.dropoff_address, queryClient);
-    (data.dropoff_addresses || []).forEach(a => a && recordAddressUsage(a, queryClient));
+    // Memoria operativa: el origen confirmado guarda dirección + coordenadas + zona.
+    // La próxima vez se resuelve desde nuestra base antes de consultar un mapa externo.
+    if (data.pickup_address) {
+      const parsedPickup = parseAddress(data.pickup_address);
+      recordAddressUsage(data.pickup_address, queryClient, {
+        street: parsedPickup.street,
+        height: parsedPickup.number ? String(parsedPickup.number) : "",
+        lat: data.pickup_lat,
+        lng: data.pickup_lng,
+        zone: data.zone,
+        zone_source: zoneManualOverrideRef.current ? "operator" : "polygon",
+      }).catch(() => {});
+    }
+    if (data.dropoff_address) recordAddressUsage(data.dropoff_address, queryClient).catch(() => {});
+    (data.dropoff_addresses || []).forEach(a => a && recordAddressUsage(a, queryClient).catch(() => {}));
 
-    // Learn zone mapping from address+zone for future auto-detection
+    // Compatibilidad temporal con el diccionario viejo; la memoria exacta de AddressHistory manda.
     if (data.zone && data.pickup_address) {
       learnZoneMapping(data.pickup_address, data.zone).catch(() => {});
     }
