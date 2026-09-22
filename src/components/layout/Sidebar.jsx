@@ -10,11 +10,11 @@ import { ROLE_LABELS, getEffectiveRole } from "@/lib/permissions";
 // Items visibles por rol
 const NAV_BY_ROLE = {
   admin: [
-    { label: "Central",       path: "/",              icon: LayoutDashboard },
-    { label: "Órdenes",       path: "/orders",        icon: Car },
-    { label: "Agenda",        path: "/agenda",        icon: CalendarClock },
-    { label: "Clientes",      path: "/clients",       icon: UserCheck },
-    { label: "Mensajes",      path: "/messages",      icon: MessageSquare },
+    { label: "Central",       shortcut: "F7", path: "/",              icon: LayoutDashboard },
+    { label: "Órdenes",       shortcut: "F4", path: "/orders",        icon: Car },
+    { label: "Agenda",        shortcut: "F2", path: "/agenda",        icon: CalendarClock },
+    { label: "Clientes",      shortcut: "F3", path: "/clients",       icon: UserCheck },
+    { label: "Mensajes",      shortcut: "F8", path: "/messages",      icon: MessageSquare },
     { label: "Mapa",          path: "/map",           icon: MapPin },
     // Administración
     { label: "Usuarios del Sistema", path: "/admin/usuarios",  icon: Shield, section: "Administración" },
@@ -29,10 +29,10 @@ const NAV_BY_ROLE = {
     { label: "Conectados",    path: "/active-users",  icon: Users },
   ],
   supervisor: [
-    { label: "Central",   path: "/",        icon: LayoutDashboard },
-    { label: "Órdenes",   path: "/orders",  icon: Car },
-    { label: "Agenda",    path: "/agenda",  icon: CalendarClock },
-    { label: "Clientes",  path: "/clients", icon: UserCheck },
+    { label: "Central",   shortcut: "F7", path: "/",        icon: LayoutDashboard },
+    { label: "Órdenes",   shortcut: "F4", path: "/orders",  icon: Car },
+    { label: "Agenda",    shortcut: "F2", path: "/agenda",  icon: CalendarClock },
+    { label: "Clientes",  shortcut: "F3", path: "/clients", icon: UserCheck },
     { label: "Mensajes",  path: "/messages",icon: MessageSquare },
     { label: "Mapa",      path: "/map",     icon: MapPin },
     { label: "Chóferes",  path: "/drivers", icon: Users,    section: "Supervisión" },
@@ -40,16 +40,16 @@ const NAV_BY_ROLE = {
     { label: "Conectados", path: "/active-users", icon: Users },
   ],
   operador: [
-    { label: "Central",  path: "/",         icon: LayoutDashboard },
-    { label: "Órdenes",  path: "/orders",   icon: Car },
-    { label: "Agenda",   path: "/agenda",   icon: CalendarClock },
+    { label: "Central",  shortcut: "F7", path: "/",         icon: LayoutDashboard },
+    { label: "Órdenes",  shortcut: "F4", path: "/orders",   icon: Car },
+    { label: "Agenda",   shortcut: "F2", path: "/agenda",   icon: CalendarClock },
     { label: "Clientes", path: "/clients",  icon: UserCheck },
-    { label: "Mensajes", path: "/messages", icon: MessageSquare },
+    { label: "Mensajes", shortcut: "F8", path: "/messages", icon: MessageSquare },
     { label: "Mapa",     path: "/map",      icon: MapPin },
   ],
   caja: [
     { label: "Central",  path: "/",        icon: LayoutDashboard },
-    { label: "Clientes", path: "/clients", icon: UserCheck },
+    { label: "Clientes", shortcut: "F3", path: "/clients", icon: UserCheck },
     { label: "Agenda",   path: "/agenda",  icon: CalendarClock },
   ],
 };
@@ -95,7 +95,8 @@ export default function Sidebar({ open, onClose }) {
         )}
       >
         <item.icon className="w-4 h-4 shrink-0" />
-        {item.label}
+        <span className="flex-1">{item.label}</span>
+        {item.shortcut && <span className="text-[10px] font-black opacity-60 border border-current/20 rounded px-1.5 py-0.5">{item.shortcut}</span>}
       </Link>
     );
   };
