@@ -1,5 +1,6 @@
 {
   "name": "Push Auto Trigger",
+  "description": "LEGACY DESHABILITADO 2026-09-22: sendPushNotification queda como transporte expl\u00edcito; no reaccionar a escrituras RideOrder ni reparar estado desde workflow.",
   "definition": {
     "document": {
       "dsl": "1.0.0",
@@ -35,7 +36,6 @@
       "entity_name": "RideOrder"
     }
   },
-  "description": "LEGACY DESHABILITADO 2026-09-22: sendPushNotification queda como transporte expl\u00edcito; no reaccionar a escrituras RideOrder ni reparar estado desde workflow.",
   "x-base44-migrated-from-automation": {
     "legacy_payload_function": "sendPushNotification"
   }
