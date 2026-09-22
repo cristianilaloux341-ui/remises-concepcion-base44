@@ -38,7 +38,11 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       setDispatching(false);
       return;
     }
-    await assignDriverToOrder(order, suggestedDriver, { requireDriverConfirmation: true });
+    const res = await base44.functions.invoke("operatorDispatchPendingRide", {
+      orderId: order.id,
+      sessionToken: sessionStorage.getItem("local_operator_token")
+    });
+    if (!res?.data?.success) throw new Error(res?.data?.reason || "No se pudo despachar el pendiente");
     
     const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
     base44.entities.AuditLog.create({
@@ -62,11 +66,14 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       if (!resolved.driver) throw new Error(resolved.error);
 
       const driver = resolved.driver;
-      await assignDriverToOrder(order, driver, {
-        requireDriverConfirmation: true,
-        forceManual: true,
+      const res = await base44.functions.invoke("operatorDispatchPendingRide", {
+        orderId: order.id,
+        driverId: driver.id,
         mobileId: resolved.mobile?.id || null,
+        manual: true,
+        sessionToken: sessionStorage.getItem("local_operator_token")
       });
+      if (!res?.data?.success) throw new Error(res?.data?.reason || "No se pudo asignar el pasaje");
 
       const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
       base44.entities.AuditLog.create({
@@ -247,8 +254,11 @@ export default function DispatchPanel({ orders, drivers, bases, moviles, onOrder
       const candidate = zoneQueue[0] || null;
       if (!candidate) continue;
       try {
-        await assignDriverToOrder(order, candidate, { requireDriverConfirmation: true });
-        candidate.reserved_order_id = order.id; // evita reutilizarlo en esta pasada local
+        const res = await base44.functions.invoke("operatorDispatchPendingRide", {
+          orderId: order.id,
+          sessionToken: sessionStorage.getItem("local_operator_token")
+        });
+        if (!res?.data?.success) throw new Error(res?.data?.reason || "No se pudo despachar el pendiente");
       } catch (e) {
         console.warn("Despacho serial rechazado por backend", order.id, e);
       }
