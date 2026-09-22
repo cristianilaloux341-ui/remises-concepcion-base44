@@ -102,8 +102,16 @@ Deno.serve(async (req) => {
   // casos reales). Se resuelven en paralelo sin relajar ninguna regla operativa.
   const [driverReq, assignedOrders, reservedOrders, tarifaConfigs] = await Promise.all([
     b44.entities.Driver.get(driverId),
-    b44.entities.RideOrder.filter({ driver_id: driverId }),
-    b44.entities.RideOrder.filter({ reserved_driver_id: driverId }),
+    // Sólo interesan conflictos VIVOS. Consultar todo el historial del chofer hacía
+    // que el costo de cada despacho creciera con los meses de operación.
+    b44.entities.RideOrder.filter({
+      driver_id: driverId,
+      status: { $in: ['ofrecido','aceptado','en_camino','en_viaje'] }
+    }),
+    b44.entities.RideOrder.filter({
+      reserved_driver_id: driverId,
+      status: { $in: ['ofrecido','aceptado','en_camino','en_viaje'] }
+    }),
     b44.entities.TarifaConfig.list(),
     b44.entities.AuditLog.create({
       action: 'ASSIGN_RIDE_REQUESTED',
