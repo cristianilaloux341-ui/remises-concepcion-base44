@@ -291,9 +291,21 @@
         "NEW_NO_DRIVER",
         "CHAIN_EXHAUSTED",
         "MANUAL_RETURN",
+        "ZONE_0_DIRECT_PENDING",
+        "MANUAL_ASSIGN_FAILED",
+        "REQUESTED_DRIVER_NOT_ACCEPTED",
         null
       ],
-      "description": "Clasificaci\u00f3n server-side de Pendiente p\u00fablico autorizado"
+      "description": "Clasificaci\u00f3n server-side de Pendiente; REQUESTED_DRIVER_NOT_ACCEPTED queda retenido s\u00f3lo para Central"
+    },
+    "requested_driver_id": {
+      "type": ["string", "null"],
+      "description": "Driver pedido expresamente por el cliente; no equivale a asignaci\u00f3n manual de Central"
+    },
+    "requested_driver_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "Si el requerido no acepta, detener despacho autom\u00e1tico y retener para decisi\u00f3n del operador"
     }
   },
   "required": [
