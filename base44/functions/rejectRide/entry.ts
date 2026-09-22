@@ -18,11 +18,13 @@ Deno.serve(async (req) => {
     const { orderId, driverId, assignmentAttempt } = payload;
     const source = payload.source === 'delivery_unconfirmed'
       ? 'delivery_unconfirmed'
-      : (payload.source === 'timeout'
-        ? 'timeout'
-        : (payload.source === 'legacy_client' || payload.source === 'explicit_reject'
-          ? 'legacy_client'
-          : 'driver'));
+      : (payload.source === 'delivery_unconfirmed_exhausted'
+        ? 'delivery_unconfirmed_exhausted'
+        : (payload.source === 'timeout'
+          ? 'timeout'
+          : (payload.source === 'legacy_client' || payload.source === 'explicit_reject'
+            ? 'legacy_client'
+            : 'driver')));
     const legacyQueueEnteredAt = payload.legacyQueueEnteredAt || null;
 
     if (!orderId || !driverId || assignmentAttempt == null) {
@@ -47,6 +49,7 @@ Deno.serve(async (req) => {
     if (source === 'delivery_unconfirmed') {
       return Response.json({ success:false, reason:'DELIVERY_RECOVERY_SAME_DRIVER' });
     }
+    const deliveryExhausted = source === 'delivery_unconfirmed_exhausted';
     if (source === 'timeout') {
       const authoritativeExpiry = Number(order.offerExpiresAt);
       if (!canProcessCommercialTimeout(order, driverId, Number(assignmentAttempt))) {
@@ -218,7 +221,7 @@ Deno.serve(async (req) => {
     // No existe "mandarlo al último" automáticamente. Para volver, el chofer debe
     // entrar explícitamente a una base y allí obtiene una posición nueva al final.
     const queueBase = order.assigned_base || order.zone || actualDriver?.current_base || actualDriver?.queue_authoritative_base || null;
-    if (queueBase) {
+    if (queueBase && !deliveryExhausted) {
       await withQueueLock(b44, queueBase, async () => {
         await b44.entities.Driver.updateMany(
           { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
