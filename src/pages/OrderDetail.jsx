@@ -178,19 +178,6 @@ export default function OrderDetail() {
     return true;
   };
 
-  const returnToPending = async () => {
-    const response = await base44.functions.invoke("operatorOrderAction", {
-      action: "reactivate",
-      orderId: order.id,
-      sessionToken: sessionStorage.getItem("local_operator_token")
-    });
-    if (!response?.data?.success) {
-      alert(response?.data?.reason || "No se pudo reactivar el pasaje.");
-      return;
-    }
-    queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
-  };
-
   const availableDrivers = drivers.filter(d => isDriverWorking(d) || d.id === order?.driver_id);
 
   return (
@@ -201,15 +188,7 @@ export default function OrderDetail() {
           Volver
         </Button>
         <div className="flex gap-2">
-          {order.status === "cancelado" ? (
-            <Button
-              size="sm"
-              className="gap-2 bg-green-600 hover:bg-green-700"
-              onClick={returnToPending}
-            >
-              <RefreshCw className="w-4 h-4" /> Reactivar
-            </Button>
-          ) : (
+          {order.status !== "cancelado" && (
             <>
               {order.status === "completado" && (
                 <RideTicket order={order} />
