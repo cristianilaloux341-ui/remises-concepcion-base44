@@ -1,6 +1,6 @@
 {
   "trigger": {
-    "condition": "${ .trigger.data.action == \"rechazar_viaje\" }",
+    "condition": "${ false }",
     "config": {
       "trigger_type": "entity",
       "events": [
