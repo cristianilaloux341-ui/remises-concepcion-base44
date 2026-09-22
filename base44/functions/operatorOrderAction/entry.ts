@@ -7,7 +7,7 @@ Deno.serve(async (req) => {
   try {
     const payload = await req.json();
     const { orderId, action, sessionToken } = payload;
-    if (!orderId || !['cancel','reactivate'].includes(action)) {
+    if (!orderId || action !== 'cancel') {
       return Response.json({ success:false, reason:'INVALID_PARAMS' }, { status:400 });
     }
     const operatorAuthorized = await verifyRequestAuth(b44, payload, { allowOperator:true });
@@ -15,17 +15,11 @@ Deno.serve(async (req) => {
     if (!operatorAuthorized && !clientAuthorized) {
       return Response.json({ success:false, reason:'unauthorized' }, { status:401 });
     }
-    if (action === 'reactivate' && !operatorAuthorized) {
-      return Response.json({ success:false, reason:'operator_required' }, { status:403 });
-    }
     const order = await b44.entities.RideOrder.get(orderId).catch(()=>null);
     if (!order) return Response.json({ success:false, reason:'ORDER_NOT_FOUND' }, { status:404 });
 
-    // Nunca liberar un móvil antes de validar la transición solicitada.
-    // Reactivar sólo está permitido desde estados terminales cancelado/rechazado.
-    if (action === 'reactivate' && !['cancelado','rechazado'].includes(order.status)) {
-      return Response.json({success:false,reason:'REACTIVATE_ONLY_CANCELLED'});
-    }
+    // Cancelación es terminal. Un pasaje cancelado no se reactiva: si vuelve a pedirse,
+    // debe nacer una orden nueva y entrar por el motor canónico de despacho.
 
     const driverIds = [...new Set([order.driver_id, order.reserved_driver_id, order.preassigned_driver_id].filter(Boolean))];
     for (const driverId of driverIds) {
@@ -52,13 +46,6 @@ Deno.serve(async (req) => {
       return Response.json({success:true,status:'cancelado'});
     }
 
-    const changed = await b44.entities.RideOrder.updateMany(
-      { id:orderId, status:order.status },
-      { $set:{ status:'pendiente', driver_id:null, driver_name:null, assigned_base:null, reserved_driver_id:null, preassigned_driver_id:null, preassignment_token:null, preassigned_at:null, claimed_from_pending:false, reservation_token:null, manual_reservation_token:null, offerExpiresAt:null, processingAction:'PENDING_AUTHORIZED', pending_reason:'CENTRAL_REACTIVATED', processingOperationKey:null, processingOwnerId:null, processingLeaseExpiresAt:null, processingPhase:null } }
-    );
-    if ((changed?.updated ?? changed?.matchedCount ?? changed?.modifiedCount ?? 0) !== 1) return Response.json({success:false,reason:'CONCURRENT_CHANGE'});
-    await b44.entities.AuditLog.create({action:'CENTRAL_REACTIVATE_PENDING_AUTHORIZED',user_type:'operador',user_name:'Central',details:`Reactivación autoritativa de ${orderId}`,metadata:{orderId}}).catch(()=>{});
-    return Response.json({success:true,status:'pendiente'});
   } catch (e) {
     console.error('operatorOrderAction',e);
     return Response.json({success:false,error:e?.message || String(e)},{status:500});
