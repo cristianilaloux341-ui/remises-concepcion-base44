@@ -1,7 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
-import { getNextQueueTailAt, getNextQueuePosition, withQueueLock, compactQueueUnlocked } from '../../shared/queueOrder.ts';
+import { withQueueLock, compactQueueUnlocked } from '../../shared/queueOrder.ts';
+import { canProcessCommercialTimeout } from '../../shared/dispatchAuthority.ts';
 
 Deno.serve(async (req) => {
   let b44: any = null;
@@ -41,13 +42,15 @@ Deno.serve(async (req) => {
       return Response.json({ success:false, reason:'STALE_OR_EXPIRED' });
     }
 
-    // BARRERA ABSOLUTA DE TIEMPO: ningún worker, cron ni instancia vieja puede
-    // procesar timeout/delivery_unconfirmed antes del offerExpiresAt autoritativo.
-    // El rechazo explícito del chofer no usa esta barrera porque sí debe ser inmediato.
-    if (source === 'timeout' || source === 'delivery_unconfirmed') {
+    // El timeout comercial existe ÚNICAMENTE después de ALERT_PRESENTED + 30 s.
+    // delivery_unconfirmed es transporte: jamás libera al móvil ni avanza la cadena.
+    if (source === 'delivery_unconfirmed') {
+      return Response.json({ success:false, reason:'DELIVERY_RECOVERY_SAME_DRIVER' });
+    }
+    if (source === 'timeout') {
       const authoritativeExpiry = Number(order.offerExpiresAt);
-      if (Number.isFinite(authoritativeExpiry) && Date.now() < authoritativeExpiry) {
-        const remainingMs = Math.max(0, authoritativeExpiry - Date.now());
+      if (!canProcessCommercialTimeout(order, driverId, Number(assignmentAttempt))) {
+        const remainingMs = Number.isFinite(authoritativeExpiry) ? Math.max(0, authoritativeExpiry - Date.now()) : null;
         await b44.entities.AuditLog.create({
           action:'PREMATURE_REJECT_ENGINE_BLOCKED',
           user_type:'sistema',
@@ -211,66 +214,31 @@ Deno.serve(async (req) => {
       actualDriver = await b44.entities.Driver.get(driverId).catch(() => null);
     }
 
-    // El móvil ha sido liberado del viaje. Ahora DEBE ir al final de la cola, tanto si 
-    // fue un release nuestro como un release legacy.
-    // EXCEPCIÓN: Si es delivery_unconfirmed, el móvil NO debe perder su lugar.
-    const isDeliveryUnconfirmed = source === 'delivery_unconfirmed';
+    // Regla nueva: RECHAZO o TIMEOUT PRESENTADO saca al móvil de la cola.
+    // No existe "mandarlo al último" automáticamente. Para volver, el chofer debe
+    // entrar explícitamente a una base y allí obtiene una posición nueva al final.
     const queueBase = order.assigned_base || order.zone || actualDriver?.current_base || actualDriver?.queue_authoritative_base || null;
-    if (queueBase && !isDeliveryUnconfirmed) {
-      const penaltyKey = `TAIL:${orderId}:${Number(assignmentAttempt)}:${driverId}`;
-      // Marca + posición en el mismo CAS: un retry del mismo intento no penaliza dos veces.
+    if (queueBase) {
       await withQueueLock(b44, queueBase, async () => {
-        const freshDriver = await b44.entities.Driver.get(driverId).catch(() => null);
-        if (freshDriver?.last_queue_penalty_key === penaltyKey) {
-          await b44.entities.AuditLog.create({
-            action:'TAIL_ALREADY_APPLIED',
-            user_type:'sistema',
-            user_name:'rejectRide',
-            details:`Penalización de cola ya aplicada para ${orderId} / intento ${assignmentAttempt}`,
-            metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), baseName:queueBase, penaltyKey }
-          }).catch(()=>{});
-          return;
-        }
-
-        const nextPos = await getNextQueuePosition(b44, queueBase, driverId);
-        const nextQueueAt = await getNextQueueTailAt(b44, queueBase, driverId);
-        const placed = await b44.entities.Driver.updateMany(
-          {
-            id: driverId,
-            status: 'disponible',
-            $or: [
-              { dispatch_status: 'normal' },
-              { dispatch_status: null }
-            ],
-            reserved_order_id: null,
-            active_order_id: null,
-            active_ride_id: null,
-            last_queue_penalty_key:{ $ne:penaltyKey }
-          },
-          { $set: {
-            current_base: queueBase,
-            queue_authoritative_base: queueBase,
-            queue_position: nextPos,
-            queue_authority_marker: nextPos,
-            queue_entered_at: nextQueueAt,
-            queue_authoritative_at: nextQueueAt,
-            queue_left_at: null,
-            last_queue_penalty_key: penaltyKey,
-            last_queue_penalty_base: queueBase
+        await b44.entities.Driver.updateMany(
+          { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null },
+          { $set:{
+            current_base:null,
+            queue_authoritative_base:null,
+            queue_position:null,
+            queue_authority_marker:null,
+            queue_left_at:new Date().toISOString(),
+            queue_leave_reason: source === 'timeout' ? 'OFFER_TIMEOUT' : 'OFFER_REJECTED'
           } }
         );
-
-        if ((placed?.updated ?? placed?.matchedCount ?? placed?.modifiedCount ?? 0) === 1) {
-          await b44.entities.AuditLog.create({
-            action:'DRIVER_SENT_TO_TAIL',
-            user_type:'sistema',
-            user_name:'rejectRide',
-            details:`Chofer ${driverId} pasó al último lugar en la base ${queueBase} (posición ${nextPos}) tras soltar oferta ${orderId}`,
-            metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), baseName:queueBase, newPosition:nextPos, queueAt:nextQueueAt, penaltyKey }
-          }).catch(()=>{});
-          await compactQueueUnlocked(b44, queueBase).catch(e => console.error("Error compacting queue after tail placement", e));
-        }
+        await compactQueueUnlocked(b44, queueBase);
       });
+      await b44.entities.AuditLog.create({
+        action:'DRIVER_LEFT_QUEUE_AFTER_OFFER', user_type:source === 'timeout' ? 'sistema' : 'chofer',
+        user_name:source === 'timeout' ? 'Sistema' : 'Chofer',
+        details:`Chofer ${driverId} salió de la cola ${queueBase} tras ${source === 'timeout' ? 'timeout' : 'rechazo'}.`,
+        metadata:{orderId,driverId,assignmentAttempt:Number(assignmentAttempt),baseName:queueBase,source}
+      }).catch(()=>{});
     }
 
     // Cerrar la oferta anterior EN PARALELO. Un rechazo explícito o un timeout ya
