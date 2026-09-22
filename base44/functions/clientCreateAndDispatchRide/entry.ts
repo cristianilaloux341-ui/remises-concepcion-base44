@@ -28,6 +28,7 @@ Deno.serve(async (req) => {
         internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
       });
       assigned = manualRes?.data?.success === true;
+      const manualMode = manualRes?.data?.mode || null;
       if (!assigned) {
         await b44.entities.RideOrder.update(order.id, {
           status: "pendiente",
@@ -36,7 +37,16 @@ Deno.serve(async (req) => {
         });
         return Response.json({ success:false, orderId:order.id, assigned:false, status:"pendiente", error:manualRes?.data?.reason || "MANUAL_ASSIGN_FAILED" }, { status:409 });
       }
-      return Response.json({ success:true, orderId:order.id, assigned:true, status:"ofrecido" });
+      // Si el móvil ya tiene un viaje, assignRide puede ocupar su segundo slot.
+      // Ese pasaje NO es una oferta viva: queda preasignado hasta que el backend
+      // termine/promueva el primero.
+      return Response.json({
+        success:true,
+        orderId:order.id,
+        assigned:true,
+        mode: manualMode,
+        status: manualMode === "next" ? "preasignado_proximo" : "ofrecido"
+      });
     }
 
     const zoneKey = String(order.zone || "").trim().toLowerCase();
