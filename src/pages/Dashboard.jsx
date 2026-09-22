@@ -47,10 +47,8 @@ function CentralOfferCountdown({ order }) {
       setSeconds(null);
       return;
     }
-    const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : NaN;
-    const expiresMs = order.offerExpiresAt != null
-      ? Number(order.offerExpiresAt)
-      : (Number.isFinite(assignedMs) ? assignedMs + 30000 : NaN);
+    // Sin ALERT_PRESENTED/offerExpiresAt todavía no empezó la ventana comercial.
+    const expiresMs = order.offerExpiresAt != null ? Number(order.offerExpiresAt) : NaN;
     if (!Number.isFinite(expiresMs)) {
       setSeconds(null);
       return;
@@ -64,7 +62,13 @@ function CentralOfferCountdown({ order }) {
     return () => clearInterval(timer);
   }, [order.status, order.offerExpiresAt, order.assigned_at, order.assignment_attempt]);
 
-  if (seconds == null) return null;
+  if (seconds == null) {
+    return order.status === "ofrecido" ? (
+      <Badge className="bg-slate-500 text-white font-mono text-xs font-bold px-3 py-1">
+        Esperando teléfono
+      </Badge>
+    ) : null;
+  }
   return (
     <Badge className={`${seconds <= 10 ? "bg-red-600 animate-pulse" : "bg-amber-500"} text-white font-mono text-sm font-black px-3 py-1`}>
       ⏱ QUEDAN 00:{String(seconds).padStart(2, "0")}

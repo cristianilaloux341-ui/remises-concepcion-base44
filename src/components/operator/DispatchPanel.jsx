@@ -205,12 +205,9 @@ function OfferCountdown({ order }) {
       return;
     }
 
-    // Autoridad principal: offerExpiresAt (que ahora sí se extiende cuando el chofer lo recibe para darle 30s reales).
-    const configuredSeconds = 30;
-    const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : NaN;
-    const expiresMs = order.offerExpiresAt != null
-      ? Number(order.offerExpiresAt)
-      : (Number.isFinite(assignedMs) ? assignedMs + configuredSeconds * 1000 : NaN);
+    // Central sólo muestra el reloj comercial autoritativo del backend.
+    // Antes de ALERT_PRESENTED no existe vencimiento comercial.
+    const expiresMs = order.offerExpiresAt != null ? Number(order.offerExpiresAt) : NaN;
 
     if (!Number.isFinite(expiresMs)) {
       setSeconds(null);
@@ -223,7 +220,13 @@ function OfferCountdown({ order }) {
     return () => clearInterval(timer);
   }, [order.status, order.offerExpiresAt, order.assigned_at, order.assignment_attempt]);
 
-  if (seconds == null) return null;
+  if (seconds == null) {
+    return order.status === "ofrecido" ? (
+      <span className="font-mono text-xs font-bold px-2 py-1 rounded-lg border text-slate-700 bg-slate-100 border-slate-300">
+        Esperando presentación en teléfono
+      </span>
+    ) : null;
+  }
   const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
   const ss = String(seconds % 60).padStart(2, "0");
   return (
