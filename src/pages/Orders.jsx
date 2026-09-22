@@ -32,36 +32,15 @@ export default function Orders() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
-      const orderToDelete = orders.find(o => o.id === id);
-      if (orderToDelete) {
-        // El historial de ofertas no autoriza a liberar móviles: podrían estar ya en otro viaje.
-        const toCancel = [...new Set([orderToDelete.driver_id, orderToDelete.reserved_driver_id])].filter(Boolean);
-        if (toCancel.length > 0) {
-          await base44.entities.Driver.updateMany(
-            { id: { $in: toCancel }, $or: [{ active_order_id: orderToDelete.id }, { active_ride_id: orderToDelete.id }, { reserved_order_id: orderToDelete.id }] },
-            {
-              $set: {
-                status: "disponible",
-                dispatch_status: "normal",
-                active_ride_id: null,
-                reserved_order_id: null,
-                reservation_token: null,
-                manual_reservation_token: null,
-                driver_reservation_key: null
-              }
-            }
-          ).catch(() => {});
-        }
-      }
-      return base44.entities.RideOrder.delete(id);
+      const response = await base44.functions.invoke("operatorDeleteRide", {
+        orderId: id,
+        sessionToken: sessionStorage.getItem("local_operator_token"),
+        operatorName: localOperator?.name || "Admin"
+      });
+      if (!response?.data?.success) throw new Error(response?.data?.reason || "No se pudo eliminar el viaje");
+      return response.data;
     },
     onSuccess: (_, id) => {
-      base44.entities.AuditLog.create({
-        action: "eliminar_viaje",
-        user_type: effectiveRole,
-        user_name: localOperator?.name || "Admin",
-        details: `Eliminó la orden de viaje ID ${id}`
-      }).catch(()=>{});
       queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
     }
   });
