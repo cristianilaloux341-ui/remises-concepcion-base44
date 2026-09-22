@@ -239,7 +239,25 @@ Deno.serve(async (req) => {
         Number(finalOrder.alert_presented_assignment_attempt) === Number(assignmentAttempt)
       );
 
-      const source = finalPresented ? 'timeout' : 'delivery_unconfirmed';
+      // Sin PRESENTED hacemos UNA sola recuperación de entrega sobre el mismo móvil.
+      // Si después del reintento único sigue sin presentarse, el pasaje continúa su cadena
+      // sin penalizar ni sacar de cola a este móvil: fue una falla técnica, no un rechazo.
+      const source = finalPresented ? 'timeout' : 'delivery_unconfirmed_exhausted';
+      if (!finalPresented) {
+        const released = await b44.entities.Driver.updateMany(
+          { id:driverId, reserved_order_id:orderId, reservation_token:finalOrder.reservation_token },
+          { $set:{ dispatch_status:'normal', reserved_order_id:null, reservation_token:null } }
+        ).catch(()=>({updated:0}));
+        await b44.entities.RideOrder.updateMany(
+          { id:orderId, status:'ofrecido', reserved_driver_id:driverId, reservation_token:finalOrder.reservation_token, assignment_attempt:Number(assignmentAttempt) },
+          { $set:{ processingAction:'DELIVERY_FAILED_ADVANCE', processingPhase:'REASSIGNING' } }
+        ).catch(()=>{});
+        await b44.entities.AuditLog.create({
+          action:'DELIVERY_RETRY_EXHAUSTED_ADVANCE', user_type:'sistema', user_name:'autoReassignOnTimeout',
+          details:`La oferta ${orderId} no llegó a PRESENTED después del único reintento; continúa al siguiente móvil sin penalizar ${driverId}.`,
+          metadata:{orderId,driverId,assignmentAttempt:Number(assignmentAttempt),retryCount:Number(finalOrder.delivery_retry_count||0),driverReleasedForAdvance:true}
+        }).catch(()=>{});
+      }
       const rejectResponse = await b44.functions.invoke('rejectRide', {
         orderId,
         driverId,
@@ -264,6 +282,7 @@ Deno.serve(async (req) => {
         ok: rejectData?.success !== false,
         protocol: 'alert_presented',
         deliveryUnconfirmed: !finalPresented,
+        deliveryRetryExhausted: !finalPresented,
         timeoutProcessed: finalPresented,
         result: rejectData
       });
