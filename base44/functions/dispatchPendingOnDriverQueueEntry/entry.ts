@@ -997,8 +997,11 @@ Deno.serve(async (req) => {
     // que disparó el evento. Así se conserva estrictamente el orden de lista.
     // Si otro trigger gana una carrera, reintentamos unas pocas veces sobre el
     // estado fresco sin duplicar el motor de reservas de assignRide.
+    // Una entrada real de cola habilita UNA sola decisión de despacho. Si existe una
+    // carrera, otro evento/motor volverá a evaluar con estado fresco; este trigger no
+    // recorre hasta 8 combinaciones ni se convierte en un despachador paralelo.
     const failedByOrder = new Map<string, Set<string>>();
-    const MAX_RACE_RETRIES = 8;
+    const MAX_RACE_RETRIES = 1;
 
     for (let retry = 0; retry < MAX_RACE_RETRIES; retry++) {
       const pendings = await b44.entities.RideOrder.filter(
@@ -1078,14 +1081,19 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Carrera legítima: otro despacho pudo tomar el viaje o el móvil entre la
-      // selección y el CAS. No tocamos estados; solo evitamos repetir el mismo par.
-      const excluded = failedByOrder.get(chosenOrder.id) || new Set<string>();
-      excluded.add(chosenDriver.id);
-      failedByOrder.set(chosenOrder.id, excluded);
+      // Carrera legítima: no hacemos barrido alternativo desde este trigger.
+      // Dejamos el estado intacto para que la próxima acción autoritativa lo evalúe.
+      return Response.json({
+        success:true,
+        assigned:false,
+        reason:'AUTHORITATIVE_ASSIGN_RACE_LOST',
+        orderId:chosenOrder.id,
+        driverId:chosenDriver.id,
+        zone
+      });
     }
 
-    return Response.json({ success: true, assigned: false, reason: 'RACE_RETRY_LIMIT', zone });
+    return Response.json({ success:true, assigned:false, reason:'NO_ASSIGNMENT_FROM_QUEUE_ENTRY', zone });
   } catch (error: any) {
     console.error('dispatchPendingOnDriverQueueEntry error:', error);
     return Response.json({ success: false, error: error?.message || String(error) }, { status: 500 });
