@@ -348,16 +348,18 @@ function isPointInPolygon(point, vs) {
 
 // Check if coordinates fall inside any defined ZonePolygon
 export async function detectZoneFromCoords(lat, lng) {
-  if (!lat || !lng) return null;
+  const latN = Number(lat), lngN = Number(lng);
+  if (!Number.isFinite(latN) || !Number.isFinite(lngN)) return null;
   const polygons = await base44.entities.ZonePolygon.list();
+  const matches = [];
   for (const poly of polygons) {
-    if (poly.coordinates && poly.coordinates.length > 2) {
-      if (isPointInPolygon([lat, lng], poly.coordinates)) {
-        return poly.zone;
-      }
+    if (poly.coordinates && poly.coordinates.length > 2 && isPointInPolygon([latN, lngN], poly.coordinates)) {
+      matches.push(poly.zone);
     }
   }
-  return null;
+  // Una coordenada debe pertenecer a una sola zona. Si los polígonos se solapan,
+  // no elegir "la primera" silenciosamente: obliga a corregir la cartografía.
+  return matches.length === 1 ? matches[0] : null;
 }
 
 // Detecta primero desde la memoria propia de direcciones confirmadas.
