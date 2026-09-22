@@ -317,6 +317,17 @@ Deno.serve(async (req) => {
       if ((held.matchedCount ?? held.modifiedCount ?? held.updated ?? 0) !== 1) {
         throw new Error('ORDER_CHANGED_BEFORE_REQUESTED_DRIVER_HOLD');
       }
+      // Si era una oferta del segundo cupo, liberar sólo esa reserva provisional.
+      if (order.second_slot_offer === true) {
+        await b44.entities.Driver.updateMany(
+          {id:driverId,next_order_id:orderId,next_order_token:order.reservation_token},
+          {$set:{next_order_id:null,next_order_token:null}}
+        ).catch(()=>{});
+        await b44.entities.RideOrder.updateMany(
+          {id:orderId,status:'pendiente',pending_reason:'REQUESTED_DRIVER_NOT_ACCEPTED'},
+          {$set:{second_slot_offer:false}}
+        ).catch(()=>{});
+      }
       lockOwner = null;
       await b44.entities.AuditLog.create({
         action:'REQUESTED_DRIVER_NOT_ACCEPTED',

@@ -256,6 +256,31 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
      return { status: preValStatus, correlationId };
   }
 
+  // Oferta del segundo cupo para un móvil requerido: el móvil ya tiene su viaje
+  // actual, por eso NO puede pasar por la reserva normal de Driver. Aceptar sólo
+  // confirma el next_order_id que assignRide dejó reservado. El CAS sobre RideOrder
+  // compite de forma monotónica contra rechazo/timeout: uno solo puede ganar.
+  if (order.second_slot_offer === true) {
+    const driverSecond = await b44.entities.Driver.get(driverId).catch(() => null);
+    if (!driverSecond || driverSecond.next_order_id !== rideOrderId || !driverSecond.next_order_token ||
+        driverSecond.next_order_token !== order.reservation_token) {
+      return {status:'SECOND_SLOT_RESERVATION_LOST',correlationId};
+    }
+    const acceptedSecond = await b44.entities.RideOrder.updateMany(
+      {id:rideOrderId,status:'ofrecido',reserved_driver_id:driverId,reservation_token:order.reservation_token,
+       assignment_attempt:assignmentAttempt,second_slot_offer:true,
+       $or:[{processingOwnerId:null},{processingOwnerId:{$exists:false}}]},
+      {$set:{status:'preasignado_proximo',preassigned_driver_id:driverId,preassignment_token:order.reservation_token,
+        preassigned_at:new Date().toISOString(),second_slot_offer:false,reserved_driver_id:null,
+        offerExpiresAt:null,processingAction:null,processingOwnerId:null,processingLeaseExpiresAt:null,processingPhase:null,
+        lastCompletedAction:'ACCEPT',lastCompletedResult:'SUCCESS'}}
+    );
+    if (mutationCount(acceptedSecond) !== 1) return {status:'OPERATION_IN_PROGRESS',correlationId};
+    await b44.entities.AuditLog.create({action:'SECOND_RIDE_ACCEPTED_REQUIRED',user_type:'chofer',user_name:driverSecond.name || driverId,
+      details:`Móvil requerido aceptó segundo pasaje ${rideOrderId}.`,metadata:{orderId:rideOrderId,driverId,assignmentAttempt}}).catch(()=>{});
+    return {status:'SUCCESS',mode:'next',correlationId};
+  }
+
   // 2. ADQUISICIÓN DEL LEASE
   const expectedLeaseVersion = order.processingLeaseVersion ?? 0;
   let acquiredLeaseVersion = expectedLeaseVersion + 1;
