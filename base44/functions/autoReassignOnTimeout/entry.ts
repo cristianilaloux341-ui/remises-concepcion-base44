@@ -18,8 +18,8 @@ Deno.serve(async (req) => {
     const order = await b44.entities.RideOrder.get(orderId).catch(()=>null);
     if (!order) return Response.json({ ok:true, skipped:true, reason:'order_missing' });
 
-    // offerExpiresAt en Central es la ÚNICA autoridad de tiempo. La APK no decide
-    // cuándo vence una oferta y el ACK nunca extiende el techo absoluto de 30 s.
+    // offerExpiresAt en servidor es la ÚNICA autoridad de tiempo comercial.
+    // La APK no decide el vencimiento y el ACK nunca crea ni extiende esa ventana.
     if (
       order.status !== 'ofrecido' ||
       order.reserved_driver_id !== driverId ||
@@ -61,7 +61,12 @@ Deno.serve(async (req) => {
       );
       const rawAckMs = ackedThisAttempt ? new Date(order.push_ack_at).getTime() : NaN;
       const retryAnchorMs = Number.isFinite(rawAckMs) ? rawAckMs : assignedMs;
-      const deliveryRetryAt = retryAnchorMs + 8000;
+      // Recuperación técnica: un único reintento. Este plazo NO es el tiempo
+      // comercial de respuesta y por eso queda separado de TarifaConfig.
+      const DELIVERY_RETRY_MS = 8000;
+      const DELIVERY_ADVANCE_MS = 8000;
+      const deliveryRetryAt = retryAnchorMs + DELIVERY_RETRY_MS;
+      const deliveryAdvanceAt = deliveryRetryAt + DELIVERY_ADVANCE_MS;
 
       let nowMs = Date.now();
 
@@ -70,8 +75,7 @@ Deno.serve(async (req) => {
       if (
         !presentedThisAttempt &&
         protocolRetryCount === 0 &&
-        nowMs >= deliveryRetryAt &&
-        nowMs < protocolExpiresAt
+        nowMs >= deliveryRetryAt
       ) {
         const retryCas = await b44.entities.RideOrder.updateMany(
           {
@@ -129,7 +133,19 @@ Deno.serve(async (req) => {
       }
 
       nowMs = Date.now();
-      if (protocolExpiresAt > nowMs) {
+
+      // Sin PRESENTED no hay offerExpiresAt. Después del único reintento técnico
+      // damos una sola oportunidad de presentación y luego avanzamos la cadena.
+      if (!presentedThisAttempt && protocolRetryCount > 0 && nowMs < deliveryAdvanceAt) {
+        const waitMs = Math.min(8000, Math.max(500, deliveryAdvanceAt - nowMs));
+        await new Promise(r => setTimeout(r, waitMs));
+        b44.functions.invoke('autoReassignOnTimeout', {
+          orderId, driverId, assignmentAttempt, internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch(()=>{});
+        return Response.json({ ok:true, chained:true, reason:'waiting_after_single_delivery_retry' });
+      }
+
+      if (Number.isFinite(protocolExpiresAt) && protocolExpiresAt > nowMs) {
         let nextWakeAt = protocolExpiresAt;
         if (
           !presentedThisAttempt &&
@@ -162,8 +178,8 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Después de cada espera releemos. ALERT_PRESENTED puede haber cambiado
-        // offerExpiresAt de techo de entrega a presented_at + 30 s.
+        // Después de cada espera releemos. ALERT_PRESENTED es el único evento
+        // que puede crear/mover offerExpiresAt para este intento.
         const checkOrder = await b44.entities.RideOrder.get(orderId).catch(() => null);
         if (
           !checkOrder ||
