@@ -10,12 +10,11 @@ Deno.serve(async (req) => {
     const tarifaConfigs = await b44.entities.TarifaConfig.list();
     const configuredResponseSeconds = Number(tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos);
     const tiempoMaximo = Number.isFinite(configuredResponseSeconds) && configuredResponseSeconds > 0 ? configuredResponseSeconds : 30;
-    const thresholdDate = new Date(Date.now() - (tiempoMaximo * 1000));
     const twoHoursAgoTime = Date.now() - (120 * 60 * 1000);
     const twoHoursAgoStr = new Date(twoHoursAgoTime).toISOString();
 
-    // 1. Buscar viajes automáticos trabados en "ofrecido"
-    // Los viajes en estado "ofrecido" son asignaciones automáticas y deben vencer a los 60s, sin importar su origen.
+    // 1. Buscar viajes ofrecidos. El cron es sólo red de seguridad: nunca inventa
+    // vencimientos ni decide por assigned_at; sólo actúa sobre ALERT_PRESENTED vencido.
     const offerOrders = await b44.entities.RideOrder.filter({ status: "ofrecido" });
 
     // 1.5 Solo limpiar cancelados/rechazados recientes.
@@ -80,13 +79,15 @@ Deno.serve(async (req) => {
 
     // --- NUEVO BLOQUE A: Vencimiento estricto de ofertas ---
     for (const order of offerOrders) {
-      if (!order.assigned_at) continue; // Si no tiene assigned_at, ignorar (legacy o procesado por autoReassignOnTimeout)
-      
-      // Misma autoridad que acceptRide y la pantalla del chofer: offerExpiresAt.
-      // Así el cron nunca vence una oferta antes de la ventana real asignada.
-      const expiresAt = order.offerExpiresAt != null
-        ? Number(order.offerExpiresAt)
-        : (new Date(order.assigned_at).getTime() + (tiempoMaximo * 1000));
+      // Barrera absoluta: sin PRESENTED del intento actual no existe timeout comercial.
+      // La recuperación técnica (reintento único y avance sin penalizar) pertenece al
+      // watchdog, no al cron.
+      const presentedCurrentAttempt = Boolean(
+        order.alert_presented_at &&
+        Number(order.alert_presented_assignment_attempt) === Number(order.assignment_attempt)
+      );
+      if (!presentedCurrentAttempt) continue;
+      const expiresAt = Number(order.offerExpiresAt);
       if (!Number.isFinite(expiresAt) || Date.now() < expiresAt) continue;
 
       // Re-lectura estricta para evitar carreras
@@ -99,6 +100,10 @@ Deno.serve(async (req) => {
         freshOrder.reserved_driver_id !== order.reserved_driver_id ||
         freshOrder.driver_id !== order.driver_id ||
         freshOrder.assigned_at !== order.assigned_at ||
+        !freshOrder.alert_presented_at ||
+        Number(freshOrder.alert_presented_assignment_attempt) !== Number(freshOrder.assignment_attempt) ||
+        !Number.isFinite(Number(freshOrder.offerExpiresAt)) ||
+        Number(freshOrder.offerExpiresAt) > Date.now() ||
         (freshOrder.processingOwnerId && Number(freshOrder.processingLeaseExpiresAt || 0) > Date.now())
       ) {
         continue;
