@@ -32,7 +32,13 @@ async function guardOfferedReservationIntegrity(b44:any, driverId:string) {
   )[0];
   const now = Date.now();
   const expiresAt = Number(order.offerExpiresAt);
-  const expired = Number.isFinite(expiresAt) && expiresAt <= now;
+  const presentedCurrentAttempt = Boolean(
+    order.alert_presented_at &&
+    Number(order.alert_presented_assignment_attempt) === Number(order.assignment_attempt)
+  );
+  // Este guard jamás fabrica timeout desde assigned_at/ACK. Sólo puede enrutar como
+  // timeout una oferta realmente PRESENTED cuyo reloj autoritativo ya venció.
+  const expired = presentedCurrentAttempt && Number.isFinite(expiresAt) && expiresAt <= now;
   const rejectIntents = await b44.entities.AuditLog.filter({
     action:'EXPLICIT_REJECT_INTENT_CONFIRMED',
     'metadata.orderId':order.id,
@@ -115,8 +121,10 @@ async function guardOfferedReservationIntegrity(b44:any, driverId:string) {
     return { repaired:false, reason:'DRIVER_BUSY_FAIL_CLOSED' };
   }
 
-  // Oferta todavía vigente y móvil sin otro viaje: el RideOrder es la autoridad.
-  // Restauramos exactamente su orderId/token. El filtro usa el snapshot fresco del
+  // Oferta vigente O todavía en fase técnica sin PRESENTED: el RideOrder es la autoridad.
+  // Restauramos exactamente su orderId/token. Nunca convertimos falta de PRESENTED
+  // en rechazo/timeout desde este workflow; eso pertenece al watchdog de entrega.
+  // El filtro usa el snapshot fresco del
   // Driver, por lo que una asignación/aceptación concurrente hace fallar el CAS.
   const restored = await b44.entities.Driver.updateMany(
     {
