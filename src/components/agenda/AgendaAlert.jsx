@@ -7,7 +7,6 @@ import { Bell, Clock, MapPin, X, Zap, Car, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { autoDispatch, assignDriverToOrder } from "@/lib/dispatchLogic";
 
 function minutesUntil(datetime) {
   if (!datetime) return Infinity;
