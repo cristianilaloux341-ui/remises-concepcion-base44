@@ -28,6 +28,9 @@ export async function validatePilotDriver(b44: any, zone: string, driverId: stri
 }
 
 export async function tryManualCandidate(b44: any, baseId: string, order: any, driver: any, token: string, failureInjector = defaultFailureInjector) {
+  // LEGACY: sólo simulaciones/tests antiguos. Producción usa assignRide canónico.
+  return false;
+  /*
   try {
     await validatePilotDriver(b44, order.zone || '1-Puerto', driver.id);
     // 1. Reservar Driver
@@ -81,6 +84,7 @@ export async function tryManualCandidate(b44: any, baseId: string, order: any, d
     }
     throw e;
   }
+  */
 }
 
 export async function assignDriverToOrderAtomic(b44: any, order: any, driver: any, token: string, failureInjector = defaultFailureInjector) {
@@ -215,6 +219,9 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
 }
 
 export async function reassignAfterAutomaticReject(b44: any, baseId: string, orderId: string, driverId: string, oldToken: string, failureInjector = defaultFailureInjector) {
+  // LEGACY: sólo simulaciones/tests antiguos. Producción reasigna exclusivamente por rejectRide.
+  return { status:'legacy_disabled' };
+  /*
   const orderCheck = await b44.entities.RideOrder.get(orderId);
   await validatePilotDriver(b44, orderCheck?.zone || '1-Puerto', driverId);
   const newToken = crypto.randomUUID();
@@ -254,6 +261,7 @@ export async function reassignAfterAutomaticReject(b44: any, baseId: string, ord
       );
     }
   }
+  */
 }
 
 export async function cleanupExpiredTechnicalLock(b44: any, baseId: string, expectedToken: string, now: number) {
