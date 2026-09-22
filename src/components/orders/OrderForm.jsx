@@ -15,7 +15,7 @@ import { recordAddressUsage } from "@/hooks/useAddressSuggestions";
 import { useTarifaConfig, calcularDistanciaRuta, calcularImporte } from "@/hooks/useTarifaConfig";
 import { resolveActiveDriverForMobile } from "@/lib/mobileDriverResolver";
 
-const ZONES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
+const ZONES = ["0-Pendientes", "1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 
 export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = () => {}, allowManualAssignment = false }) {
   useEffect(() => {
