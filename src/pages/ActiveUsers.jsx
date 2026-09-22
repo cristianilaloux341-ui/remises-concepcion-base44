@@ -59,15 +59,16 @@ export default function ActiveUsers() {
   });
 
   const revokeDriver = useMutation({
-    mutationFn: (id) => base44.entities.Driver.update(id, { current_session_token: null, device_id: null, status: "no_disponible" }),
+    mutationFn: async (id) => {
+      const response = await base44.functions.invoke("operatorRevokeDriverAccess", {
+        driverId: id,
+        sessionToken: sessionStorage.getItem("local_operator_token"),
+        operatorName: localOperator?.name || "Admin"
+      });
+      if (!response?.data?.success) throw new Error(response?.data?.reason || "No se pudo desvincular el equipo");
+      return response.data;
+    },
     onSuccess: (_, id) => {
-      const d = drivers.find(x => x.id === id);
-      base44.entities.AuditLog.create({
-        action: "revocar_acceso",
-        user_type: effectiveRole,
-        user_name: localOperator?.name || "Admin",
-        details: `Desvinculó el equipo del chofer ${d?.name}`
-      }).catch(()=>{});
       qc.invalidateQueries({ queryKey: ["drivers_active"] });
     }
   });
