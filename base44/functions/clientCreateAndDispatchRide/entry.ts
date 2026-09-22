@@ -7,7 +7,7 @@ Deno.serve(async (req) => {
   
   try {
     const body = await req.json();
-    const { orderData, sessionToken } = body;
+    const { orderData, sessionToken, manualDriverId, resolvedMobileId } = body;
     
     // Crear el viaje y resolver el primer candidato únicamente dentro de su zona.
     const order = await b44.entities.RideOrder.create({
@@ -16,6 +16,29 @@ Deno.serve(async (req) => {
     });
 
     let assigned = false;
+
+    if (manualDriverId) {
+      const manualRes = await b44.functions.invoke("assignRide", {
+        orderId: order.id,
+        driverId: manualDriverId,
+        mobileId: resolvedMobileId || null,
+        requireDriverConfirmation: true,
+        forceManual: true,
+        sessionToken: sessionToken || "client_demo_token",
+        internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+      });
+      assigned = manualRes?.data?.success === true;
+      if (!assigned) {
+        await b44.entities.RideOrder.update(order.id, {
+          status: "pendiente",
+          processingAction: "PENDING_AUTHORIZED",
+          pending_reason: "MANUAL_ASSIGN_FAILED"
+        });
+        return Response.json({ success:false, orderId:order.id, assigned:false, status:"pendiente", error:manualRes?.data?.reason || "MANUAL_ASSIGN_FAILED" }, { status:409 });
+      }
+      return Response.json({ success:true, orderId:order.id, assigned:true, status:"ofrecido" });
+    }
+
     const zoneKey = String(order.zone || "").trim().toLowerCase();
     const isDirectPendingZone = zoneKey === "0" || zoneKey === "0-pendientes" || zoneKey === "0-pendiente";
     if (order.zone && !isDirectPendingZone) {
