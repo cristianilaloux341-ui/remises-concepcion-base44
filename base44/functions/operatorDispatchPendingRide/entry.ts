@@ -1,0 +1,41 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { findNextDriverInZone } from '../../shared/driverSelection.ts';
+
+Deno.serve(async (req) => {
+  const base44 = createClientFromRequest(req);
+  const b44 = base44.asServiceRole;
+  try {
+    const { orderId, driverId, mobileId, sessionToken, manual } = await req.json();
+    if (!orderId) return Response.json({ success:false, reason:'ORDER_ID_REQUIRED' }, { status:400 });
+
+    const order = await b44.entities.RideOrder.get(orderId).catch(() => null);
+    if (!order) return Response.json({ success:false, reason:'ORDER_NOT_FOUND' }, { status:404 });
+    if (order.status !== 'pendiente') return Response.json({ success:false, reason:'ORDER_NOT_PENDING' }, { status:409 });
+
+    let targetId = driverId || null;
+    if (!targetId) {
+      const zoneKey = String(order.zone || '').trim().toLowerCase();
+      if (zoneKey === '0' || zoneKey === '0-pendientes' || zoneKey === '0-pendiente') {
+        return Response.json({ success:false, reason:'ZONE_0_OPERATOR_SELECTION_REQUIRED' }, { status:409 });
+      }
+      const next = await findNextDriverInZone(b44, order, new Set());
+      targetId = next?.id || null;
+    }
+    if (!targetId) return Response.json({ success:false, reason:'NO_ELIGIBLE_DRIVER' }, { status:409 });
+
+    const res = await b44.functions.invoke('assignRide', {
+      orderId,
+      driverId:targetId,
+      mobileId:mobileId || null,
+      requireDriverConfirmation:true,
+      forceManual:manual === true,
+      sessionToken:sessionToken || 'client_demo_token',
+      internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+    });
+    if (!res?.data?.success) return Response.json({ success:false, reason:res?.data?.reason || 'ASSIGN_FAILED' }, { status:409 });
+    return Response.json({ success:true, driverId:targetId, status:'ofrecido' });
+  } catch(e) {
+    console.error('operatorDispatchPendingRide error', e);
+    return Response.json({ success:false, reason:e?.message || 'DISPATCH_FAILED' }, { status:500 });
+  }
+});
