@@ -28,23 +28,14 @@ Deno.serve(async (req) => {
       return Response.json({ ok:true, skipped:true, reason:'offer_changed' });
     }
 
+    // offerExpiresAt sólo existe después de ALERT_PRESENTED. Nunca se reconstruye
+    // desde assigned_at, ACK, cron ni ejecución tardía del watchdog.
     let expiresAt = Number(order.offerExpiresAt);
-    if (!Number.isFinite(expiresAt)) {
-      // Si falta la autoridad de tiempo, reconstruimos el techo desde assigned_at.
-      // Nunca abrimos una ventana nueva por ACK o por ejecutar tarde este worker.
-      const assignedBaseMs = order.assigned_at ? new Date(order.assigned_at).getTime() : Date.now();
-      expiresAt = assignedBaseMs + 30000;
-      await b44.entities.RideOrder.updateMany(
-        {
-          id: orderId,
-          status: 'ofrecido',
-          reserved_driver_id: driverId,
-          assignment_attempt: assignmentAttempt,
-          $or: [{ offerExpiresAt:null }, { offerExpiresAt:{ $exists:false } }]
-        },
-        { $set:{ offerExpiresAt:expiresAt } }
-      ).catch(()=>{});
-    }
+    const presentedAtStart = Boolean(
+      order.alert_presented_at &&
+      Number(order.alert_presented_assignment_attempt) === Number(assignmentAttempt)
+    );
+    if (!presentedAtStart) expiresAt = NaN;
 
     const alertPresentedProtocolEnabled =
       Number(order.alert_presented_protocol_attempt) === Number(assignmentAttempt);
