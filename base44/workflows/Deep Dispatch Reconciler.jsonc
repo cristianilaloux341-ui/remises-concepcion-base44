@@ -29,9 +29,9 @@
       }
     ]
   },
-  "description": "",
+  "description": "LEGACY DESHABILITADO 2026-09-22: no auto-despachar Pendientes ni reconciliar cola desde cambios gen\u00e9ricos de Driver",
   "trigger": {
-    "condition": "${ ((.trigger.changed_fields | index(\"queue_entered_at\") != null) or (.trigger.changed_fields | index(\"dispatch_status\") != null) or (.trigger.changed_fields | index(\"reserved_order_id\") != null) or (.trigger.changed_fields | index(\"reservation_token\") != null) or (.trigger.changed_fields | index(\"active_order_id\") != null) or (.trigger.changed_fields | index(\"active_ride_id\") != null) or (.trigger.changed_fields | index(\"status\") != null) or (.trigger.changed_fields | index(\"current_base\") != null) or (.trigger.changed_fields | index(\"queue_authoritative_base\") != null) or (.trigger.changed_fields | index(\"queue_authoritative_at\") != null)) }",
+    "condition": "${ false }",
     "config": {
       "trigger_type": "entity",
       "events": [
