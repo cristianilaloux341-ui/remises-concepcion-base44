@@ -25,6 +25,8 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
 
   const availableDrivers = drivers.filter(d => isDriverWorking(d));
   const isBroadcast = (order.notes || "").startsWith("[BROADCAST]");
+  const isRequestedReview = order.pending_reason === "REQUESTED_DRIVER_NOT_ACCEPTED" ||
+    order.processingAction === "CENTRAL_REVIEW_REQUIRED_DRIVER";
 
   // Zona del pedido → primera en cola
   const zoneQueue = order.zone ? getBaseQueue(availableDrivers, order.zone) : [];
@@ -94,7 +96,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   };
 
   return (
-    <div className={`p-3 rounded-xl border space-y-3 ${isBroadcast ? "bg-orange-50 border-orange-300" : "bg-amber-50 border-amber-200"}`}>
+    <div className={`p-3 rounded-xl border space-y-3 ${isRequestedReview ? "bg-red-50 border-red-300" : isBroadcast ? "bg-orange-50 border-orange-300" : "bg-amber-50 border-amber-200"}`}> 
       {/* Orden info */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -117,12 +119,18 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
           {order.zone && (
             <p className="text-xs text-blue-600 font-medium mt-0.5">Zona: {order.zone}</p>
           )}
+          {isRequestedReview && (
+            <div className="mt-2 rounded-lg border border-red-300 bg-white px-3 py-2">
+              <p className="text-xs font-black text-red-700">⚠ MÓVIL REQUERIDO NO ACEPTÓ</p>
+              <p className="text-xs text-slate-700">No se envía a otros móviles automáticamente. Consultá al cliente o elegí otro móvil abajo.</p>
+            </div>
+          )}
         </div>
         <OrderStatusBadge status={order.status} />
       </div>
 
       {/* Chofer sugerido (primero en zona) */}
-      {!isBroadcast && (
+      {!isBroadcast && !isRequestedReview && (
         suggestedDriver ? (
           <div className="bg-white rounded-lg border border-amber-200 px-3 py-2 flex items-center gap-2">
             <Car className="w-4 h-4 text-amber-500 shrink-0" />
@@ -147,23 +155,25 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
         </div>
       )}
 
-      {/* Auto-asignar */}
-      <Button
-        size="sm"
-        className="w-full gap-2 rounded-lg h-8 font-extrabold"
-        onClick={handleAutoAssign}
-        disabled={dispatching}
-      >
-        {dispatching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-        {suggestedDriver ? `Despachar · sugerido ${suggestedDriver.name}` : "Consultar cola y despachar"}
-      </Button>
+      {/* Auto-asignar: nunca para un requerido retenido; ahí decide el operador */}
+      {!isRequestedReview && (
+        <Button
+          size="sm"
+          className="w-full gap-2 rounded-lg h-8 font-extrabold"
+          onClick={handleAutoAssign}
+          disabled={dispatching}
+        >
+          {dispatching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+          {suggestedDriver ? `Despachar · sugerido ${suggestedDriver.name}` : "Consultar cola y despachar"}
+        </Button>
+      )}
 
       {/* Selector manual */}
       <div className="flex gap-2">
         <input 
           className="flex-1 h-8 text-base font-extrabold text-slate-900 rounded-lg border-2 border-slate-400 px-3 bg-white placeholder:text-slate-500 placeholder:font-normal"
           style={{ color: "#000000", backgroundColor: "#ffffff" }}
-          placeholder="Emergencia: Nº o nombre..."
+          placeholder={isRequestedReview ? "Reasignar: Nº o nombre..." : "Emergencia: Nº o nombre..."}
           value={selectedDriverId}
           onChange={(e) => setSelectedDriverId(e.target.value)}
           onKeyDown={(e) => {
@@ -238,6 +248,9 @@ export default function DispatchPanel({ orders, drivers, bases, moviles, onOrder
     // Serial: cada pedido consulta al backend; la foto local nunca decide
     // si existe candidato ni cuál es el primero.
     for (const order of pending) {
+      // Los requeridos no aceptados exigen una decisión explícita del operador.
+      if (order.pending_reason === "REQUESTED_DRIVER_NOT_ACCEPTED" ||
+          order.processingAction === "CENTRAL_REVIEW_REQUIRED_DRIVER") continue;
       try {
         const res = await base44.functions.invoke("operatorDispatchPendingRide", {
           orderId: order.id,
