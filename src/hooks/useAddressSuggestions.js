@@ -80,7 +80,7 @@ export function useAddressSuggestions(query) {
     .filter(a => normalize(a.address).includes(norm))
     .sort((a, b) => (b.usage_count || 1) - (a.usage_count || 1))
     .slice(0, 4)
-    .map(a => ({ id: `h_${a.id}`, address: a.address, usage_count: a.usage_count, source: "history" }));
+    .map(a => ({ id: `h_${a.id}`, address: a.address, lat: a.lat, lng: a.lng, zone: a.zone, zone_confirmed: a.zone_confirmed, usage_count: a.usage_count, source: "history" }));
 
   // Sugerencias OSM — deduplicar contra historial (osmSuggestions ahora son { address, lat, lng })
   const historialNorms = new Set(historial.map(h => normalize(h.address)));
@@ -93,21 +93,32 @@ export function useAddressSuggestions(query) {
 }
 
 // Call this after a trip is saved with an address
-export async function recordAddressUsage(address, queryClient) {
+export async function recordAddressUsage(address, queryClient, metadata = {}) {
   if (!address || address.trim().length < 3) return;
 
   const all = await base44.entities.AddressHistory.list();
   const norm = normalize(address);
-  const existing = all.find(a => normalize(a.address) === norm);
+  const existing = all.find(a => (a.normalized_address || normalize(a.address)) === norm);
+  const parsed = address.trim().match(/^(.*?)[\\s,]+(\\d+[a-zA-Z]?)$/);
+  const learned = {
+    normalized_address: norm,
+    street: metadata.street || parsed?.[1]?.trim() || address.trim(),
+    height: metadata.height || parsed?.[2] || "",
+    ...(Number.isFinite(Number(metadata.lat)) ? { lat: Number(metadata.lat) } : {}),
+    ...(Number.isFinite(Number(metadata.lng)) ? { lng: Number(metadata.lng) } : {}),
+    ...(metadata.zone ? { zone: metadata.zone, zone_confirmed: true, zone_source: metadata.zone_source || "polygon" } : {}),
+  };
 
   if (existing) {
     await base44.entities.AddressHistory.update(existing.id, {
+      ...learned,
       usage_count: (existing.usage_count || 1) + 1,
       last_used: new Date().toISOString(),
     });
   } else {
     await base44.entities.AddressHistory.create({
       address: address.trim(),
+      ...learned,
       usage_count: 1,
       last_used: new Date().toISOString(),
     });
