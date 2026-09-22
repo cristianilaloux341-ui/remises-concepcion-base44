@@ -186,11 +186,15 @@ Deno.serve(async (req) => {
 
   const body = await req.json();
   
-  // Interceptar payload de automación de entidad (RideOrder). El workflow nuevo
-  // pasa source+data+old_data explícitamente para no depender de argumentos
-  // implícitos del motor de workflows.
+  // Transporte puro: los workflows de RideOrder fueron retirados del motor.
+  // Ninguna notificación puede reparar/revertir RideOrder ni Driver.
+  // Si un payload legacy intenta entrar por esa vía, se ignora sin efectos.
   const isRideOrderWorkflow = body?.event?.entity_name === "RideOrder" || body?.source === "ride_order_workflow";
-  if (isRideOrderWorkflow && body.data) {
+  if (isRideOrderWorkflow) {
+    return Response.json({ ok:true, ignored:true, reason:'ride_order_workflow_disabled_transport_only' });
+  }
+
+  if (false && isRideOrderWorkflow && body.data) {
     const isStatusChanged = !body.old_data || body.data.status !== body.old_data.status;
 
     // Otra defensa para v12.27/v12.29: al fallar su reasignación local, esas APK
