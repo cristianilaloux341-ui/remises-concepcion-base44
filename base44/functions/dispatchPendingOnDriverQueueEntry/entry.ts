@@ -572,18 +572,12 @@ Deno.serve(async (req) => {
           eventData.manual_reorder_token ?? null,
           driverId, eventData.current_base ?? null, attemptedAt
         );
-        const serverStampedPosition = Boolean(
-          Number.isFinite(Number(eventData.queue_position)) && Number(eventData.queue_position) > 0 &&
-          String(eventData.queue_authority_marker ?? '') === String(eventData.queue_position) &&
-          (
-            String(eventData.queue_position ?? '') !== String(oldData.queue_position ?? '') ||
-            String(eventData.queue_authority_marker ?? '') !== String(oldData.queue_authority_marker ?? '')
-          )
-        );
-
+        // Una escritura entrante que se auto-marque queue_position/marker NO prueba
+        // autoridad: APK, heartbeat o caché podrían copiar ambos campos. Sólo un token
+        // manual firmado puede autorizar un reordenamiento desde este trigger.
         if (hadValidAuthority && writeKeepsIdleInSameBase && !commercialAction) {
-          if (manualAuthorized || serverStampedPosition) {
-            return Response.json({ success:true, reason:manualAuthorized ? 'MANUAL_REORDER_AUTHORIZED' : 'SERVER_QUEUE_POSITION_AUTHORIZED' });
+          if (manualAuthorized) {
+            return Response.json({ success:true, reason:'MANUAL_REORDER_AUTHORIZED' });
           }
 
           const restoreRes = await b44.entities.Driver.updateMany(
@@ -785,11 +779,9 @@ Deno.serve(async (req) => {
           return Response.json({ success:true, repaired:restoredCount === 1, reason:'QUEUE_POSITION_PRESERVED_AGAINST_TECHNICAL_EXIT' });
         }
 
-        // Cambio A->B: las APK instaladas hacen el cambio voluntario escribiendo
-        // current_base Y una nueva queue_entered_at en la misma acción. Esa pareja
-        // es nuestra señal compatible de intención sin exigir campos nuevos al APK.
-        // Un heartbeat/reconexión/cache que sólo haga oscilar current_base NO puede
-        // mover al chofer ni renovar su posición: se revierte a la autoridad previa.
+        // Cambio A->B compatible con APK instaladas. La señal legacy sólo habilita
+        // la intención de cambio; jamás aporta prioridad ni posición. El servidor
+        // vuelve a colocar al móvil al final de la nueva base bajo lock.
         if (!normalizedExplicitQueueEntry && authoritativeBase && currentBase && authoritativeBase !== currentBase) {
           const explicitDriverBaseEntry = Boolean(
             eventData && oldData &&
