@@ -175,6 +175,13 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, reason: 'ride_already_started' });
     }
 
+    // Retenciones exclusivas de Central (por ejemplo móvil requerido que no aceptó)
+    // nunca se publican ni pueden ser tomadas desde la cartelera de choferes.
+    if (order?.processingAction === 'CENTRAL_REVIEW_REQUIRED_DRIVER' ||
+        order?.pending_reason === 'REQUESTED_DRIVER_NOT_ACCEPTED') {
+      return Response.json({ success:false, reason:'central_review_only' });
+    }
+
     if (!order || order.status !== 'pendiente' || order.driver_id || order.reserved_driver_id ||
         order.preassigned_driver_id) {
       return Response.json({ success: false, reason: 'already_taken' });
