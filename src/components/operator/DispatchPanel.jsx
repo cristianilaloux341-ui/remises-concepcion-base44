@@ -32,28 +32,28 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
 
   const handleAutoAssign = async () => {
     setDispatching(true);
-    // La Central no recorre candidatos ni escribe Pendientes. Solicita al backend
-    // una única asignación sobre el primer candidato autoritativo de la zona.
-    if (!suggestedDriver) {
-      setDispatching(false);
-      return;
-    }
-    const res = await base44.functions.invoke("operatorDispatchPendingRide", {
-      orderId: order.id,
-      sessionToken: sessionStorage.getItem("local_operator_token")
-    });
-    if (!res?.data?.success) throw new Error(res?.data?.reason || "No se pudo despachar el pendiente");
-    
-    const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
-    base44.entities.AuditLog.create({
-      action: "asignar_viaje",
-      user_type: localOp?.role || "operador",
-      user_name: localOp?.name || "Operador",
-      details: `Despacho automático/broadcast para ${order.client_name}`
-    }).catch(() => {});
+    try {
+      // La vista local es informativa. La decisión real siempre la toma el backend
+      // con una lectura fresca de la cola autoritativa.
+      const res = await base44.functions.invoke("operatorDispatchPendingRide", {
+        orderId: order.id,
+        sessionToken: sessionStorage.getItem("local_operator_token")
+      });
+      if (!res?.data?.success) throw new Error(res?.data?.reason || "No se pudo despachar el pendiente");
 
-    onDispatched();
-    setDispatching(false);
+      const localOp = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+      base44.entities.AuditLog.create({
+        action: "asignar_viaje",
+        user_type: localOp?.role || "operador",
+        user_name: localOp?.name || "Operador",
+        details: `Despacho automático/broadcast para ${order.client_name}`
+      }).catch(() => {});
+      onDispatched();
+    } catch (err) {
+      alert(err?.message || "No se pudo despachar el pendiente");
+    } finally {
+      setDispatching(false);
+    }
   };
 
   const handleManualAssign = async () => {
@@ -152,10 +152,10 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
         size="sm"
         className="w-full gap-2 rounded-lg h-8 font-extrabold"
         onClick={handleAutoAssign}
-        disabled={dispatching || !suggestedDriver}
+        disabled={dispatching}
       >
         {dispatching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-        {suggestedDriver ? `Asignar a ${suggestedDriver.name}` : "Ningún móvil en zona"}
+        {suggestedDriver ? `Despachar · sugerido ${suggestedDriver.name}` : "Consultar cola y despachar"}
       </Button>
 
       {/* Selector manual */}
@@ -235,24 +235,9 @@ export default function DispatchPanel({ orders, drivers, bases, moviles, onOrder
   const handleDispatchAll = async () => {
     setDispatchingAll(true);
     
-    const isDriverWorking = (d) => {
-      if (d.status !== "disponible") return false;
-      const mobileId = String(d.vehicle_model || "");
-      const mobileNumber = parseInt(mobileId, 10);
-      const movil = moviles?.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
-      if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
-        return false;
-      }
-      return true;
-    };
-    const actuallyAvailable = drivers.filter(d => isDriverWorking(d));
-
-    // Serial: nunca despachar varios pedidos con la misma foto de cola.
-    // Cada asignación relee la cola después de reservar el viaje anterior.
+    // Serial: cada pedido consulta al backend; la foto local nunca decide
+    // si existe candidato ni cuál es el primero.
     for (const order of pending) {
-      const zoneQueue = order.zone ? getBaseQueue(actuallyAvailable, order.zone) : [];
-      const candidate = zoneQueue[0] || null;
-      if (!candidate) continue;
       try {
         const res = await base44.functions.invoke("operatorDispatchPendingRide", {
           orderId: order.id,
