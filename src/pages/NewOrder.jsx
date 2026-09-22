@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrderForm from "@/components/orders/OrderForm";
-import { assignDriverToOrder } from "@/lib/dispatchLogic";
 import { useAuth } from "@/lib/AuthContext";
 import { getEffectiveRole } from "@/lib/permissions";
 
@@ -25,34 +24,6 @@ export default function NewOrder() {
       const orderData = { ...data };
       delete orderData._resolved_mobile_id;
 
-      // La asignación manual conserva el flujo actual y exige confirmación del chofer.
-      if (manualDriverId) {
-        orderData.status = "pendiente";
-        delete orderData.driver_id;
-        delete orderData.driver_name;
-        delete orderData.reserved_driver_id;
-
-        const newOrder = await base44.entities.RideOrder.create(orderData);
-
-        if (scheduledRideId) {
-          await base44.entities.ScheduledRide.update(scheduledRideId, {
-            status: "despachado",
-            order_id: newOrder.id
-          }).catch(() => {});
-        }
-
-        const driver = await base44.entities.Driver.get(manualDriverId);
-        if (!driver || driver.status !== "disponible") {
-          throw new Error("El móvil está fuera de servicio u ocupado. El pasaje quedó pendiente y no fue enviado.");
-        }
-        await assignDriverToOrder(newOrder, driver, {
-          requireDriverConfirmation: true,
-          forceManual: true,
-          mobileId: resolvedMobileId,
-        });
-        return newOrder;
-      }
-
       // Despacho automático unificado en servidor: crear + buscar móvil de la zona +
       // ofrecer. Se elimina Driver.list/Movil.list/Driver.get desde el navegador.
       orderData.status = "procesando_despacho";
@@ -63,7 +34,9 @@ export default function NewOrder() {
       const sessionToken = sessionStorage.getItem("local_operator_token") || "client_demo_token";
       const dispatchRes = await base44.functions.invoke("clientCreateAndDispatchRide", {
         orderData,
-        sessionToken
+        sessionToken,
+        manualDriverId,
+        resolvedMobileId
       });
 
       if (!dispatchRes.data?.success || !dispatchRes.data?.orderId) {
