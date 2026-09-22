@@ -20,6 +20,7 @@ export default function NewOrder() {
   const createMutation = useMutation({
     mutationFn: async (data) => {
       const manualDriverId = canManualAssign ? data.driver_id : null;
+      const requestedDriverOnly = canManualAssign && data.requested_driver_only === true && Boolean(manualDriverId);
       const resolvedMobileId = data._resolved_mobile_id || null;
       const orderData = { ...data };
       delete orderData._resolved_mobile_id;
@@ -36,7 +37,8 @@ export default function NewOrder() {
         orderData,
         sessionToken,
         manualDriverId,
-        resolvedMobileId
+        resolvedMobileId,
+        requestedDriverOnly
       });
 
       if (!dispatchRes.data?.success || !dispatchRes.data?.orderId) {
