@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
       }
 
       // Idempotencia: un reenvío del mismo attempt puede volver a publicar la misma
-      // notificación, pero nunca debe regalar otros 30 s adicionales.
+      // notificación, pero nunca debe regalar otra ventana de respuesta.
       if (
         order.alert_presented_at &&
         Number(order.alert_presented_assignment_attempt) === Number(order.assignment_attempt)
@@ -163,11 +163,14 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Usamos hora del servidor al recibir la confirmación. Esto evita depender
-      // del reloj del teléfono y garantiza que el chofer nunca reciba menos de 30 s.
+      // La duración es configuración autoritativa de Central, no una constante.
+      // El reloj siempre nace desde ALERT_PRESENTED.
+      const tarifaConfigs = await b44.entities.TarifaConfig.list().catch(() => []);
+      const configuredSeconds = Number(tarifaConfigs?.[0]?.tiempo_maximo_respuesta_segundos);
+      const responseSeconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0 ? configuredSeconds : 30;
       const presentedMs = Date.now();
       const presentedAt = new Date(presentedMs).toISOString();
-      const targetExpiry = presentedMs + 30000;
+      const targetExpiry = presentedMs + responseSeconds * 1000;
 
       const presentedResult = await b44.entities.RideOrder.updateMany(
         {
@@ -200,7 +203,7 @@ Deno.serve(async (req) => {
           action: "ALERT_PRESENTED",
           user_type: "sistema",
           user_name: driver?.name || order.driver_name || "Chofer",
-          details: `Alerta nativa presentada. Comienzan 30 s reales de respuesta.`,
+          details: `Alerta nativa presentada. Comienzan ${responseSeconds} s configurados de respuesta.`,
           metadata: {
             orderId: realOrderId,
             driverId,
@@ -224,7 +227,7 @@ Deno.serve(async (req) => {
         success: true,
         presentedRecorded,
         offerExpiresAt: presentedRecorded ? targetExpiry : order.offerExpiresAt,
-        timeoutSeconds: 30
+        timeoutSeconds: responseSeconds
       });
     } else if (action === "native_accept") {
       const order = await b44.entities.RideOrder.get(realOrderId);
