@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
       return Response.json({ success:false, reason:'STALE_OR_EXPIRED' });
     }
 
-    // El timeout comercial existe ÚNICAMENTE después de ALERT_PRESENTED + 30 s.
+    // El timeout comercial existe ÚNICAMENTE después de ALERT_PRESENTED + la ventana configurada.
     // delivery_unconfirmed es transporte: jamás libera al móvil ni avanza la cadena.
     if (source === 'delivery_unconfirmed') {
       return Response.json({ success:false, reason:'DELIVERY_RECOVERY_SAME_DRIVER' });
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
       {
         $set: {
           processingOwnerId: lockOwner,
-          processingAction: (source === 'timeout' || source === 'delivery_unconfirmed') ? 'TIMEOUT' : 'REJECT',
+          processingAction: source === 'timeout' ? 'TIMEOUT' : (deliveryExhausted ? 'DELIVERY_FAILED' : 'REJECT'),
           processingOperationKey: `${source}:${orderId}:${assignmentAttempt}`,
           processingLeaseExpiresAt: leaseUntil,
           processingPhase: 'REASSIGNING'
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
       }
     );
     if ((lockRes.matchedCount ?? lockRes.modifiedCount ?? lockRes.updated ?? 0) !== 1) {
-      if (source !== 'timeout' && source !== 'delivery_unconfirmed') {
+      if (source !== 'timeout' && !deliveryExhausted) {
         const deadline = Date.now() + 5000;
         while (Date.now() < deadline) {
           await new Promise(resolve => setTimeout(resolve, 250));
@@ -374,7 +374,7 @@ Deno.serve(async (req) => {
           internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
         }).catch(e=>console.error('AutoReassign Trigger Error:',e));
 
-        const deliveryUnconfirmed = source === 'delivery_unconfirmed';
+        const deliveryUnconfirmed = deliveryExhausted;
         await b44.entities.AuditLog.create({
           action: deliveryUnconfirmed ? 'DELIVERY_UNCONFIRMED_REASSIGNED' : (source === 'timeout' ? 'timeout_viaje' : 'rechazar_viaje'),
           user_type: (source === 'timeout' || deliveryUnconfirmed) ? 'sistema' : 'chofer',
@@ -429,7 +429,7 @@ Deno.serve(async (req) => {
     }
 
     lockOwner = null;
-    const deliveryUnconfirmed = source === 'delivery_unconfirmed';
+    const deliveryUnconfirmed = deliveryExhausted;
     await b44.entities.AuditLog.create({
       action: deliveryUnconfirmed ? 'DELIVERY_UNCONFIRMED_PENDING' : (source === 'timeout' ? 'timeout_viaje' : 'rechazar_viaje'),
       user_type: (source === 'timeout' || deliveryUnconfirmed) ? 'sistema' : 'chofer',
