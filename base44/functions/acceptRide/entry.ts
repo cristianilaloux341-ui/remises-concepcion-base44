@@ -513,9 +513,9 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   let resDriver;
   try {
     resDriver = await b44.entities.Driver.updateMany(reserveDriverFilter, reserveDriverUpdate);
-    if (mutationCount(resDriver) > 0 && driver.current_base) {
-      await compactQueue(b44, driver.current_base);
-    }
+    // No compactar la cola al aceptar: la oferta ya había reservado/sacado a este
+    // móvil de la cola efectiva. Aceptar no cambia el orden relativo de los demás.
+    // Evita tomar el lock de base y reescribir posiciones en plena ráfaga de accepts.
   } catch (e: any) { 
     await logStep(ctx, "RESERVE_DRIVER_AFTER", start, reserveDriverFilter, null, e.message, snapshotBefore, null, "FAILED");
     throw e;
