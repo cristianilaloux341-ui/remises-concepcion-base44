@@ -7,12 +7,14 @@ Deno.serve(async (req) => {
   
   try {
     const body = await req.json();
-    const { orderData, sessionToken, manualDriverId, resolvedMobileId } = body;
+    const { orderData, sessionToken, manualDriverId, resolvedMobileId, requestedDriverOnly = false } = body;
     
     // Crear el viaje y resolver el primer candidato únicamente dentro de su zona.
     const order = await b44.entities.RideOrder.create({
       ...orderData,
-      status: "procesando_despacho"
+      status: "procesando_despacho",
+      requested_driver_id: requestedDriverOnly && manualDriverId ? manualDriverId : null,
+      requested_driver_only: requestedDriverOnly === true && Boolean(manualDriverId)
     });
 
     let assigned = false;
