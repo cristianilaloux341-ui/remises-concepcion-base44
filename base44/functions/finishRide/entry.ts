@@ -47,6 +47,54 @@ Deno.serve(async (req) => {
     return Response.json({ success: false, reason: 'wrong_driver' });
   }
 
+  const promoteConfirmedNextRide = async () => {
+    let promotedNextOrderId:any = null;
+    const fresh = await b44.entities.Driver.get(driverId).catch(()=>null);
+    const nextOrderId = fresh?.next_order_id;
+    const nextToken = fresh?.next_order_token;
+    if (!nextOrderId || !nextToken) return null;
+
+    const next = await b44.entities.RideOrder.get(nextOrderId).catch(()=>null);
+    if (!next || next.status !== 'preasignado_proximo' ||
+        next.preassigned_driver_id !== driverId || next.preassignment_token !== nextToken) return null;
+
+    const orderPromote = await b44.entities.RideOrder.updateMany(
+      {id:nextOrderId,status:'preasignado_proximo',preassigned_driver_id:driverId,preassignment_token:nextToken},
+      {$set:{status:'aceptado',driver_id:driverId,driver_name:fresh.name,
+             preassigned_driver_id:null,preassignment_token:null,preassigned_at:null}}
+    );
+    if (mutationCount(orderPromote) !== 1) return null;
+
+    const driverPromote = await b44.entities.Driver.updateMany(
+      {id:driverId,next_order_id:nextOrderId,next_order_token:nextToken,
+       $and:[
+         {$or:[{active_order_id:null},{active_order_id:{$exists:false}}]},
+         {$or:[{active_ride_id:null},{active_ride_id:{$exists:false}}]},
+         {$or:[{reserved_order_id:null},{reserved_order_id:{$exists:false}}]}
+       ]},
+      {$set:{status:'en_viaje',dispatch_status:'normal',active_order_id:nextOrderId,
+             active_ride_id:nextOrderId,next_order_id:null,next_order_token:null}}
+    );
+    if (mutationCount(driverPromote) === 1) {
+      promotedNextOrderId = nextOrderId;
+      await b44.entities.AuditLog.create({
+        action:'NEXT_RIDE_PROMOTED_BACKEND',user_type:'sistema',user_name:'finishRide',
+        details:`Segundo pasaje ${nextOrderId} promovido al finalizar ${orderId}`,
+        metadata:{orderId:nextOrderId,previousOrderId:orderId,driverId}
+      }).catch(()=>{});
+      return promotedNextOrderId;
+    }
+
+    await b44.entities.RideOrder.updateMany(
+      {id:nextOrderId,status:'aceptado',driver_id:driverId,
+       $or:[{preassigned_driver_id:null},{preassigned_driver_id:{$exists:false}}]},
+      {$set:{status:'preasignado_proximo',driver_id:driverId,driver_name:fresh.name,
+             preassigned_driver_id:driverId,preassignment_token:nextToken,
+             preassigned_at:next.preassigned_at || new Date().toISOString()}}
+    ).catch(()=>{});
+    return null;
+  };
+
   const checkAndRepairDriver = async (currentDriver) => {
     // Releer antes de decidir: finishRide compite con workflows que pueden limpiar
     // el Driver milisegundos después de completar el RideOrder. Un snapshot viejo
@@ -74,8 +122,9 @@ Deno.serve(async (req) => {
       { $set: { status: 'disponible', dispatch_status: 'normal', current_base: null, queue_entered_at: null, queue_authoritative_base: null, queue_authoritative_at: null, queue_authority_marker: null, queue_position: null, reserved_order_id: null, reservation_token: null, manual_reservation_token: null, driver_reservation_key: null, active_order_id: null, active_ride_id: null } }
     );
     if (mutationCount(fixRes) >= 1) {
-      await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Repaired driver state', metadata: { orderId, driverId } });
-      return Response.json({ success: true, idempotent: true, note: 'repaired_driver', reason: 'ALREADY_PROCESSED' });
+      const promotedNextOrderId = await promoteConfirmedNextRide();
+      await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Repaired driver state', metadata: { orderId, driverId, promotedNextOrderId } });
+      return Response.json({ success: true, idempotent: true, note: 'repaired_driver', reason: 'ALREADY_PROCESSED', promotedNextOrderId });
     }
 
     // Si otra operación ganó la carrera y lo dejó limpio entre nuestra lectura y
@@ -196,55 +245,10 @@ Deno.serve(async (req) => {
 
   await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_COMMITTED', user_type: 'sistema', user_name: 'finishRide', details: 'Finished successfully', metadata: { orderId, driverId } });
 
-  // El backend promueve el segundo slot; no depende de que el APK siga abierto.
-  // La misma función claimNextRide conserva CAS/idempotencia: si teléfono y backend
-  // intentan promover a la vez, sólo uno gana y el otro observa el estado ya cambiado.
+  // El backend promueve el segundo slot confirmado; no depende de que el APK siga abierto.
   let promotedNextOrderId:any = null;
   try {
-    const fresh = await b44.entities.Driver.get(driverId).catch(()=>null);
-    const nextOrderId = fresh?.next_order_id;
-    const nextToken = fresh?.next_order_token;
-    if (nextOrderId && nextToken) {
-      const next = await b44.entities.RideOrder.get(nextOrderId).catch(()=>null);
-      if (next && next.status === 'preasignado_proximo' &&
-          next.preassigned_driver_id === driverId &&
-          next.preassignment_token === nextToken) {
-        const orderPromote = await b44.entities.RideOrder.updateMany(
-          {id:nextOrderId,status:'preasignado_proximo',preassigned_driver_id:driverId,preassignment_token:nextToken},
-          {$set:{status:'aceptado',driver_id:driverId,driver_name:fresh.name,
-                 preassigned_driver_id:null,preassignment_token:null,preassigned_at:null}}
-        );
-        if (mutationCount(orderPromote) === 1) {
-          const driverPromote = await b44.entities.Driver.updateMany(
-            {id:driverId,next_order_id:nextOrderId,next_order_token:nextToken,
-             $and:[
-               {$or:[{active_order_id:null},{active_order_id:{$exists:false}}]},
-               {$or:[{active_ride_id:null},{active_ride_id:{$exists:false}}]},
-               {$or:[{reserved_order_id:null},{reserved_order_id:{$exists:false}}]}
-             ]},
-            {$set:{status:'en_viaje',dispatch_status:'normal',active_order_id:nextOrderId,
-                   active_ride_id:nextOrderId,next_order_id:null,next_order_token:null}}
-          );
-          if (mutationCount(driverPromote) === 1) {
-            promotedNextOrderId = nextOrderId;
-            await b44.entities.AuditLog.create({
-              action:'NEXT_RIDE_PROMOTED_BACKEND',user_type:'sistema',user_name:'finishRide',
-              details:`Segundo pasaje ${nextOrderId} promovido al finalizar ${orderId}`,
-              metadata:{orderId:nextOrderId,previousOrderId:orderId,driverId}
-            }).catch(()=>{});
-          } else {
-            // Revertir únicamente nuestra promoción si el Driver cambió en la carrera.
-            await b44.entities.RideOrder.updateMany(
-              {id:nextOrderId,status:'aceptado',driver_id:driverId,
-               $or:[{preassigned_driver_id:null},{preassigned_driver_id:{$exists:false}}]},
-              {$set:{status:'preasignado_proximo',driver_id:driverId,driver_name:fresh.name,
-                     preassigned_driver_id:driverId,preassignment_token:nextToken,
-                     preassigned_at:next.preassigned_at || new Date().toISOString()}}
-            ).catch(()=>{});
-          }
-        }
-      }
-    }
+    promotedNextOrderId = await promoteConfirmedNextRide();
   } catch (promotionError) {
     console.error('Backend next ride promotion failed', promotionError);
   }
