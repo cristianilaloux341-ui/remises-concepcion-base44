@@ -56,20 +56,6 @@ export default function OrderDetail() {
   // Si realtime ya tiene una versión más nueva, usarla; si no, usar la búsqueda directa.
   const order = orders.find(o => o.id === orderId) || fetchedOrder;
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.RideOrder.update(id, data),
-    onMutate: async ({ id, data }) => {
-      await queryClient.cancelQueries({ queryKey: ["orders"] });
-      const previous = queryClient.getQueryData(["orders"]);
-      queryClient.setQueryData(["orders"], old => old ? old.map(o => o.id === id ? { ...o, ...data } : o) : old);
-      return { previous };
-    },
-    onError: (err, variables, context) => {
-      if (context?.previous) queryClient.setQueryData(["orders"], context.previous);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] }),
-  });
-
   const manualCompleteMutation = useMutation({
     mutationFn: async () => {
       let localOperator = null;
@@ -122,39 +108,15 @@ export default function OrderDetail() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
-      const orderToDelete = (order?.id === id ? order : null) || orders.find(o => o.id === id);
-      if (orderToDelete) {
-        const toCancel = [...new Set([orderToDelete.driver_id, orderToDelete.reserved_driver_id])].filter(Boolean);
-        if (orderToDelete.preassigned_driver_id) {
-          await base44.entities.Driver.updateMany(
-            { id: orderToDelete.preassigned_driver_id, next_order_id: orderToDelete.id },
-            { $set: { next_order_id: null, next_order_token: null } }
-          ).catch(() => {});
-          base44.functions.invoke("sendPushNotification", {
-            action: "cancel_multiple",
-            driversToCancel: [orderToDelete.preassigned_driver_id],
-            orderId: orderToDelete.id,
-            sessionToken: sessionStorage.getItem("local_operator_token")
-          }).catch(() => {});
-        }
-        if (toCancel.length > 0) {
-          await base44.entities.Driver.updateMany(
-            { id: { $in: toCancel }, $or: [{ active_order_id: orderToDelete.id }, { active_ride_id: orderToDelete.id }, { reserved_order_id: orderToDelete.id }] },
-            {
-              $set: {
-                status: "disponible",
-                dispatch_status: "normal",
-                active_ride_id: null,
-                reserved_order_id: null,
-                reservation_token: null,
-                manual_reservation_token: null,
-                driver_reservation_key: null
-              }
-            }
-          ).catch(() => {});
-        }
-      }
-      return base44.entities.RideOrder.delete(id);
+      let localOperator = null;
+      try { localOperator = JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch {}
+      const response = await base44.functions.invoke("operatorDeleteRide", {
+        orderId: id,
+        sessionToken: sessionStorage.getItem("local_operator_token"),
+        operatorName: localOperator?.nombre || localOperator?.name || localOperator?.usuario || "Central"
+      });
+      if (!response?.data?.success) throw new Error(response?.data?.reason || "No se pudo eliminar el viaje");
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders", "drivers"] });
