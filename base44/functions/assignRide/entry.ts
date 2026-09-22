@@ -27,11 +27,14 @@ Deno.serve(async (req) => {
   // Rechazo explícito y timeout se procesan por rejectRide, que es la única ruta
   // autorizada para mover una oferta activa al siguiente móvil.
   const currentOfferOwner = orderReq.reserved_driver_id || orderReq.driver_id || null;
-  const offerExpiry = Number(orderReq.offerExpiresAt);
+  const rawOfferExpiry = orderReq.offerExpiresAt;
+  const offerExpiry = rawOfferExpiry == null ? NaN : Number(rawOfferExpiry);
+  // Una oferta con dueño SIEMPRE está activa hasta que rejectRide cierre el intento.
+  // offerExpiresAt=null significa "todavía no presentada", no "libre/expirada".
+  // Incluso si expiresAt ya pasó, assignRide no roba la oferta: el timeout canónico
+  // debe ganar primero y avanzar A→B con identidad de intento.
   const offerStillLive = orderReq.status === 'ofrecido' &&
-    currentOfferOwner &&
-    currentOfferOwner !== driverId &&
-    (!Number.isFinite(offerExpiry) || Date.now() < offerExpiry);
+    Boolean(currentOfferOwner);
 
   if (offerStillLive) {
     const remainingMs = Number.isFinite(offerExpiry) ? Math.max(0, offerExpiry - Date.now()) : null;
@@ -67,17 +70,16 @@ Deno.serve(async (req) => {
   // PREVENCIÓN DE COLISIÓN (DOBLE DISPARO) AL MISMO TIEMPO:
   // Si la orden ya está "ofrecida" o "procesando_despacho" a alguien más (o incluso al mismo),
   // y la reserva no ha expirado, rechazar instantáneamente para no correr motores de empuje ni solapar cronómetros.
-  if ((orderReq.status === 'ofrecido' || orderReq.status === 'procesando_despacho' || orderReq.status === 'esperando_confirmacion_manual') && orderReq.driver_id) {
-    if (orderReq.offerExpiresAt && Date.now() < orderReq.offerExpiresAt) {
-      await b44.entities.AuditLog.create({
-        action: 'CONCURRENT_ASSIGN_BLOCKED',
-        user_type: 'sistema',
-        user_name: 'assignRide',
-        details: `Rechazado intento de asignar ${orderId} a ${driverId}: el viaje ya está en proceso/ofrecido a ${orderReq.driver_id}`,
-        metadata: { orderId, currentAssigned: orderReq.driver_id, attemptDriver: driverId }
-      }).catch(() => {});
-      return Response.json({ success: false, reason: 'CONCURRENT_ASSIGNMENT_BLOCKED' });
-    }
+  if ((orderReq.status === 'procesando_despacho' || orderReq.status === 'esperando_confirmacion_manual') &&
+      (orderReq.driver_id || orderReq.reserved_driver_id)) {
+    await b44.entities.AuditLog.create({
+      action: 'CONCURRENT_ASSIGN_BLOCKED',
+      user_type: 'sistema',
+      user_name: 'assignRide',
+      details: `Rechazado intento concurrente de asignar ${orderId}: ya está en proceso`,
+      metadata: { orderId, currentAssigned: orderReq.driver_id || orderReq.reserved_driver_id, attemptDriver: driverId }
+    }).catch(() => {});
+    return Response.json({ success: false, reason: 'CONCURRENT_ASSIGNMENT_BLOCKED' });
   }
 
   // Defensa adicional ante un retroceso ya ocurrido: si quedó "pendiente" pero
