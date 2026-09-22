@@ -130,16 +130,16 @@ function AgendaAlertContent() {
     const check = () => {
       rides.filter(r => ["pendiente", "notificado"].includes(r.status)).forEach(r => {
         const mins = minutesUntil(r.scheduled_datetime);
-        const threshold = r.notify_minutes_before ?? 10;
+        // La agenda avisa exactamente dentro de la ventana configurada antes del horario.
+        // Nunca dispara antes por redondeos ni por una ventana adicional oculta.
+        const configuredThreshold = Number(r.notify_minutes_before ?? 10);
+        const threshold = Number.isFinite(configuredThreshold) ? Math.max(0, configuredThreshold) : 10;
         if (mins <= threshold && mins >= -5 && !notifiedRef.current.has(r.id)) {
           notifiedRef.current.add(r.id);
 
-          // El estado "notificado" es global, pero cada PC mantiene su propio
-          // notifiedRef. Así una PC no silencia la alerta en las demás centrales.
-          if (r.status === "pendiente") {
-            base44.entities.ScheduledRide.update(r.id, { status: "notificado" });
-            queryClient.invalidateQueries({ queryKey: ["scheduled"] });
-          }
+          // No escribimos el estado de la agenda desde el temporizador del navegador.
+          // La alerta es visual/local; despachar/cancelar son las únicas acciones que
+          // deben cambiar el estado persistido. Así una PC no altera a las demás.
 
           // Sonido inmediato
           playSound();
