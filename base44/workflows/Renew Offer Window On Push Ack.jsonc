@@ -1,6 +1,6 @@
 {
   "trigger": {
-    "condition": "${ .trigger.data.action == \"push_ack_recibido\" }",
+    "condition": "${ false }",
     "config": {
       "trigger_type": "entity",
       "events": [
@@ -31,6 +31,6 @@
       }
     ]
   },
-  "description": "Da al chofer la ventana completa de respuesta desde que su app confirma recepci\u00f3n del push.",
+  "description": "LEGACY DESHABILITADO 2026-09-22: ACK confirma transporte y no renueva la ventana comercial.",
   "name": "Renew Offer Window On Push Ack"
 }
