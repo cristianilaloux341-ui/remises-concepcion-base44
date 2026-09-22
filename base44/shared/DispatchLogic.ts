@@ -84,6 +84,7 @@ export async function tryManualCandidate(b44: any, baseId: string, order: any, d
 }
 
 export async function assignDriverToOrderAtomic(b44: any, order: any, driver: any, token: string, failureInjector = defaultFailureInjector) {
+  let offerCommitted = false;
   try {
     // assignRide puede traer esta validación en paralelo con el resto de lecturas.
     // Otros consumidores/tests siguen validando aquí normalmente.
@@ -148,6 +149,10 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
       return false;
     }
 
+    // Desde este punto la oferta es estado comercial comprometido y MONÓTONO.
+    // Ningún error posterior (auditoría/push/failure injection) puede devolverla
+    // a procesando_despacho ni liberar su reserva. El watchdog decide entrega.
+    offerCommitted = true;
     await failureInjector.hit('AFTER_RIDE_OFFER');
     await failureInjector.hit('BEFORE_PUSH');
 
@@ -188,21 +193,22 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
     
     return true;
   } catch (e) {
-    if (e.message.includes('INJECTED_FAILURE_AT_AFTER_AUTO_DRIVER_RESERVE')) {
+    if (!offerCommitted) {
+      // Antes del commit comercial sí corresponde soltar únicamente nuestra reserva.
       await b44.entities.Driver.updateMany(
         { id:driver.id, status:'disponible', dispatch_status:'automatic_pending', reserved_order_id:order.id, reservation_token:token },
         { $set:{ dispatch_status:'normal', reserved_order_id:null, reservation_token:null } }
       );
     } else {
-      // Revert ride back to procesando_despacho and release driver (for any other error to prevent stuck state)
-      await b44.entities.RideOrder.updateMany({ id: order.id, status: 'ofrecido', reservation_token: token }, { $set: { status: 'procesando_despacho', driver_id: null, reserved_driver_id: null, driver_name: null } });
-      await b44.entities.Driver.updateMany(
-        { id:driver.id, status:'disponible', dispatch_status:'automatic_pending', reserved_order_id:order.id, reservation_token:token },
-        { $set:{ dispatch_status:'normal', reserved_order_id:null, reservation_token:null } }
-      );
-      if (e.message.includes('INJECTED_FAILURE_AT_BEFORE_PUSH')) {
-        await safeAuditLog(b44, { action: 'DELIVERY_ERROR', user_type: 'sistema', user_name: 'System', details: e.message }, failureInjector);
-      }
+      // Después del commit jamás retroceder ofrecido→procesando_despacho.
+      // Mantener dueño/token y dejar que el watchdog de entrega continúe el circuito.
+      await safeAuditLog(b44, {
+        action:'DELIVERY_ERROR_AFTER_OFFER_COMMIT',
+        user_type:'sistema',
+        user_name:'DispatchLogic',
+        details:'Error posterior al commit de oferta; se conserva estado monotónico: ' + (e?.message || String(e)),
+        metadata:{orderId:order.id,driverId:driver.id,token}
+      }).catch(()=>{});
     }
     throw e;
   }
