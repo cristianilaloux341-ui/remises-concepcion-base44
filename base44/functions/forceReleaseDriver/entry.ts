@@ -2,7 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
 
 const FORCE_CODE = '99';
-const ACTIVE = new Set(['ofrecido','aceptado','en_camino','en_viaje']);
+const ACTIVE = new Set(['ofrecido','aceptado','en_camino','en_viaje','preasignado_proximo']);
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
       const value = driver[field];
       releaseQuery[field] = value == null ? null : value;
     }
-    await b44.entities.Driver.updateMany(
+    const released = await b44.entities.Driver.updateMany(
       releaseQuery,
       { $set: {
         status:'disponible', dispatch_status:'normal', active_order_id:null, active_ride_id:null,
@@ -56,6 +56,21 @@ Deno.serve(async (req) => {
         bloqueo_post_aceptacion_hasta:null
       }}
     );
+    const releasedCount = Number(released?.updated ?? released?.modifiedCount ?? released?.matchedCount ?? released?.count ?? 0);
+    if (releasedCount !== 1) {
+      const fresh = await b44.entities.Driver.get(driverId).catch(() => null);
+      return Response.json({
+        success:false,
+        reason:'CONCURRENT_CHANGE',
+        driverId,
+        current:{
+          active_order_id:fresh?.active_order_id || null,
+          active_ride_id:fresh?.active_ride_id || null,
+          reserved_order_id:fresh?.reserved_order_id || null,
+          next_order_id:fresh?.next_order_id || null
+        }
+      }, { status:409 });
+    }
 
     if (driver.bloqueo_post_aceptacion_hasta && Number(driver.bloqueo_post_aceptacion_hasta) > Date.now()) {
       await b44.entities.AuditLog.create({
