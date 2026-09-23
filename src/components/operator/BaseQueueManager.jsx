@@ -162,8 +162,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {}, mov
         const fresh = await base44.entities.Driver.get(driver.id).catch(() => null);
         const pos = Number(fresh?.queue_position);
         const marker = Number(fresh?.queue_authority_marker);
-        if (fresh?.current_base === baseName &&
-            fresh?.queue_authoritative_base === baseName &&
+        if (fresh?.queue_authoritative_base === baseName &&
             fresh?.status === "disponible" &&
             (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
             Number.isFinite(pos) && pos > 0 &&
@@ -385,8 +384,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
         const fresh = await base44.entities.Driver.get(driver.id);
         const pos = Number(fresh?.queue_position);
         const marker = Number(fresh?.queue_authority_marker);
-        const alreadyThere = fresh?.current_base === baseName &&
-          fresh?.queue_authoritative_base === baseName &&
+        const alreadyThere = fresh?.queue_authoritative_base === baseName &&
           fresh?.status === "disponible" &&
           (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
           Number.isFinite(pos) && pos > 0 &&
