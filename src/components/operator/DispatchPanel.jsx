@@ -27,6 +27,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   const isBroadcast = (order.notes || "").startsWith("[BROADCAST]");
   const isRequestedReview = order.pending_reason === "REQUESTED_DRIVER_NOT_ACCEPTED" ||
     order.processingAction === "CENTRAL_REVIEW_REQUIRED_DRIVER";
+  const isZoneZero = order.pending_reason === "ZONE_0_DIRECT_PENDING";
 
   // Zona del pedido → primera en cola
   const zoneQueue = order.zone ? getBaseQueue(availableDrivers, order.zone) : [];
@@ -96,7 +97,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   };
 
   return (
-    <div className={`p-3 rounded-xl border space-y-3 ${isRequestedReview ? "bg-red-50 border-red-300" : isBroadcast ? "bg-orange-50 border-orange-300" : "bg-amber-50 border-amber-200"}`}> 
+    <div className={`p-3 rounded-xl border space-y-3 ${isRequestedReview ? "bg-red-50 border-red-300" : isZoneZero ? "bg-orange-50 border-orange-400" : isBroadcast ? "bg-orange-50 border-orange-300" : "bg-amber-50 border-amber-200"}`}> 
       {/* Orden info */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -125,12 +126,18 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
               <p className="text-xs text-slate-700">No se envía a otros móviles automáticamente. Consultá al cliente o elegí otro móvil abajo.</p>
             </div>
           )}
+          {isZoneZero && (
+            <div className="mt-2 rounded-lg border border-orange-400 bg-white px-3 py-2">
+              <p className="text-xs font-black text-orange-700">⚠ ZONA 0 · ATENCIÓN OPERADOR</p>
+              <p className="text-xs text-slate-700">Este pasaje entra directo a Pendientes. No inicia despacho automático por cola.</p>
+            </div>
+          )}
         </div>
         <OrderStatusBadge status={order.status} />
       </div>
 
       {/* Chofer sugerido (primero en zona) */}
-      {!isBroadcast && !isRequestedReview && (
+      {!isBroadcast && !isRequestedReview && !isZoneZero && (
         suggestedDriver ? (
           <div className="bg-white rounded-lg border border-amber-200 px-3 py-2 flex items-center gap-2">
             <Car className="w-4 h-4 text-amber-500 shrink-0" />
@@ -156,7 +163,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       )}
 
       {/* Auto-asignar: nunca para un requerido retenido; ahí decide el operador */}
-      {!isRequestedReview && (
+      {!isRequestedReview && !isZoneZero && (
         <Button
           size="sm"
           className="w-full gap-2 rounded-lg h-8 font-extrabold"
