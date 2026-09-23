@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.48';
 import { verifyRequestAuth } from '../../shared/security.ts';
-import { withQueueLock, getNextQueuePosition, getNextQueueTailAt, compactQueue } from '../../shared/queueOrder.ts';
+import { withQueueLock, getNextQueuePosition, compactQueue } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);

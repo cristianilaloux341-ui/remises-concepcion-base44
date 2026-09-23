@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.38';
 import { verifyRequestAuth } from '../../shared/security.ts';
-import { compactQueue, getNextQueueTailAt, getNextQueuePosition, withQueueLock } from '../../shared/queueOrder.ts';
+import { compactQueue, getNextQueuePosition, withQueueLock } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -99,8 +99,8 @@ Deno.serve(async (req) => {
       };
     }
 
-    const queueEnteredAt = await getNextQueueTailAt(b44, baseName, driverId);
     const position = await getNextQueuePosition(b44, baseName, driverId);
+    const queueEnteredAt = new Date().toISOString();
     const authorityMarker = position;
     const sealed = await b44.entities.Driver.updateMany(
       {
