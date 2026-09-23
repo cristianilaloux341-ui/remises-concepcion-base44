@@ -22,10 +22,9 @@ Deno.serve(async (req) => {
         ? 'delivery_unconfirmed_exhausted'
         : (payload.source === 'timeout'
           ? 'timeout'
-          : (payload.source === 'legacy_client' || payload.source === 'explicit_reject'
-            ? 'legacy_client'
+          : (payload.source === 'explicit_reject'
+            ? 'explicit_reject'
             : 'driver')));
-    const legacyQueueEnteredAt = payload.legacyQueueEnteredAt || null;
 
     if (!orderId || !driverId || assignmentAttempt == null) {
       return Response.json({ success:false, reason:'missing_params' }, { status:400 });
@@ -530,7 +529,6 @@ Deno.serve(async (req) => {
           driverId:lockedOrder.reserved_driver_id,
           assignmentAttempt:Number(lockedOrder.assignment_attempt),
           source,
-          legacyQueueEnteredAt,
           internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
         }).catch(()=>{});
       } else {
