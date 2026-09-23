@@ -29,6 +29,13 @@ Deno.serve(async (req) => {
       payload.supportsAlertPresented === true ||
       String(payload.supportsAlertPresented || '').toLowerCase() === 'true';
 
+    // El sistema nuevo no admite ACK sin protocolo ALERT_PRESENTED. El ACK confirma
+    // transporte; nunca abre por sí solo una ventana comercial ni habilita una ruta
+    // de compatibilidad distinta.
+    if (action === "native_ack" && !supportsAlertPresented) {
+      return Response.json({ success:false, reason:"ALERT_PRESENTED_PROTOCOL_REQUIRED" }, { status:409 });
+    }
+
     if (action === "native_ack") {
       const driver = await b44.entities.Driver.get(driverId).catch(() => null);
       const order = await b44.entities.RideOrder.get(realOrderId).catch(() => null);
@@ -49,9 +56,9 @@ Deno.serve(async (req) => {
           Boolean(order.push_ack_at) &&
           Number(order.push_ack_assignment_attempt) === Number(order.assignment_attempt);
         const receivedAt = ackAlreadyRecorded ? order.push_ack_at : new Date().toISOString();
-        if (supportsAlertPresented) {
-          // ACK sólo confirma transporte. No crea, extiende ni acorta la ventana
-          // comercial. offerExpiresAt nace exclusivamente en ALERT_PRESENTED.
+        // ACK sólo confirma transporte. No crea, extiende ni acorta la ventana
+        // comercial. offerExpiresAt nace exclusivamente en ALERT_PRESENTED.
+        {
           const protocolResult = await b44.entities.RideOrder.updateMany(
             {
               id: realOrderId,
@@ -71,29 +78,6 @@ Deno.serve(async (req) => {
           protocolEnabled =
             (protocolResult?.updated ?? protocolResult?.matchedCount ?? protocolResult?.modifiedCount ?? 0) === 1;
           ackRecorded = protocolEnabled && !ackAlreadyRecorded;
-        } else if (!ackAlreadyRecorded) {
-          const ackResult = await b44.entities.RideOrder.updateMany(
-            {
-              id: realOrderId,
-              status: "ofrecido",
-              reserved_driver_id: driverId,
-              reservation_token: order.reservation_token,
-              assignment_attempt: order.assignment_attempt,
-              $or: [
-                { push_ack_assignment_attempt: null },
-                { push_ack_assignment_attempt: { $exists: false } },
-                { push_ack_assignment_attempt: { $ne: Number(order.assignment_attempt) } }
-              ]
-            },
-            {
-              $set: {
-                push_ack_at: receivedAt,
-                push_ack_assignment_attempt: order.assignment_attempt
-              }
-            }
-          );
-          ackRecorded =
-            (ackResult?.updated ?? ackResult?.matchedCount ?? ackResult?.modifiedCount ?? 0) === 1;
         }
       }
 
@@ -103,9 +87,7 @@ Deno.serve(async (req) => {
         user_type: "sistema",
         user_name: driver?.name || "Chofer",
         details: ackRecorded
-          ? (supportsAlertPresented
-              ? `PUSH_RECEIVED v12.31 confirmado. Esperando ALERT_PRESENTED antes de iniciar la ventana configurada.`
-              : `PUSH_RECEIVED legacy confirmado.`)
+          ? `PUSH_RECEIVED confirmado. Esperando ALERT_PRESENTED antes de iniciar la ventana configurada.`
           : `ACK duplicado o de una oferta que ya cambió; no se abrió otra ventana.`,
         metadata: {
           orderId: realOrderId,
