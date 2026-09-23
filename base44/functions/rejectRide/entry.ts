@@ -383,7 +383,7 @@ Deno.serve(async (req) => {
               reserved_driver_id:nextDriver.id,
               reservation_token:token,
               manual_reservation_token:null,
-              assigned_base:nextDriver.current_base || nextDriver.queue_authoritative_base || order.zone || null,
+              assigned_base:nextDriver.queue_authoritative_base || nextDriver.current_base || order.zone || null,
               offerExpiresAt:null,
               assignment_attempt:newAttempt,
               assigned_at:assignedAt,
