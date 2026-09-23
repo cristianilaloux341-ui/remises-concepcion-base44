@@ -591,7 +591,7 @@ Deno.serve(async (req) => {
                    }
                  }
                };
-               console.log("Enviando FCM Payload:", JSON.stringify(fcmPayload));
+               console.log("Enviando oferta FCM", { orderId: cleanOrderId, driverId, assignmentAttempt: fcmPayload.message.data.assignmentAttempt });
                
                const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
                  method: 'POST',
@@ -615,8 +615,8 @@ Deno.serve(async (req) => {
                  // No retornamos error aquí, permitimos que intente el fallback de WebPush
                  fcmSuccess = false;
                } else {
-                 const successBody = await fcmRes.text();
-                 console.log("FCM Send Success:", successBody);
+                 await fcmRes.text();
+                 console.log("Oferta FCM aceptada por Firebase", { orderId: cleanOrderId, driverId, assignmentAttempt: fcmPayload.message.data.assignmentAttempt });
                  fcmSuccess = true;
                  
                  if (fcmPayload.message.data.type === "ofrecido") {
