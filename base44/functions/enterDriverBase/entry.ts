@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
   if (!driver) return Response.json({ success:false, reason:'driver_not_found' }, { status:404 });
 
   if (driver.status !== 'disponible' || (driver.dispatch_status && driver.dispatch_status !== 'normal') ||
-      driver.reserved_order_id || driver.active_order_id || driver.active_ride_id) {
+      driver.reserved_order_id || driver.active_order_id || driver.active_ride_id || driver.next_order_id) {
     return Response.json({ success:false, reason:'driver_not_idle' }, { status:409 });
   }
 
@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
       const fresh = await b44.entities.Driver.get(driverId).catch(() => null);
       if (!fresh) throw new Error('driver_not_found');
       if (fresh.status !== 'disponible' || (fresh.dispatch_status && fresh.dispatch_status !== 'normal') ||
-          fresh.reserved_order_id || fresh.active_order_id || fresh.active_ride_id) {
+          fresh.reserved_order_id || fresh.active_order_id || fresh.active_ride_id || fresh.next_order_id) {
         throw new Error('driver_not_idle');
       }
 
@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
           reserved_order_id:null,
           active_order_id:null,
           active_ride_id:null,
+          next_order_id:null,
           queue_authoritative_base:fresh.queue_authoritative_base ?? null,
           queue_position:fresh.queue_position ?? null
         },
@@ -82,7 +83,11 @@ Deno.serve(async (req) => {
     // La salida de la base anterior es una acción operativa real: cerramos su hueco,
     // pero nunca dentro del lock de la nueva base para evitar locks anidados.
     if (result.previousBase && result.previousBase !== baseName) {
-      await compactQueue(b44, result.previousBase).catch(()=>{});
+      const compacted = await compactQueue(b44, result.previousBase).then(()=>true).catch(()=>false);
+      if (!compacted) {
+        await b44.entities.AuditLog.create({action:'PREVIOUS_BASE_COMPACTION_FAILED',user_type:'sistema',user_name:'enterDriverBase',details:`El móvil ${driverId} entró a ${baseName}, pero falló compactar la base anterior ${result.previousBase}`,metadata:{driverId,newBase:baseName,previousBase:result.previousBase}}).catch(()=>{});
+        return Response.json({success:true,baseName,queuePosition:result.queuePosition,queueAt:result.queueAt,warning:'PREVIOUS_BASE_COMPACTION_FAILED'});
+      }
     }
 
     return Response.json({ success:true, baseName, queuePosition:result.queuePosition, queueAt:result.queueAt });
