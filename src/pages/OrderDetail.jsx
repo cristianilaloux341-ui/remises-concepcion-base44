@@ -58,12 +58,14 @@ export default function OrderDetail() {
 
   const manualCompleteMutation = useMutation({
     mutationFn: async () => {
-      let localOperator = null;
-      try { localOperator = JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch {}
-      const response = await base44.functions.invoke("manualCompleteRide", {
+      const driverId = order.driver_id || order.reserved_driver_id || null;
+      if (!driverId) throw new Error("El pasaje no tiene móvil vinculado");
+      const response = await base44.functions.invoke("finishRide", {
         orderId: order.id,
-        sessionToken: sessionStorage.getItem("local_operator_token"),
-        operatorName: localOperator?.nombre || localOperator?.name || localOperator?.usuario || "Central"
+        driverId,
+        importeFinal: order.importe_real_actual ?? 0,
+        operationKey: `CENTRAL_MANUAL_FINISH_${order.id}_${Date.now()}`,
+        sessionToken: sessionStorage.getItem("local_operator_token")
       });
       if (!response.data?.success) {
         throw new Error(response.data?.reason || "No se pudo terminar el pasaje");
