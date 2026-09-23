@@ -122,54 +122,6 @@ async function handleNewApp(base44: any, action: string, payload: any) {
   });
 }
 
-async function handleLegacyApp(base44: any, body: any) {
-  const phone = body?.phone || body?.telefono;
-  const deviceId = body?.deviceId || body?.device_id || body?.id || body?.uuid;
-  if (!phone && !deviceId) {
-    return json({ success: false, status: "dispositivo no registrado", message: "Faltan datos de identificación" }, 400);
-  }
-
-  const drivers = await base44.asServiceRole.entities.Driver.list();
-  let driver = phone ? await findDriverByPhone(base44, phone) : null;
-  if (!driver && deviceId) {
-    driver = drivers.find(
-      (candidate: any) => candidate.device_id === deviceId || candidate.fcm_token === deviceId,
-    );
-  }
-  if (!driver) {
-    return json({ success: false, status: "chofer inexistente", message: "No existe un chofer con esos datos" }, 404);
-  }
-
-  // Compatibilidad con los clientes anteriores.
-  if (deviceId && driver.device_id !== deviceId) {
-    await base44.asServiceRole.entities.Driver.update(driver.id, { device_id: deviceId });
-    driver.device_id = deviceId;
-  }
-
-  const operational = await validateDriverAndVehicle(base44, driver);
-  if (operational.status) {
-    const legacyStatus: Record<string, string> = {
-      blocked: "bloqueado",
-      rejected: "rechazado",
-      pending: "pendiente",
-    };
-    return json({
-      success: false,
-      status: legacyStatus[operational.status] || operational.status,
-      message: operational.message,
-    });
-  }
-
-  return json({
-    success: true,
-    status: "autorizado",
-    authorized: true,
-    estado: "autorizado",
-    driver,
-    movil: operational.movil,
-  });
-}
-
 export default async function (req: Request) {
   try {
     const base44 = createClientFromRequest(req);
