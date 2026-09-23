@@ -10,12 +10,17 @@ Deno.serve(async (req) => {
     
     const { action, orderId, driverId } = payload;
     
-    // NOTA: No usamos verifyRequestAuth aquí porque la app nativa de Android no tiene
-    // cómo enviar el sessionToken en el intent del BroadcastReceiver actualmente.
-    // La seguridad está garantizada verificando que el viaje esté 'ofrecido' a este 'driverId'.
-    
     if (!orderId || !driverId) {
       return Response.json({ success: false, reason: "missing_params" });
+    }
+
+    // Protocolo nuevo: toda acción del teléfono debe estar ligada a la sesión real
+    // del chofer. Conocer orderId + driverId no autoriza ACK, presentación, aceptar
+    // ni rechazar. El APK nuevo envía access_token/sessionToken también desde la
+    // notificación nativa.
+    const nativeSessionToken = String(payload.sessionToken || payload.access_token || "");
+    if (!nativeSessionToken || !(await verifyRequestAuth(b44, { ...payload, sessionToken:nativeSessionToken }, { allowDriverId:driverId }))) {
+      return Response.json({ success:false, reason:"UNAUTHORIZED_NATIVE_ACTION" }, { status:401 });
     }
 
     const attemptMatch = String(orderId).match(/_att_(\d+)$/);
