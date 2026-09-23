@@ -58,161 +58,20 @@ export function getBaseQueue(drivers, baseName) {
   ));
 }
 
-// Invariante de despacho: un Driver solo puede ser candidato si su Movil real está habilitado.
-async function filterDispatchEligibleDrivers(drivers = []) {
-  // No descargar toda la flota para validar una cola ya conocida. Traer solamente
-  // los móviles vinculados a los choferes recibidos (normalmente los de una zona).
-  const driverIds = [...new Set(drivers.map(d => d.id).filter(Boolean))];
-  const mobileIds = [...new Set(drivers.map(d => String(d.vehicle_model || "")).filter(Boolean))];
-  const mobileNumbers = [...new Set(drivers.map(d => parseInt(String(d.vehicle_model || ""), 10)).filter(Number.isFinite))];
-  const plates = [...new Set(drivers.map(d => String(d.vehicle_plate || "").trim()).filter(Boolean))];
-
-  const clauses = [];
-  if (mobileIds.length) clauses.push({ id: { $in: mobileIds } });
-  if (mobileNumbers.length) clauses.push({ numero_movil: { $in: mobileNumbers } });
-  if (driverIds.length) {
-    clauses.push({ driver_id: { $in: driverIds } });
-    clauses.push({ driver_ids: { $in: driverIds } });
-  }
-  if (plates.length) clauses.push({ dominio: { $in: plates } });
-
-  const moviles = clauses.length ? await base44.entities.Movil.filter({ $or: clauses }) : [];
-  return drivers.filter(d => {
-    if (d.status !== "disponible") return false;
-    const mobileId = String(d.vehicle_model || "");
-    const mobileNumber = parseInt(mobileId, 10);
-    const driverPlate = String(d.vehicle_plate || "").replace(/\s+/g, "").toUpperCase();
-    const movil = moviles?.find(m =>
-      m.id === mobileId ||
-      m.numero_movil === mobileNumber ||
-      m.driver_id === d.id ||
-      (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id)) ||
-      (driverPlate && String(m.dominio || "").replace(/\s+/g, "").toUpperCase() === driverPlate)
-    );
-    
-    return Boolean(movil) &&
-      !d.active_order_id && !d.active_ride_id && !d.reserved_order_id &&
-      (d.dispatch_status == null || d.dispatch_status === "normal") &&
-      movil.activo !== false &&
-      movil.fuera_de_servicio !== true &&
-      !movil.suspension_motivo;
-  });
-}
-
-// Find best driver for an order: strictly by zone (FIFO)
-export async function findBestDriver(order, drivers, bases) {
-  if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in findBestDriver!", drivers); return null; }
-  const availableDrivers = await filterDispatchEligibleDrivers(drivers);
-  if (!availableDrivers.length) return null;
-
-  // 1) Asignar a los de la zona correspondiente (FIFO)
-  if (order.zone) {
-    const zoneQueue = getBaseQueue(availableDrivers, order.zone);
-    if (zoneQueue.length > 0) return zoneQueue[0];
-  }
-
-  // Fuera de la zona no se asigna automáticamente: queda para la cartelera Pendientes.
-  return null;
-}
-
-// Find first available driver in the exact zone (menor queue_position)
-export async function findDriverInZone(zone, drivers) {
-  if (!zone) return null;
-  const availableDrivers = await filterDispatchEligibleDrivers(drivers);
-  return getBaseQueue(availableDrivers, zone)[0] || null;
-}
-
-// Assign driver to order (direct / zone-based)
+// Asignación manual desde Central: la decisión y el commit pertenecen al backend.
 export async function assignDriverToOrder(order, driver, options = {}) {
   const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token"))
     ? sessionStorage.getItem("local_operator_token")
     : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
-
   const res = await base44.functions.invoke("assignRide", {
-    orderId: order.id,
-    driverId: driver.id,
-    sessionToken,
+    orderId: order.id, driverId: driver.id, sessionToken,
     requireDriverConfirmation: options.requireDriverConfirmation === true,
     forceManual: options.forceManual === true,
     manualDriverName: options.forceManual === true ? driver.name : null,
     mobileId: options.mobileId || null,
   });
-
-  if (!res.data?.success) {
-    throw new Error(res.data?.reason || "No se pudo asignar el viaje");
-  }
-
+  if (!res.data?.success) throw new Error(res.data?.reason || "No se pudo asignar el viaje");
   return res.data;
-}
-
-// LEGACY COMPAT ONLY. No debe ser llamado por Central ni por la APK activa.
-// El backend es la única autoridad para cadena A→B→C y para autorizar Pendientes.
-export async function autoDispatch(order, drivers, bases) {
-  // Un viaje aceptado y luego cancelado por el chofer queda reservado para que
-  // la Central decida; nunca vuelve solo a la rueda automática.
-  if (String(order?.notes || "").includes("[REVISION_CENTRAL_CANCELADO_CHOFER]")) {
-    return "revision_central";
-  }
-  // offered_driver_ids es historial, nunca lista negra permanente.
-  const availableDrivers = await filterDispatchEligibleDrivers(drivers);
-
-  if (!availableDrivers.length) return "no_drivers";
-
-  // 1) Buscar primero en la zona del pedido (FIFO)
-  if (order.zone) {
-    const zoneQueue = getBaseQueue(availableDrivers, order.zone);
-    for (const driver of zoneQueue) {
-      try {
-        await assignDriverToOrder(order, driver);
-        return "assigned";
-      } catch (e) {
-        console.warn("Fallo asignando a", driver.name, e);
-      }
-    }
-  }
-
-  // Sin candidato local: NO escribir RideOrder. Pendiente sólo puede nacer
-  // del motor server-side después de agotar la cadena autoritativa.
-  return "no_drivers";
-}
-
-// Reassign after rejection: next in same base queue (skipping already-offered),
-export async function reassignAfterReject(order, drivers, bases) {
-  if (!Array.isArray(drivers)) { console.error("[CRITICAL ERROR] drivers is not array in reassignAfterReject!", drivers); return null; }
-  if (!Array.isArray(bases)) { console.error("[CRITICAL ERROR] bases is not array in reassignAfterReject!", bases); bases = BASES; }
-  // Reasignación normal: únicamente dentro de la zona original del pasaje.
-  // offered_driver_ids es historial de esta ronda: un móvil ya ofertado no se repite.
-  const allAvailable = await filterDispatchEligibleDrivers(drivers);
-  const offeredDriverIds = new Set((order.offered_driver_ids || []).filter(Boolean));
-  const available = allAvailable.filter(d => !offeredDriverIds.has(d.id));
-
-  const tarifaConfigs = await base44.entities.TarifaConfig.list();
-  const autoReassignActive = tarifaConfigs[0]?.auto_reasignacion_activa ?? true;
-
-  if (!available.length || !autoReassignActive) {
-    // Compatibilidad visual solamente. La APK legacy no tiene autoridad para
-    // convertir el viaje en Pendiente ni para liberar la reserva.
-    return !autoReassignActive ? "manual" : "sin_moviles";
-  }
-
-  // Siguiente móvil exclusivamente en la zona del pasaje (FIFO).
-  const targetZone = order.zone;
-  const sameBaseQueue = targetZone
-    ? sortQueue(available.filter(d => getEffectiveQueueBase(d) === targetZone))
-    : [];
-
-  for (const driver of sameBaseQueue) {
-    try {
-      await assignDriverToOrder(order, driver);
-      return "next_in_queue";
-    } catch (e) {
-      console.warn("Fallo asignando a", driver.name, e);
-    }
-  }
-
-  // Agotada la vista local: no mutar el viaje. rejectRide/timeout server-side
-  // es quien recorre la cola y, sólo al agotarla, marca PENDING_AUTHORIZED.
-  return "sin_moviles";
 }
 
 // ── Address Parsing ───────────────────────────────────────────────────────────
