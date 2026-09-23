@@ -32,7 +32,7 @@ export default function NewOrder() {
       delete orderData.driver_name;
       delete orderData.reserved_driver_id;
 
-      const sessionToken = sessionStorage.getItem("local_operator_token") || "client_demo_token";
+      const sessionToken = sessionStorage.getItem("local_operator_token");
       const dispatchRes = await base44.functions.invoke("clientCreateAndDispatchRide", {
         orderData,
         sessionToken,
