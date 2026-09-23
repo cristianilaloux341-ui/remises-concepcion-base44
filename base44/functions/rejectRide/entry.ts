@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
     if (queueBase && !deliveryExhausted) {
       await withQueueLock(b44, queueBase, async () => {
         await b44.entities.Driver.updateMany(
-          { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null, queue_authoritative_base:queueBase },
+          { id:driverId, status:'disponible', reserved_order_id:null, active_order_id:null, active_ride_id:null, next_order_id:null, queue_authoritative_base:queueBase },
           { $set:{
             current_base:null,
             queue_authoritative_base:null,
