@@ -171,8 +171,6 @@ export default function Dashboard() {
   // Mantener únicamente alertas activas. Las atendidas nunca vuelven al recargar.
   useEffect(() => {
     let unsubscribe = null;
-    let lastEvent = Date.now();
-    let pollInterval = null;
 
     const loadActive = () => {
       base44.entities.PanicAlert.filter({ status: "activo" })
@@ -182,10 +180,8 @@ export default function Dashboard() {
 
     const connect = () => {
       unsubscribe?.();
-      lastEvent = Date.now();
       loadActive();
       unsubscribe = base44.entities.PanicAlert.subscribe((event) => {
-        lastEvent = Date.now();
         if (event.type === "create" && event.data?.status === "activo") {
           setPanicAlerts(prev => prev.some(a => a.id === event.id) ? prev : [event.data, ...prev]);
           setShowPanicPanel(true);
@@ -218,14 +214,19 @@ export default function Dashboard() {
     };
 
     connect();
-    // Reconexion de seguridad, no polling agresivo: realtime sigue siendo la vía principal.
-    pollInterval = setInterval(() => {
-      if (Date.now() - lastEvent > 30000) connect();
-    }, 15000);
+
+    // Un canal de pánico puede pasar horas sin eventos y eso es normal. No usar el
+    // silencio como señal de desconexión: antes provocaba una nueva suscripción +
+    // consulta cada ~30 s durante todo el turno. Revalidamos sólo ante señales reales
+    // de reconexión de la Central/navegador.
+    const handleReconnect = () => connect();
+    window.addEventListener('radiocab_reconnect', handleReconnect);
+    window.addEventListener('online', handleReconnect);
 
     return () => {
       unsubscribe?.();
-      clearInterval(pollInterval);
+      window.removeEventListener('radiocab_reconnect', handleReconnect);
+      window.removeEventListener('online', handleReconnect);
     };
   }, []);
 
