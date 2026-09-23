@@ -8,18 +8,6 @@ export const DISPATCH_STATE = {
   PENDING: "pendiente",
 } as const;
 
-export function isPublicPending(order:any) {
-  return Boolean(
-    order &&
-    order.status === DISPATCH_STATE.PENDING &&
-    order.processingAction === "PENDING_AUTHORIZED" &&
-    !order.reserved_driver_id &&
-    !order.driver_id &&
-    !order.active_order_id &&
-    !order.active_ride_id
-  );
-}
-
 export function ownsOffer(order:any, driverId:string, assignmentAttempt:number) {
   return Boolean(
     order &&
@@ -48,35 +36,4 @@ export function canProcessCommercialTimeout(order:any, driverId:string, assignme
   return ownsOffer(order, driverId, assignmentAttempt) &&
     hasPresentedCurrentOffer(order) &&
     responseWindowExpired(order, now);
-}
-
-// Pendientes sólo existe cuando el motor autoritativo agotó la cola de la zona.
-export async function authorizePendingAfterZoneExhausted(b44:any, orderId:string, reason:string) {
-  const order = await b44.entities.RideOrder.get(orderId).catch(() => null);
-  if (!order) return { success:false, reason:"ORDER_NOT_FOUND" };
-  if (["aceptado","en_camino","en_viaje","completado","cancelado"].includes(order.status)) {
-    return { success:false, reason:"TERMINAL_OR_OWNED_STATE" };
-  }
-  if (order.reserved_driver_id || order.driver_id) {
-    return { success:false, reason:"DRIVER_STILL_OWNS_ORDER" };
-  }
-  const res = await b44.entities.RideOrder.updateMany(
-    {
-      id:orderId,
-      status:"procesando_despacho",
-      reserved_driver_id:null,
-      driver_id:null
-    },
-    {
-      $set:{
-        status:"pendiente",
-        processingAction:"PENDING_AUTHORIZED",
-        pending_reason:reason,
-        offerExpiresAt:null,
-        alert_presented_at:null
-      }
-    }
-  );
-  const changed = Number(res?.updated ?? res?.modifiedCount ?? res?.matchedCount ?? 0) === 1;
-  return { success:changed, reason:changed ? "PENDING_AUTHORIZED" : "STATE_CHANGED" };
 }
