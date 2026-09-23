@@ -38,20 +38,8 @@ export async function verifyJWT(token: string): Promise<any> {
   if (!secret) return null;
   
   const parts = token.split('.');
-  if (parts.length !== 3) {
-    // Fallback temporal para sesiones legacy (payload base64) para no desconectar a todos
-    try {
-      const decoded = JSON.parse(new TextDecoder().decode(decodeBase64Url(token)));
-      if (decoded && decoded.id) {
-        // Extendemos la expiración de los tokens legacy para no forzar deslogueo inmediato
-        if (decoded.exp && decoded.exp < Date.now()) {
-          decoded.exp = Date.now() + 86400000; // +24hs
-        }
-        return decoded;
-      }
-    } catch(e) {}
-    return null;
-  }
+  // Sólo aceptamos JWT HS256 firmado. Los tokens base64 legacy sin firma ya no son válidos.
+  if (parts.length !== 3) return null;
   
   const [header, payload, signature] = parts;
   const dataToSign = `${header}.${payload}`;
@@ -106,7 +94,7 @@ export async function verifyRequestAuth(b44: any, payload: any, options: { allow
   // 1. Siempre permitimos el acceso si la clave de servicio interna coincide
   if (validateInternalKey(internalKey)) return true;
   
-  // 2. Si se permite a un operador, validamos su sesión (JWT o legacy base64)
+  // 2. Si se permite a un operador, validamos su sesión JWT firmada
   if (options.allowOperator && sessionToken) {
     if (await verifyOperatorSession(b44, sessionToken)) return true;
   }
