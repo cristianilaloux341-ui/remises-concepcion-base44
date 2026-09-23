@@ -324,7 +324,7 @@ export default function OrderDetail() {
                     <SelectContent>
                       {availableDrivers.map((d) => (
                         <SelectItem key={d.id} value={d.id}>
-                          {d.name} - {d.vehicle_plate}{d.queue_authoritative_base ? ` (${d.queue_authoritative_base || d.current_base})` : ""}
+                          {d.name} - {d.vehicle_plate}{d.queue_authoritative_base ? ` (${d.queue_authoritative_base})` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
