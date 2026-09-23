@@ -21,53 +21,10 @@ Deno.serve(async (req) => {
     const fresh = await b44.entities.RideOrder.get(orderId).catch(() => null);
     if (!fresh) return Response.json({ success:true, alreadyDeleted:true });
 
-    // Limpiar únicamente vínculos que todavía pertenecen a ESTA orden.
-    if (fresh.preassigned_driver_id) {
-      await b44.entities.Driver.updateMany(
-        { id: fresh.preassigned_driver_id, next_order_id: orderId },
-        { $set: { next_order_id:null, next_order_token:null } }
-      ).catch(() => {});
-    }
-
-    const linked = [...new Set([fresh.driver_id, fresh.reserved_driver_id].filter(Boolean))];
-    for (const driverId of linked) {
-      const driver = await b44.entities.Driver.get(driverId).catch(() => null);
-      if (!driver) continue;
-
-      const set:any = {};
-      const query:any = { id: driverId };
-      let ownsCurrent = false;
-
-      if (driver.active_order_id === orderId) {
-        query.active_order_id = orderId;
-        set.active_order_id = null;
-        ownsCurrent = true;
-      }
-      if (driver.active_ride_id === orderId) {
-        query.active_ride_id = orderId;
-        set.active_ride_id = null;
-        ownsCurrent = true;
-      }
-      if (driver.reserved_order_id === orderId) {
-        query.reserved_order_id = orderId;
-        set.reserved_order_id = null;
-        set.reservation_token = null;
-        set.manual_reservation_token = null;
-        set.driver_reservation_key = null;
-        ownsCurrent = true;
-      }
-
-      // Nunca borrar el otro slot. Si queda un segundo viaje confirmado, tampoco
-      // declarar al móvil libre: su promoción pertenece al motor canónico.
-      if (ownsCurrent) {
-        if (!driver.next_order_id) {
-          set.status = 'disponible';
-          set.dispatch_status = 'normal';
-        }
-        await b44.entities.Driver.updateMany(query, { $set:set }).catch(() => {});
-      }
-    }
-
+    // operatorOrderAction es la única autoridad que libera/promueve slots del móvil.
+    // Esta función ya no vuelve a escribir Driver después de cancelar: hacerlo acá
+    // abría un segundo mandato y podía pisar una promoción/asignación concurrente.
+    // Tras el commit terminal canónico, eliminar sólo el registro de la orden.
     await b44.entities.RideOrder.delete(orderId);
     await b44.entities.AuditLog.create({
       action:'eliminar_viaje',
