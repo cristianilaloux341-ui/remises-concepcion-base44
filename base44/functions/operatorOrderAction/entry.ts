@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
 
             const drivers = await b44.entities.Driver.filter({
               status:'disponible',
-              $or:[{current_base:baseName},{queue_authoritative_base:baseName}]
+              queue_authoritative_base:baseName
             });
             const queue = getBaseQueue(drivers, baseName).filter((d:any)=>d.id !== target.id);
             const now = new Date().toISOString();

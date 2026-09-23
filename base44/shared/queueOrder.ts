@@ -16,7 +16,7 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Cola operativa: current_base + queue_position son la autoridad.
+// Cola operativa: queue_authoritative_base + queue_position son la única autoridad.
 // Los timestamps se conservan únicamente como historial/proyección para APK legacy.
 export function getEffectiveQueueBase(driver: any) {
   if (!driver) return null;
