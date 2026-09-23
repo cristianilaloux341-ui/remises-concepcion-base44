@@ -141,7 +141,7 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
     if (d.status === "no_disponible") return false;
 
     // "Si ellos no están en servicio ni en posición o con pasaje en el mapa no tienen que aparecer"
-    const effectiveBase = d.queue_authoritative_base || d.current_base || null;
+    const effectiveBase = d.queue_authoritative_base || null;
     const enPosicion = d.status === "disponible" && !!effectiveBase;
     const conPasaje = ["en_viaje", "en_camino", "aceptado", "ofrecido"].includes(d.status) || 
                       ["automatic_pending", "manual_pending"].includes(d.dispatch_status);
@@ -237,7 +237,7 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
         ))}
 
         {validDrivers.map((driver) => {
-          const effectiveBase = driver.queue_authoritative_base || driver.current_base || null;
+          const effectiveBase = driver.queue_authoritative_base || null;
           const lat = driver.current_lat || BASE_COORDS[effectiveBase]?.lat;
           const lng = driver.current_lng || BASE_COORDS[effectiveBase]?.lng;
           if (!lat || !lng) return null;

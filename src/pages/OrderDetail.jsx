@@ -175,7 +175,7 @@ export default function OrderDetail() {
     // usa el estado operativo del Driver y assignRide hace la validación definitiva
     // del Movil seleccionado (activo, suspensión y fuera de servicio) antes del push.
     // La base autoritativa manda. current_base queda sólo como dato compatible/visual.
-    const effectiveBase = d.queue_authoritative_base || d.current_base || null;
+    const effectiveBase = d.queue_authoritative_base || null;
     if (d.status !== "disponible" || !effectiveBase) return false;
     if (d.active_order_id || d.active_ride_id || d.reserved_order_id) return false;
     if (d.dispatch_status != null && d.dispatch_status !== "normal") return false;
@@ -324,7 +324,7 @@ export default function OrderDetail() {
                     <SelectContent>
                       {availableDrivers.map((d) => (
                         <SelectItem key={d.id} value={d.id}>
-                          {d.name} - {d.vehicle_plate}{(d.queue_authoritative_base || d.current_base) ? ` (${d.queue_authoritative_base || d.current_base})` : ""}
+                          {d.name} - {d.vehicle_plate}{d.queue_authoritative_base ? ` (${d.queue_authoritative_base || d.current_base})` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>

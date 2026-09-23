@@ -193,7 +193,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     return true;
   };
 
-  const availableDrivers = drivers.filter(d => isDriverWorking(d) && (d.queue_authoritative_base || d.current_base));
+  const availableDrivers = drivers.filter(d => isDriverWorking(d) && d.queue_authoritative_base);
 
   // Auto-detect zone when pickup address changes.
   // Cada búsqueda lleva una secuencia: una respuesta vieja jamás puede pisar
@@ -269,7 +269,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     setForm(prev => {
       if (!prev.driver_id) return prev;
       const selected = drivers.find(d => d.id === prev.driver_id);
-      if ((selected?.queue_authoritative_base || selected?.current_base) === prev.zone) return prev;
+      if (selected?.queue_authoritative_base === prev.zone) return prev;
       return { ...prev, driver_id: "", driver_name: "", status: "pendiente" };
     });
   }, [form.zone, form.pickup_address, drivers, moviles]);
@@ -721,7 +721,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
                 <Zap className="w-4 h-4 text-amber-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold">{suggestedDriver.name}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{suggestedDriver.vehicle_plate} · {suggestedDriver.queue_authoritative_base || suggestedDriver.current_base}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{suggestedDriver.vehicle_plate} · {suggestedDriver.queue_authoritative_base}</p>
                 </div>
                 <Button type="button" size="sm" className="gap-1.5 rounded-lg shrink-0 bg-amber-500 hover:bg-amber-600"
                   onClick={handleAutoAssign} disabled={autoAssigning}>

@@ -143,7 +143,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
             <Car className="w-4 h-4 text-amber-500 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-extrabold text-black truncate">{getDriverDisplay(suggestedDriver.vehicle_model || suggestedDriver.vehicle_plate, suggestedDriver.name)}</p>
-              <p className="text-xs font-medium text-black font-mono">{suggestedDriver.queue_authoritative_base || suggestedDriver.current_base}</p>
+              <p className="text-xs font-medium text-black font-mono">{suggestedDriver.queue_authoritative_base}</p>
             </div>
             <Badge className="text-xs bg-amber-100 text-amber-700 border-0 shrink-0">1° en zona</Badge>
           </div>
