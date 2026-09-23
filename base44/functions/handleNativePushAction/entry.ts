@@ -30,6 +30,12 @@ Deno.serve(async (req) => {
       : null;
     const nativeAssignmentAttempt = attemptFromPayload ?? attemptFromOrderId;
     const realOrderId = String(orderId).replace(/_att_\d+$/, '');
+
+    // Toda acción nativa pertenece a un intento concreto. Sin assignmentAttempt no
+    // se puede distinguir una notificación atrasada de la oferta actual.
+    if (!Number.isInteger(nativeAssignmentAttempt) || nativeAssignmentAttempt < 1) {
+      return Response.json({ success:false, reason:"ASSIGNMENT_ATTEMPT_REQUIRED" }, { status:409 });
+    }
     const supportsAlertPresented =
       payload.supportsAlertPresented === true ||
       String(payload.supportsAlertPresented || '').toLowerCase() === 'true';
@@ -56,7 +62,7 @@ Deno.serve(async (req) => {
         order &&
         order.status === "ofrecido" &&
         order.reserved_driver_id === driverId &&
-        (nativeAssignmentAttempt == null || Number(order.assignment_attempt) === Number(nativeAssignmentAttempt))
+        Number(order.assignment_attempt) === Number(nativeAssignmentAttempt)
       ) {
         const ackAlreadyRecorded =
           Boolean(order.push_ack_at) &&
@@ -123,7 +129,7 @@ Deno.serve(async (req) => {
       if (
         order.status !== "ofrecido" ||
         order.reserved_driver_id !== driverId ||
-        (nativeAssignmentAttempt != null && Number(order.assignment_attempt) !== Number(nativeAssignmentAttempt))
+        Number(order.assignment_attempt) !== Number(nativeAssignmentAttempt)
       ) {
         return Response.json({ success: false, reason: "offer_changed_or_stale" });
       }
@@ -217,7 +223,7 @@ Deno.serve(async (req) => {
       // La acción nativa debe conservar el intento ORIGINAL recibido en la notificación.
       // Si llega tarde una notificación de un intento anterior, acceptRide la rechazará
       // en lugar de convertirla accidentalmente en una aceptación del intento actual.
-      const attempt = nativeAssignmentAttempt ?? (order.assignment_attempt || 1);
+      const attempt = nativeAssignmentAttempt;
       
       // Llamamos internamente a la función de aceptación de producción
       // USAMOS INTERNAL_KEY para saltarnos el chequeo de sesión del chofer,
@@ -240,12 +246,12 @@ Deno.serve(async (req) => {
          return Response.json({ success: false, reason: "already_processed_or_expired" });
       }
       // Igual que Aceptar: un rechazo viejo nunca puede actuar sobre una oferta nueva.
-      if (nativeAssignmentAttempt != null && order.assignment_attempt !== nativeAssignmentAttempt) {
+      if (Number(order.assignment_attempt) !== Number(nativeAssignmentAttempt)) {
          return Response.json({ success: false, reason: "stale_assignment_attempt" });
       }
 
       const driver = await b44.entities.Driver.get(driverId);
-      const attempt = nativeAssignmentAttempt ?? (order.assignment_attempt || 1);
+      const attempt = nativeAssignmentAttempt;
 
       // Una sola autoridad para TODOS los rechazos (pantalla, SW y acción nativa).
       // Antes la acción nativa usaba una ruta legacy distinta que movía el viaje a
