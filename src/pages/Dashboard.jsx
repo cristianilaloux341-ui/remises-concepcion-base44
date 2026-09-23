@@ -79,7 +79,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   // Suscripciones en tiempo real — actualizaciones instantáneas sin polling
   const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 10000 });
-  const { drivers } = useRealtimeDrivers({ refreshIntervalMs: 30000 });
+  const { drivers } = useRealtimeDrivers({ refreshIntervalMs: 0 });
 
   // Las alertas de rechazo se muestran una sola vez desde AppLayout.
   // Dashboard no ejecuta ninguna reasignación ni abre una segunda suscripción.
