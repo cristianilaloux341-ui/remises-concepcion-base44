@@ -70,7 +70,11 @@ Deno.serve(async (req) => {
         return Response.json({ success: true, promoted: false, reason: 'next_order_not_available' });
       }
 
-      if (driver.active_order_id || driver.active_ride_id || driver.reserved_order_id) {
+      const freshDriver = await b44.entities.Driver.get(driverId).catch(() => null);
+      if (!freshDriver || freshDriver.next_order_id !== nextOrderId || freshDriver.next_order_token !== token) {
+        return Response.json({ success: false, promoted: false, reason: 'driver_state_changed' });
+      }
+      if (freshDriver.active_order_id || freshDriver.active_ride_id || freshDriver.reserved_order_id) {
         return Response.json({ success: false, promoted: false, reason: 'current_ride_not_finished' });
       }
 
