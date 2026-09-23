@@ -31,10 +31,13 @@ Deno.serve(async (req) => {
       if (driver.next_order_id === orderId) {
         const nextQuery:any = { id:driverId, next_order_id:orderId };
         if (driver.next_order_token) nextQuery.next_order_token = driver.next_order_token;
-        await b44.entities.Driver.updateMany(
+        const clearedNext = await b44.entities.Driver.updateMany(
           nextQuery,
           { $set:{ next_order_id:null, next_order_token:null } }
-        ).catch(()=>{});
+        ).catch(()=>null);
+        if ((clearedNext?.updated ?? clearedNext?.matchedCount ?? clearedNext?.modifiedCount ?? 0) !== 1) {
+          return Response.json({success:false,reason:'CANCEL_NEXT_SLOT_CONCURRENT_CHANGE'},{status:409});
+        }
         continue;
       }
 
@@ -47,7 +50,7 @@ Deno.serve(async (req) => {
       if (driver.active_order_id === orderId) currentQuery.active_order_id = orderId;
       if (driver.active_ride_id === orderId) currentQuery.active_ride_id = orderId;
       const keepNext = Boolean(driver.next_order_id && driver.next_order_id !== orderId);
-      await b44.entities.Driver.updateMany(
+      const clearedCurrent = await b44.entities.Driver.updateMany(
         currentQuery,
         { $set:{
           status: keepNext ? driver.status : 'disponible',
@@ -56,7 +59,10 @@ Deno.serve(async (req) => {
           ...(driver.active_order_id === orderId ? {active_order_id:null} : {}),
           ...(driver.active_ride_id === orderId ? {active_ride_id:null} : {})
         } }
-      ).catch(()=>{});
+      ).catch(()=>null);
+      if ((clearedCurrent?.updated ?? clearedCurrent?.matchedCount ?? clearedCurrent?.modifiedCount ?? 0) !== 1) {
+        return Response.json({success:false,reason:'CANCEL_CURRENT_SLOT_CONCURRENT_CHANGE'},{status:409});
+      }
     }
 
     if (action === 'cancel') {
@@ -87,10 +93,14 @@ Deno.serve(async (req) => {
           {$set:{status:'en_viaje',dispatch_status:'normal',active_order_id:nextOrderId,active_ride_id:nextOrderId,next_order_id:null,next_order_token:null}}
         );
         if ((promotedDriver?.updated ?? promotedDriver?.matchedCount ?? promotedDriver?.modifiedCount ?? 0) !== 1) {
-          await b44.entities.RideOrder.updateMany(
+          const rollbackNext = await b44.entities.RideOrder.updateMany(
             {id:nextOrderId,status:'aceptado',driver_id:driverId},
             {$set:{status:'preasignado_proximo',preassigned_driver_id:driverId,preassignment_token:nextToken,preassigned_at:next.preassigned_at || new Date().toISOString()}}
-          ).catch(()=>{});
+          ).catch(()=>null);
+          if ((rollbackNext?.updated ?? rollbackNext?.matchedCount ?? rollbackNext?.modifiedCount ?? 0) !== 1) {
+            await b44.entities.AuditLog.create({action:'NEXT_RIDE_PROMOTION_ROLLBACK_FAILED',user_type:'sistema',user_name:'operatorOrderAction',details:`No se pudo revertir promoción del segundo pasaje ${nextOrderId} tras cancelar ${orderId}`,metadata:{orderId:nextOrderId,previousOrderId:orderId,driverId,nextToken}}).catch(()=>{});
+            return Response.json({success:false,reason:'NEXT_RIDE_PROMOTION_ROLLBACK_FAILED'},{status:409});
+          }
           continue;
         }
         await b44.entities.AuditLog.create({action:'NEXT_RIDE_PROMOTED_BACKEND',user_type:'sistema',user_name:'operatorOrderAction',details:`Segundo pasaje ${nextOrderId} promovido al cancelar ${orderId}`,metadata:{orderId:nextOrderId,previousOrderId:orderId,driverId}}).catch(()=>{});
