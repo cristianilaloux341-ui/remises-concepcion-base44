@@ -45,9 +45,10 @@ Deno.serve(async (req) => {
       const driver = await b44.entities.Driver.get(driverId).catch(() => null);
       const order = await b44.entities.RideOrder.get(realOrderId).catch(() => null);
 
-      // PUSH_RECEIVED confirma que FCM llegó al proceso nativo. La nueva
-      // v12.31 se identifica explícitamente con supportsAlertPresented=true.
-      // ACK es sólo PUSH_RECEIVED. La ventana comercial espera ALERT_PRESENTED
+      // PUSH_RECEIVED confirma que FCM llegó al proceso nativo.
+      // El protocolo se identifica por capacidad (`supportsAlertPresented=true`),
+      // no por número de versión del APK. ACK es sólo PUSH_RECEIVED.
+      // La ventana comercial espera ALERT_PRESENTED
       // y usa la duración configurada por la empresa.
       let ackRecorded = false;
       let protocolEnabled = false;
@@ -110,7 +111,7 @@ Deno.serve(async (req) => {
           driverId,
           assignmentAttempt: order.assignment_attempt,
           internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
-        }).catch((e: any) => console.error("Error despertando watchdog tras PUSH_RECEIVED v12.31", e));
+        }).catch((e: any) => console.error("Error despertando watchdog tras PUSH_RECEIVED", e));
       }
 
       return Response.json({ success: true, ackRecorded, protocolEnabled });
