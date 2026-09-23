@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, reason: 'already_taken' });
     }
     // Pendientes es una salida explícita del servidor, no sinónimo de status=pendiente.
-    // Evita que una escritura legacy/transitoria pueda ser tomada por otro móvil.
+    // Sólo el backend puede autorizar que una orden quede visible/reclamable.
     if (order.processingAction !== 'PENDING_AUTHORIZED') {
       return Response.json({ success: false, reason: 'pending_not_authorized' });
     }
@@ -208,34 +208,10 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, reason: 'driver_available_in_zone' });
     }
 
-    // Las APK legacy pueden escribir `pendiente` unos milisegundos antes de que
-    // processLegacyExplicitReject restaure/procese la oferta. Ese estado es sólo
-    // transitorio y NO debe quedar reclamable desde Pendientes: de lo contrario
-    // otro móvil roba el pasaje y corta la cadena automática.
-    const nowMs = Date.now();
+    // Si el motor todavía está cerrando/reasignando un intento, la orden no puede
+    // ser reclamada aunque otro estado haya quedado momentáneamente visible.
     if (order.processingPhase === 'REASSIGNING') {
       return Response.json({ success: false, reason: 'automatic_reassignment_in_progress' });
-    }
-    const offerExpiresAt = Number(order.offerExpiresAt);
-    const hasLiveLegacyOfferWindow =
-      Number.isFinite(offerExpiresAt) && offerExpiresAt > nowMs &&
-      Number(order.assignment_attempt || 0) > 0;
-
-    if (hasLiveLegacyOfferWindow) {
-      await b44.entities.AuditLog.create({
-        action: 'PENDING_CLAIM_BLOCKED_LIVE_OFFER_WINDOW',
-        user_type: 'sistema',
-        user_name: driver.name || driverId,
-        details: `Bloqueado Pendientes para ${orderId}: todavía pertenece a una ventana de oferta automática vigente`,
-        metadata: {
-          orderId,
-          driverId,
-          assignmentAttempt: Number(order.assignment_attempt || 0),
-          offerExpiresAt,
-          remainingMs: Math.max(0, offerExpiresAt - nowMs)
-        }
-      }).catch(() => {});
-      return Response.json({ success: false, reason: 'automatic_offer_window_active' });
     }
 
     const token = crypto.randomUUID();
