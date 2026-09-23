@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
 
       const driverToMove = currentQueue[idx];
       if (driverToMove.dispatch_status !== 'normal' || driverToMove.reserved_order_id ||
-          driverToMove.active_order_id || driverToMove.active_ride_id) {
+          driverToMove.active_order_id || driverToMove.active_ride_id || driverToMove.next_order_id) {
         return Response.json({ success:false, reason:'driver_busy' });
       }
 
@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
         const pos = i + 1;
         if (Number(d.queue_position) === pos && Number(d.queue_authority_marker) === pos && d.id !== driverId) continue;
 
-        await b44.entities.Driver.updateMany(
+        const changed = await b44.entities.Driver.updateMany(
           {
             id:d.id,
             queue_authoritative_base:baseName,
@@ -51,7 +51,8 @@ Deno.serve(async (req) => {
             dispatch_status:'normal',
             reserved_order_id:null,
             active_order_id:null,
-            active_ride_id:null
+            active_ride_id:null,
+            next_order_id:null
           },
           { $set:{
             queue_position:pos,
@@ -59,6 +60,10 @@ Deno.serve(async (req) => {
             manual_reorder_at:reorderAt
           } }
         ).catch(()=>({updated:0}));
+        const changedCount = changed?.updated ?? changed?.modifiedCount ?? changed?.matchedCount ?? 0;
+        if (changedCount !== 1) {
+          throw new Error(`QUEUE_REORDER_CONCURRENT_CHANGE:${d.id}`);
+        }
       }
 
       await b44.entities.AuditLog.create({
