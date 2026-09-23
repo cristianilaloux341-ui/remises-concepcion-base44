@@ -114,17 +114,21 @@ Deno.serve(async (req) => {
             const now = new Date().toISOString();
 
             // Cancelación de Central: reingreso explícito primero bajo la misma autoridad de cola.
-            await b44.entities.Driver.updateMany(
+            const targetChanged = await b44.entities.Driver.updateMany(
               {id:target.id,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_order_id:null,active_ride_id:null,next_order_id:null},
               {$set:{current_base:baseName,queue_authoritative_base:baseName,queue_position:1,queue_authority_marker:1,queue_entered_at:now,queue_authoritative_at:now}}
             );
+            const targetCount = targetChanged?.updated ?? targetChanged?.modifiedCount ?? targetChanged?.matchedCount ?? 0;
+            if (targetCount !== 1) throw new Error(`CENTRAL_CANCEL_REQUEUE_RACE:${target.id}`);
             for (let i=0;i<queue.length;i++) {
               const d:any=queue[i]; const pos=i+2;
               if (Number(d.queue_position)===pos && Number(d.queue_authority_marker)===pos) continue;
-              await b44.entities.Driver.updateMany(
-                {id:d.id,queue_authoritative_base:baseName,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_order_id:null,active_ride_id:null},
+              const shifted = await b44.entities.Driver.updateMany(
+                {id:d.id,queue_authoritative_base:baseName,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_order_id:null,active_ride_id:null,next_order_id:null},
                 {$set:{queue_position:pos,queue_authority_marker:pos}}
               );
+              const shiftedCount = shifted?.updated ?? shifted?.modifiedCount ?? shifted?.matchedCount ?? 0;
+              if (shiftedCount !== 1) throw new Error(`CENTRAL_CANCEL_QUEUE_RACE:${d.id}`);
             }
           }).catch(()=>{});
         }
