@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
       // a esta orden. Un next_order_id distinto se conserva intacto.
       const ownsCurrent = driver.reserved_order_id === orderId || driver.active_order_id === orderId || driver.active_ride_id === orderId;
       if (!ownsCurrent) continue;
-      const currentQuery:any = { id:driverId };
+      const currentQuery:any = { id:driverId, next_order_id:driver.next_order_id ?? null, next_order_token:driver.next_order_token ?? null };
       if (driver.reserved_order_id === orderId) currentQuery.reserved_order_id = orderId;
       if (driver.active_order_id === orderId) currentQuery.active_order_id = orderId;
       if (driver.active_ride_id === orderId) currentQuery.active_ride_id = orderId;
