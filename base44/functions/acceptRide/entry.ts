@@ -412,7 +412,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
         status: "aceptado", 
         driver_id: driverId,
         driver_name: driver.name,
-        assigned_base: driver.queue_authoritative_base || driver.current_base || order.assigned_base || order.zone || null,
+        assigned_base: driver.queue_authoritative_base || order.assigned_base || order.zone || null,
         updated_date: new Date().toISOString(), // TRIGGER REALTIME UI UPDATE
         // El commit comercial ya es definitivo: liberar el lease en la MISMA
         // escritura evita otra ida y vuelta al backend antes de responder al chofer.

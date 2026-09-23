@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
   ]);
 
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
-  const effectiveDriverBase = driverReq.queue_authoritative_base || driverReq.current_base || null;
+  const effectiveDriverBase = driverReq.queue_authoritative_base || null;
   const activeStatuses = new Set(['ofrecido', 'aceptado', 'en_camino', 'en_viaje']);
   let conflictingOrders = [...assignedOrders, ...reservedOrders].filter(
     (existing:any, index:number, all:any[]) =>

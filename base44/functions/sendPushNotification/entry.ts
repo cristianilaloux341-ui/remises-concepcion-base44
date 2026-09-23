@@ -498,7 +498,7 @@ Deno.serve(async (req) => {
       // intente notificar, no despertar un teléfono fuera de servicio, sin base o
       // que ya no conserve la reserva de ESTA orden.
       const cleanOrderId = String(orderId).split('_att_')[0];
-      const authoritativeBase = driver?.queue_authoritative_base || driver?.current_base || null;
+      const authoritativeBase = driver?.queue_authoritative_base || null;
       if (
         !driver ||
         driver.status !== 'disponible' ||
