@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
   }
 
   // Verificar la sesión del chofer o clave de servicio mediante el middleware
-  if (!(await verifyRequestAuth(b44, payload, { allowDriverId: driverId }))) {
+  if (!(await verifyRequestAuth(b44, payload, { allowDriverId: driverId, allowOperator: true }))) {
     await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_FAILED', user_type: 'sistema', user_name: 'finishRide', details: 'Invalid driver session', metadata: { orderId, driverId } });
     return Response.json({ success: false, reason: 'unauthorized' }, { status: 401 });
   }
