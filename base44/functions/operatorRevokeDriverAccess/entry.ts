@@ -48,10 +48,25 @@ Deno.serve(async (req) => {
         patch.queue_authoritative_at = null;
         patch.queue_authority_marker = null;
         patch.queue_position = null;
-        await b44.entities.Driver.update(driverId, patch);
+        const changed = await b44.entities.Driver.updateMany(
+          {id:driverId,status:'disponible',active_order_id:null,active_ride_id:null,reserved_order_id:null,next_order_id:null,
+           $or:[{queue_authoritative_base:null},{queue_authoritative_base:{$exists:false}}]},
+          {$set:patch}
+        );
+        const count = Math.max(Number(changed?.updated||0),Number(changed?.modifiedCount||0),Number(changed?.matchedCount||0));
+        if (count !== 1) throw new Error('DRIVER_STATE_CHANGED_RETRY');
       }
     } else {
-      await b44.entities.Driver.update(driverId, patch);
+      const changed = await b44.entities.Driver.updateMany(
+        {id:driverId,
+         active_order_id:driver.active_order_id ?? null,
+         active_ride_id:driver.active_ride_id ?? null,
+         reserved_order_id:driver.reserved_order_id ?? null,
+         next_order_id:driver.next_order_id ?? null},
+        {$set:patch}
+      );
+      const count = Math.max(Number(changed?.updated||0),Number(changed?.modifiedCount||0),Number(changed?.matchedCount||0));
+      if (count !== 1) throw new Error('DRIVER_STATE_CHANGED_RETRY');
     }
     await b44.entities.AuditLog.create({
       action:'revocar_acceso',
