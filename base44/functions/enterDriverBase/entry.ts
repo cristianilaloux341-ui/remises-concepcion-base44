@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
       const previousBase = fresh.queue_authoritative_base || null;
       const queuePosition = await getNextQueuePosition(b44, baseName, driverId);
-      const queueAt = await getNextQueueTailAt(b44, baseName, driverId);
+      const queueAt = new Date().toISOString();
 
       const updated = await b44.entities.Driver.updateMany(
         {
