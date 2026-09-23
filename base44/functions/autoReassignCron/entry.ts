@@ -34,6 +34,8 @@ Deno.serve(async (req) => {
     const stuckDriverGroups = await Promise.all([
       b44.entities.Driver.filter({ reserved_order_id: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ active_ride_id: { $ne: null } }).catch(() => []),
+      b44.entities.Driver.filter({ active_order_id: { $ne: null } }).catch(() => []),
+      b44.entities.Driver.filter({ active_order_id: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ dispatch_status: { $in: ['automatic_pending', 'manual_pending'] } }).catch(() => []),
       b44.entities.Driver.filter({ driver_reservation_key: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ reservation_token: { $ne: null } }).catch(() => []),
@@ -43,7 +45,12 @@ Deno.serve(async (req) => {
       stuckDriverGroups.flat().filter(Boolean).map((d:any) => [d.id, d])
     ).values()];
     for (const driver of stuckDrivers) {
-      const ghostOrderId = driver.reserved_order_id || driver.active_ride_id;
+      // El segundo slot tiene su propio ciclo (confirmación/promoción/cancelación).
+      // Este cron de limpieza jamás debe tocar el primer viaje de un móvil mientras
+      // exista next_order_id: finishRide/checkAndRepairDriver son la autoridad allí.
+      if (driver.next_order_id) continue;
+
+      const ghostOrderId = driver.reserved_order_id || driver.active_order_id || driver.active_ride_id;
       let isDead = false;
       if (ghostOrderId) {
          try {
@@ -63,6 +70,8 @@ Deno.serve(async (req) => {
          if (driver.reservation_token) query.reservation_token = driver.reservation_token;
          if (driver.manual_reservation_token) query.manual_reservation_token = driver.manual_reservation_token;
          if (driver.reserved_order_id) query.reserved_order_id = driver.reserved_order_id;
+         if (driver.active_order_id) query.active_order_id = driver.active_order_id;
+         if (driver.active_order_id) query.active_order_id = driver.active_order_id;
          if (driver.active_ride_id) query.active_ride_id = driver.active_ride_id;
          
          const res = await b44.entities.Driver.updateMany(query, {
