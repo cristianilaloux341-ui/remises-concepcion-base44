@@ -48,9 +48,10 @@ export function getBaseQueue(drivers, baseName) {
 
 // Asignación manual desde Central: la decisión y el commit pertenecen al backend.
 export async function assignDriverToOrder(order, driver, options = {}) {
-  const sessionToken = (typeof sessionStorage !== "undefined" && sessionStorage.getItem("local_operator_token"))
+  const sessionToken = typeof sessionStorage !== "undefined"
     ? sessionStorage.getItem("local_operator_token")
-    : (typeof localStorage !== "undefined" ? (localStorage.getItem("client_token") || "client_demo_token") : "client_demo_token");
+    : null;
+  if (!sessionToken) throw new Error("Sesión de operador requerida para asignar móviles");
   const res = await base44.functions.invoke("assignRide", {
     orderId: order.id, driverId: driver.id, sessionToken,
     requireDriverConfirmation: options.requireDriverConfirmation === true,
