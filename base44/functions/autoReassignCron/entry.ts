@@ -226,7 +226,6 @@ Deno.serve(async (req) => {
     // --- BLOQUE B: solo Cancelados/Rechazados ---
     // Los viajes aceptados o iniciados nunca se resetean automáticamente por antigüedad.
     const allToReset = [...recentlyCancelledOrders];
-    const basesToCompact = new Set<string>();
     
     for (const order of allToReset) {
       if (order.status === 'completado') continue;
@@ -245,8 +244,8 @@ Deno.serve(async (req) => {
         for (const dId of driversToFree) {
           try {
             const currentDriver = await b44.entities.Driver.get(dId).catch(() => null);
-            const queueBase = currentDriver?.queue_authoritative_base || currentDriver?.current_base || null;
-            const newDriverStatus = "disponible";
+            if (!currentDriver) continue;
+            const newDriverStatus = currentDriver.status === 'no_disponible' ? 'no_disponible' : 'disponible';
             
             // CAS: liberar únicamente si el móvil todavía apunta a ESTA orden.
             // Evita que el cron borre una reserva nueva creada por otro operador.
@@ -264,12 +263,15 @@ Deno.serve(async (req) => {
                   active_ride_id: null,
                   reservation_token: null,
                   manual_reservation_token: null,
-                  driver_reservation_key: null
+                  driver_reservation_key: null,
+                  current_base: null,
+                  queue_authoritative_base: null,
+                  queue_position: null,
+                  queue_authority_marker: null
               } }
             );
 
             const releasedCount = released?.updated ?? released?.modifiedCount ?? released?.matchedCount ?? 0;
-            if (releasedCount === 1 && queueBase) basesToCompact.add(queueBase);
             if (releasedCount === 1) count++;
           } catch(e) {
             console.error("Error liberando driver", dId, e);
@@ -280,16 +282,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Si un móvil reaparece después de haber estado oculto/ocupado mientras la base
-    // se compactaba, puede traer una queue_position vieja y duplicar un puesto.
-    // Recompactamos sólo las bases realmente afectadas y siempre bajo el lock de cola.
-    for (const baseName of basesToCompact) {
-      try {
-        await compactQueue(b44, baseName);
-      } catch (e) {
-        console.error("Error compactando cola tras liberar cancelado/rechazado", baseName, e);
-      }
-    }
 
     // El cron NO drena Pendientes y NO invoca reconciliadores de despacho.
     // PENDING_AUTHORIZED es un estado público final del ciclo actual; sólo una acción
