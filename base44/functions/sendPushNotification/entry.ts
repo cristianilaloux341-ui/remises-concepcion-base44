@@ -639,41 +639,14 @@ Deno.serve(async (req) => {
            console.error("Excepción en FCM Nativo:", e);
          }
       } 
-      // Fallback a Web Push si no tiene FCM o si falló el envío por FCM
-      if (!fcmSuccess && driver?.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-        try {
-          let sub = JSON.parse(driver.push_subscription);
-          const payload = JSON.stringify({
-            type: 'NEW_RIDE',
-            orderId,
-            driverId,
-            title,
-            body: bodyStr,
-            actions: [
-              { action: 'accept', title: '✅ Aceptar' },
-              { action: 'reject', title: '❌ Rechazar' }
-            ]
-          });
-          webPushStatus = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-          if (webPushStatus === 410 || webPushStatus === 404) {
-            await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: null });
-          }
-          webPushSuccess = webPushStatus >= 200 && webPushStatus < 300;
-          
-          if (webPushSuccess && title === '🚖 ¡NUEVO VIAJE!') {
-            base44.asServiceRole.entities.AuditLog.create({
-              action: "push_enviado",
-              user_type: "sistema",
-              user_name: "Sistema",
-              details: `Web Push alternativo enviado para ${driver.name || driverId}`,
-              metadata: { orderId: orderId.toString().split('_att_')[0], driverId }
-            }).catch(() => {});
-          }
-        } catch (_) {}
-      }
-
-      const success = webPushSuccess || fcmSuccess;
-      return Response.json({ ok: success, status: webPushStatus });
+      // Las ofertas de viaje usan exclusivamente FCM nativo. Web Push no puede
+      // confirmar ALERT_PRESENTED de forma autoritativa y por eso no participa
+      // del protocolo comercial de despacho. Si FCM no entrega, el watchdog
+      // resolverá DELIVERY_FAILED y continuará la cadena canónica.
+      return Response.json({
+        ok: fcmSuccess,
+        transport: fcmSuccess ? 'FCM_NATIVE' : 'FCM_NATIVE_FAILED'
+      });
     } catch (err) {
       return Response.json({ ok: false, reason: 'send_error', error: err.message });
     }
