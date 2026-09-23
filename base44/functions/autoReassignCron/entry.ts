@@ -286,7 +286,7 @@ Deno.serve(async (req) => {
             // Si este vínculo viejo todavía figura dentro de una cola, la salida y
             // compactación deben ocurrir bajo el mismo lock de esa base. El cron
             // jamás lo reingresa: sólo evita dejar huecos o carreras de posición.
-            const oldBase = currentDriver.queue_authoritative_base || currentDriver.current_base || null;
+            const oldBase = currentDriver.queue_authoritative_base || null;
             const releaseAndCompact = async () => {
               const released = await b44.entities.Driver.updateMany(query, { $set:set });
               const releasedCount = released?.updated ?? released?.modifiedCount ?? released?.matchedCount ?? 0;

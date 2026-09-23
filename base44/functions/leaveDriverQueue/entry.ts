@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const previousBase = current.queue_authoritative_base || current.current_base || null;
+  const previousBase = current.queue_authoritative_base || null;
   const queueLeftAt = new Date().toISOString();
 
   const leaveOnce = async () => {
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     const fresh = freshRows?.[0];
     if (!fresh) return { success:false, reason:'driver_not_found' };
 
-    const freshBase = fresh.queue_authoritative_base || fresh.current_base || null;
+    const freshBase = fresh.queue_authoritative_base || null;
     if (
       freshBase !== previousBase ||
       fresh.status !== 'disponible' ||
