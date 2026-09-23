@@ -85,13 +85,21 @@ Deno.serve(async (req) => {
       return promotedNextOrderId;
     }
 
-    await b44.entities.RideOrder.updateMany(
+    const rollbackNext = await b44.entities.RideOrder.updateMany(
       {id:nextOrderId,status:'aceptado',driver_id:driverId,
        $or:[{preassigned_driver_id:null},{preassigned_driver_id:{$exists:false}}]},
       {$set:{status:'preasignado_proximo',driver_id:driverId,driver_name:fresh.name,
              preassigned_driver_id:driverId,preassignment_token:nextToken,
              preassigned_at:next.preassigned_at || new Date().toISOString()}}
-    ).catch(()=>{});
+    ).catch(()=>null);
+    if (mutationCount(rollbackNext) !== 1) {
+      await b44.entities.AuditLog.create({
+        action:'NEXT_RIDE_PROMOTION_ROLLBACK_FAILED',user_type:'sistema',user_name:'finishRide',
+        details:`No se pudo revertir de forma segura la promoción del segundo pasaje ${nextOrderId}.`,
+        metadata:{orderId:nextOrderId,previousOrderId:orderId,driverId,nextToken}
+      }).catch(()=>{});
+      throw new Error(`NEXT_RIDE_PROMOTION_ROLLBACK_FAILED:${nextOrderId}`);
+    }
     return null;
   };
 
