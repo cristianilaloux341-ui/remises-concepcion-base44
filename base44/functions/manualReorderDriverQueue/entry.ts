@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.48';
 import { verifyRequestAuth } from '../../shared/security.ts';
-import { getBaseQueue, withQueueLock } from '../../shared/queueOrder.ts';
+import { compactQueueUnlocked, getBaseQueue, withQueueLock } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -83,6 +83,18 @@ Deno.serve(async (req) => {
       return Response.json({ success:true, from:idx + 1, to:bounded + 1, queuePosition:bounded + 1 });
     });
   } catch (error:any) {
-    return Response.json({ success:false, reason:error?.message || 'QUEUE_REORDER_FAILED' }, { status:409 });
+    // Un CAS puede fallar después de que filas anteriores ya cambiaron. Recuperar
+    // inmediatamente una cola secuencial bajo la misma autoridad antes de responder.
+    await withQueueLock(b44, baseName, async ()=>{
+      await compactQueueUnlocked(b44, baseName);
+    }).catch(()=>{});
+    await b44.entities.AuditLog.create({
+      action:'QUEUE_MANUAL_REORDER_RECOVERED',
+      user_type:'sistema',
+      user_name:'manualReorderDriverQueue',
+      details:`Reorden manual interrumpido en ${baseName}; se compactó la cola autoritativa.`,
+      metadata:{driverId,baseName,error:error?.message || String(error)}
+    }).catch(()=>{});
+    return Response.json({ success:false, reason:error?.message || 'QUEUE_REORDER_FAILED', queueRecovered:true }, { status:409 });
   }
 });
