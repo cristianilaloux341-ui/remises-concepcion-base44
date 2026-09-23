@@ -194,18 +194,6 @@ Deno.serve(async (req) => {
     return Response.json({ ok:true, ignored:true, reason:'ride_order_workflow_disabled_transport_only' });
   }
 
-  // Interceptar payload de automación de RideOrder para Cliente (Viaje Iniciado)
-  if (body.event && body.event.entity_name === "RideOrder" && body.data) {
-    const isStatusChanged = !body.old_data || body.data.status !== body.old_data.status;
-    if (isStatusChanged && body.data.status === "en_viaje" && body.data.client_id) {
-       // El chofer indica que el viaje ha iniciado
-       body.action = "send_client_push";
-       body.payloadType = "viaje_iniciado";
-       body.userId = body.data.client_id;
-       body.orderId = body.data.id;
-    }
-  }
-
   const { action, driverId, subscription, orderId, orderData, userId, fromName, messageContent, driversToCancel, payloadType, internalKey, sessionToken } = body;
 
   // Validación de seguridad estricta para notificaciones y suscripciones
