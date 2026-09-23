@@ -186,13 +186,7 @@ Deno.serve(async (req) => {
 
   const body = await req.json();
   
-  // Transporte puro: los workflows de RideOrder fueron retirados del motor.
-  // Ninguna notificación puede reparar/revertir RideOrder ni Driver.
-  // Si un payload legacy intenta entrar por esa vía, se ignora sin efectos.
-  const isRideOrderWorkflow = body?.event?.entity_name === "RideOrder" || body?.source === "ride_order_workflow";
-  if (isRideOrderWorkflow) {
-    return Response.json({ ok:true, ignored:true, reason:'ride_order_workflow_disabled_transport_only' });
-  }
+  // Transporte puro: esta función no participa de transiciones de RideOrder.
 
   const { action, driverId, subscription, orderId, orderData, userId, fromName, messageContent, driversToCancel, payloadType, internalKey, sessionToken } = body;
 
