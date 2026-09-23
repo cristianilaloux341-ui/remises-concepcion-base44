@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
 
       if (isDead) {
          const newStatus = driver.status === "no_disponible" ? "no_disponible" : "disponible";
-         const query = { id: driver.id };
+         const query = { id: driver.id, next_order_id: driver.next_order_id ?? null, next_order_token: driver.next_order_token ?? null };
          if (driver.reservation_token) query.reservation_token = driver.reservation_token;
          if (driver.manual_reservation_token) query.manual_reservation_token = driver.manual_reservation_token;
          if (driver.reserved_order_id) query.reserved_order_id = driver.reserved_order_id;
@@ -174,6 +174,7 @@ Deno.serve(async (req) => {
               orphanDriver.status === 'en_viaje' ||
               Boolean(orphanDriver.active_order_id) ||
               Boolean(orphanDriver.active_ride_id) ||
+              Boolean(orphanDriver.next_order_id) ||
               Boolean(orphanDriver.reserved_order_id && orphanDriver.reserved_order_id !== orphanOrder.id);
             if (driverBusyElsewhere) throw new Error('ORPHAN_DRIVER_BUSY');
 
@@ -185,6 +186,8 @@ Deno.serve(async (req) => {
                 reserved_order_id: orphanDriver.reserved_order_id ?? null,
                 active_order_id: orphanDriver.active_order_id ?? null,
                 active_ride_id: orphanDriver.active_ride_id ?? null,
+                next_order_id: orphanDriver.next_order_id ?? null,
+                next_order_token: orphanDriver.next_order_token ?? null,
                 reservation_token: orphanDriver.reservation_token ?? null
               },
               { $set: {
