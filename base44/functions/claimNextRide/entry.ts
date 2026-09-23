@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
             status: 'aceptado',
             driver_id: driverId,
             driver_name: driver.name,
-            assigned_base: driver.current_base || order.assigned_base || order.zone || null,
+            assigned_base: driver.queue_authoritative_base || driver.current_base || order.assigned_base || order.zone || null,
             preassigned_driver_id: null,
             preassignment_token: null,
             preassigned_at: null
@@ -289,7 +289,7 @@ Deno.serve(async (req) => {
             preassigned_at: new Date().toISOString(),
             driver_name: driver.name,
             claimed_from_pending: true,
-            assigned_base: driver.current_base || order.zone || null
+            assigned_base: driver.queue_authoritative_base || driver.current_base || order.zone || null
           }
         }
       );
@@ -348,7 +348,7 @@ Deno.serve(async (req) => {
           driver_id: driverId,
           driver_name: driver.name,
           claimed_from_pending: true,
-          assigned_base: driver.current_base || order.zone || null
+          assigned_base: driver.queue_authoritative_base || driver.current_base || order.zone || null
         }
       }
     );
