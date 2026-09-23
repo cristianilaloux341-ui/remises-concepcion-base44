@@ -53,7 +53,8 @@ function AgendaAlertContent() {
   const { data: rides = [] } = useQuery({
     queryKey: ["scheduled"],
     queryFn: () => base44.entities.ScheduledRide.list("-scheduled_datetime", 200),
-    refetchInterval: 5000,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
   });
 
   const handleDispatch = (ride) => {
@@ -164,7 +165,7 @@ function AgendaAlertContent() {
     };
 
     check();
-    const interval = setInterval(check, 5000);
+    const interval = setInterval(check, 15000);
     return () => clearInterval(interval);
   }, [rides]);
 
