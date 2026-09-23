@@ -65,7 +65,28 @@ Deno.serve(async (req) => {
 
     const zoneKey = String(order.zone || "").trim().toLowerCase();
     const isDirectPendingZone = zoneKey === "0" || zoneKey === "0-pendientes" || zoneKey === "0-pendiente";
-    if (order.zone && !isDirectPendingZone) {
+    if (!zoneKey) {
+      await b44.entities.RideOrder.update(order.id, {
+        status:"pendiente",
+        driver_id:null,
+        driver_name:null,
+        reserved_driver_id:null,
+        assigned_base:null,
+        reservation_token:null,
+        offerExpiresAt:null,
+        processingAction:"CENTRAL_REVIEW_ZONE_REQUIRED",
+        pending_reason:null
+      });
+      await b44.entities.AuditLog.create({
+        action:"ZONE_RESOLUTION_REQUIRED",
+        user_type:"sistema",
+        user_name:"clientCreateAndDispatchRide",
+        details:`Pasaje ${order.id} sin zona válida: requiere revisión de Central y no se publica en Pendientes.`,
+        metadata:{orderId:order.id}
+      }).catch(()=>{});
+      return Response.json({success:false,orderId:order.id,assigned:false,status:"pendiente",centralReview:true,reason:"ZONE_REQUIRED"},{status:409});
+    }
+    if (!isDirectPendingZone) {
       // Si el primer candidato pierde la reserva por concurrencia (otro pasaje lo
       // tomó entre la lectura y el CAS), continuar con el siguiente de ESTA MISMA
       // zona. Un intento fallido no debe mandar a Pendientes mientras quede otro
