@@ -159,8 +159,9 @@ Deno.serve(async (req) => {
       lockedOrder = order;
     }
 
-    // Determinamos si el chofer ya fue liberado previamente (APK legacy)
-    let legacyAlreadyReleased = false;
+    // El backend es la única autoridad: una oferta sólo puede liberarse si el móvil
+    // conserva exactamente la reserva de este intento. No se adoptan liberaciones
+    // locales ni estados incompletos del cliente.
     let actualDriver = null;
     let releaseSet:any = {
       status: 'disponible',
@@ -187,31 +188,19 @@ Deno.serve(async (req) => {
     
     if (releasedCount !== 1) {
       actualDriver = await b44.entities.Driver.get(driverId).catch(() => null);
-      // Permitir que timeout también adopte una liberación previa.
-      // Si el móvil perdió la reserva por algún bug/desconexión, el viaje no debe quedar atascado.
-      legacyAlreadyReleased = Boolean(
-        actualDriver &&
-        actualDriver.reserved_order_id !== orderId &&
-        actualDriver.reservation_token !== order.reservation_token
-      );
-
-      if (legacyAlreadyReleased) {
-        currentReleased = true;
-        await b44.entities.AuditLog.create({
-          action:'LEGACY_DRIVER_RELEASE_ADOPTED',
-          user_type:'sistema',
-          user_name:'rejectRide',
-          details:`Central adoptó liberación previa de APK vieja para ${driverId} / ${orderId}`,
-          metadata:{ orderId, driverId, assignmentAttempt:Number(assignmentAttempt), legacyQueueEnteredAt }
-        }).catch(()=>{});
-      } else {
-        await b44.entities.RideOrder.updateMany(
-          { id:orderId, processingOwnerId:lockOwner },
-          { $set:{ processingOwnerId:null, processingAction:null, processingOperationKey:null, processingLeaseExpiresAt:null, processingPhase:null } }
-        ).catch(()=>{});
-        lockOwner = null;
-        return Response.json({ success:false, reason:'STALE_OR_EXPIRED' });
-      }
+      await b44.entities.RideOrder.updateMany(
+        { id:orderId, processingOwnerId:lockOwner },
+        { $set:{ processingOwnerId:null, processingAction:null, processingOperationKey:null, processingLeaseExpiresAt:null, processingPhase:null } }
+      ).catch(()=>{});
+      lockOwner = null;
+      await b44.entities.AuditLog.create({
+        action:'DRIVER_RELEASE_STATE_MISMATCH',
+        user_type:'sistema',
+        user_name:'rejectRide',
+        details:`No se liberó ${driverId} / ${orderId}: la reserva ya no coincide con el intento autoritativo.`,
+        metadata:{orderId,driverId,assignmentAttempt:Number(assignmentAttempt),reserved_order_id:actualDriver?.reserved_order_id || null}
+      }).catch(()=>{});
+      return Response.json({ success:false, reason:'STALE_OR_EXPIRED' });
     } else {
       currentReleased = true;
       actualDriver = await b44.entities.Driver.get(driverId).catch(() => null);
