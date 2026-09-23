@@ -225,15 +225,14 @@ Deno.serve(async (req) => {
       // en lugar de convertirla accidentalmente en una aceptación del intento actual.
       const attempt = nativeAssignmentAttempt;
       
-      // Llamamos internamente a la función de aceptación de producción
-      // USAMOS INTERNAL_KEY para saltarnos el chequeo de sesión del chofer,
-      // evitando que rebote el viaje si el chofer reinstaló la app y se desincronizó el token local.
+      // La sesión ya fue validada al entrar a esta función. Conservamos exactamente
+      // ese mismo token al delegar en acceptRide; no lo sustituimos por el valor de
+      // base de datos ni usamos una llave interna para ocultar una desincronización.
       const result = await b44.functions.invoke("acceptRide", {
          orderId: realOrderId,
          driverId,
          assignmentAttempt: attempt,
-         sessionToken: driver.current_session_token,
-         internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+         sessionToken: nativeSessionToken
       });
       
       return Response.json(result);
@@ -261,7 +260,7 @@ Deno.serve(async (req) => {
         orderId: realOrderId,
         driverId,
         assignmentAttempt: attempt,
-        internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+        sessionToken: nativeSessionToken
       });
       const rejectResult = rejectResponse?.data || rejectResponse;
 
