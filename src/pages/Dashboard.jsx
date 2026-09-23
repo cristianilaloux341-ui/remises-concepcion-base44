@@ -79,7 +79,7 @@ function CentralOfferCountdown({ order }) {
 export default function Dashboard() {
   const { toast } = useToast();
   // Suscripciones en tiempo real — actualizaciones instantáneas sin polling
-  const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 4000 });
+  const { orders, isLoading: loadingOrders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 10000 });
   const { drivers } = useRealtimeDrivers({ refreshIntervalMs: 30000 });
 
   // Las alertas de rechazo se muestran una sola vez desde AppLayout.
