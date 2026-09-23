@@ -366,7 +366,7 @@ Deno.serve(async (req) => {
 
         const token = crypto.randomUUID();
         const reserve = await b44.entities.Driver.updateMany(
-          { id:nextDriver.id, status:'disponible', dispatch_status:'normal', reserved_order_id:null, active_order_id:null, active_ride_id:null },
+          { id:nextDriver.id, status:'disponible', dispatch_status:'normal', reserved_order_id:null, active_order_id:null, active_ride_id:null, next_order_id:null },
           { $set:{ dispatch_status:'automatic_pending', reserved_order_id:orderId, reservation_token:token } }
         );
         if ((reserve.matchedCount ?? reserve.modifiedCount ?? reserve.updated ?? 0) !== 1) continue;
