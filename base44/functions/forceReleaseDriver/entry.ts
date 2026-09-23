@@ -18,13 +18,14 @@ Deno.serve(async (req) => {
     const driver = await b44.entities.Driver.get(driverId).catch(() => null);
     if (!driver) return Response.json({ success:false, reason:'driver_not_found' }, { status:404 });
 
-    const refs = [driver.active_order_id, driver.reserved_order_id, driver.active_ride_id].filter(Boolean);
+    const refs = [driver.active_order_id, driver.reserved_order_id, driver.active_ride_id, driver.next_order_id].filter(Boolean);
     const orders:any[] = [];
     for (const id of [...new Set(refs)]) {
       const o = await b44.entities.RideOrder.get(id).catch(() => null);
       if (o) orders.push(o);
     }
-    const validActive = orders.find(o => ACTIVE.has(o.status) && (o.driver_id === driverId || o.reserved_driver_id === driverId));
+    const validActive = orders.find(o => ACTIVE.has(o.status) &&
+      (o.driver_id === driverId || o.reserved_driver_id === driverId || o.preassigned_driver_id === driverId));
     if (validActive) {
       return Response.json({ success:false, reason:'VALID_ACTIVE_RIDE', orderId:validActive.id, status:validActive.status });
     }
@@ -35,11 +36,20 @@ Deno.serve(async (req) => {
       active_order_id: driver.active_order_id || null,
       active_ride_id: driver.active_ride_id || null,
       reserved_order_id: driver.reserved_order_id || null,
-      reservation_token: driver.reservation_token || null
+      reservation_token: driver.reservation_token || null,
+      next_order_id: driver.next_order_id || null,
+      next_order_token: driver.next_order_token || null
     };
 
+    // Código 99 sólo libera fantasmas. Si apareció cualquier vínculo nuevo desde la
+    // lectura inicial (incluido segundo slot), el CAS no toca al móvil.
+    const releaseQuery:any = { id: driverId };
+    for (const field of ['active_order_id','active_ride_id','reserved_order_id','next_order_id']) {
+      const value = driver[field];
+      releaseQuery[field] = value == null ? null : value;
+    }
     await b44.entities.Driver.updateMany(
-      { id: driverId },
+      releaseQuery,
       { $set: {
         status:'disponible', dispatch_status:'normal', active_order_id:null, active_ride_id:null,
         reserved_order_id:null, reservation_token:null, manual_reservation_token:null, driver_reservation_key:null,
