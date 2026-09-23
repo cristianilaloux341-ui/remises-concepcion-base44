@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 
-import { Car, Clock, CheckCircle2, Users, ArrowRight, Zap, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Car, Clock, CheckCircle2, Users, ArrowRight, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { resolvePanicAlert } from "@/lib/panicAlerts";
 import { getEffectiveQueueBase } from "@/lib/dispatchLogic";
 
 function RideAge({ createdDate }) {
@@ -111,138 +110,6 @@ export default function Dashboard() {
     enabled: drivers.length > 0,
     staleTime: 60_000,
   });
-
-  const [panicAlerts, setPanicAlerts] = useState([]);
-  const [showPanicPanel, setShowPanicPanel] = useState(false);
-
-  // Monitoreo de viajes nuevos usando la MISMA fuente de orders del Dashboard.
-  // Evita abrir una segunda suscripción global a RideOrder solo para la burbuja.
-  const knownOrderIdsRef = useRef(new Set());
-  const knownOrdersInitializedRef = useRef(false);
-  useEffect(() => {
-    if (!knownOrdersInitializedRef.current) {
-      orders.forEach(o => { if (o?.id) knownOrderIdsRef.current.add(o.id); });
-      knownOrdersInitializedRef.current = true;
-      return;
-    }
-
-    const newPending = [];
-    for (const order of orders) {
-      if (!order?.id) continue;
-      const isNew = !knownOrderIdsRef.current.has(order.id);
-      knownOrderIdsRef.current.add(order.id);
-      const isLegacyTransientPending =
-        order.status === "pendiente" &&
-        order.offerExpiresAt != null &&
-        Number.isFinite(Number(order.offerExpiresAt)) &&
-        Number(order.assignment_attempt || 0) > 0;
-      if (isNew && order.status === "pendiente" && !isLegacyTransientPending) newPending.push(order);
-    }
-
-    for (const order of newPending) {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        if (ctx.state === "suspended") ctx.resume();
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.type = "sine";
-        o.frequency.setValueAtTime(880, ctx.currentTime);
-        o.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
-        g.gain.setValueAtTime(0, ctx.currentTime);
-        g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-        o.connect(g); g.connect(ctx.destination);
-        o.start(); o.stop(ctx.currentTime + 0.3);
-      } catch (_) {}
-
-      toast({
-        title: "🚕 ¡Nuevo viaje entrante!",
-        description: `${order.pickup_address} (${order.client_name || 'Cliente'})`,
-        action: (
-          <ToastAction altText="Ver" onClick={() => window.location.href = `/orders/${order.id}`}>
-            Ver Viaje
-          </ToastAction>
-        ),
-        duration: 10000,
-      });
-    }
-  }, [orders, toast]);
-
-  // Mantener únicamente alertas activas. Las atendidas nunca vuelven al recargar.
-  useEffect(() => {
-    let unsubscribe = null;
-
-    const loadActive = () => {
-      base44.entities.PanicAlert.filter({ status: "activo" })
-        .then(data => setPanicAlerts(data.sort((a, b) => new Date(b.created_date) - new Date(a.created_date))))
-        .catch(() => {});
-    };
-
-    const connect = () => {
-      unsubscribe?.();
-      loadActive();
-      unsubscribe = base44.entities.PanicAlert.subscribe((event) => {
-        if (event.type === "create" && event.data?.status === "activo") {
-          setPanicAlerts(prev => prev.some(a => a.id === event.id) ? prev : [event.data, ...prev]);
-          setShowPanicPanel(true);
-          try {
-            navigator.vibrate?.([500, 200, 500, 200, 500]);
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            if (ctx.state === "suspended") ctx.resume();
-            [0, 300, 600].forEach(delay => {
-              const o = ctx.createOscillator();
-              const g = ctx.createGain();
-              o.connect(g); g.connect(ctx.destination);
-              o.type = "sine"; o.frequency.value = 1000;
-              const t = ctx.currentTime + delay / 1000;
-              g.gain.setValueAtTime(0, t);
-              g.gain.linearRampToValueAtTime(0.8, t + 0.05);
-              g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-              o.start(t); o.stop(t + 0.4);
-            });
-          } catch (_) {}
-        } else if (event.type === "update") {
-          if (event.data?.status !== "activo") {
-            setPanicAlerts(prev => prev.filter(alert => alert.id !== event.id));
-          } else {
-            setPanicAlerts(prev => prev.map(alert => alert.id === event.id ? { ...alert, ...event.data } : alert));
-          }
-        } else if (event.type === "delete") {
-          setPanicAlerts(prev => prev.filter(alert => alert.id !== event.id));
-        }
-      });
-    };
-
-    connect();
-
-    // Un canal de pánico puede pasar horas sin eventos y eso es normal. No usar el
-    // silencio como señal de desconexión: antes provocaba una nueva suscripción +
-    // consulta cada ~30 s durante todo el turno. Revalidamos sólo ante señales reales
-    // de reconexión de la Central/navegador.
-    const handleReconnect = () => connect();
-    window.addEventListener('radiocab_reconnect', handleReconnect);
-    window.addEventListener('online', handleReconnect);
-
-    return () => {
-      unsubscribe?.();
-      window.removeEventListener('radiocab_reconnect', handleReconnect);
-      window.removeEventListener('online', handleReconnect);
-    };
-  }, []);
-
-  const handleResolvePanic = async (panic) => {
-    setPanicAlerts(prev => prev.filter(item => item.id !== panic.id));
-    try {
-      await resolvePanicAlert(panic.id);
-    } catch (error) {
-      setPanicAlerts(prev => prev.some(item => item.id === panic.id) ? prev : [panic, ...prev]);
-      window.alert(error?.message || "No se pudo marcar la alerta como atendida.");
-    }
-  };
-
-  const isVisiblePending = (o) =>
-    o.status === "pendiente" &&
-    !(o.offerExpiresAt != null && Number.isFinite(Number(o.offerExpiresAt)) && Number(o.assignment_attempt || 0) > 0);
 
   const activeOrders = orders.filter(o =>
     ["preasignado_proximo", "ofrecido", "aceptado", "en_camino", "en_viaje"].includes(o.status) ||
@@ -465,60 +332,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Panic Alerts */}
-      {panicAlerts.length > 0 && (
-        <Card className="border-red-400 bg-red-50">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2 text-red-700">
-                <AlertCircle className="w-5 h-5 animate-pulse" />
-                Alertas de Pánico ({panicAlerts.length})
-              </CardTitle>
-              <button
-                onClick={() => setShowPanicPanel(!showPanicPanel)}
-                className="text-red-600 hover:text-red-700"
-              >
-                {showPanicPanel ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </CardHeader>
-          {showPanicPanel && (
-            <CardContent className="space-y-2">
-              {panicAlerts.slice(0, 5).map(alert => (
-                <div key={alert.id} className="bg-white rounded-lg p-3 border border-red-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-red-700">{alert.driver_name}</p>
-                      <p className="text-xs text-gray-600">{alert.vehicle_plate}</p>
-                    </div>
-                    <Badge className="bg-red-600 text-white border-0">PÁNICO</Badge>
-                  </div>
-                  {alert.current_lat && alert.current_lng && (
-                    <p className="text-xs text-gray-500 font-mono">
-                      📍 {Number(alert.current_lat).toFixed(4)}, {Number(alert.current_lng).toFixed(4)}
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-400">{format(new Date(alert.created_date), "HH:mm:ss")}</p>
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      onClick={() => window.open(`https://www.google.com/maps/?q=${alert.current_lat},${alert.current_lng}`, "_blank")}
-                      className="flex-1 text-xs bg-blue-500 hover:bg-blue-600 text-white py-1 rounded"
-                    >
-                      Ver en Maps
-                    </button>
-                    <button
-                      onClick={() => handleResolvePanic(alert)}
-                      className="flex-1 text-xs bg-green-500 hover:bg-green-600 text-white py-1 rounded"
-                    >
-                      Atendido
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          )}
-        </Card>
-      )}
+
 
     </div>
   );
