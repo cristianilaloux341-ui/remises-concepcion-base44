@@ -144,37 +144,22 @@ export async function getNextQueuePosition(b44: any, baseName: string, excludeDr
 }
 
 export async function compactQueueUnlocked(b44: any, baseName: string) {
-  // Compactación autoritativa: conserva EXACTAMENTE el orden relativo actual y
-  // elimina huecos (1,2,3,8 -> 1,2,3,4). Solo debe llamarse dentro del lock de cola
-  // y después de una acción operativa real; heartbeat/GPS/reconexión nunca la llaman.
+  // Compactación autoritativa: queue_position es la única prioridad operativa.
+  // No reescribimos timestamps/proyecciones de APK legacy: eso alargaba el QueueLock
+  // y generaba escrituras sin valor para el nuevo cliente.
   if (!baseName) return;
   const rows = await b44.entities.Driver.filter({
     status: 'disponible',
     queue_authoritative_base: baseName
   }).catch(() => []);
   const queue = getBaseQueue(Array.isArray(rows) ? rows : [], baseName);
-  
-  // Para que el APK (que a veces ordena por timestamp localmente) vea el mismo orden sin huecos,
-  // asignamos fechas secuenciales hacia atrás desde "ahora" o mantenemos el orden temporal.
-  // Mantenemos los queue_entered_at originales pero nos aseguramos que su orden temporal 
-  // coincide estrictamente con la compactación.
-  
-  let currentBaseMs = Date.now() - (queue.length * 1000);
-  
+
   for (let i = 0; i < queue.length; i++) {
     const d = queue[i];
     const wanted = i + 1;
-    currentBaseMs += 1000;
-    const newTimestamp = new Date(currentBaseMs).toISOString();
-    
-    // Si la posición ya era correcta, verificamos si el timestamp acompaña (APK sync)
-    if (Number(d.queue_position) === wanted && Number(d.queue_authority_marker) === wanted) {
-        // En compactaciones puras sin movimiento, no tocamos el entered_at para no generar ruido,
-        // asumiendo que ya estaba bien. Si hubo un cambio de posición, actualizamos todo.
-        continue;
-    }
-    
-    const res = await b44.entities.Driver.updateMany(
+    if (Number(d.queue_position) === wanted && Number(d.queue_authority_marker) === wanted) continue;
+
+    await b44.entities.Driver.updateMany(
       {
         id: d.id,
         status: 'disponible',
@@ -184,16 +169,13 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
         active_order_id: null,
         active_ride_id: null
       },
-      { $set: { 
-          queue_position: wanted, 
-          queue_authority_marker: wanted,
-          queue_entered_at: newTimestamp,
-          queue_authoritative_at: newTimestamp
-        } 
+      { $set: {
+          queue_position: wanted,
+          queue_authority_marker: wanted
+        }
       }
     ).catch(() => ({ updated: 0 }));
-    if (mutationCount(res) !== 1) continue;
-    }
+  }
 }
 
 export async function compactQueue(b44: any, baseName: string) {
