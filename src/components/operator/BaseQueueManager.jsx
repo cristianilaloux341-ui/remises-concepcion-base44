@@ -37,7 +37,7 @@ export function ConnectivityIndicator({ lastActive }) {
       }
     };
     update();
-    const int = setInterval(update, 5000); // Actualiza cada 5s para ahorrar CPU
+    const int = setInterval(update, 15000); // Indicador visual: no necesita refresco cada 5s
     return () => clearInterval(int);
   }, [lastActive]);
 
@@ -459,13 +459,15 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
 
   useEffect(() => {
     if (!Object.keys(queueMovementAlerts).length) return;
-    const timer = setInterval(() => {
+    // Es sólo una alerta visual de movimiento: un único timeout basta. Evita
+    // despertar/re-renderizar toda la botonera de colas cada segundo.
+    const timer = setTimeout(() => {
       const cutoff = Date.now() - 30000;
       setQueueMovementAlerts(prev => Object.fromEntries(
         Object.entries(prev).filter(([, movement]) => movement.detectedAt >= cutoff)
       ));
-    }, 1000);
-    return () => clearInterval(timer);
+    }, 30000);
+    return () => clearTimeout(timer);
   }, [queueMovementAlerts]);
 
   const getLinkedMovil = (d) => {
