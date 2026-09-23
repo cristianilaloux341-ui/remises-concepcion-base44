@@ -477,20 +477,6 @@ export default function TarifaConfigPanel() {
             </div>
           </div>
 
-          <div className="space-y-3 pt-4 border-t">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-slate-800">Auto-aceptar viajes al asignar (Modo Radio)</p>
-                <p className="text-sm text-muted-foreground">
-                  Si está activado, los viajes asignados a un chofer pasarán directamente a estado <strong>aceptado</strong> / <strong>en_viaje</strong> sin esperar confirmación desde la app.
-                </p>
-              </div>
-              <Switch
-                checked={form.auto_aceptar_viajes}
-                onCheckedChange={(val) => handleChange("auto_aceptar_viajes", val)}
-              />
-            </div>
-          </div>
         </CardContent>
       </Card>
 

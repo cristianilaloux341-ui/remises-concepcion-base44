@@ -492,13 +492,9 @@ Deno.serve(async (req) => {
     // crear offerExpiresAt = presented_at + tiempo configurado. Antes de eso existe
     // entrega técnica, pero no un timeout comercial.
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
-    // Una asignación manual siempre debe esperar la aceptación del chofer.
-    const autoAceptarViajes = payload.requireDriverConfirmation === true
-      ? false
-      : (config.auto_aceptar_viajes ?? false);
-
-    const targetOrderStatus = autoAceptarViajes ? "aceptado" : "ofrecido";
-    const targetDriverStatus = autoAceptarViajes ? "en_viaje" : "ofrecido";
+    // Toda asignación crea una oferta. Sólo acceptRide puede confirmar al chofer.
+    const targetOrderStatus = "ofrecido";
+    const targetDriverStatus = "ofrecido";
 
     const newAttempt = (orderReq.assignment_attempt || 0) + 1;
     // Historial único de ofertas. La barrera superior impide repeticiones;
