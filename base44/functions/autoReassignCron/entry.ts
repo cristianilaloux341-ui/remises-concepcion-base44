@@ -1,5 +1,4 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { compactQueue } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
