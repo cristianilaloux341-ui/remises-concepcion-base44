@@ -99,15 +99,12 @@ export async function verifyRequestAuth(b44: any, payload: any, options: { allow
     if (await verifyOperatorSession(b44, sessionToken)) return true;
   }
   
-  // 3. Si se restringe a un driver específico, verificamos que su token coincida
+  // 3. Un chofer sólo puede actuar con la sesión emitida por driverDeviceAccess.
+  // La verificación nunca crea, rota ni "corrige" tokens: eso pertenece al login.
   if (options.allowDriverId && sessionToken) {
     const drivers = await b44.entities.Driver.filter({ id: options.allowDriverId });
-    if (drivers.length > 0) {
-      // Autocorrección total: si el token no coincide (ej. desinstalaron y volvieron a instalar la app),
-      // lo actualizamos silenciosamente para no bloquearles el trabajo.
-      if (drivers[0].current_session_token !== sessionToken) {
-        await b44.entities.Driver.update(options.allowDriverId, { current_session_token: sessionToken });
-      }
+    const driver = drivers[0];
+    if (driver && driver.current_session_token && driver.current_session_token === sessionToken) {
       return true;
     }
   }
