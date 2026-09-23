@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
+import { verifyRequestAuth } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -8,6 +9,13 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const { orderData, sessionToken, manualDriverId, resolvedMobileId, requestedDriverOnly = false } = body;
+
+    // Mientras se reconstruye Clientes, esta entrada pertenece a Central.
+    // Ningún cliente puede crear una orden que active el motor de despacho por esta ruta.
+    const authorized = await verifyRequestAuth(b44, body, { allowOperator:true });
+    if (!authorized) {
+      return Response.json({ success:false, error:"UNAUTHORIZED_OPERATOR" }, { status:401 });
+    }
     
     // Crear el viaje y resolver el primer candidato únicamente dentro de su zona.
     const order = await b44.entities.RideOrder.create({
