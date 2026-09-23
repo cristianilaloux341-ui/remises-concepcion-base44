@@ -307,14 +307,22 @@ Deno.serve(async (req) => {
       }
       // Si era una oferta del segundo cupo, liberar sólo esa reserva provisional.
       if (order.second_slot_offer === true) {
-        await b44.entities.Driver.updateMany(
+        const clearedNext = await b44.entities.Driver.updateMany(
           {id:driverId,next_order_id:orderId,next_order_token:order.reservation_token},
           {$set:{next_order_id:null,next_order_token:null}}
-        ).catch(()=>{});
-        await b44.entities.RideOrder.updateMany(
-          {id:orderId,status:'pendiente',pending_reason:'REQUESTED_DRIVER_NOT_ACCEPTED'},
+        ).catch(()=>null);
+        if ((clearedNext?.matchedCount ?? clearedNext?.modifiedCount ?? clearedNext?.updated ?? 0) !== 1) {
+          await b44.entities.AuditLog.create({action:'REQUESTED_SECOND_SLOT_CLEANUP_FAILED',user_type:'sistema',user_name:'rejectRide',details:`No se pudo liberar segundo cupo requerido ${orderId} tras ${source}`,metadata:{orderId,driverId,assignmentAttempt:Number(assignmentAttempt),reservationToken:order.reservation_token}}).catch(()=>{});
+          throw new Error('REQUESTED_SECOND_SLOT_CLEANUP_FAILED');
+        }
+        const clearedFlag = await b44.entities.RideOrder.updateMany(
+          {id:orderId,status:'pendiente',pending_reason:'REQUESTED_DRIVER_NOT_ACCEPTED',second_slot_offer:true},
           {$set:{second_slot_offer:false}}
-        ).catch(()=>{});
+        ).catch(()=>null);
+        if ((clearedFlag?.matchedCount ?? clearedFlag?.modifiedCount ?? clearedFlag?.updated ?? 0) !== 1) {
+          await b44.entities.AuditLog.create({action:'REQUESTED_SECOND_SLOT_FLAG_CLEANUP_FAILED',user_type:'sistema',user_name:'rejectRide',details:`No se pudo cerrar marca second_slot_offer de ${orderId}`,metadata:{orderId,driverId,assignmentAttempt:Number(assignmentAttempt)}}).catch(()=>{});
+          throw new Error('REQUESTED_SECOND_SLOT_FLAG_CLEANUP_FAILED');
+        }
       }
       lockOwner = null;
       await b44.entities.AuditLog.create({
