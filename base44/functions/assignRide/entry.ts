@@ -373,7 +373,14 @@ Deno.serve(async (req) => {
         delivery_retry_count:0,pending_reason:null},$addToSet:{offered_driver_ids:driverId}}
     );
     if ((offered.matchedCount ?? offered.modifiedCount ?? offered.updated ?? 0) !== 1) {
-      await b44.entities.Driver.updateMany({id:driverId,next_order_id:orderId,next_order_token:nextToken},{$set:{next_order_id:null,next_order_token:null}});
+      const rollbackDriver = await b44.entities.Driver.updateMany(
+        {id:driverId,next_order_id:orderId,next_order_token:nextToken},
+        {$set:{next_order_id:null,next_order_token:null}}
+      ).catch(()=>null);
+      if ((rollbackDriver?.matchedCount ?? rollbackDriver?.modifiedCount ?? rollbackDriver?.updated ?? 0) !== 1) {
+        await b44.entities.AuditLog.create({action:'SECOND_SLOT_RESERVATION_ROLLBACK_FAILED',user_type:'sistema',user_name:'assignRide',details:`No se pudo liberar reserva provisional del segundo pasaje requerido ${orderId}`,metadata:{orderId,driverId,nextToken}}).catch(()=>{});
+        return Response.json({success:false,reason:'SECOND_SLOT_RESERVATION_ROLLBACK_FAILED'},{status:409});
+      }
       return Response.json({success:false,reason:'ORDER_CHANGED'});
     }
     b44.functions.invoke('sendPushNotification',{action:'send',driverId,orderId,orderData:{
@@ -428,10 +435,14 @@ Deno.serve(async (req) => {
     );
     const wonOrder = (orderNext?.matchedCount ?? orderNext?.modifiedCount ?? orderNext?.updated ?? 0) === 1;
     if (!wonOrder) {
-      await b44.entities.Driver.updateMany(
+      const rollbackDriver = await b44.entities.Driver.updateMany(
         {id:driverId,next_order_id:orderId,next_order_token:nextToken},
         {$set:{next_order_id:null,next_order_token:null}}
-      );
+      ).catch(()=>null);
+      if ((rollbackDriver?.matchedCount ?? rollbackDriver?.modifiedCount ?? rollbackDriver?.updated ?? 0) !== 1) {
+        await b44.entities.AuditLog.create({action:'SECOND_SLOT_RESERVATION_ROLLBACK_FAILED',user_type:'sistema',user_name:'assignRide',details:`No se pudo liberar reserva provisional del segundo pasaje ${orderId}`,metadata:{orderId,driverId,nextToken}}).catch(()=>{});
+        return Response.json({success:false,reason:'SECOND_SLOT_RESERVATION_ROLLBACK_FAILED'},{status:409});
+      }
       return Response.json({success:false,reason:'ORDER_CHANGED'});
     }
     await b44.entities.AuditLog.create({
