@@ -14,18 +14,13 @@ function OfferCountdown({ order }) {
     }
 
     const explicitExpiry = Number(order.offerExpiresAt);
-    const assignedMs = order.assigned_at ? new Date(order.assigned_at).getTime() : NaN;
-    const updatedMs = order.updated_date ? new Date(order.updated_date).getTime() : NaN;
-    const createdMs = order.created_date ? new Date(order.created_date).getTime() : NaN;
-    const baseMs = Number.isFinite(assignedMs) ? assignedMs : (Number.isFinite(updatedMs) ? updatedMs : createdMs);
-    const expiresMs = order.offerExpiresAt != null && Number.isFinite(explicitExpiry)
-      ? explicitExpiry
-      : baseMs + 30000;
-
-    if (!Number.isFinite(expiresMs)) {
+    // Central no inventa un reloj. Hasta ALERT_PRESENTED la oferta existe,
+    // pero la ventana comercial todavía no comenzó.
+    if (order.offerExpiresAt == null || !Number.isFinite(explicitExpiry)) {
       setSeconds(null);
       return;
     }
+    const expiresMs = explicitExpiry;
 
     const tick = () => setSeconds(Math.max(0, Math.ceil((expiresMs - Date.now()) / 1000)));
     tick();
@@ -33,7 +28,7 @@ function OfferCountdown({ order }) {
     return () => clearInterval(timer);
   }, [order.status, order.offerExpiresAt, order.assigned_at, order.updated_date, order.created_date, order.assignment_attempt]);
 
-  if (seconds == null) return null;
+  if (seconds == null) return order.status === "ofrecido" ? <span className="text-xs font-semibold text-slate-500">Esperando teléfono</span> : null;
   return (
     <span className={`font-mono text-xs font-black px-2 py-1 rounded-md ${seconds <= 10 ? "bg-red-600 text-white animate-pulse" : "bg-amber-400 text-black"}`}>
       ⏱ {String(seconds).padStart(2, "0")}s

@@ -480,7 +480,6 @@ Deno.serve(async (req) => {
     // Motor nuevo: los 30 s NO nacen al asignar. Sólo ALERT_PRESENTED puede
     // crear offerExpiresAt = presented_at + 30 s. Antes de eso existe entrega,
     // con un único reintento técnico, pero no un timeout comercial.
-    const timeoutSeconds = 30;
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     // Una asignación manual siempre debe esperar la aceptación del chofer.
     const autoAceptarViajes = payload.requireDriverConfirmation === true
