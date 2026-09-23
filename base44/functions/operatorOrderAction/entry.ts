@@ -65,6 +65,37 @@ Deno.serve(async (req) => {
         { $set:{ status:'cancelado', offerExpiresAt:null, processingAction:'CANCELLED_BY_CENTRAL', processingOperationKey:null, processingOwnerId:null, processingLeaseExpiresAt:null, processingPhase:null } }
       );
       if ((changed?.updated ?? changed?.matchedCount ?? changed?.modifiedCount ?? 0) !== 1) return Response.json({success:false,reason:'CONCURRENT_CHANGE'});
+
+      // Si se canceló el primer viaje y ya había un segundo confirmado, promoverlo
+      // inmediatamente. La cancelación no debe dejar el próximo viaje varado.
+      for (const driverId of driverIds) {
+        const fresh = await b44.entities.Driver.get(driverId).catch(()=>null);
+        const nextOrderId = fresh?.next_order_id;
+        const nextToken = fresh?.next_order_token;
+        if (!nextOrderId || !nextToken) continue;
+        if (fresh.reserved_order_id || fresh.active_order_id || fresh.active_ride_id) continue;
+        const next = await b44.entities.RideOrder.get(nextOrderId).catch(()=>null);
+        if (!next || next.status !== 'preasignado_proximo' || next.preassigned_driver_id !== driverId || next.preassignment_token !== nextToken) continue;
+        const promotedOrder = await b44.entities.RideOrder.updateMany(
+          {id:nextOrderId,status:'preasignado_proximo',preassigned_driver_id:driverId,preassignment_token:nextToken},
+          {$set:{status:'aceptado',driver_id:driverId,driver_name:fresh.name,preassigned_driver_id:null,preassignment_token:null,preassigned_at:null}}
+        );
+        if ((promotedOrder?.updated ?? promotedOrder?.matchedCount ?? promotedOrder?.modifiedCount ?? 0) !== 1) continue;
+        const promotedDriver = await b44.entities.Driver.updateMany(
+          {id:driverId,next_order_id:nextOrderId,next_order_token:nextToken,
+           $and:[{$or:[{reserved_order_id:null},{reserved_order_id:{$exists:false}}]},{$or:[{active_order_id:null},{active_order_id:{$exists:false}}]},{$or:[{active_ride_id:null},{active_ride_id:{$exists:false}}]}]},
+          {$set:{status:'en_viaje',dispatch_status:'normal',active_order_id:nextOrderId,active_ride_id:nextOrderId,next_order_id:null,next_order_token:null}}
+        );
+        if ((promotedDriver?.updated ?? promotedDriver?.matchedCount ?? promotedDriver?.modifiedCount ?? 0) !== 1) {
+          await b44.entities.RideOrder.updateMany(
+            {id:nextOrderId,status:'aceptado',driver_id:driverId},
+            {$set:{status:'preasignado_proximo',preassigned_driver_id:driverId,preassignment_token:nextToken,preassigned_at:next.preassigned_at || new Date().toISOString()}}
+          ).catch(()=>{});
+          continue;
+        }
+        await b44.entities.AuditLog.create({action:'NEXT_RIDE_PROMOTED_BACKEND',user_type:'sistema',user_name:'operatorOrderAction',details:`Segundo pasaje ${nextOrderId} promovido al cancelar ${orderId}`,metadata:{orderId:nextOrderId,previousOrderId:orderId,driverId}}).catch(()=>{});
+      }
+
       // Regla comercial: sólo una cancelación de Central devuelve el móvil primero.
       // Una cancelación del cliente libera el viaje sin alterar la prioridad de cola.
       if (operatorAuthorized && order.driver_id && !order.preassigned_driver_id) {
