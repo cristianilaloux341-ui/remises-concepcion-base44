@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
-import { getBaseQueue, withQueueLock } from '../../shared/queueOrder.ts';
+import { compactQueueUnlocked, getBaseQueue, withQueueLock } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -130,7 +130,21 @@ Deno.serve(async (req) => {
               const shiftedCount = shifted?.updated ?? shifted?.modifiedCount ?? shifted?.matchedCount ?? 0;
               if (shiftedCount !== 1) throw new Error(`CENTRAL_CANCEL_QUEUE_RACE:${d.id}`);
             }
-          }).catch(()=>{});
+          }).catch(async (queueError:any)=>{
+            // La cancelación del viaje ya quedó confirmada. Si una carrera impidió
+            // devolver el móvil primero, no ocultar el fallo ni dejar huecos/duplicados:
+            // compactar la cola autoritativa y dejar auditoría para Central.
+            await withQueueLock(b44, baseName, async ()=>{
+              await compactQueueUnlocked(b44, baseName);
+            }).catch(()=>{});
+            await b44.entities.AuditLog.create({
+              action:'CENTRAL_CANCEL_REQUEUE_FAILED',
+              user_type:'sistema',
+              user_name:'operatorOrderAction',
+              details:`Cancelación ${orderId} confirmada, pero el reingreso primero requirió recuperación de cola.`,
+              metadata:{orderId,driverId:order.driver_id,baseName,error:queueError?.message || String(queueError)}
+            }).catch(()=>{});
+          });
         }
       }
       if (driverIds.length) b44.functions.invoke('sendPushNotification',{action:'cancel_multiple',driversToCancel:driverIds,orderId,sessionToken}).catch(()=>{});
