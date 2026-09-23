@@ -24,9 +24,38 @@ Deno.serve(async (req) => {
 
     const driverIds = [...new Set([order.driver_id, order.reserved_driver_id, order.preassigned_driver_id].filter(Boolean))];
     for (const driverId of driverIds) {
+      const driver = await b44.entities.Driver.get(driverId).catch(()=>null);
+      if (!driver) continue;
+
+      // Segundo slot: cancelar ESTA orden nunca puede tocar el primer viaje.
+      if (driver.next_order_id === orderId) {
+        const nextQuery:any = { id:driverId, next_order_id:orderId };
+        if (driver.next_order_token) nextQuery.next_order_token = driver.next_order_token;
+        await b44.entities.Driver.updateMany(
+          nextQuery,
+          { $set:{ next_order_id:null, next_order_token:null } }
+        ).catch(()=>{});
+        continue;
+      }
+
+      // Primer slot/oferta: limpiar solamente las referencias que realmente apuntan
+      // a esta orden. Un next_order_id distinto se conserva intacto.
+      const ownsCurrent = driver.reserved_order_id === orderId || driver.active_order_id === orderId || driver.active_ride_id === orderId;
+      if (!ownsCurrent) continue;
+      const currentQuery:any = { id:driverId };
+      if (driver.reserved_order_id === orderId) currentQuery.reserved_order_id = orderId;
+      if (driver.active_order_id === orderId) currentQuery.active_order_id = orderId;
+      if (driver.active_ride_id === orderId) currentQuery.active_ride_id = orderId;
+      const keepNext = Boolean(driver.next_order_id && driver.next_order_id !== orderId);
       await b44.entities.Driver.updateMany(
-        { id:driverId, $or:[{reserved_order_id:orderId},{active_order_id:orderId},{active_ride_id:orderId},{next_order_id:orderId}] },
-        { $set:{ status:'disponible', dispatch_status:'normal', reserved_order_id:null, active_order_id:null, active_ride_id:null, reservation_token:null, manual_reservation_token:null, driver_reservation_key:null, next_order_id:null, next_order_token:null } }
+        currentQuery,
+        { $set:{
+          status: keepNext ? driver.status : 'disponible',
+          dispatch_status: keepNext ? driver.dispatch_status : 'normal',
+          ...(driver.reserved_order_id === orderId ? {reserved_order_id:null,reservation_token:null,manual_reservation_token:null,driver_reservation_key:null} : {}),
+          ...(driver.active_order_id === orderId ? {active_order_id:null} : {}),
+          ...(driver.active_ride_id === orderId ? {active_ride_id:null} : {})
+        } }
       ).catch(()=>{});
     }
 
