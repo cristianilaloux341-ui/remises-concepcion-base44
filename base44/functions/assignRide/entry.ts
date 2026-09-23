@@ -477,9 +477,9 @@ Deno.serve(async (req) => {
 
     // 2. Config ya cargada en paralelo con las validaciones anteriores.
     const config = tarifaConfigs[0] || {};
-    // Motor nuevo: los 30 s NO nacen al asignar. Sólo ALERT_PRESENTED puede
-    // crear offerExpiresAt = presented_at + 30 s. Antes de eso existe entrega,
-    // con un único reintento técnico, pero no un timeout comercial.
+    // Motor nuevo: la ventana comercial NO nace al asignar. Sólo ALERT_PRESENTED puede
+    // crear offerExpiresAt = presented_at + tiempo configurado. Antes de eso existe
+    // entrega técnica, pero no un timeout comercial.
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     // Una asignación manual siempre debe esperar la aceptación del chofer.
     const autoAceptarViajes = payload.requireDriverConfirmation === true
