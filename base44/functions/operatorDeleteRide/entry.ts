@@ -30,29 +30,42 @@ Deno.serve(async (req) => {
     }
 
     const linked = [...new Set([fresh.driver_id, fresh.reserved_driver_id].filter(Boolean))];
-    if (linked.length) {
-      await b44.entities.Driver.updateMany(
-        {
-          id: { $in: linked },
-          $or: [
-            { active_order_id: orderId },
-            { active_ride_id: orderId },
-            { reserved_order_id: orderId }
-          ]
-        },
-        {
-          $set: {
-            status:'disponible',
-            dispatch_status:'normal',
-            active_order_id:null,
-            active_ride_id:null,
-            reserved_order_id:null,
-            reservation_token:null,
-            manual_reservation_token:null,
-            driver_reservation_key:null
-          }
+    for (const driverId of linked) {
+      const driver = await b44.entities.Driver.get(driverId).catch(() => null);
+      if (!driver) continue;
+
+      const set:any = {};
+      const query:any = { id: driverId };
+      let ownsCurrent = false;
+
+      if (driver.active_order_id === orderId) {
+        query.active_order_id = orderId;
+        set.active_order_id = null;
+        ownsCurrent = true;
+      }
+      if (driver.active_ride_id === orderId) {
+        query.active_ride_id = orderId;
+        set.active_ride_id = null;
+        ownsCurrent = true;
+      }
+      if (driver.reserved_order_id === orderId) {
+        query.reserved_order_id = orderId;
+        set.reserved_order_id = null;
+        set.reservation_token = null;
+        set.manual_reservation_token = null;
+        set.driver_reservation_key = null;
+        ownsCurrent = true;
+      }
+
+      // Nunca borrar el otro slot. Si queda un segundo viaje confirmado, tampoco
+      // declarar al móvil libre: su promoción pertenece al motor canónico.
+      if (ownsCurrent) {
+        if (!driver.next_order_id) {
+          set.status = 'disponible';
+          set.dispatch_status = 'normal';
         }
-      ).catch(() => {});
+        await b44.entities.Driver.updateMany(query, { $set:set }).catch(() => {});
+      }
     }
 
     await b44.entities.RideOrder.delete(orderId);
