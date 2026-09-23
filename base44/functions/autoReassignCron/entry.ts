@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { withQueueLock, compactQueueUnlocked } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -279,10 +280,19 @@ Deno.serve(async (req) => {
               set.dispatch_status = 'normal';
             }
 
-            // CAS exacto por los campos que realmente pertenecen a ESTA orden.
-            const released = await b44.entities.Driver.updateMany(query, { $set:set });
-
-            const releasedCount = released?.updated ?? released?.modifiedCount ?? released?.matchedCount ?? 0;
+            // Si este vínculo viejo todavía figura dentro de una cola, la salida y
+            // compactación deben ocurrir bajo el mismo lock de esa base. El cron
+            // jamás lo reingresa: sólo evita dejar huecos o carreras de posición.
+            const oldBase = currentDriver.queue_authoritative_base || currentDriver.current_base || null;
+            const releaseAndCompact = async () => {
+              const released = await b44.entities.Driver.updateMany(query, { $set:set });
+              const releasedCount = released?.updated ?? released?.modifiedCount ?? released?.matchedCount ?? 0;
+              if (releasedCount === 1 && oldBase) await compactQueueUnlocked(b44, oldBase);
+              return releasedCount;
+            };
+            const releasedCount = oldBase
+              ? await withQueueLock(b44, oldBase, releaseAndCompact)
+              : await releaseAndCompact();
             if (releasedCount === 1) count++;
           } catch(e) {
             console.error("Error liberando driver", dId, e);
