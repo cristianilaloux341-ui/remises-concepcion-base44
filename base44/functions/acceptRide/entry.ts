@@ -5,7 +5,7 @@ import { compactQueue } from '../../shared/queueOrder.ts';
 // Trazado detallado retirado del camino crítico de ACEPTAR.
 // Las carreras se protegen con CAS y se validan con las pruebas canónicas.
 
-async function releaseLeaseCAS(b44: any, rideOrderId: string, ownerId: string, acquiredLeaseVersion: number, operationKey: string, correlationId: string, ctx?: any) {
+async function releaseLeaseCAS(b44: any, rideOrderId: string, ownerId: string, acquiredLeaseVersion: number, operationKey: string, correlationId: string) {
   const filter = {
     id: rideOrderId,
     processingOwnerId: ownerId,
@@ -32,7 +32,7 @@ async function releaseLeaseCAS(b44: any, rideOrderId: string, ownerId: string, a
   return mutationCount(release) === 1 ? "RELEASED" : "STILL_OWNED_BUT_NOT_RELEASED";
 }
 
-async function compensateDriverCAS(b44: any, driverId: string, rideOrderId: string, reservationKey: string, reservedDriverVersion: number, correlationId: string, ctx?: any) {
+async function compensateDriverCAS(b44: any, driverId: string, rideOrderId: string, reservationKey: string, reservedDriverVersion: number, correlationId: string) {
   const filter = {
     id: driverId,
     driver_reservation_key: reservationKey,
@@ -58,59 +58,13 @@ async function compensateDriverCAS(b44: any, driverId: string, rideOrderId: stri
     throw e;
   }
 
-  if (ctx) {
-  }
-  
   return comp;
 }
 
 export async function acceptRideV2(b44: any, rideOrderId: string, driverId: string, operationKey: string, assignmentAttempt: number, invocationId: string) {
   const correlationId = crypto.randomUUID();
   const ownerId = crypto.randomUUID();
-  const ctx = undefined;
-
   let order = await b44.entities.RideOrder.get(rideOrderId);
-
-  // Defensa de compatibilidad con v12.27/v12.29: si una reasignación vieja dejó
-  // `driver_id` apuntando al móvil anterior pero `reserved_driver_id` ya pertenece
-  // al chofer que recibió ESTA oferta, la reserva vigente es la autoridad. Reparar
-  // sólo con CAS sobre el mismo intento y sin pisar otra operación en curso.
-  if (
-    order &&
-    order.status === 'ofrecido' &&
-    order.reserved_driver_id === driverId &&
-    order.driver_id &&
-    order.driver_id !== driverId &&
-    Number(order.assignment_attempt) === Number(assignmentAttempt)
-  ) {
-    const staleDriverId = order.driver_id;
-    const repair = await b44.entities.RideOrder.updateMany(
-      {
-        id: rideOrderId,
-        status: 'ofrecido',
-        reserved_driver_id: driverId,
-        driver_id: staleDriverId,
-        assignment_attempt: assignmentAttempt,
-        $or: [
-          { processingOwnerId: null },
-          { processingOwnerId: { $exists: false } },
-          { processingLeaseExpiresAt: { $lt: Date.now() } }
-        ]
-      },
-      { $set: { driver_id: driverId } }
-    ).catch(() => null);
-
-    if (mutationCount(repair) === 1) {
-      await b44.entities.AuditLog.create({
-        action: 'OFFER_DRIVER_ID_REPAIRED_BEFORE_ACCEPT',
-        user_type: 'sistema',
-        user_name: 'acceptRide',
-        details: `Reparado driver_id cruzado antes de aceptar ${rideOrderId}`,
-        metadata: { orderId: rideOrderId, staleDriverId, driverId, assignmentAttempt }
-      }).catch(() => {});
-      order = await b44.entities.RideOrder.get(rideOrderId);
-    }
-  }
 
   // 1. IDEMPOTENCIA
   if (!order) return { status: "ORDER_NOT_FOUND", correlationId };
@@ -310,7 +264,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     order.processingPhase !== "ACQUIRED" ||
     order.processingLeaseExpiresAt <= validationNow
   ) {
-    const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
+    const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId);
     let status;
     if (!order) status = "ORDER_NOT_FOUND";
     else if (order.status === "cancelado") status = "ORDER_CANCELLED";
@@ -343,14 +297,14 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   }
   
   if (mutationCount(validated) === 0) {
-    const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
+    const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId);
     return { status: "LEASE_LOST", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
 
   // 5. RESERVA DEL DRIVER
   const driver = await b44.entities.Driver.get(driverId);
   if (!driver) {
-      const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
+      const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId);
       return { status: "DRIVER_NOT_FOUND", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
   const expectedDriverVersion = driver.driver_reservation_version ?? 0;
@@ -402,7 +356,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   
 
   if (mutationCount(resDriver) === 0) {
-    const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
+    const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId);
     return { status: "DRIVER_ALREADY_BUSY", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
 
@@ -430,8 +384,8 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   
 
   if (mutationCount(reservedPhase) === 0) {
-    const comp = await compensateDriverCAS(b44, driverId, rideOrderId, reservationKey, reservedDriverVersion, correlationId, ctx);
-    const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
+    const comp = await compensateDriverCAS(b44, driverId, rideOrderId, reservationKey, reservedDriverVersion, correlationId);
+    const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId);
     return { status: "INTERNAL_INCONSISTENCY", compensationStatus: mutationCount(comp) === 1 ? "COMPENSATION_COMPLETED" : "COMPENSATION_REQUIRED", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
 
@@ -496,8 +450,8 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     const check = await b44.entities.RideOrder.get(rideOrderId);
     
     if (!check) {
-      const comp = await compensateDriverCAS(b44, driverId, rideOrderId, reservationKey, reservedDriverVersion, correlationId, ctx);
-      const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
+      const comp = await compensateDriverCAS(b44, driverId, rideOrderId, reservationKey, reservedDriverVersion, correlationId);
+      const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId);
       return { 
         status: "ORDER_NOT_FOUND", 
         compensationStatus: mutationCount(comp) === 1 ? "COMPENSATION_COMPLETED" : "COMPENSATION_REQUIRED", 
@@ -507,7 +461,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     }
     
     if (check.status === "aceptado" && check.lastCompletedOperationKey === operationKey) {
-      const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
+      const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId);
       return { status: "SUCCESS_ALREADY_PROCESSED", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
     }
     
@@ -521,8 +475,8 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     else if (!isNowBroadcast && !["ofrecido", "aceptado", "en_camino", "en_viaje"].includes(check.status)) commercialStatus = "INVALID_STATE";
     else commercialStatus = "INTERNAL_INCONSISTENCY";
 
-    const comp = await compensateDriverCAS(b44, driverId, rideOrderId, reservationKey, reservedDriverVersion, correlationId, ctx);
-    const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId, ctx);
+    const comp = await compensateDriverCAS(b44, driverId, rideOrderId, reservationKey, reservedDriverVersion, correlationId);
+    const release = await releaseLeaseCAS(b44, rideOrderId, ownerId, acquiredLeaseVersion, operationKey, correlationId);
     return { status: commercialStatus, compensationStatus: mutationCount(comp) === 1 ? "COMPENSATION_COMPLETED" : "COMPENSATION_REQUIRED", leaseReleasePending: release === "STILL_OWNED_BUT_NOT_RELEASED", correlationId };
   }
 
