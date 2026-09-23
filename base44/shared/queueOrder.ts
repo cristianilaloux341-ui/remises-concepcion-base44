@@ -107,25 +107,6 @@ export async function withQueueLock<T>(
   }
 }
 
-// Proyección legacy únicamente: genera una hora posterior a las demás para que
-// v12.27/v12.29 sigan viendo "último". El servidor NUNCA usa esta hora para elegir.
-export async function getNextQueueTailAt(b44: any, baseName: string, excludeDriverId: string | null = null) {
-  const drivers = await b44.entities.Driver.filter({
-    queue_authoritative_base: baseName
-  }).catch(() => []);
-
-  let nextMs = Date.now();
-  for (const d of drivers || []) {
-    if (!d || d.id === excludeDriverId) continue;
-    if (getEffectiveQueueBase(d) !== baseName) continue;
-    // Ya no ignoramos choferes en viaje para el timestamp, porque queremos garantizar monotonía total
-    const raw = d.queue_authoritative_at || d.queue_entered_at || null;
-    const ms = raw ? new Date(raw).getTime() : NaN;
-    if (Number.isFinite(ms)) nextMs = Math.max(nextMs, ms + 10);
-  }
-  return new Date(nextMs).toISOString();
-}
-
 // Debe ejecutarse dentro de withQueueLock cuando el resultado vaya a escribirse.
 export async function getNextQueuePosition(b44: any, baseName: string, excludeDriverId: string | null = null) {
   const drivers = await b44.entities.Driver.filter({
