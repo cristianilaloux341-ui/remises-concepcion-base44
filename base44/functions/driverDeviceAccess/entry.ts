@@ -197,7 +197,12 @@ export default async function (req: Request) {
     });
 
     if (body?.action) return await handleNewApp(base44, body.action, body.payload || {});
-    return await handleLegacyApp(base44, body);
+    return json({
+      success:false,
+      status:"protocol_required",
+      reason:"NEW_DEVICE_ACCESS_PROTOCOL_REQUIRED",
+      message:"La aplicación debe usar el protocolo de acceso nuevo."
+    }, 409);
   } catch (error: any) {
     const message = error?.message || "Error interno.";
     return json({ success: false, status: "error", error: message, message }, 500);
