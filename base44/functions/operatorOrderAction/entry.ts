@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
+import { getBaseQueue, withQueueLock } from '../../shared/queueOrder.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -39,7 +40,34 @@ Deno.serve(async (req) => {
       // Una cancelación del cliente libera el viaje sin alterar la prioridad de cola.
       if (operatorAuthorized && order.driver_id && !order.preassigned_driver_id) {
         const baseName = order.assigned_base || order.zone || null;
-        if (baseName) await b44.functions.invoke('requeueDriverFront',{driverId:order.driver_id,baseName,sessionToken}).catch(()=>{});
+        if (baseName) {
+          await withQueueLock(b44, baseName, async () => {
+            const target = await b44.entities.Driver.get(order.driver_id).catch(()=>null);
+            if (!target || target.status !== 'disponible' || target.dispatch_status !== 'normal' ||
+                target.reserved_order_id || target.active_order_id || target.active_ride_id || target.next_order_id) return;
+
+            const drivers = await b44.entities.Driver.filter({
+              status:'disponible',
+              $or:[{current_base:baseName},{queue_authoritative_base:baseName}]
+            });
+            const queue = getBaseQueue(drivers, baseName).filter((d:any)=>d.id !== target.id);
+            const now = new Date().toISOString();
+
+            // Cancelación de Central: reingreso explícito primero bajo la misma autoridad de cola.
+            await b44.entities.Driver.updateMany(
+              {id:target.id,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_order_id:null,active_ride_id:null,next_order_id:null},
+              {$set:{current_base:baseName,queue_authoritative_base:baseName,queue_position:1,queue_authority_marker:1,queue_entered_at:now,queue_authoritative_at:now}}
+            );
+            for (let i=0;i<queue.length;i++) {
+              const d:any=queue[i]; const pos=i+2;
+              if (Number(d.queue_position)===pos && Number(d.queue_authority_marker)===pos) continue;
+              await b44.entities.Driver.updateMany(
+                {id:d.id,queue_authoritative_base:baseName,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_order_id:null,active_ride_id:null},
+                {$set:{queue_position:pos,queue_authority_marker:pos}}
+              );
+            }
+          }).catch(()=>{});
+        }
       }
       if (driverIds.length) b44.functions.invoke('sendPushNotification',{action:'cancel_multiple',driversToCancel:driverIds,orderId,sessionToken}).catch(()=>{});
       await b44.entities.AuditLog.create({action:operatorAuthorized ? 'CENTRAL_CANCEL_COMMITTED' : 'CLIENT_CANCEL_COMMITTED',user_type:operatorAuthorized ? 'operador' : 'cliente',user_name:operatorAuthorized ? 'Central' : 'Cliente',details:`Cancelación autoritativa de ${orderId}`,metadata:{orderId,driverIds}}).catch(()=>{});
