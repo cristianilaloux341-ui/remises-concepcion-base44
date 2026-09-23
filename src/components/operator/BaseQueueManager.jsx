@@ -356,6 +356,8 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       }
       window.dispatchEvent(new Event("force-driver-refresh"));
       } catch (err) {
+        alert(err?.message || `No se pudo sacar de servicio al móvil ${movilNum}.`);
+        window.dispatchEvent(new Event("force-driver-refresh"));
       }
       setIsProcessing(false);
       return;
@@ -396,6 +398,10 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       // Forzar recarga rápida de la UI después del commit server-side.
       window.dispatchEvent(new Event("force-driver-refresh"));
     } catch (err) {
+      alert(err?.message || `No se pudo ubicar al móvil ${movilNum} en ${baseName}.`);
+      // Si hubo una carrera, refrescar la verdad del servidor en vez de dejar
+      // que la Central parezca haber aceptado una operación que falló.
+      window.dispatchEvent(new Event("force-driver-refresh"));
     }
     
     setIsProcessing(false);
