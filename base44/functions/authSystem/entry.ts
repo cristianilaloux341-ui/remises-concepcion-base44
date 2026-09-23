@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
       }
 
       if (!isAuthorized) {
-        console.log("NOT AUTHORIZED. Token Data:", sessionToken);
+        console.warn("NOT AUTHORIZED: invalid or expired operator session");
         return Response.json({ error: "Acceso denegado. Se requiere rol de Administrador General o Admin." }, { status: 403 });
       }
 
