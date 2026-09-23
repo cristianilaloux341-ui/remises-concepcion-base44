@@ -35,7 +35,6 @@ Deno.serve(async (req) => {
       b44.entities.Driver.filter({ reserved_order_id: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ active_ride_id: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ active_order_id: { $ne: null } }).catch(() => []),
-      b44.entities.Driver.filter({ active_order_id: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ dispatch_status: { $in: ['automatic_pending', 'manual_pending'] } }).catch(() => []),
       b44.entities.Driver.filter({ driver_reservation_key: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ reservation_token: { $ne: null } }).catch(() => []),
@@ -70,7 +69,6 @@ Deno.serve(async (req) => {
          if (driver.reservation_token) query.reservation_token = driver.reservation_token;
          if (driver.manual_reservation_token) query.manual_reservation_token = driver.manual_reservation_token;
          if (driver.reserved_order_id) query.reserved_order_id = driver.reserved_order_id;
-         if (driver.active_order_id) query.active_order_id = driver.active_order_id;
          if (driver.active_order_id) query.active_order_id = driver.active_order_id;
          if (driver.active_ride_id) query.active_ride_id = driver.active_ride_id;
          
