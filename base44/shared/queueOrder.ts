@@ -1,5 +1,8 @@
 const QUEUE_LOCK_TTL_MS = 10000;
-const QUEUE_LOCK_WAIT_MS = 3000;
+// En ráfagas de Central/choferes preferimos esperar la cola autoritativa antes que
+// devolver un falso fallo de entrada. Sigue por debajo del TTL: si el dueño murió,
+// el lock expira a los 10 s y el siguiente contendiente puede recuperarlo.
+const QUEUE_LOCK_WAIT_MS = 12000;
 
 function mutationCount(result: any): number {
   return Math.max(
