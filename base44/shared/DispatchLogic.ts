@@ -1,6 +1,6 @@
-export const defaultFailureInjector = { hit: async (point: string) => {} };
+const defaultFailureInjector = { hit: async (point: string) => {} };
 
-export async function safeAuditLog(b44: any, data: any, failureInjector = defaultFailureInjector) {
+async function safeAuditLog(b44: any, data: any, failureInjector = defaultFailureInjector) {
   try {
     await failureInjector.hit('DURING_AUDIT_LOG');
     await b44.entities.AuditLog.create(data);

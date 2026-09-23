@@ -51,7 +51,7 @@ export async function verifyJWT(token: string): Promise<any> {
   return JSON.parse(new TextDecoder().decode(decodeBase64Url(payload)));
 }
 
-export function validateInternalKey(providedKey?: string): boolean {
+function validateInternalKey(providedKey?: string): boolean {
   const validKey = Deno.env.get("INTERNAL_SERVICE_KEY");
   if (!validKey || validKey.trim() === "") {
     console.error("SECURITY BLOCK: INTERNAL_SERVICE_KEY no configurada.");
@@ -60,7 +60,7 @@ export function validateInternalKey(providedKey?: string): boolean {
   return providedKey === validKey;
 }
 
-export async function verifyOperatorSession(b44: any, sessionToken?: string): Promise<boolean> {
+async function verifyOperatorSession(b44: any, sessionToken?: string): Promise<boolean> {
   if (!sessionToken) return false;
   try {
     const tokenData = await verifyJWT(sessionToken);

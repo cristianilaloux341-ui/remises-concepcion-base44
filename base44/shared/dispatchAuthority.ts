@@ -1,14 +1,14 @@
 // Motor nuevo: contrato único de autoridad para Central + APK.
 // Ninguna pantalla, heartbeat, GPS o reconexión puede decidir estados comerciales.
 
-export const DISPATCH_STATE = {
+const DISPATCH_STATE = {
   DISPATCHING: "procesando_despacho",
   OFFERED: "ofrecido",
   ACCEPTED: "aceptado",
   PENDING: "pendiente",
 } as const;
 
-export function ownsOffer(order:any, driverId:string, assignmentAttempt:number) {
+function ownsOffer(order:any, driverId:string, assignmentAttempt:number) {
   return Boolean(
     order &&
     order.status === DISPATCH_STATE.OFFERED &&
@@ -17,14 +17,14 @@ export function ownsOffer(order:any, driverId:string, assignmentAttempt:number) 
   );
 }
 
-export function hasPresentedCurrentOffer(order:any) {
+function hasPresentedCurrentOffer(order:any) {
   return Boolean(
     order?.alert_presented_at &&
     Number(order.alert_presented_assignment_attempt) === Number(order.assignment_attempt)
   );
 }
 
-export function responseWindowExpired(order:any, now=Date.now()) {
+function responseWindowExpired(order:any, now=Date.now()) {
   if (!hasPresentedCurrentOffer(order)) return false;
   const expires = Number(order.offerExpiresAt);
   return Number.isFinite(expires) && now >= expires;
