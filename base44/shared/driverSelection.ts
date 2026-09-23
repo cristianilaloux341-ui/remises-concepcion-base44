@@ -4,9 +4,9 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
   const targetZone = order.zone;
   if (!targetZone) return null;
 
-  // La cola se consulta por autoridad server-side. `current_base` puede parpadear a
-  // null en APK legacy; mientras queue_authoritative_base + queue_position sigan
-  // vigentes, el móvil continúa perteneciendo a su cola sin ninguna gracia temporal.
+  // La cola se consulta exclusivamente por autoridad server-side:
+  // queue_authoritative_base + queue_position. Los campos de proyección no
+  // participan en la selección ni pueden alterar la prioridad.
   const zoneDrivers = await b44.entities.Driver.filter({
     status: "disponible",
     queue_authoritative_base: targetZone

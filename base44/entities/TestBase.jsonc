@@ -1,0 +1,57 @@
+{
+  "name": "TestBase",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "dispatch_status": {
+      "type": "string",
+      "enum": [
+        "libre",
+        "procesando",
+        "esperando_manual"
+      ],
+      "default": "libre"
+    },
+    "lock_token": {
+      "type": "string"
+    },
+    "lock_expires_at": {
+      "type": "number"
+    },
+    "active_order_id": {
+      "type": "string"
+    },
+    "manual_reservation_token": {
+      "type": "string"
+    },
+    "manual_requested_at": {
+      "type": "number"
+    },
+    "manual_expires_at": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
