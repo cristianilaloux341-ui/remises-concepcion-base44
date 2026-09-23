@@ -22,20 +22,11 @@ async function releaseLeaseCAS(b44: any, rideOrderId: string, ownerId: string, a
     }
   };
   
-  let snapshotBefore = null;
-  let start = Date.now();
-  if (ctx) {
-  }
-
-  start = Date.now();
   let release;
   try {
     release = await b44.entities.RideOrder.updateMany(filter, update);
   } catch (e: any) {
     throw e;
-  }
-  
-  if (ctx) {
   }
 
   return mutationCount(release) === 1 ? "RELEASED" : "STILL_OWNED_BUT_NOT_RELEASED";
@@ -60,12 +51,6 @@ async function compensateDriverCAS(b44: any, driverId: string, rideOrderId: stri
     }
   };
 
-  let snapshotBefore = null;
-  let start = Date.now();
-  if (ctx) {
-  }
-
-  start = Date.now();
   let comp;
   try {
     comp = await b44.entities.Driver.updateMany(filter, update);
@@ -82,9 +67,7 @@ async function compensateDriverCAS(b44: any, driverId: string, rideOrderId: stri
 export async function acceptRideV2(b44: any, rideOrderId: string, driverId: string, operationKey: string, assignmentAttempt: number, invocationId: string) {
   const correlationId = crypto.randomUUID();
   const ownerId = crypto.randomUUID();
-  const invId = invocationId;
-  
-  const ctx = { b44, correlationId, invocationId: invId, operationKey, seq: 0, driverId };
+  const ctx = undefined;
 
   let order = await b44.entities.RideOrder.get(rideOrderId);
 
