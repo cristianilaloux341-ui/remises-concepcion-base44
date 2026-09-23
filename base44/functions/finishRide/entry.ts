@@ -148,9 +148,9 @@ Deno.serve(async (req) => {
   };
 
   if (order.status === 'completado') {
-    // Compatibilidad con APKs anteriores: algunas versiones podían marcar el viaje
-    // como completado justo antes de invocar finishRide. En ese caso no debemos salir
-    // sin guardar el cierre real. Reparamos únicamente si faltan datos de finalización.
+    // Reparación idempotente: un retry o una carrera puede encontrar el viaje ya
+    // completado pero con el cierre parcialmente persistido. No reabre ni recalcula
+    // el viaje; sólo completa metadatos faltantes y limpia el estado del chofer.
     const closureIncomplete = !order.ride_finished_at || order.lastCompletedAction !== 'FINISH' || order.taximetro_iniciado !== false;
     if (closureIncomplete) {
       const finishedAt = new Date();
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
 
   // El cierre usa exclusivamente el acumulado del taxímetro nuevo, calculado con
   // el snapshot congelado al iniciar el viaje. No se consulta TarifaConfig ni el
-  // calculador legacy al finalizar: un cambio de tarifa nunca puede alterar un viaje activo.
+  // otro calculador al finalizar: un cambio de tarifa nunca puede alterar un viaje activo.
   const importeTelefono = Math.max(0, Number(importeFinal ?? order.importe_real_actual ?? 0));
   const finalImporte = importeTelefono;
   const importeServidor = null;
