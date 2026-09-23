@@ -22,7 +22,6 @@ const DEFAULTS = {
   minutos_bloqueo_post_aceptacion: 0,
   tiempo_maximo_respuesta_segundos: 60,
   auto_reasignacion_activa: true,
-  auto_aceptar_viajes: false,
 };
 
 function CampoMoneda({ label, description, field, form, onChange }) {
@@ -79,7 +78,6 @@ export default function TarifaConfigPanel() {
          minutos_bloqueo_post_aceptacion: config.minutos_bloqueo_post_aceptacion ?? DEFAULTS.minutos_bloqueo_post_aceptacion,
          tiempo_maximo_respuesta_segundos: config.tiempo_maximo_respuesta_segundos ?? DEFAULTS.tiempo_maximo_respuesta_segundos,
          auto_reasignacion_activa: config.auto_reasignacion_activa ?? DEFAULTS.auto_reasignacion_activa,
-         auto_aceptar_viajes: config.auto_aceptar_viajes ?? DEFAULTS.auto_aceptar_viajes,
        });
     }
   }, [config?.id]);

@@ -494,7 +494,6 @@ Deno.serve(async (req) => {
     const autoReassignActive = config.auto_reasignacion_activa ?? true;
     // Toda asignación crea una oferta. Sólo acceptRide puede confirmar al chofer.
     const targetOrderStatus = "ofrecido";
-    const targetDriverStatus = "ofrecido";
 
     const newAttempt = (orderReq.assignment_attempt || 0) + 1;
     // Historial único de ofertas. La barrera superior impide repeticiones;
@@ -548,39 +547,8 @@ Deno.serve(async (req) => {
          ).catch(e => console.error("Error liberando chofer anterior", e));
       }
 
-      // 4. Update statuses cleanly to mirror legacy UI behavior
-      if (targetDriverStatus === "en_viaje") {
-        // No pisar a ciegas el móvil después de la reserva atómica.
-        // Solo cambia de estado si todavía conserva la reserva de ESTA orden/token.
-        await b44.entities.Driver.updateMany(
-          { id: driverId, reserved_order_id: orderId, reservation_token: token },
-          { $set: { status: "en_viaje" } }
-        );
-      }
-      
-      // Para el flujo normal `ofrecido`, todos estos datos ya quedaron persistidos
-      // atómicamente ANTES del push. Evitar una segunda escritura reduce latencia y
-      // elimina la ventana de carrera con assignment_attempt. Solo conservar el
-      // update adicional si alguna instalación usa auto_aceptar_viajes.
-      if (targetOrderStatus !== "ofrecido") {
-        await b44.entities.RideOrder.update(orderId, {
-          status: targetOrderStatus,
-          notes: orderReq.notes,
-          reserved_driver_id: driverId,
-          offered_driver_ids: offeredIds,
-          assignment_attempt: newAttempt,
-          assigned_base: effectiveDriverBase,
-          driver_name: driverReq.name,
-          assigned_at: assignedAt,
-          offerExpiresAt: null,
-          push_ack_at: null,
-          push_ack_assignment_attempt: null,
-          alert_presented_at: null,
-          alert_presented_assignment_attempt: null,
-          alert_presented_protocol_attempt: null,
-          delivery_retry_count: 0
-        });
-      }
+      // La reserva atómica ya dejó la orden y el chofer en estado `ofrecido`.
+      // No existe una segunda ruta que pueda confirmar el viaje sin acceptRide.
 
       // 5. Trigger Reassignment if needed
       if (targetOrderStatus === "ofrecido" && autoReassignActive) {
