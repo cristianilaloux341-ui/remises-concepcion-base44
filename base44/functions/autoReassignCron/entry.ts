@@ -6,9 +6,6 @@ Deno.serve(async (req) => {
   const b44 = base44.asServiceRole;
 
   try {
-    const tarifaConfigs = await b44.entities.TarifaConfig.list();
-    const configuredResponseSeconds = Number(tarifaConfigs[0]?.tiempo_maximo_respuesta_segundos);
-    const tiempoMaximo = Number.isFinite(configuredResponseSeconds) && configuredResponseSeconds > 0 ? configuredResponseSeconds : 30;
     const twoHoursAgoTime = Date.now() - (120 * 60 * 1000);
     const twoHoursAgoStr = new Date(twoHoursAgoTime).toISOString();
 
@@ -32,8 +29,19 @@ Deno.serve(async (req) => {
     let count = 0;
     
     // Limpieza de red de seguridad: choferes colgados con reservas a viajes muertos atómicamente
-    const allDrivers = await b44.entities.Driver.list();
-    const stuckDrivers = allDrivers.filter(d => d.reserved_order_id || d.active_ride_id || d.dispatch_status === 'automatic_pending' || d.dispatch_status === 'manual_pending' || d.driver_reservation_key || d.reservation_token || d.manual_reservation_token);
+    // Consultar únicamente móviles con señales de reserva/estado transitorio.
+    // Evita barrer la flota completa cada 15 minutos durante horas pico.
+    const stuckDriverGroups = await Promise.all([
+      b44.entities.Driver.filter({ reserved_order_id: { $ne: null } }).catch(() => []),
+      b44.entities.Driver.filter({ active_ride_id: { $ne: null } }).catch(() => []),
+      b44.entities.Driver.filter({ dispatch_status: { $in: ['automatic_pending', 'manual_pending'] } }).catch(() => []),
+      b44.entities.Driver.filter({ driver_reservation_key: { $ne: null } }).catch(() => []),
+      b44.entities.Driver.filter({ reservation_token: { $ne: null } }).catch(() => []),
+      b44.entities.Driver.filter({ manual_reservation_token: { $ne: null } }).catch(() => [])
+    ]);
+    const stuckDrivers = [...new Map(
+      stuckDriverGroups.flat().filter(Boolean).map((d:any) => [d.id, d])
+    ).values()];
     for (const driver of stuckDrivers) {
       const ghostOrderId = driver.reserved_order_id || driver.active_ride_id;
       let isDead = false;
