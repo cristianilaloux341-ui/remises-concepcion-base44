@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       mobileId:mobileId || null,
       requireDriverConfirmation:true,
       forceManual:manual === true,
-      sessionToken:sessionToken || 'client_demo_token',
+      sessionToken:sessionToken || null,
       internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
     });
     if (!res?.data?.success) {

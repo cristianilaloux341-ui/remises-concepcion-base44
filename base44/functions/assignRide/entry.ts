@@ -10,8 +10,9 @@ Deno.serve(async (req) => {
 
   const { forceManual, manualDriverName } = payload;
   
-  // Validamos a través del middleware: Permitimos Internal Service Key, Sesión de Operador o Cliente
-  const isAuthorized = await verifyRequestAuth(b44, payload, { allowOperator: true, allowClient: true });
+  // assignRide es autoridad de despacho: sólo servicio interno u operador autenticado.
+  // La app cliente nunca puede elegir ni reasignar móviles directamente.
+  const isAuthorized = await verifyRequestAuth(b44, payload, { allowOperator: true });
   if (!isAuthorized) {
     console.error("AssignRide: Unauthorized request for orderId:", orderId);
     return Response.json({ success: false, reason: 'unauthorized' }, { status: 401 });

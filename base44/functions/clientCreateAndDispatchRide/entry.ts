@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
         mobileId: resolvedMobileId || null,
         requireDriverConfirmation: true,
         forceManual: true,
-        sessionToken: sessionToken || "client_demo_token",
+        sessionToken: sessionToken || null,
         internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
       });
       assigned = manualRes?.data?.success === true;
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
         const res = await b44.functions.invoke("assignRide", {
           orderId: order.id,
           driverId: nextDriver.id,
-          sessionToken: sessionToken || "client_demo_token",
+          sessionToken: sessionToken || null,
           internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
         });
         assigned = res?.data?.success === true;
