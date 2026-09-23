@@ -1,7 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.48';
 import { verifyRequestAuth } from '../../shared/security.ts';
 import { getBaseQueue, withQueueLock } from '../../shared/queueOrder.ts';
-import { signReorderToken } from '../../shared/reorderToken.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -34,30 +33,17 @@ Deno.serve(async (req) => {
       if (idx === bounded) return Response.json({ success:true, skipped:true, reason:'same_position' });
       currentQueue.splice(bounded, 0, driverToMove);
 
-      // Compatibilidad v12.27/v12.29: esas APK todavía muestran la fila ordenando
-      // queue_authoritative_at. Reutilizamos el conjunto de timestamps existentes,
-      // ordenados de menor a mayor, como una PROYECCIÓN del nuevo queue_position.
-      // El backend nunca consulta estos valores para decidir prioridad.
-      const existingTimes = currentQueue
-        .map((d: any) => ({ raw: d.queue_authoritative_at || d.queue_entered_at || null, ms: new Date(d.queue_authoritative_at || d.queue_entered_at || 0).getTime() }))
-        .filter((x: any) => x.raw && Number.isFinite(x.ms))
-        .sort((a: any, b: any) => a.ms - b.ms);
-
-      const uniqueTimes = existingTimes.length === currentQueue.length &&
-        new Set(existingTimes.map((x: any) => x.ms)).size === currentQueue.length;
-      const fallbackStart = Date.now() - Math.max(0, currentQueue.length - 1);
+      // Reorden manual de Central: queue_position es la única prioridad.
+      // No reescribimos timestamps de entrada/autoridad porque pertenecen al evento
+      // real de ingreso a base y no deben cambiar al mover una fila.
       const reorderAt = new Date().toISOString();
 
-      let movedCompatAt:string | null = null;
       for (let i = 0; i < currentQueue.length; i++) {
         const d:any = currentQueue[i];
         const pos = i + 1;
-        const compatAt = uniqueTimes
-          ? new Date(existingTimes[i].ms).toISOString()
-          : new Date(fallbackStart + i).toISOString();
-        const reorderToken = await signReorderToken(d.id, baseName, compatAt);
+        if (Number(d.queue_position) === pos && Number(d.queue_authority_marker) === pos && d.id !== driverId) continue;
 
-        const updated = await b44.entities.Driver.updateMany(
+        await b44.entities.Driver.updateMany(
           {
             id:d.id,
             queue_authoritative_base:baseName,
@@ -69,17 +55,10 @@ Deno.serve(async (req) => {
           },
           { $set:{
             queue_position:pos,
-            queue_authoritative_base:baseName,
-            queue_authoritative_at:compatAt,
-            queue_entered_at:compatAt,
             queue_authority_marker:pos,
-            manual_reorder_token:reorderToken,
             manual_reorder_at:reorderAt
           } }
         ).catch(()=>({updated:0}));
-        const changed = updated?.updated ?? updated?.modifiedCount ?? updated?.matchedCount ?? 0;
-        if (changed !== 1) continue;
-        if (d.id === driverId) movedCompatAt = compatAt;
       }
 
       await b44.entities.AuditLog.create({
@@ -92,9 +71,7 @@ Deno.serve(async (req) => {
           baseName,
           from:idx + 1,
           to:bounded + 1,
-          movedCompatAt,
-          authority:'queue_position',
-          legacyProjection:'queue_authoritative_at'
+          authority:'queue_position'
         }
       }).catch(()=>{});
 
