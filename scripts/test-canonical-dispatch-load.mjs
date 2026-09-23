@@ -126,6 +126,53 @@ test('100 despachos / 10 min: llegada sostenida no viola exclusividad',()=>{
   }
 });
 
+
+test('requerido ocupado: segunda oferta no pisa el primer viaje',()=>{
+  const d=makeDrivers(1)[0]; reserveFirst([d],'O1');
+  const first={...d.current};
+  const provisional={orderId:'O2',requested:true,accepted:false};
+  assert.equal(d.next,null);
+  d.next=provisional;
+  assert.deepEqual(d.current,first);
+  assert.equal(d.next.orderId,'O2');
+});
+
+test('aceptar requerido como segundo confirma next preservando primero',()=>{
+  const d=makeDrivers(1)[0]; reserveFirst([d],'O1');
+  d.next={orderId:'O2',requested:true,accepted:false};
+  d.next.accepted=true; d.next.confirmed=true;
+  assert.equal(d.current.orderId,'O1');
+  assert.equal(d.next.orderId,'O2');
+  assert.equal(d.next.confirmed,true);
+});
+
+test('rechazo/timeout requerido segundo limpia provisional y preserva primero',()=>{
+  for(const outcome of ['reject','timeout']){
+    const d=makeDrivers(1)[0]; reserveFirst([d],'O1');
+    d.next={orderId:'O2',requested:true,accepted:false};
+    d.next=null;
+    assert.equal(d.current.orderId,'O1',outcome);
+    assert.equal(d.next,null,outcome);
+  }
+});
+
+test('cancelar segundo pasaje preserva el primero',()=>{
+  const d=makeDrivers(1)[0]; reserveFirst([d],'O1'); assignSecond(d,'O2');
+  d.next=null;
+  assert.equal(d.current.orderId,'O1');
+  assert.equal(d.next,null);
+});
+
+test('si termina primero antes de aceptar segundo, al aceptar se promueve inmediatamente',()=>{
+  const d=makeDrivers(1)[0]; reserveFirst([d],'O1');
+  d.next={orderId:'O2',requested:true,accepted:false};
+  d.current=null;
+  d.next.accepted=true; d.next.confirmed=true;
+  assert.equal(promote(d),'O2');
+  assert.equal(d.current.orderId,'O2');
+  assert.equal(d.next,null);
+});
+
 const failed=results.filter(x=>!x.ok);
 console.log(JSON.stringify({scenario:'canonical-dispatch-load',orders:ORDERS,drivers:DRIVERS,tests:results,failed:failed.length},null,2));
 assert.equal(failed.length,0);
