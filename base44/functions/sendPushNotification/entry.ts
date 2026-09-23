@@ -498,17 +498,18 @@ Deno.serve(async (req) => {
       // intente notificar, no despertar un teléfono fuera de servicio, sin base o
       // que ya no conserve la reserva de ESTA orden.
       const cleanOrderId = String(orderId).split('_att_')[0];
+      const authoritativeBase = driver?.queue_authoritative_base || driver?.current_base || null;
       if (
         !driver ||
         driver.status !== 'disponible' ||
-        !driver.current_base ||
+        !authoritativeBase ||
         String(driver.reserved_order_id || '') !== cleanOrderId
       ) {
         return Response.json({
           ok: false,
           reason: 'driver_not_eligible_at_push_time',
           driverStatus: driver?.status ?? null,
-          currentBase: driver?.current_base ?? null
+          currentBase: authoritativeBase
         });
       }
       
@@ -575,7 +576,7 @@ Deno.serve(async (req) => {
                      orderId: String(orderId),
                      driverId: String(driverId),
                      driverName: String(driver.name || ""),
-                     base: String(driver.current_base || ""),
+                     base: String(authoritativeBase || ""),
                      apiUrl: String(apiUrl),
                      title: String(title),
                      body: String(bodyStr),
