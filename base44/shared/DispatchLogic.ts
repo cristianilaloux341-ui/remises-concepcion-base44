@@ -1,12 +1,5 @@
 export const defaultFailureInjector = { hit: async (point: string) => {} };
 
-export async function releaseManualDriver(b44: any, driverId: string, orderId: string, token: string) {
-  await b44.entities.Driver.updateMany(
-    { id: driverId, manual_reservation_token: token },
-    { $set: { dispatch_status: 'normal', reserved_order_id: null, manual_reservation_token: null } }
-  );
-}
-
 export async function safeAuditLog(b44: any, data: any, failureInjector = defaultFailureInjector) {
   try {
     await failureInjector.hit('DURING_AUDIT_LOG');
@@ -25,66 +18,6 @@ export async function validatePilotDriver(b44: any, zone: string, driverId: stri
       throw new Error('DRIVER_NOT_ENABLED_FOR_PILOT');
     }
   }
-}
-
-export async function tryManualCandidate(b44: any, baseId: string, order: any, driver: any, token: string, failureInjector = defaultFailureInjector) {
-  // LEGACY: sólo simulaciones/tests antiguos. Producción usa assignRide canónico.
-  return false;
-  /*
-  try {
-    await validatePilotDriver(b44, order.zone || '1-Puerto', driver.id);
-    // 1. Reservar Driver
-    const driverRes = await b44.entities.Driver.updateMany(
-      { id: driver.id, status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, active_order_id: null, active_ride_id: null },
-      { $set: { dispatch_status: 'manual_pending', reserved_order_id: order.id, manual_reservation_token: token } }
-    );
-    if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? driverRes.updated ?? 0) !== 1) return false;
-
-    await failureInjector.hit('AFTER_DRIVER_RESERVE');
-
-    // 2. Marcar Viaje
-    const rideRes = await b44.entities.RideOrder.updateMany(
-      { id: order.id, status: 'procesando_despacho', reservation_token: token },
-      { $set: { status: 'esperando_confirmacion_manual', driver_id: null, reserved_driver_id: driver.id, manual_reservation_token: token } }
-    );
-    if ((rideRes.matchedCount ?? rideRes.modifiedCount ?? rideRes.updated ?? 0) !== 1) {
-      await releaseManualDriver(b44, driver.id, order.id, token);
-      return false;
-    }
-
-    await failureInjector.hit('AFTER_RIDE_MANUAL_TRANSITION');
-
-    // 3. Bloquear Base
-    const baseRes = await b44.entities.Base.updateMany(
-      { id: baseId, lock_token: token },
-      { $set: { dispatch_status: 'esperando_manual', active_order_id: order.id, manual_reservation_token: token, lock_token: null, lock_expires_at: null, manual_requested_at: Date.now(), manual_expires_at: Date.now() + 60000 } }
-    );
-
-    if ((baseRes.matchedCount ?? baseRes.modifiedCount ?? baseRes.updated ?? 0) !== 1) {
-      // Revertir viaje y chofer
-      await b44.entities.RideOrder.updateMany(
-        { id: order.id, status: 'esperando_confirmacion_manual', reserved_driver_id: driver.id, manual_reservation_token: token },
-        { $set: { status: 'procesando_despacho', driver_id: null, reserved_driver_id: null, manual_reservation_token: null, driver_name: null } }
-      );
-      await releaseManualDriver(b44, driver.id, order.id, token);
-      return false;
-    }
-
-    await failureInjector.hit('AFTER_BASE_MANUAL_TRANSFER');
-    return true;
-  } catch (e) {
-    if (e.message.includes('INJECTED_FAILURE_AT_AFTER_DRIVER_RESERVE')) {
-      await releaseManualDriver(b44, driver.id, order.id, token);
-    } else if (e.message.includes('INJECTED_FAILURE_AT_AFTER_RIDE_MANUAL_TRANSITION')) {
-      await b44.entities.RideOrder.updateMany(
-        { id: order.id, status: 'esperando_confirmacion_manual', manual_reservation_token: token },
-        { $set: { status: 'procesando_despacho', driver_id: null, reserved_driver_id: null, manual_reservation_token: null, driver_name: null } }
-      );
-      await releaseManualDriver(b44, driver.id, order.id, token);
-    }
-    throw e;
-  }
-  */
 }
 
 export async function assignDriverToOrderAtomic(b44: any, order: any, driver: any, token: string, failureInjector = defaultFailureInjector) {
@@ -217,62 +150,3 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
     throw e;
   }
 }
-
-export async function reassignAfterAutomaticReject(b44: any, baseId: string, orderId: string, driverId: string, oldToken: string, failureInjector = defaultFailureInjector) {
-  // LEGACY: sólo simulaciones/tests antiguos. Producción reasigna exclusivamente por rejectRide.
-  return { status:'legacy_disabled' };
-  /*
-  const orderCheck = await b44.entities.RideOrder.get(orderId);
-  await validatePilotDriver(b44, orderCheck?.zone || '1-Puerto', driverId);
-  const newToken = crypto.randomUUID();
-  let ownershipTransferred = false;
-
-  const baseRes = await b44.entities.Base.updateMany(
-    { id: baseId, dispatch_status: 'libre' },
-    { $set: { dispatch_status: 'procesando', lock_token: newToken, lock_expires_at: Date.now() + 8000, active_order_id: orderId } }
-  );
-  if ((baseRes.matchedCount ?? baseRes.modifiedCount ?? baseRes.updated ?? 0) !== 1) return { status: 'zone_busy' };
-
-  try {
-    await failureInjector.hit('DURING_TOKEN_TRANSFER');
-    const orderRes = await b44.entities.RideOrder.updateMany(
-      { id: orderId, status: 'ofrecido', reserved_driver_id: driverId, reservation_token: oldToken },
-      { $set: { status: 'procesando_despacho', reservation_token: newToken, driver_id: null, reserved_driver_id: null, driver_name: null }, $push: { offered_driver_ids: driverId }, $inc: { assignment_attempt: 1 } }
-    );
-    if ((orderRes.matchedCount ?? orderRes.modifiedCount ?? orderRes.updated ?? 0) !== 1) return { status: 'already_processed' };
-
-    await failureInjector.hit('DURING_DRIVER_RELEASE');
-    const driverRes = await b44.entities.Driver.updateMany(
-      { id: driverId, dispatch_status: 'automatic_pending', reserved_order_id: orderId, reservation_token: oldToken },
-      { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } }
-    );
-    if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? driverRes.updated ?? 0) !== 1) {
-      await safeAuditLog(b44, { action: 'INCONSISTENT_STATE', user_type: 'sistema', user_name: 'System', details: 'Fallo al liberar Driver durante rechazo automático' }, failureInjector);
-      throw new Error('INCONSISTENT_STATE:DRIVER_RELEASE_FAILED');
-    }
-
-    ownershipTransferred = true; // Simulación de continuación
-    return { status: 'reassigned' };
-  } finally {
-    if (!ownershipTransferred) {
-      await b44.entities.Base.updateMany(
-        { id: baseId, dispatch_status: 'procesando', lock_token: newToken },
-        { $set: { dispatch_status: 'libre', lock_token: null, lock_expires_at: null, active_order_id: null } }
-      );
-    }
-  }
-  */
-}
-
-export async function cleanupExpiredTechnicalLock(b44: any, baseId: string, expectedToken: string, now: number) {
-  // LEGACY DESHABILITADO: un lock técnico/manual jamás puede decidir Pendientes.
-  // La recuperación comercial pertenece exclusivamente al motor autoritativo.
-  return { status: 'legacy_disabled', baseId, token: expectedToken };
-}
-
-export async function cleanupExpiredManualWait(b44: any, baseId: string, expectedToken: string, now: number) {
-  // LEGACY DESHABILITADO: un lock técnico/manual jamás puede decidir Pendientes.
-  // La recuperación comercial pertenece exclusivamente al motor autoritativo.
-  return { status: 'legacy_disabled', baseId, token: expectedToken };
-}
-
