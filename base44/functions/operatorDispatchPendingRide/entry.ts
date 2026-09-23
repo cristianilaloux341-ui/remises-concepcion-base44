@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
       // móvil y esa nueva asignación falla, el viaje NO puede quedar convertido en
       // un pendiente común. Restauramos la retención sólo si sigue pendiente y sin dueño.
       if (centralReviewOnly && driverId) {
-        await b44.entities.RideOrder.updateMany(
+        const restoredHold = await b44.entities.RideOrder.updateMany(
           {
             id:orderId,
             status:'pendiente',
@@ -79,7 +79,11 @@ Deno.serve(async (req) => {
             pending_reason:'REQUESTED_DRIVER_NOT_ACCEPTED',
             processingAction:'CENTRAL_REVIEW_REQUIRED_DRIVER'
           } }
-        ).catch(()=>{});
+        ).catch(()=>null);
+        if ((restoredHold?.matchedCount ?? restoredHold?.modifiedCount ?? restoredHold?.updated ?? 0) !== 1) {
+          await b44.entities.AuditLog.create({action:'REQUESTED_PENDING_HOLD_RESTORE_FAILED',user_type:'sistema',user_name:'operatorDispatchPendingRide',details:`Falló restauración de retención Central-only para ${orderId} tras asignación manual fallida`,metadata:{orderId,requestedDriverId:order.requested_driver_id || null,targetDriverId:driverId,assignReason:res?.data?.reason || 'ASSIGN_FAILED'}}).catch(()=>{});
+          return Response.json({success:false,reason:'REQUESTED_PENDING_HOLD_RESTORE_FAILED'},{status:409});
+        }
       }
       return Response.json({ success:false, reason:res?.data?.reason || 'ASSIGN_FAILED' }, { status:409 });
     }
