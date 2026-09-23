@@ -244,31 +244,43 @@ Deno.serve(async (req) => {
           try {
             const currentDriver = await b44.entities.Driver.get(dId).catch(() => null);
             if (!currentDriver) continue;
-            const newDriverStatus = currentDriver.status === 'no_disponible' ? 'no_disponible' : 'disponible';
-            
-            // CAS: liberar únicamente si el móvil todavía apunta a ESTA orden.
-            // Evita que el cron borre una reserva nueva creada por otro operador.
-            const released = await b44.entities.Driver.updateMany(
-              { id: dId, $or: [
-                { reserved_order_id: order.id },
-                { active_order_id: order.id },
-                { active_ride_id: order.id }
-              ] },
-              { $set: { 
-                  status: newDriverStatus, 
-                  dispatch_status: "normal", 
-                  reserved_order_id: null,
-                  active_order_id: null,
-                  active_ride_id: null,
-                  reservation_token: null,
-                  manual_reservation_token: null,
-                  driver_reservation_key: null,
-                  current_base: null,
-                  queue_authoritative_base: null,
-                  queue_position: null,
-                  queue_authority_marker: null
-              } }
-            );
+            const set:any = {
+              current_base:null,
+              queue_authoritative_base:null,
+              queue_position:null,
+              queue_authority_marker:null
+            };
+            const query:any = { id:dId };
+            let ownsCurrent = false;
+
+            if (currentDriver.reserved_order_id === order.id) {
+              query.reserved_order_id = order.id;
+              set.reserved_order_id = null;
+              set.reservation_token = null;
+              set.manual_reservation_token = null;
+              set.driver_reservation_key = null;
+              ownsCurrent = true;
+            }
+            if (currentDriver.active_order_id === order.id) {
+              query.active_order_id = order.id;
+              set.active_order_id = null;
+              ownsCurrent = true;
+            }
+            if (currentDriver.active_ride_id === order.id) {
+              query.active_ride_id = order.id;
+              set.active_ride_id = null;
+              ownsCurrent = true;
+            }
+            if (!ownsCurrent) continue;
+
+            // Un segundo slot distinto nunca se borra ni convierte al móvil en libre.
+            if (!currentDriver.next_order_id) {
+              set.status = currentDriver.status === 'no_disponible' ? 'no_disponible' : 'disponible';
+              set.dispatch_status = 'normal';
+            }
+
+            // CAS exacto por los campos que realmente pertenecen a ESTA orden.
+            const released = await b44.entities.Driver.updateMany(query, { $set:set });
 
             const releasedCount = released?.updated ?? released?.modifiedCount ?? released?.matchedCount ?? 0;
             if (releasedCount === 1) count++;
