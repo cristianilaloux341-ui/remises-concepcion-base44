@@ -17,15 +17,14 @@ function sleep(ms: number) {
 }
 
 // Cola operativa: queue_authoritative_base + queue_position son la única autoridad.
-// Los timestamps se conservan únicamente como historial/proyección para APK legacy.
+// Los timestamps se conservan únicamente como historial/proyección; no deciden prioridad.
 export function getEffectiveQueueBase(driver: any) {
   if (!driver) return null;
   const authoritativeBase = driver.queue_authoritative_base || null;
   const pos = Number(driver.queue_position);
-  // La membresía de cola la decide exclusivamente el servidor. Las APK v12.27/v12.29
-  // pueden publicar un current_base=null técnico durante heartbeat/reconexión; ese
-  // parpadeo no puede sacar al móvil de la cola ni alterar su prioridad. Una salida
-  // real ya limpia queue_authoritative_base + queue_position server-side.
+  // La membresía de cola la decide exclusivamente el servidor mediante
+  // queue_authoritative_base + queue_position. Los campos de proyección no pueden
+  // sacar al móvil de la cola ni alterar su prioridad.
   if (!authoritativeBase) return null;
   if (!Number.isFinite(pos) || pos <= 0) return null;
   return authoritativeBase;
@@ -38,7 +37,7 @@ export function sortQueue(driversArray: any[]) {
     if (posA !== posB) return posA - posB;
 
     // Un empate de queue_position es un estado inválido. Los timestamps son
-    // sólo proyección legacy y NUNCA pueden decidir prioridad. Desempate estable
+    // sólo proyección y NUNCA pueden decidir prioridad. Desempate estable
     // por ID; compactQueue corrige luego las posiciones bajo QueueLock.
     return (a.id || "").localeCompare(b.id || "");
   });
@@ -130,8 +129,8 @@ export async function getNextQueuePosition(b44: any, baseName: string, excludeDr
 
 export async function compactQueueUnlocked(b44: any, baseName: string) {
   // Compactación autoritativa: queue_position es la única prioridad operativa.
-  // No reescribimos timestamps/proyecciones de APK legacy: eso alargaba el QueueLock
-  // y generaba escrituras sin valor para el nuevo cliente.
+  // No reescribimos timestamps/proyecciones: eso alarga el QueueLock y genera
+  // escrituras sin valor para la autoridad de cola.
   if (!baseName) return;
   const rows = await b44.entities.Driver.filter({
     status: 'disponible',
