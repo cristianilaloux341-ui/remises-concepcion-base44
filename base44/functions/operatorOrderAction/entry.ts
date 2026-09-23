@@ -11,9 +11,10 @@ Deno.serve(async (req) => {
     if (!orderId || action !== 'cancel') {
       return Response.json({ success:false, reason:'INVALID_PARAMS' }, { status:400 });
     }
+    // Esta función pertenece a Central. La futura app cliente tendrá su propia
+    // cancelación limitada al pasaje autenticado del cliente, nunca autoridad de operador.
     const operatorAuthorized = await verifyRequestAuth(b44, payload, { allowOperator:true });
-    const clientAuthorized = action === 'cancel' && await verifyRequestAuth(b44, payload, { allowClient:true });
-    if (!operatorAuthorized && !clientAuthorized) {
+    if (!operatorAuthorized) {
       return Response.json({ success:false, reason:'unauthorized' }, { status:401 });
     }
     const order = await b44.entities.RideOrder.get(orderId).catch(()=>null);
