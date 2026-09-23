@@ -2,84 +2,10 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
 import { compactQueue } from '../../shared/queueOrder.ts';
 
-// ProtocolTrace fue útil para depurar el protocolo, pero en producción agregaba
-// muchas lecturas/escrituras ANTES de confirmar ACEPTAR. Queda activable por env
-// sin formar parte del camino crítico normal.
-const ENABLE_PROTOCOL_TRACE = Deno.env.get('ENABLE_PROTOCOL_TRACE') === 'true';
-
-// El SDK de Base44 puede exponer el resultado de updateMany como `updated`,
-// `modifiedCount` o `matchedCount` según el camino interno. Tomamos el mayor
-// contador informado para no tratar como fallo una escritura CAS que sí matcheó.
-function mutationCount(result: any): number {
-  return Math.max(
-    Number(result?.updated ?? 0),
-    Number(result?.modifiedCount ?? 0),
-    Number(result?.matchedCount ?? 0)
-  );
-}
-
-async function captureState(b44: any, rideOrderId: string, driverId: string) {
-  if (!ENABLE_PROTOCOL_TRACE) return null;
-  const [order, driver] = await Promise.all([
-    b44.entities.RideOrder.get(rideOrderId).catch(() => null),
-    b44.entities.Driver.get(driverId).catch(() => null)
-  ]);
-  return {
-    order: order ? { 
-      status: order.status, 
-      driver_id: order.driver_id, 
-      assignment_attempt: order.assignment_attempt, 
-      processingOwnerId: order.processingOwnerId, 
-      processingPhase: order.processingPhase, 
-      processingAction: order.processingAction, 
-      processingOperationKey: order.processingOperationKey, 
-      processingLeaseVersion: order.processingLeaseVersion, 
-      processingLeaseExpiresAt: order.processingLeaseExpiresAt, 
-      lastCompletedOperationKey: order.lastCompletedOperationKey, 
-      pendingEffectStatus: order.pendingEffectStatus 
-    } : null,
-    driver: driver ? { 
-      status: driver.status, 
-      dispatch_status: driver.dispatch_status, 
-      active_ride_id: driver.active_ride_id, 
-      reserved_order_id: driver.reserved_order_id, 
-      driver_reservation_key: driver.driver_reservation_key, 
-      driver_reservation_version: driver.driver_reservation_version 
-    } : null
-  };
-}
-
-async function logStep(ctx: any, step: string, start: number, filterCAS: any, resultObj: any, errorMsg: string | null, snapshotBefore: any, snapshotAfter: any, explicitResult?: string) {
-  if (!ENABLE_PROTOCOL_TRACE) return;
-  const executionDurationMs = Date.now() - start;
-  ctx.seq++;
-  
-  const casUpdatedCount = mutationCount(resultObj);
-  const casUpdateSucceeded = casUpdatedCount === 1;
-  
-  const executionResult = explicitResult || (errorMsg ? "FAILED" : (casUpdateSucceeded ? "SUCCESS" : "SKIPPED"));
-  
-  try {
-    await ctx.b44.entities.ProtocolTrace.create({
-      correlationId: ctx.correlationId,
-      invocationId: ctx.invocationId,
-      traceSequence: ctx.seq,
-      timestamp: new Date().toISOString(),
-      step,
-      operationKey: ctx.operationKey,
-      filterCAS: filterCAS || {},
-      casUpdatedCount,
-      casUpdateSucceeded,
-      executionResult,
-      executionDurationMs,
-      error: errorMsg,
-      snapshotBefore,
-      snapshotAfter
-    });
-  } catch (e) {
-    console.error("ProtocolTrace error:", e);
-  }
-}
+// Trazado detallado retirado del camino crítico de ACEPTAR.
+// Las carreras se protegen con CAS y se validan con las pruebas canónicas.
+async function captureState(_b44: any, _rideOrderId: string, _driverId: string) { return null; }
+async function logStep(_ctx: any, _step: string, _start: number, _filterCAS: any, _resultObj: any, _errorMsg: string | null, _snapshotBefore: any, _snapshotAfter: any, _explicitResult?: string) { return; }
 
 async function releaseLeaseCAS(b44: any, rideOrderId: string, ownerId: string, acquiredLeaseVersion: number, operationKey: string, correlationId: string, ctx?: any) {
   const filter = {
