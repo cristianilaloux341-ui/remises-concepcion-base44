@@ -167,9 +167,6 @@
     "current_lng": {
       "type": "number"
     },
-    "push_subscription": {
-      "type": "string"
-    },
     "fcm_token": {
       "type": "string"
     },

@@ -174,10 +174,6 @@ async function sendWebPush(subscription, payload, vapidPublicKey, vapidPrivateKe
   return res.status;
 }
 
-// ── Entity to store push subscriptions ───────────────────────────────────────
-// We store subscriptions on the Driver entity under push_subscriptions field.
-// This function is called from the frontend when a driver registers their SW.
-
 let cachedAccessToken: string | null = null;
 let cachedAccessTokenExp: number = 0;
 
@@ -200,7 +196,7 @@ Deno.serve(async (req) => {
   } else if (body.internalKey && body.internalKey === Deno.env.get("INTERNAL_SERVICE_KEY")) {
     isAuthorized = true;
   } else {
-    if (['subscribe_fcm', 'subscribe'].includes(action)) {
+    if (action === 'subscribe_fcm') {
       isAuthorized = await verifyRequestAuth(base44.asServiceRole, body, { allowDriverId: driverId });
     } else if (action === 'subscribe_operator') {
       isAuthorized = await verifyRequestAuth(base44.asServiceRole, body, { allowOperator: true });
@@ -224,11 +220,6 @@ Deno.serve(async (req) => {
     return Response.json({ ok: true });
   }
 
-  if (action === 'subscribe') {
-    if (!driverId || !subscription) return Response.json({ error: 'Missing driverId or subscription' }, { status: 400 });
-    await base44.asServiceRole.entities.Driver.update(driverId, { push_subscription: JSON.stringify(subscription) });
-    return Response.json({ ok: true });
-  }
 
   if (action === 'subscribe_operator') {
     if (!userId || !subscription) return Response.json({ error: 'Missing userId or subscription' }, { status: 400 });
@@ -462,8 +453,6 @@ Deno.serve(async (req) => {
         bodyStr += `\n📌 Notas: ${orderData.notes}`;
       }
 
-      let webPushStatus = null;
-      let webPushSuccess = false;
       let fcmSuccess = false;
 
       // Intentar enviar por FCM nativo si el chofer tiene el token (Prioridad)
@@ -555,7 +544,7 @@ Deno.serve(async (req) => {
                    console.log("FCM Token cleared for driver", driverId, "due to UNREGISTERED/NOT_FOUND");
                  }
                  
-                 // No retornamos error aquí, permitimos que intente el fallback de WebPush
+                 // La oferta usa sólo FCM nativo; el watchdog resolverá una entrega fallida.
                  fcmSuccess = false;
                } else {
                  await fcmRes.text();
