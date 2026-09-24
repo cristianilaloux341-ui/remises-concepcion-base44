@@ -10,24 +10,9 @@ async function safeAuditLog(b44: any, data: any, failureInjector = defaultFailur
   }
 }
 
-export async function validatePilotDriver(b44: any, zone: string, driverId: string) {
-  const configs = await b44.entities.DispatchConfig.filter({ zone });
-  const config = configs[0];
-  if (config && config.pilotMode && config.engineState !== 'disabled') {
-    if (!config.enabledDriverIds || !config.enabledDriverIds.includes(driverId)) {
-      throw new Error('DRIVER_NOT_ENABLED_FOR_PILOT');
-    }
-  }
-}
-
 export async function assignDriverToOrderAtomic(b44: any, order: any, driver: any, token: string, failureInjector = defaultFailureInjector) {
   let offerCommitted = false;
   try {
-    // assignRide puede traer esta validación en paralelo con el resto de lecturas.
-    // Otros consumidores/tests siguen validando aquí normalmente.
-    if (!order.__pilotValidated) {
-      await validatePilotDriver(b44, order.zone || '1-Puerto', driver.id);
-    }
     const driverRes = await b44.entities.Driver.updateMany(
       { id: driver.id, status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, active_order_id: null, active_ride_id: null, next_order_id: null },
       { $set: { dispatch_status: 'automatic_pending', reserved_order_id: order.id, reservation_token: token } }

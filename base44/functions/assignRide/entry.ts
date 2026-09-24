@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { assignDriverToOrderAtomic, validatePilotDriver } from '../../shared/DispatchLogic.ts';
+import { assignDriverToOrderAtomic } from '../../shared/DispatchLogic.ts';
 import { verifyRequestAuth, verifyJWT } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
@@ -119,8 +119,7 @@ Deno.serve(async (req) => {
       user_type: 'sistema',
       user_name: 'assignRide',
       details: `Request to assign ride ${orderId} to driver ${forceManual ? manualDriverName : driverId}`
-    }).catch(() => null),
-    validatePilotDriver(b44, orderReq.zone || '1-Puerto', driverId)
+    }).catch(() => null)
   ]);
 
   if (!driverReq) return Response.json({ success: false, reason: 'Driver not found' });
@@ -137,9 +136,6 @@ Deno.serve(async (req) => {
   let hasCurrentRide = false;
   let hasNextRide = Boolean(driverReq.next_order_id);
   let assignAsNext = false;
-
-  // Evita repetir la misma consulta dentro del bloque atómico.
-  orderReq.__pilotValidated = true;
 
   // Barrera de vehículo real: el estado del Driver no alcanza porque puede quedar
   // una base o un "disponible" viejo. La asignación exige un Movil vinculado,
