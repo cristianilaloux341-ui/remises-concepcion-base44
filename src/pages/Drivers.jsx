@@ -618,7 +618,7 @@ export default function Drivers() {
                           </span>
                         )}
                       </div>
-                      {(movil?.marca || movil?.modelo || driver.vehicle_model) && (
+                      {(movil?.marca || movil?.modelo || driver.vehicle_color) && (
                         <p className="text-xs text-muted-foreground pl-6">
                           {[movil?.marca, movil?.modelo, movil?.color || driver.vehicle_color].filter(Boolean).join(" · ")}
                         </p>
