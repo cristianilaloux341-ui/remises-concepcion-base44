@@ -1,11 +1,16 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { findNextDriverInZone } from '../../shared/driverSelection.ts';
+import { verifyRequestAuth } from '../../shared/security.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
   try {
-    const { orderId, driverId, mobileId, sessionToken, manual } = await req.json();
+    const payload = await req.json();
+    const { orderId, driverId, mobileId, sessionToken, manual } = payload;
+    if (!(await verifyRequestAuth(b44, payload, { allowOperator:true }))) {
+      return Response.json({ success:false, reason:'UNAUTHORIZED' }, { status:401 });
+    }
     if (!orderId) return Response.json({ success:false, reason:'ORDER_ID_REQUIRED' }, { status:400 });
 
     const order = await b44.entities.RideOrder.get(orderId).catch(() => null);
