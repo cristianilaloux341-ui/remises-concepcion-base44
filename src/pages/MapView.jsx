@@ -15,7 +15,7 @@ export default function MapView() {
   useEffect(() => { base44.entities.Movil.list().then(setMoviles).catch(() => setMoviles([])); }, []);
 
   const activeOrders = orders.filter(o =>
-    ["pendiente", "asignado", "en_camino", "en_viaje"].includes(o.status)
+    ["pendiente", "procesando_despacho", "preasignado_proximo", "ofrecido", "aceptado", "en_camino", "en_viaje"].includes(o.status)
   );
 
   return (

@@ -20,7 +20,7 @@ const secciones = [
       },
       {
         subtitulo: "Colas por Base",
-        texto: "Muestra la cola de chóferes esperando en cada base (Puerto, Plaza, Columna, etc.), ordenados por llegada. El primero en la cola es el próximo en recibir un viaje."
+        texto: "Muestra la cola autoritativa de chóferes esperando en cada base (Puerto, Plaza, Columna, etc.). La posición la determina el backend; el primero de esa cola es el próximo móvil elegible para recibir una oferta."
       }
     ]
   },
@@ -60,7 +60,7 @@ const secciones = [
       },
       {
         subtitulo: "Alertas automáticas",
-        texto: "El sistema te avisa cuando un viaje agendado está próximo a su horario para que lo despachez a tiempo."
+        texto: "El sistema te avisa cuando un viaje agendado está próximo a su horario para que lo despaches a tiempo."
       },
       {
         subtitulo: "Estados de viajes agendados",

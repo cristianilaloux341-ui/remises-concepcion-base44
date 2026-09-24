@@ -335,7 +335,7 @@ export default function OrderDetail() {
           ) : (
             <Card>
               <CardContent className="pt-6 text-sm text-muted-foreground">
-                El despacho se resuelve automáticamente por la cola de la zona o desde Pendientes.
+                El backend resuelve el despacho por la cola autoritativa de la zona. Si el circuito queda sin móviles elegibles, la orden pasa a Pendientes; la Zona 0 entra directamente a Pendientes para atención del operador.
               </CardContent>
             </Card>
           )}
