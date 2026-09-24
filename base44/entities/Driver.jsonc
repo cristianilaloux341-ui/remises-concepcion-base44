@@ -188,9 +188,6 @@
     "current_lng": {
       "type": "number"
     },
-    "user_id": {
-      "type": "string"
-    },
     "push_subscription": {
       "type": "string"
     },
