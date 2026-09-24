@@ -29,7 +29,7 @@
       "cron_expression": null,
       "one_time_date": null,
       "timezone": "UTC",
-      "interval_value": 1,
+      "interval_value": 5,
       "interval_unit": "minutes",
       "interval_anchor": "2026-09-24T23:27:00.000000",
       "ends_type": "never",
