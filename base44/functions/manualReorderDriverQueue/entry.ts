@@ -34,9 +34,6 @@ Deno.serve(async (req) => {
       currentQueue.splice(bounded, 0, driverToMove);
 
       // Reorden manual de Central: queue_position es la única prioridad.
-      // No reescribimos timestamps de entrada/autoridad porque pertenecen al evento
-      // real de ingreso a base y no deben cambiar al mover una fila.
-      const reorderAt = new Date().toISOString();
 
       for (let i = 0; i < currentQueue.length; i++) {
         const d:any = currentQueue[i];

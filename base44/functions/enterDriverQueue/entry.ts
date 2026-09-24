@@ -31,10 +31,7 @@ Deno.serve(async (req) => {
     !current?.reserved_order_id && !current?.active_ride_id && !current?.next_order_id &&
     current?.queue_authoritative_base === baseName && Number.isFinite(currentPos) && currentPos > 0;
 
-  if (alreadyAuthoritative) {,
-        { $set: {} }
-      );
-    }
+  if (alreadyAuthoritative) {
     return Response.json({
       success: true,
       idempotent: true,
@@ -44,7 +41,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  // La entrada y el sellado autoritativo se hacen dentro del MISMO lock de base.
   // La entrada y el sellado autoritativo se realizan dentro del mismo lock de base.
   const placed = await withQueueLock(b44, baseName, async () => {
     const freshRows = await b44.entities.Driver.filter({ id: driverId });
@@ -58,10 +54,7 @@ Deno.serve(async (req) => {
       !fresh?.reserved_order_id && !fresh?.active_ride_id && !fresh?.next_order_id &&
       fresh?.queue_authoritative_base === baseName && Number.isFinite(freshPos) && freshPos > 0;
 
-    if (freshAlreadyAuthoritative) {,
-          { $set:{} }
-        );
-      }
+    if (freshAlreadyAuthoritative) {
       return {
         success:true, idempotent:true,
         position:freshPos,

@@ -44,7 +44,6 @@ Deno.serve(async (req) => {
     current.queue_position == null &&
     !current.reserved_order_id &&
     !current.active_ride_id &&
-    !current.active_ride_id &&
     !current.next_order_id;
 
   if (alreadyOut) {
@@ -56,8 +55,6 @@ Deno.serve(async (req) => {
   }
 
   const previousBase = current.queue_authoritative_base || null;
-  const queueLeftAt = new Date().toISOString();
-
   const leaveOnce = async () => {
     const freshRows = await b44.entities.Driver.filter({ id:driverId });
     const fresh = freshRows?.[0];
@@ -69,7 +66,6 @@ Deno.serve(async (req) => {
       fresh.status !== 'disponible' ||
       (fresh.dispatch_status != null && fresh.dispatch_status !== 'normal') ||
       fresh.reserved_order_id ||
-      fresh.active_ride_id ||
       fresh.active_ride_id ||
       fresh.next_order_id
     ) {
@@ -87,7 +83,6 @@ Deno.serve(async (req) => {
         ],
         reserved_order_id:null,
         active_ride_id:null,
-        active_ride_id:null,
         next_order_id:null
       },
       {
@@ -101,7 +96,6 @@ Deno.serve(async (req) => {
           reserved_order_id:null,
           reservation_token:null,
           driver_reservation_key:null,
-          active_ride_id:null,
           active_ride_id:null
         }
       }

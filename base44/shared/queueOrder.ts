@@ -126,8 +126,7 @@ export async function getNextQueuePosition(b44: any, baseName: string, excludeDr
 
 export async function compactQueueUnlocked(b44: any, baseName: string) {
   // Compactación autoritativa: queue_position es la única prioridad operativa.
-  // No reescribimos timestamps/proyecciones: eso alarga el QueueLock y genera
-  // escrituras sin valor para la autoridad de cola.
+  // Sólo reescribimos posiciones que realmente cambiaron.
   if (!baseName) return;
   const rows = await b44.entities.Driver.filter({
     status: 'disponible',
