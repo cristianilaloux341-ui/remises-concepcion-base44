@@ -173,6 +173,21 @@
       "type": "string",
       "format": "date"
     },
+    "disconnect_suspended_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date",
+      "description": "Momento en que el servidor lo retir\u00f3 de la cola por desconexi\u00f3n prolongada; no equivale a salida voluntaria"
+    },
+    "disconnect_suspended_base": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Base que ten\u00eda al ser retirado por desconexi\u00f3n prolongada; solo informativa, nunca restaura posici\u00f3n"
+    },
     "bloqueo_post_aceptacion_hasta": {
       "type": "number",
       "description": "Timestamp (ms) hasta el cual el chofer est\u00e1 bloqueado para nuevos pasajes y quedar libre"
