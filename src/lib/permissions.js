@@ -25,7 +25,7 @@ export const ROLE_COLORS = {
  * El admin tiene acceso a todo.
  */
 const NAV_PERMISSIONS = {
-  admin:      ["dashboard", "orders", "map", "clients", "agenda", "messages", "drivers", "moviles", "tarifas", "zone-settings", "tiempo-espera", "usuarios", "backup", "driver-link"],
+  admin:      ["dashboard", "orders", "map", "clients", "agenda", "messages", "drivers", "moviles", "tarifas", "zone-settings", "tiempo-espera", "usuarios", "backup"],
   supervisor: ["dashboard", "orders", "map", "clients", "agenda", "messages", "drivers", "moviles"],
   operador:   ["dashboard", "orders", "map", "clients", "agenda", "messages"],
   caja:       ["dashboard", "clients", "agenda"],

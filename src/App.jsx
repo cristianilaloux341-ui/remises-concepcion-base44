@@ -23,7 +23,6 @@ import NewOrder from '@/pages/NewOrder';
 import OrderDetail from '@/pages/OrderDetail';
 import MapView from '@/pages/MapView';
 import Drivers from '@/pages/Drivers';
-import DriverLink from '@/pages/DriverLink';
 import Clients from '@/pages/Clients';
 import Agenda from '@/pages/Agenda';
 import Messages from '@/pages/Messages';
@@ -113,7 +112,6 @@ const AuthenticatedApp = () => {
           <Route path="/agenda" element={<Agenda />} />
           <Route path="/messages" element={<Messages />} />
           <Route path="/drivers" element={<AdminRoute allowRoles={["admin","supervisor"]}><Drivers /></AdminRoute>} />
-          <Route path="/driver-link" element={<AdminRoute allowRoles={["admin"]}><DriverLink /></AdminRoute>} />
           <Route path="/zone-settings" element={<AdminRoute allowRoles={["admin"]}><ZoneSettings /></AdminRoute>} />
           <Route path="/tarifas" element={<AdminRoute allowRoles={["admin"]}><Tarifas /></AdminRoute>} />
           <Route path="/moviles" element={<AdminRoute allowRoles={["admin","supervisor"]}><Moviles /></AdminRoute>} />
