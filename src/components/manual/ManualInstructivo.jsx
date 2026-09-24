@@ -42,7 +42,7 @@ const secciones = [
       },
       {
         subtitulo: "Asignación de chófer",
-        texto: "El sistema sugiere automáticamente el chófer más cercano a la zona de recogida según la cola de bases. Podés aceptar la sugerencia o elegir otro manualmente."
+        texto: "El backend ofrece el viaje al primer móvil elegible de la cola autoritativa de la zona de origen. No se asigna por proximidad. Si no hay móviles elegibles, queda Pendiente; el operador también puede realizar una asignación manual."
       },
       {
         subtitulo: "Tarifa estimada",
@@ -144,7 +144,7 @@ const secciones = [
       },
       {
         subtitulo: "Vinculación con Móvil",
-        texto: "Cada chófer puede estar asignado a uno o más móviles. Al ingresar el nombre del chófer en el formulario del móvil, se autocompletan patente y color si ya está registrado."
+        texto: "Cada chófer tiene un único vínculo operativo con un N° de Móvil. La vinculación se administra desde Chóferes seleccionando el móvil registrado; la ficha de Móviles sólo muestra los chóferes que lo referencian."
       }
     ]
   },
@@ -181,7 +181,7 @@ const secciones = [
     contenido: [
       {
         subtitulo: "¿Para qué sirven las Zonas?",
-        texto: "El sistema usa palabras clave de calles para detectar automáticamente la zona de un pedido (Puerto, Plaza, Columna, etc.) y asignar el chófer más conveniente."
+        texto: "La zona de origen determina qué cola puede recibir el pedido. En las zonas normales se respeta estrictamente el orden autoritativo de esa base; la Zona 0 va directamente a Pendientes para atención del operador."
       },
       {
         subtitulo: "Agregar palabras clave",
@@ -199,7 +199,7 @@ const secciones = [
     contenido: [
       {
         subtitulo: "¿Qué se configura?",
-        texto: "Los valores del taxímetro: bajada de bandera, precio por metro, precio por minuto en movimiento y precio por minuto de espera. Hay tarifas diurna y nocturna."
+        texto: "Los valores del taxímetro: bajada de bandera, valor y metros por ficha de distancia, valor y segundos por ficha de espera, tolerancia de espera y configuración de tarifa nocturna."
       },
       {
         subtitulo: "Tarifa nocturna",
