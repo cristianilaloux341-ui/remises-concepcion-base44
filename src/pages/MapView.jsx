@@ -5,10 +5,14 @@ import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
 import { Car, MapPin } from "lucide-react";
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
+import { base44 } from "@/api/base44Client";
+import { useEffect, useState } from "react";
 
 export default function MapView() {
   const { orders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 6000 });
   const { drivers } = useRealtimeDrivers({ refreshIntervalMs: 30000 });
+  const [moviles, setMoviles] = useState([]);
+  useEffect(() => { base44.entities.Movil.list().then(setMoviles).catch(() => setMoviles([])); }, []);
 
   const activeOrders = orders.filter(o =>
     ["pendiente", "asignado", "en_camino", "en_viaje"].includes(o.status)
@@ -25,7 +29,7 @@ export default function MapView() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3 h-[calc(100vh-220px)] min-h-[500px]">
-          <RideMap orders={activeOrders} drivers={drivers} className="h-full" />
+          <RideMap orders={activeOrders} drivers={drivers} moviles={moviles} className="h-full" />
         </div>
 
         <div className="space-y-4">

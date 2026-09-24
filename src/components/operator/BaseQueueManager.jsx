@@ -532,23 +532,6 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                     {queue.length > 4 && (
                       <p className="text-xs text-muted-foreground text-center">+{queue.length - 4} libres más</p>
                     )}
-                    {busyDrivers.map((driver) => {
-                      const nroMovil = movilById[String(driver.vehicle_model || "")];
-                      return (
-                        <div key={`busy-${driver.id}`} className="flex items-center gap-2 p-1.5 rounded-lg border border-dashed">
-                          <span className="text-[10px] font-bold shrink-0">•</span>
-                          <div className="flex-1 min-w-0 flex items-center">
-                            <p className="text-xs font-medium truncate">
-                              {getDriverDisplay(nroMovil, driver.name)}
-                            </p>
-                            <ConnectivityIndicator lastActive={driver.last_active} />
-                          </div>
-                          <span className="text-[9px] font-semibold text-muted-foreground shrink-0">
-                            {getBusyLabel(driver)}
-                          </span>
-                        </div>
-                      );
-                    })}
                   </>
                 )}
               </CardContent>
