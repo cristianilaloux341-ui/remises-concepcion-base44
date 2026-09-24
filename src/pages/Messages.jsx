@@ -245,36 +245,26 @@ export default function Messages() {
                 }
                 
                 let targetId = null;
-
-                // 1. Buscar coincidencia exacta por vehicle_model en Driver
-                const foundDriverByModel = drivers.find(d => 
-                  d.vehicle_model === val || 
-                  d.vehicle_model?.trim() === val || 
-                  d.vehicle_model?.toString() === val
-                );
-                
-                if (foundDriverByModel) {
-                   targetId = foundDriverByModel.id;
-                } else {
-                   // 2. Fallback a Moviles entity
-                   const movil = moviles.find(m => m.numero_movil?.toString() === val);
-                   if (movil) {
-                      const dId = movil.driver_ids?.[0] || movil.driver_id;
-                      if (dId && drivers.some(d => d.id === dId)) {
-                        targetId = dId;
-                      }
-                   }
-                   
-                   // 3. Fallback a coincidencia parcial por nombre o patente
-                   if (!targetId) {
-                     const found = drivers.find(d => 
-                       d.name?.toLowerCase().includes(val.toLowerCase()) || 
-                       d.vehicle_plate?.toLowerCase().includes(val.toLowerCase())
-                     );
-                     if (found) targetId = found.id;
-                   }
+                const movil = /^\d+$/.test(val)
+                  ? moviles.find(m => Number(m.numero_movil) === Number(val))
+                  : null;
+                if (movil) {
+                  const linked = drivers.filter(d => String(d.vehicle_model || "") === String(movil.id));
+                  if (linked.length === 1) targetId = linked[0].id;
+                  else if (linked.length > 1) {
+                    alert(`El móvil ${val} tiene más de un chofer vinculado. Corregí el vínculo antes de enviar.`);
+                    return;
+                  }
                 }
-                
+                if (!targetId) {
+                  const byName = drivers.filter(d => String(d.name || "").trim().toLowerCase() === val.toLowerCase());
+                  if (byName.length === 1) {
+                    const d = byName[0];
+                    const linkedMovil = moviles.find(m => String(m.id || "") === String(d.vehicle_model || ""));
+                    if (linkedMovil) targetId = d.id;
+                  }
+                }
+
                 if (targetId) {
                   setTargetDriverId(targetId);
                   setSearchNum("");
