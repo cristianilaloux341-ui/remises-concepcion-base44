@@ -143,7 +143,7 @@ export default function RideMap({ orders = [], drivers = [], moviles = [], cente
     // "Si ellos no están en servicio ni en posición o con pasaje en el mapa no tienen que aparecer"
     const effectiveBase = d.queue_authoritative_base || null;
     const enPosicion = d.status === "disponible" && !!effectiveBase;
-    const conPasaje = ["en_viaje", "en_camino", "aceptado", "ofrecido"].includes(d.status) || 
+    const conPasaje = d.status === "en_viaje" || 
                       d.dispatch_status === "automatic_pending";
 
     if (!enPosicion && !conPasaje) {

@@ -141,7 +141,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilById = {} }) {
 
       // Nunca borrar una oferta/viaje por agregar el móvil a una base desde el editor.
       // Solo un móvil realmente libre puede ingresar o cambiar de cola.
-      if (["en_viaje", "aceptado", "en_camino"].includes(driver.status) || driver.active_ride_id || driver.reserved_order_id || driver.dispatch_status === "automatic_pending") {
+      if (driver.status === "en_viaje" || driver.active_ride_id || driver.reserved_order_id || driver.dispatch_status === "automatic_pending") {
         throw new Error(`El móvil tiene un viaje u oferta activa. Esperá a que termine antes de ponerlo en ${baseName}.`);
       }
 
@@ -320,7 +320,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
 
     // Nunca completar ni borrar una reserva por escribir móvil.base o móvil.0.
     // También bloquear una oferta pendiente de respuesta, no solo un viaje aceptado.
-    if (["en_viaje", "aceptado", "en_camino"].includes(driver.status) || driver.active_ride_id || driver.reserved_order_id || driver.dispatch_status === "automatic_pending") {
+    if (driver.status === "en_viaje" || driver.active_ride_id || driver.reserved_order_id || driver.dispatch_status === "automatic_pending") {
       alert(`El móvil ${movilNum} tiene un viaje u oferta activa. Esperá a que termine antes de cambiarlo de base o sacarlo de servicio.`);
       setIsProcessing(false);
       return;

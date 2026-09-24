@@ -296,8 +296,6 @@ Deno.serve(async (req) => {
     // PENDING_AUTHORIZED es un estado público final del ciclo actual; sólo una acción
     // explícita del motor (p. ej. entrada real de un móvil a la base) puede iniciar
     // un nuevo intento. Así evitamos un segundo despachador paralelo.
-    const pendingAssigned = 0;
-
     if (count > 0 || ghostsDisconnected > 0) {
       console.log(`AutoReassignCron recuperó: ${count}; desconectados: ${ghostsDisconnected}.`);
     }
@@ -305,8 +303,7 @@ Deno.serve(async (req) => {
     return Response.json({
       success:true,
       resetCount:count,
-      ghostsDisconnected,
-      pendingAssigned:0
+      ghostsDisconnected
     });
   } catch (error) {
     console.error("Error en autoReassignCron:", error);
