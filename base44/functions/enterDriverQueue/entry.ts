@@ -83,7 +83,8 @@ Deno.serve(async (req) => {
       { $set:{
         dispatch_status:'normal',
         queue_authoritative_base:baseName,
-        queue_position:position
+        queue_position:position,
+        queue_last_operation_key:null
       } }
     );
     const sealedCount = sealed?.updated ?? sealed?.modifiedCount ?? sealed?.matchedCount ?? 0;
