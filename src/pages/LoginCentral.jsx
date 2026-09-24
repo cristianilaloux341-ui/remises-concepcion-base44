@@ -57,7 +57,7 @@ export default function LoginCentral() {
         <div className="bg-primary p-6 text-center">
           <div className="w-20 h-20 mx-auto mb-4">
             <img 
-              src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg" 
+              src="/icon-192.png" 
               alt="Logo" 
               className="w-full h-full object-cover rounded-2xl shadow-lg border-2 border-white/20"
             />

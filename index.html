@@ -35,18 +35,11 @@
     <!-- Agresivo overlay rojo removido para permitir reintentos silenciosos de red en producción -->
     <div id="root">
       <div style="display: flex; height: 100vh; width: 100vw; align-items: center; justify-content: center; background-color: #030712; color: white; font-family: sans-serif; flex-direction: column; padding: 20px; box-sizing: border-box;">
-        <img src="https://base44.app/api/apps/6a2195daf5c708d8398b3ca1/files/mp/public/6a2195daf5c708d8398b3ca1/a9e61fb71_9aaf2aa1d_whatsapp_image_2212741042823763.jpg" alt="RC" style="width: 120px; height: 120px; border-radius: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 20px; object-fit: cover;" />
+        <img src="/icon-192.png" alt="RC" style="width: 120px; height: 120px; border-radius: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 20px; object-fit: cover;" />
         <h1 style="font-size: 2rem; font-weight: 800; text-align: center; color: white; margin: 0;">Remises Concepción</h1>
         <p style="color: #9ca3af; margin-top: 10px;">Cargando...</p>
       </div>
     </div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(e => console.warn('SW register failed:', e));
-        });
-      }
-    </script>
   </body>
 </html>
