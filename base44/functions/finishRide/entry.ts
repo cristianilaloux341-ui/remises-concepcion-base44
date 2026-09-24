@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
          {$or:[{reserved_order_id:null},{reserved_order_id:{$exists:false}}]}
        ]},
       {$set:{status:'en_viaje',dispatch_status:'normal',active_ride_id:nextOrderId,
-             active_ride_id:nextOrderId,next_order_id:null,next_order_token:null}}
+             next_order_id:null,next_order_token:null}}
     );
     if (mutationCount(driverPromote) === 1) {
       promotedNextOrderId = nextOrderId;

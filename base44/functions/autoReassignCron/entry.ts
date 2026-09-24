@@ -34,7 +34,6 @@ Deno.serve(async (req) => {
     const stuckDriverGroups = await Promise.all([
       b44.entities.Driver.filter({ reserved_order_id: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ active_ride_id: { $ne: null } }).catch(() => []),
-      b44.entities.Driver.filter({ active_ride_id: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ dispatch_status: 'automatic_pending' }).catch(() => []),
       b44.entities.Driver.filter({ driver_reservation_key: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ reservation_token: { $ne: null } }).catch(() => []),

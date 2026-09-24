@@ -451,7 +451,6 @@ Deno.serve(async (req) => {
     driverReq.dispatch_status = 'normal';
     driverReq.reserved_order_id = null;
     driverReq.active_ride_id = null;
-    driverReq.active_ride_id = null;
     driverReq.reservation_token = null;
   } else if (driverReq.status !== 'disponible' || (driverReq.dispatch_status != null && driverReq.dispatch_status !== 'normal')) {
     // Sin referencia a viaje no pisamos el estado a ciegas: el CAS atómico decide.
