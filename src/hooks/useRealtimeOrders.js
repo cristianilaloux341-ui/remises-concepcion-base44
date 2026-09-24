@@ -96,7 +96,7 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date", fallbac
     // perdido por realtime: pendiente→ofrecido→aceptado→en_camino→en_viaje→completado/cancelado.
     const activeVerifier = verifyActiveMs > 0 ? setInterval(async () => {
       if (!mountedRef.current || document.visibilityState !== "visible" || verifyActiveInFlightRef.current) return;
-      const activeStatusList = ["pendiente", "preasignado_proximo", "ofrecido", "aceptado", "en_camino", "en_viaje"];
+      const activeStatusList = ["pendiente", "procesando_despacho", "preasignado_proximo", "ofrecido", "aceptado", "en_camino", "en_viaje"];
       const activeStatuses = new Set(activeStatusList);
       const activeIds = [...new Set((ordersRef.current || [])
         .filter(o => o?.id && activeStatuses.has(o.status))
