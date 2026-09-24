@@ -183,6 +183,28 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
       throw new Error(`QUEUE_COMPACT_CONCURRENT_CHANGE:${baseName}:${d.id}`);
     }
   }
+
+  // Verificación post-escritura bajo el mismo QueueLock: no alcanza con que cada
+  // update haya respondido OK; la cola final debe conservar exactamente los mismos
+  // miembros elegibles y quedar 1..N, sin huecos ni duplicados.
+  const verifyRows = await b44.entities.Driver.filter({
+    status: 'disponible',
+    queue_authoritative_base: baseName
+  }).catch(() => []);
+  const verified = getBaseQueue(Array.isArray(verifyRows) ? verifyRows : [], baseName);
+
+  const expectedIds = queue.map(d => d.id).sort();
+  const verifiedIds = verified.map(d => d.id).sort();
+  if (expectedIds.length !== verifiedIds.length ||
+      expectedIds.some((id, i) => id !== verifiedIds[i])) {
+    throw new Error(`QUEUE_COMPACT_MEMBERS_CHANGED:${baseName}`);
+  }
+
+  for (let i = 0; i < verified.length; i++) {
+    if (Number(verified[i].queue_position) !== i + 1) {
+      throw new Error(`QUEUE_COMPACT_VERIFY_FAILED:${baseName}:${verified[i].id}:${verified[i].queue_position}`);
+    }
+  }
 }
 
 export async function compactQueue(b44: any, baseName: string) {
