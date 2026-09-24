@@ -16,7 +16,7 @@ const secciones = [
       },
       {
         subtitulo: "Panel de Despacho",
-        texto: "Muestra los viajes pendientes y ofrecidos. Hacé clic en un viaje para ver el detalle y gestionarlo. Los viajes rechazados se reasignan automáticamente."
+        texto: "Muestra los viajes pendientes y ofrecidos. Hacé clic en un viaje para ver el detalle y gestionarlo. En un viaje normal, si el móvil rechaza o vence su tiempo, el backend continúa con el siguiente móvil elegible de la misma zona. Un viaje requerido que no es aceptado queda retenido para decisión del operador."
       },
       {
         subtitulo: "Colas por Base",
@@ -34,7 +34,7 @@ const secciones = [
       },
       {
         subtitulo: "Estados de un viaje",
-        texto: "• Pendiente → Ofrecido → Aceptado → En Camino → En Viaje → Completado\n• También puede ser Cancelado o Rechazado si el chófer no acepta."
+        texto: "• Pendiente → Ofrecido → Aceptado → En Camino → En Viaje → Completado\n• El viaje también puede ser Cancelado. Rechazar una oferta no convierte la orden en “Rechazada”: en un viaje normal continúa el circuito de despacho; si era un móvil requerido, queda para resolución de Central."
       },
       {
         subtitulo: "Crear un nuevo pedido",
