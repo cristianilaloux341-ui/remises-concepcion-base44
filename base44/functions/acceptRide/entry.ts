@@ -163,10 +163,6 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     },
     $inc: { processingLeaseVersion: 1 }
   };
-
-  let start = Date.now();
-
-  start = Date.now();
   let acquired;
   try {
     acquired = await b44.entities.RideOrder.updateMany(acquireFilter, acquireUpdate);
@@ -339,8 +335,6 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
         bloqueo_post_aceptacion_hasta: bloqueoHasta
       } 
   };
-
-  start = Date.now();
   let resDriver;
   try {
     resDriver = await b44.entities.Driver.updateMany(reserveDriverFilter, reserveDriverUpdate);
@@ -368,8 +362,6 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
       processingLeaseExpiresAt: { $gt: Date.now() } 
   };
   const driverResTransUpdate = { $set: { processingPhase: "DRIVER_RESERVED" } };
-
-  start = Date.now();
   let reservedPhase;
   try {
     reservedPhase = await b44.entities.RideOrder.updateMany(driverResTransFilter, driverResTransUpdate);
@@ -423,8 +415,6 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
         lastCompletedOfferVersion: assignmentAttempt
       }
   };
-
-  start = Date.now();
   let commit;
   try {
     commit = await b44.entities.RideOrder.updateMany(commitFilter, commitUpdate);
