@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
             const currentDriver = await b44.entities.Driver.get(dId).catch(() => null);
             if (!currentDriver) continue;
             const set:any = {
-              current_base:null,
+              
               queue_authoritative_base:null,
               queue_position:null,
               queue_authority_marker:null

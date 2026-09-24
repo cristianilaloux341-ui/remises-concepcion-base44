@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
 
     const fixRes = await b44.entities.Driver.updateMany(
       { id: driverId, next_order_id: freshDriver?.next_order_id ?? null, next_order_token: freshDriver?.next_order_token ?? null, $or: [{ reserved_order_id: orderId }, { active_order_id: orderId }, { active_ride_id: orderId }] },
-      { $set: { status: 'disponible', dispatch_status: 'normal', current_base: null, queue_entered_at: null, queue_authoritative_base: null, queue_authoritative_at: null, queue_authority_marker: null, queue_position: null, reserved_order_id: null, reservation_token: null, driver_reservation_key: null, active_order_id: null, active_ride_id: null } }
+      { $set: { status: 'disponible', dispatch_status: 'normal',  queue_entered_at: null, queue_authoritative_base: null, queue_authoritative_at: null, queue_authority_marker: null, queue_position: null, reserved_order_id: null, reservation_token: null, driver_reservation_key: null, active_order_id: null, active_ride_id: null } }
     );
     if (mutationCount(fixRes) >= 1) {
       const promotedNextOrderId = await promoteConfirmedNextRide();
@@ -242,7 +242,7 @@ Deno.serve(async (req) => {
 
   const uDriver = await b44.entities.Driver.updateMany(
     { id: driverId, next_order_id: driver?.next_order_id ?? null, next_order_token: driver?.next_order_token ?? null, $or: [{ reserved_order_id: orderId }, { active_order_id: orderId }, { active_ride_id: orderId }] },
-    { $set: { status: 'disponible', dispatch_status: 'normal', current_base: null, queue_entered_at: null, queue_authoritative_base: null, queue_authoritative_at: null, queue_authority_marker: null, queue_position: null, reserved_order_id: null, reservation_token: null, driver_reservation_key: null, active_order_id: null, active_ride_id: null } }
+    { $set: { status: 'disponible', dispatch_status: 'normal',  queue_entered_at: null, queue_authoritative_base: null, queue_authoritative_at: null, queue_authority_marker: null, queue_position: null, reserved_order_id: null, reservation_token: null, driver_reservation_key: null, active_order_id: null, active_ride_id: null } }
   );
 
   if (mutationCount(uDriver) < 1) {

@@ -130,19 +130,6 @@
       "type": "number",
       "default": 0
     },
-    "current_base": {
-      "type": "string",
-      "enum": [
-        "1-Puerto",
-        "2-Plaza",
-        "3-Columna",
-        "4-Base",
-        "5-Cementerio",
-        "6-Díaz Vélez",
-        "7-Don Bosco",
-        "8-Monumento"
-      ]
-    },
     "queue_position": {
       "type": "number"
     },
@@ -172,7 +159,7 @@
         "string",
         "null"
       ],
-      "description": "Hora histórica de salida de la base. No conserva posición ni prioridad; la cola operativa se define únicamente por current_base + queue_position del servidor."
+      "description": "Hora histórica de salida de la base. No conserva posición ni prioridad; la cola operativa se define únicamente por queue_authoritative_base + queue_position del servidor."
     },
     "queue_authority_marker": {
       "type": "number",

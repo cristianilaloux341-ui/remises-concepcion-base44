@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
             {id:driverId,status:'disponible',queue_authoritative_base:queueBase,
              queue_position:driver.queue_position,
              active_order_id:null,active_ride_id:null,reserved_order_id:null,next_order_id:null},
-            {$set:{status:'no_disponible',current_base:null,queue_entered_at:null,
+            {$set:{status:'no_disponible',queue_entered_at:null,
                    queue_authoritative_base:null,queue_authoritative_at:null,
                    queue_authority_marker:null,queue_position:null,
                    current_session_token:null,device_id:null}}

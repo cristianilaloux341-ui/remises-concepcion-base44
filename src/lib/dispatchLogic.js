@@ -8,8 +8,6 @@ export function getEffectiveQueueBase(driver) {
   if (!driver) return null;
   const authoritativeBase = driver.queue_authoritative_base || null;
   const pos = Number(driver.queue_position);
-  // La vista web usa la misma autoridad que backend. Un current_base=null técnico
-  // de una APK vieja no debe hacer desaparecer ni mover al móvil en la lista.
   if (!authoritativeBase) return null;
   if (!Number.isFinite(pos) || pos <= 0) return null;
   return authoritativeBase;

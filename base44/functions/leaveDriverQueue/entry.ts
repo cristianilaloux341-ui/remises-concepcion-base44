@@ -40,7 +40,6 @@ Deno.serve(async (req) => {
   }
 
   const alreadyOut = current.status === 'no_disponible' &&
-    !current.current_base &&
     !current.queue_authoritative_base &&
     current.queue_position == null &&
     current.queue_authority_marker == null &&
@@ -97,7 +96,7 @@ Deno.serve(async (req) => {
         $set:{
           status:'no_disponible',
           dispatch_status:'normal',
-          current_base:null,
+          
           queue_entered_at:null,
           queue_authoritative_base:null,
           queue_authoritative_at:null,

@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
 
   if (alreadyAuthoritative) {
     const currentMarker = Number(current?.queue_authority_marker);
-    if (current.current_base !== baseName || !Number.isFinite(currentMarker) || currentMarker !== currentPos) {
+    if (!Number.isFinite(currentMarker) || currentMarker !== currentPos) {
       await b44.entities.Driver.updateMany(
         {
           id: driverId,
@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
           active_ride_id: null,
           next_order_id: null
         },
-        { $set: { current_base: baseName, queue_authority_marker: currentPos, queue_left_at: null } }
+        { $set: {  queue_authority_marker: currentPos, queue_left_at: null } }
       );
     }
     return Response.json({
@@ -60,9 +60,7 @@ Deno.serve(async (req) => {
   }
 
   // La entrada y el sellado autoritativo se hacen dentro del MISMO lock de base.
-  // Antes se escribía primero current_base con queue_position/authority en null y
-  // recién después se intentaba sellar. Si el segundo paso perdía una carrera, el
-  // móvil quedaba visible en la base pero fuera de la cola real (caso móvil 60).
+  // La entrada y el sellado autoritativo se realizan dentro del mismo lock de base.
   const placed = await withQueueLock(b44, baseName, async () => {
     const freshRows = await b44.entities.Driver.filter({ id: driverId });
     const fresh = freshRows?.[0];
@@ -77,7 +75,7 @@ Deno.serve(async (req) => {
 
     if (freshAlreadyAuthoritative) {
       const freshMarker = Number(fresh?.queue_authority_marker);
-      if (fresh.current_base !== baseName || !Number.isFinite(freshMarker) || freshMarker !== freshPos) {
+      if (!Number.isFinite(freshMarker) || freshMarker !== freshPos) {
         await b44.entities.Driver.updateMany(
           {
             id:driverId,
@@ -89,7 +87,7 @@ Deno.serve(async (req) => {
             active_ride_id:null,
             next_order_id:null
           },
-          { $set:{ current_base:baseName, queue_authority_marker:freshPos, queue_left_at:null } }
+          { $set:{  queue_authority_marker:freshPos, queue_left_at:null } }
         );
       }
       return {
@@ -117,7 +115,7 @@ Deno.serve(async (req) => {
         driver_reservation_key:null
       },
       { $set:{
-        current_base:baseName,
+        
         queue_entered_at:queueEnteredAt,
         queue_authoritative_base:baseName,
         queue_authoritative_at:queueEnteredAt,
