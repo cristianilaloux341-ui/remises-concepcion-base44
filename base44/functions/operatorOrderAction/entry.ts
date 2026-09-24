@@ -29,6 +29,22 @@ Deno.serve(async (req) => {
     }
 
     const driverIds = [...new Set([order.driver_id, order.reserved_driver_id, order.preassigned_driver_id].filter(Boolean))];
+
+    // Ganar primero la transición terminal. Así CANCELAR y FINALIZAR compiten
+    // atómicamente sobre RideOrder antes de que cualquiera de los dos toque Driver.
+    const changed = await b44.entities.RideOrder.updateMany(
+      { id:orderId, status:order.status },
+      { $set:{ status:'cancelado', offerExpiresAt:null, processingAction:'CANCELLED_BY_CENTRAL',
+        processingOperationKey:null, processingOwnerId:null, processingLeaseExpiresAt:null, processingPhase:null } }
+    );
+    if ((changed?.updated ?? changed?.matchedCount ?? changed?.modifiedCount ?? 0) !== 1) {
+      const fresh = await b44.entities.RideOrder.get(orderId).catch(()=>null);
+      if (fresh?.status === 'cancelado') {
+        return Response.json({success:true,status:'cancelado',idempotent:true,reason:'ALREADY_CANCELLED'});
+      }
+      return Response.json({success:false,reason:'CONCURRENT_CHANGE'},{status:409});
+    }
+
     for (const driverId of driverIds) {
       const driver = await b44.entities.Driver.get(driverId).catch(()=>null);
       if (!driver) continue;
@@ -70,12 +86,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'cancel') {
-      const changed = await b44.entities.RideOrder.updateMany(
-        { id:orderId, status:order.status },
-        { $set:{ status:'cancelado', offerExpiresAt:null, processingAction:'CANCELLED_BY_CENTRAL', processingOperationKey:null, processingOwnerId:null, processingLeaseExpiresAt:null, processingPhase:null } }
-      );
-      if ((changed?.updated ?? changed?.matchedCount ?? changed?.modifiedCount ?? 0) !== 1) return Response.json({success:false,reason:'CONCURRENT_CHANGE'});
-
+      // RideOrder ya quedó cancelado de forma autoritativa antes de limpiar Driver.
       // Si se canceló el primer viaje y ya había un segundo confirmado, promoverlo
       // inmediatamente. La cancelación no debe dejar el próximo viaje varado.
       for (const driverId of driverIds) {
