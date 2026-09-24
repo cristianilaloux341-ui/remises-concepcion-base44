@@ -71,8 +71,6 @@ const AuthenticatedApp = () => {
     window.location.href = window.location.href.replace('http:', 'https:');
   }
 
-  // Seguridad: Validar User-Agent (Contenedor Electron)
-  const isDesktopApp = navigator.userAgent.includes('RemisesConcepcion-AdminApp');
   const isLoginCentral = location.pathname === '/login';
   
   const hasLocalOperator = sessionStorage.getItem('local_operator') !== null;
