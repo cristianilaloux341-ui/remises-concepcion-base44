@@ -24,25 +24,36 @@ Deno.serve(async (req) => {
     // debe nacer una orden nueva y entrar por el motor canónico de despacho.
     // Idempotencia: una repetición/reintento de la misma cancelación no puede volver
     // a liberar el móvil, reinsertarlo primero ni emitir otro cancel_push.
-    if (order.status === 'cancelado') {
+    if (order.status === 'cancelado' && order.cancel_effects_status === 'DONE') {
       return Response.json({success:true,status:'cancelado',idempotent:true,reason:'ALREADY_CANCELLED'});
     }
 
     const driverIds = [...new Set([order.driver_id, order.reserved_driver_id, order.preassigned_driver_id].filter(Boolean))];
+    const cancelOperationKey = order.cancel_effects_operation_key || `CANCEL_${orderId}`;
 
     // Ganar primero la transición terminal. Así CANCELAR y FINALIZAR compiten
     // atómicamente sobre RideOrder antes de que cualquiera de los dos toque Driver.
-    const changed = await b44.entities.RideOrder.updateMany(
-      { id:orderId, status:order.status },
-      { $set:{ status:'cancelado', offerExpiresAt:null, processingAction:'CANCELLED_BY_CENTRAL',
-        processingOperationKey:null, processingOwnerId:null, processingLeaseExpiresAt:null, processingPhase:null } }
-    );
-    if ((changed?.updated ?? changed?.matchedCount ?? changed?.modifiedCount ?? 0) !== 1) {
-      const fresh = await b44.entities.RideOrder.get(orderId).catch(()=>null);
-      if (fresh?.status === 'cancelado') {
-        return Response.json({success:true,status:'cancelado',idempotent:true,reason:'ALREADY_CANCELLED'});
+    if (order.status !== 'cancelado') {
+      const changed = await b44.entities.RideOrder.updateMany(
+        { id:orderId, status:order.status },
+        { $set:{ status:'cancelado', offerExpiresAt:null, processingAction:'CANCELLED_BY_CENTRAL',
+          processingOperationKey:null, processingOwnerId:null, processingLeaseExpiresAt:null, processingPhase:null,
+          cancel_effects_status:'PENDING', cancel_effects_operation_key:cancelOperationKey,
+          cancel_push_claimed:false, cancel_push_claimed_at:null } }
+      );
+      if ((changed?.updated ?? changed?.matchedCount ?? changed?.modifiedCount ?? 0) !== 1) {
+        const fresh = await b44.entities.RideOrder.get(orderId).catch(()=>null);
+        if (fresh?.status !== 'cancelado') return Response.json({success:false,reason:'CONCURRENT_CHANGE'},{status:409});
+        if (fresh.cancel_effects_status === 'DONE') {
+          return Response.json({success:true,status:'cancelado',idempotent:true,reason:'ALREADY_CANCELLED'});
+        }
       }
-      return Response.json({success:false,reason:'CONCURRENT_CHANGE'},{status:409});
+    } else if (order.cancel_effects_status !== 'PENDING') {
+      await b44.entities.RideOrder.updateMany(
+        {id:orderId,status:'cancelado',$or:[{cancel_effects_status:null},{cancel_effects_status:{$exists:false}}]},
+        {$set:{cancel_effects_status:'PENDING',cancel_effects_operation_key:cancelOperationKey,
+               cancel_push_claimed:false,cancel_push_claimed_at:null}}
+      ).catch(()=>null);
     }
 
     for (const driverId of driverIds) {
@@ -170,8 +181,47 @@ Deno.serve(async (req) => {
           });
         }
       }
-      if (driverIds.length) b44.functions.invoke('sendPushNotification',{action:'cancel_multiple',driversToCancel:driverIds,orderId,sessionToken}).catch(()=>{});
-      await b44.entities.AuditLog.create({action:operatorAuthorized ? 'CENTRAL_CANCEL_COMMITTED' : 'CLIENT_CANCEL_COMMITTED',user_type:operatorAuthorized ? 'operador' : 'cliente',user_name:operatorAuthorized ? 'Central' : 'Cliente',details:`Cancelación autoritativa de ${orderId}`,metadata:{orderId,driverIds}}).catch(()=>{});
+      // Lease durable para el cierre FCM. Evita duplicados concurrentes y, si el
+      // proceso muere, permite recuperar el envío después de 60 s.
+      if (driverIds.length) {
+        const now = Date.now();
+        const pushClaim = await b44.entities.RideOrder.updateMany(
+          {id:orderId,status:'cancelado',cancel_effects_status:'PENDING',
+           $or:[{cancel_push_claimed:false},{cancel_push_claimed:null},{cancel_push_claimed:{$exists:false}},
+                {cancel_push_claimed_at:{$lt:now-60000}}]},
+          {$set:{cancel_push_claimed:true,cancel_push_claimed_at:now}}
+        ).catch(()=>null);
+        const pushClaimed = (pushClaim?.updated ?? pushClaim?.matchedCount ?? pushClaim?.modifiedCount ?? 0) === 1;
+        if (pushClaimed) {
+          try {
+            await b44.functions.invoke('sendPushNotification',{action:'cancel_multiple',driversToCancel:driverIds,orderId,sessionToken});
+          } catch (pushError) {
+            await b44.entities.RideOrder.updateMany(
+              {id:orderId,status:'cancelado',cancel_effects_status:'PENDING',cancel_push_claimed:true,cancel_push_claimed_at:now},
+              {$set:{cancel_push_claimed:false,cancel_push_claimed_at:null}}
+            ).catch(()=>null);
+            return Response.json({success:false,reason:'CANCEL_PUSH_RETRY_REQUIRED'},{status:503});
+          }
+        } else {
+          const freshClaim = await b44.entities.RideOrder.get(orderId).catch(()=>null);
+          if (freshClaim?.cancel_effects_status !== 'DONE') {
+            return Response.json({success:false,reason:'CANCEL_EFFECTS_IN_PROGRESS'},{status:409});
+          }
+        }
+      }
+
+      const effectsDone = await b44.entities.RideOrder.updateMany(
+        {id:orderId,status:'cancelado',cancel_effects_status:'PENDING',cancel_effects_operation_key:cancelOperationKey},
+        {$set:{cancel_effects_status:'DONE'}}
+      ).catch(()=>null);
+      if ((effectsDone?.updated ?? effectsDone?.matchedCount ?? effectsDone?.modifiedCount ?? 0) !== 1) {
+        const freshDone = await b44.entities.RideOrder.get(orderId).catch(()=>null);
+        if (freshDone?.cancel_effects_status !== 'DONE') {
+          return Response.json({success:false,reason:'CANCEL_EFFECTS_NOT_FINALIZED'},{status:409});
+        }
+      }
+
+      await b44.entities.AuditLog.create({action:operatorAuthorized ? 'CENTRAL_CANCEL_COMMITTED' : 'CLIENT_CANCEL_COMMITTED',user_type:operatorAuthorized ? 'operador' : 'cliente',user_name:operatorAuthorized ? 'Central' : 'Cliente',details:`Cancelación autoritativa de ${orderId}`,metadata:{orderId,driverIds,cancelOperationKey}}).catch(()=>{});
       return Response.json({success:true,status:'cancelado'});
     }
 
