@@ -83,7 +83,9 @@ Deno.serve(async (req) => {
         ],
         reserved_order_id:null,
         active_ride_id:null,
-        next_order_id:null
+        next_order_id:null,
+        queue_authoritative_base:freshBase,
+        queue_position:fresh.queue_position
       },
       {
         $set:{
