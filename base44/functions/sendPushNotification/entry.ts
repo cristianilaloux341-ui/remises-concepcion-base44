@@ -327,9 +327,7 @@ Deno.serve(async (req) => {
                    token: driver.fcm_token,
                    data: {
                      type: "cancelar",
-                     // Mantener el ID real del viaje. El intento viaja separado.
-                     // Así la APK actual crea y cancela EXACTAMENTE la misma alerta
-                     // sin depender de sufijos _att_N para apagar sonido/burbuja.
+                     // El cierre queda ligado al mismo viaje + intento de la oferta.
                      orderId: String(orderId),
                      assignmentAttempt: String(currentAttempt),
                      sentAt: Date.now().toString()
@@ -351,33 +349,12 @@ Deno.serve(async (req) => {
              } else {
                console.log("FCM Cancel Success sent to", driver.id);
 
-               // Segunda señal sólo para la WebView ya instalada: no crea una alerta
-               // nativa nueva. Fuerza a releer el RideOrder; si ya pasó a otro móvil,
-               // la plantilla vieja se descarta como lo hace el propio Rechazar.
-               const syncRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-                 method: 'POST',
-                 headers: { 'Authorization': `Bearer ${cachedAccessToken}`, 'Content-Type': 'application/json' },
-                 signal: AbortSignal.timeout(5000),
-                 body: JSON.stringify({
-                   message: {
-                     token: driver.fcm_token,
-                     data: {
-                       type: "sync_after_cancel",
-                       orderId: String(orderId),
-                       assignmentAttempt: String(currentAttempt),
-                       sentAt: Date.now().toString()
-                     },
-                     android: { priority: "HIGH", ttl: "30s" }
-                   }
-                 })
-               }).catch(() => null);
-
                await base44.asServiceRole.entities.AuditLog.create({
                  action: "cancel_push_enviado",
                  user_type: "sistema",
                  user_name: "Sistema",
                  details: `FCM de cierre enviado a ${driver.name || driver.id}`,
-                 metadata: { orderId, driverId: driver.id, assignmentAttempt: currentAttempt, orderIdFormat: "base", syncSent: !!syncRes?.ok }
+                 metadata: { orderId, driverId: driver.id, assignmentAttempt: currentAttempt, orderIdFormat: "base" }
                }).catch(() => {});
              }
            } catch(e) {
