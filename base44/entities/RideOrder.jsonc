@@ -43,7 +43,6 @@
       "enum": [
         "pendiente",
         "procesando_despacho",
-        "esperando_confirmacion_manual",
         "preasignado_proximo",
         "ofrecido",
         "aceptado",

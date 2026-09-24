@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
   // PREVENCIÓN DE COLISIÓN (DOBLE DISPARO) AL MISMO TIEMPO:
   // Si la orden ya está "ofrecida" o "procesando_despacho" a alguien más (o incluso al mismo),
   // y la reserva no ha expirado, rechazar instantáneamente para no correr motores de empuje ni solapar cronómetros.
-  if ((orderReq.status === 'procesando_despacho' || orderReq.status === 'esperando_confirmacion_manual') &&
+  if ((orderReq.status === 'procesando_despacho') &&
       (orderReq.driver_id || orderReq.reserved_driver_id)) {
     await b44.entities.AuditLog.create({
       action: 'CONCURRENT_ASSIGN_BLOCKED',
@@ -340,7 +340,7 @@ Deno.serve(async (req) => {
       return Response.json({success:false,reason:'DRIVER_CAPACITY_FULL'});
 
     const offered = await b44.entities.RideOrder.updateMany(
-      {id:orderId,status:{ $in:['pendiente','procesando_despacho','esperando_confirmacion_manual'] }},
+      {id:orderId,status:{ $in:['pendiente','procesando_despacho'] }},
       {$set:{status:'ofrecido',driver_id:driverId,driver_name:driverReq.name,reserved_driver_id:driverId,
         reservation_token:nextToken,second_slot_offer:true,assignment_attempt:newAttempt,assigned_at:assignedAt,
         assigned_base:null,offerExpiresAt:null,push_ack_at:null,push_ack_assignment_attempt:null,
@@ -393,7 +393,7 @@ Deno.serve(async (req) => {
     const orderNext = await b44.entities.RideOrder.updateMany(
       {
         id:orderId,
-        status:{ $in:['pendiente','procesando_despacho','esperando_confirmacion_manual'] },
+        status:{ $in:['pendiente','procesando_despacho'] },
         $or:[{preassigned_driver_id:null},{preassigned_driver_id:{ $exists:false }}]
       },
       { $set:{
