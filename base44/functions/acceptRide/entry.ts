@@ -411,7 +411,6 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
         lastCompletedOperationKey: operationKey, 
         lastCompletedAction: "ACCEPT", 
         lastCompletedResult: "SUCCESS", 
-        lastCompletedAt: commitNow, 
         lastCompletedOfferVersion: assignmentAttempt
       }
   };

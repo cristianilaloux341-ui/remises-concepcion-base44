@@ -207,12 +207,6 @@
         "null"
       ]
     },
-    "lastCompletedAt": {
-      "type": [
-        "number",
-        "null"
-      ]
-    },
     "lastCompletedOfferVersion": {
       "type": [
         "number",
