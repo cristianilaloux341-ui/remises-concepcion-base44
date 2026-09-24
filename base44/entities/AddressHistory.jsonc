@@ -39,8 +39,7 @@
       "enum": [
         "memory",
         "polygon",
-        "operator",
-        "legacy"
+        "operator"
       ]
     },
     "zone_confirmed": {

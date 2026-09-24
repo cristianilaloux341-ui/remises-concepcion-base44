@@ -253,9 +253,8 @@ Deno.serve(async (req) => {
       const attempt = nativeAssignmentAttempt;
 
       // Una sola autoridad para TODOS los rechazos (pantalla, SW y acción nativa).
-      // Antes la acción nativa usaba una ruta legacy distinta que movía el viaje a
-      // procesando_despacho y podía competir con timeout/aceptación. Ahora usa
-      // rejectRide, con el mismo CAS, cola, cancelación y ventana completa del siguiente.
+      // Todos los rechazos nativos delegan en rejectRide, con el mismo CAS, cola,
+      // cancelación y ventana completa del siguiente intento.
       const rejectResponse = await b44.functions.invoke("rejectRide", {
         orderId: realOrderId,
         driverId,

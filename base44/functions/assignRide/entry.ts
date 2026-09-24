@@ -281,7 +281,7 @@ Deno.serve(async (req) => {
   // Esperar la confirmación del chofer NO convierte la asignación en manual
   // ni autoriza a saltar la zona. Solo forceManual identifica una excepción explícita.
   const requestedManual = forceManual === true;
-  // Protección server-side también para APK viejos: si una orden ya tuvo una
+  // Protección server-side: si una orden ya tuvo una
   // aceptación confirmada y aparece nuevamente como pendiente, nunca debe entrar
   // al despacho automático. Solo una asignación manual autorizada de Central puede reactivarla.
   const wasAlreadyAccepted = orderReq.status === 'pendiente' && ['ACCEPT', 'START', 'FINISH'].includes(orderReq.lastCompletedAction);
