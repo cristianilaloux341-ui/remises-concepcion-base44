@@ -45,7 +45,16 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
       : Boolean(excludeDriverId && d.id === excludeDriverId);
     const isAlreadyOffered = offeredDriverIds.includes(d.id);
     const isBlocked = Number(d.bloqueo_post_aceptacion_hasta) > Date.now();
-    return isDriverWorking(d) && 
+
+    // Conectividad y pertenencia a cola son estados distintos.
+    // Cerrar/perder señal NO modifica base ni queue_position. Mientras el
+    // heartbeat está vencido, el despacho lo saltea sin reordenar la cola.
+    const lastActiveMs = new Date(d.last_active || 0).getTime();
+    const heartbeatFresh = Number.isFinite(lastActiveMs) &&
+      (Date.now() - lastActiveMs) <= 60_000;
+
+    return isDriverWorking(d) &&
+           heartbeatFresh &&
            !d.active_ride_id && 
            !d.reserved_order_id &&
            !d.next_order_id &&
