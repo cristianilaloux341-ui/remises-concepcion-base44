@@ -34,8 +34,6 @@ import NewOrder from '@/pages/NewOrder';
 import OrderDetail from '@/pages/OrderDetail';
 import MapView from '@/pages/MapView';
 import Drivers from '@/pages/Drivers';
-import DriverApp from '@/pages/DriverApp';
-import { Component } from 'react';
 import DriverLink from '@/pages/DriverLink';
 import Clients from '@/pages/Clients';
 import Agenda from '@/pages/Agenda';
@@ -53,27 +51,6 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import LoginCentral from '@/pages/LoginCentral';
 import AdminUsuarios from '@/pages/AdminUsuarios';
-
-class DriverAppErrorBoundary extends Component {
-  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
-  static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="h-screen bg-gray-950 flex items-center justify-center p-6">
-          <div className="text-center space-y-4">
-            <p className="text-red-400 font-bold">Error al cargar la app</p>
-            <p className="text-gray-500 text-xs">{this.state.error?.message}</p>
-            <button className="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold" onClick={() => window.location.reload()}>
-              Reintentar
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 import { getEffectiveRole } from '@/lib/permissions';
 
@@ -139,12 +116,9 @@ const AuthenticatedApp = () => {
       );
     }
 
-    // Por defecto, mostramos la App de Chofer
-    return (
-      <Routes>
-        <Route path="*" element={<DriverAppErrorBoundary><DriverApp /></DriverAppErrorBoundary>} />
-      </Routes>
-    );
+    // La app de chofer legacy fue retirada. El nuevo APK consumirá únicamente
+    // los endpoints canónicos del backend y no se embebe dentro de Central.
+    return <Navigate to="/login" replace />;
   }
 
   // Forzar HTTPS en producción (Auditoría/Seguridad)
@@ -154,7 +128,6 @@ const AuthenticatedApp = () => {
 
   // Seguridad: Validar User-Agent (Contenedor Electron)
   const isDesktopApp = navigator.userAgent.includes('RemisesConcepcion-AdminApp');
-  const isDriverApp = location.pathname === '/driver-app' || location.pathname.startsWith('/driver-app');
   const isClientApp = location.pathname === '/app-cliente' || location.pathname.startsWith('/app-cliente/') || location.pathname === '/client' || location.pathname.startsWith('/client/');
   const isLoginCentral = location.pathname === '/login';
   
@@ -168,19 +141,11 @@ const AuthenticatedApp = () => {
   };
 
   // Permitimos a isClientApp pasar directamente sin chequear login interno
-  if (!isDriverApp && !isClientApp && !isLoginCentral && !hasLocalOperator) {
+  if (!isClientApp && !isLoginCentral && !hasLocalOperator) {
     window.location.href = "/login";
     return null;
   }
 
-  // Driver app is fully public - render immediately without any auth checks
-  if (isDriverApp) {
-    return (
-      <Routes>
-        <Route path="/driver-app" element={<DriverAppErrorBoundary><DriverApp /></DriverAppErrorBoundary>} />
-      </Routes>
-    );
-  }
 
   // Client app demo is fully public - render immediately without any auth checks
   if (isClientApp) {
@@ -215,7 +180,7 @@ const AuthenticatedApp = () => {
   }
 
   if (authError && !hasLocalOperator) {
-    if (authError.type === 'user_not_registered' && !isLoginCentral && !isDriverApp) {
+    if (authError.type === 'user_not_registered' && !isLoginCentral) {
       return <UserNotRegisteredError />;
     }
     // Para auth_required y otros errores: dejamos que las rutas manejen la redirección
@@ -227,9 +192,6 @@ const AuthenticatedApp = () => {
       <Route path="/login" element={<LoginCentral />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       
-      {/* Driver mobile app - public, no login needed */}
-      <Route path="/driver-app" element={<DriverApp />} />
-
       {/* Client Demo App - Independent Flow */}
       <Route path="/client/*" element={<Navigate to="/app-cliente/splash" replace />} />
       <Route path="/client" element={<Navigate to="/app-cliente/splash" replace />} />
