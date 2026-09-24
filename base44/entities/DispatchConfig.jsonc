@@ -13,14 +13,7 @@
         "disabled"
       ],
       "default": "disabled",
-      "description": "Estado del motor at\u00f3mico: active (toma viajes), draining (termina los suyos pero no toma nuevos), disabled (solo legacy)."
-    },
-    "enabledBaseIds": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "Bases habilitadas para el piloto"
+      "description": "Estado del motor atómico: active (toma viajes), draining (termina los suyos pero no toma nuevos), disabled (solo legacy)."
     },
     "enabledDriverIds": {
       "type": "array",
