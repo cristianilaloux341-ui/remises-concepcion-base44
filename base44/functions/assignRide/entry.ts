@@ -145,32 +145,11 @@ Deno.serve(async (req) => {
   // una base o un "disponible" viejo. La asignación exige un Movil vinculado,
   // activo, sin suspensión y en servicio en este mismo instante.
   const driverMobileId = String(driverReq.vehicle_model || '');
-  const driverMobileNumber = parseInt(driverMobileId, 10);
-  const driverPlateRaw = String(driverReq.vehicle_plate || '').trim();
-  const driverPlate = driverPlateRaw.replace(/\s+/g, '').toUpperCase();
-
-  // Validar SOLO el móvil de este chofer. Antes se hacía Movil.list() y se bajaba
-  // toda la flota para cada despacho, aunque ya sabíamos qué chofer queríamos validar.
-  const movilLookup: any[] = [
-    { driver_id: driverId },
-    { driver_ids: { $in: [driverId] } }
-  ];
-  if (driverMobileId) movilLookup.push({ id: driverMobileId });
-  if (Number.isFinite(driverMobileNumber)) movilLookup.push({ numero_movil: driverMobileNumber });
-  if (driverPlateRaw) movilLookup.push({ dominio: driverPlateRaw });
-
-  const directMovil = driverMobileId
+  // Driver.vehicle_model es la referencia autoritativa al Movil. El despacho no
+  // adivina vínculos por número, patente ni caches legacy.
+  const linkedMovil = driverMobileId
     ? await b44.entities.Movil.get(driverMobileId).catch(() => null)
     : null;
-  const fallbackMoviles = await b44.entities.Movil.filter({ $or: movilLookup }).catch(() => []);
-  const linkedMoviles = directMovil ? [directMovil, ...fallbackMoviles] : fallbackMoviles;
-  const linkedMovil = linkedMoviles.find((m: any) =>
-    m.id === driverMobileId ||
-    m.numero_movil === driverMobileNumber ||
-    m.driver_id === driverId ||
-    (Array.isArray(m.driver_ids) && m.driver_ids.includes(driverId)) ||
-    (driverPlate && String(m.dominio || '').replace(/\s+/g, '').toUpperCase() === driverPlate)
-  );
 
   if (!linkedMovil || linkedMovil.activo === false || linkedMovil.fuera_de_servicio === true || linkedMovil.suspension_motivo) {
     await b44.entities.AuditLog.create({
