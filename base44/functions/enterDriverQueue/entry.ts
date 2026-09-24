@@ -67,7 +67,11 @@ Deno.serve(async (req) => {
       {
         id:driverId,
         status:'disponible',
-        dispatch_status:'normal',
+        $or:[
+          {dispatch_status:'normal'},
+          {dispatch_status:null},
+          {dispatch_status:{$exists:false}}
+        ],
         reserved_order_id:null,
         active_ride_id:null,
         next_order_id:null,
@@ -75,8 +79,7 @@ Deno.serve(async (req) => {
         driver_reservation_key:null
       },
       { $set:{
-        
-        
+        dispatch_status:'normal',
         queue_authoritative_base:baseName,
         queue_position:position
       } }
