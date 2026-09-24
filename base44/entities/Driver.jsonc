@@ -24,7 +24,7 @@
     },
     "phone2": {
       "type": "string",
-      "description": "Tel\u00e9fono de contacto secundario"
+      "description": "Teléfono de contacto secundario"
     },
     "fecha_nacimiento": {
       "type": "string",
@@ -33,11 +33,11 @@
     },
     "dni": {
       "type": "string",
-      "description": "N\u00famero de DNI"
+      "description": "Número de DNI"
     },
     "direccion": {
       "type": "string",
-      "description": "Direcci\u00f3n del conductor"
+      "description": "Dirección del conductor"
     },
     "photo_url": {
       "type": "string",
@@ -54,11 +54,11 @@
         "F",
         "G"
       ],
-      "description": "Categor\u00eda del carnet de conducir"
+      "description": "Categoría del carnet de conducir"
     },
     "vehicle_model": {
       "type": "string",
-      "description": "ID del m\u00f3vil asignado"
+      "description": "ID del móvil asignado"
     },
     "vehicle_plate": {
       "type": "string"
@@ -83,11 +83,11 @@
     },
     "notas": {
       "type": "string",
-      "description": "Notas internas de la comisi\u00f3n"
+      "description": "Notas internas de la comisión"
     },
     "pin": {
       "type": "string",
-      "description": "PIN de acceso del chofer a la app (4-6 d\u00edgitos)"
+      "description": "PIN de acceso del chofer a la app (4-6 dígitos)"
     },
     "status": {
       "type": "string",
@@ -102,18 +102,9 @@
       "type": "string",
       "enum": [
         "normal",
-        "automatic_pending",
-        "manual_pending"
+        "automatic_pending"
       ],
       "default": "normal"
-    },
-    "modo_despacho": {
-      "type": "string",
-      "enum": [
-        "automatico",
-        "manual"
-      ],
-      "default": "automatico"
     },
     "reserved_order_id": {
       "type": "string"
@@ -123,11 +114,11 @@
     },
     "next_order_id": {
       "type": "string",
-      "description": "Pr\u00f3ximo pasaje tomado desde la cartelera de pendientes; no reemplaza el viaje activo"
+      "description": "Próximo pasaje tomado desde la cartelera de pendientes; no reemplaza el viaje activo"
     },
     "next_order_token": {
       "type": "string",
-      "description": "Token exclusivo de la preasignaci\u00f3n del pr\u00f3ximo viaje"
+      "description": "Token exclusivo de la preasignación del próximo viaje"
     },
     "reservation_token": {
       "type": "string"
@@ -147,7 +138,7 @@
         "3-Columna",
         "4-Base",
         "5-Cementerio",
-        "6-D\u00edaz V\u00e9lez",
+        "6-Díaz Vélez",
         "7-Don Bosco",
         "8-Monumento"
       ]
@@ -166,7 +157,7 @@
         "3-Columna",
         "4-Base",
         "5-Cementerio",
-        "6-D\u00edaz V\u00e9lez",
+        "6-Díaz Vélez",
         "7-Don Bosco",
         "8-Monumento"
       ],
@@ -174,26 +165,26 @@
     },
     "queue_authoritative_at": {
       "type": "string",
-      "description": "Timestamp hist\u00f3rico/proyecci\u00f3n legacy para APK v12.27/v12.29; no decide prioridad ni despacho"
+      "description": "Timestamp histórico/proyección legacy para APK v12.27/v12.29; no decide prioridad ni despacho"
     },
     "queue_left_at": {
       "type": [
         "string",
         "null"
       ],
-      "description": "Hora hist\u00f3rica de salida de la base. No conserva posici\u00f3n ni prioridad; la cola operativa se define \u00fanicamente por current_base + queue_position del servidor."
+      "description": "Hora histórica de salida de la base. No conserva posición ni prioridad; la cola operativa se define únicamente por current_base + queue_position del servidor."
     },
     "queue_authority_marker": {
       "type": "number",
-      "description": "\u00daltimo marcador manual de cola aceptado por el servidor"
+      "description": "Último marcador manual de cola aceptado por el servidor"
     },
     "manual_reorder_token": {
       "type": "string",
-      "description": "Firma HMAC server-side del \u00faltimo reordenamiento manual autorizado por manualReorderDriverQueue. Null para escrituras t\u00e9cnicas."
+      "description": "Firma HMAC server-side del último reordenamiento manual autorizado por manualReorderDriverQueue. Null para escrituras técnicas."
     },
     "manual_reorder_at": {
       "type": "string",
-      "description": "ISO timestamp del \u00faltimo reorden manual autorizado."
+      "description": "ISO timestamp del último reorden manual autorizado."
     },
     "current_lat": {
       "type": "number"
@@ -222,21 +213,21 @@
     },
     "bloqueo_post_aceptacion_hasta": {
       "type": "number",
-      "description": "Timestamp (ms) hasta el cual el chofer est\u00e1 bloqueado para nuevos pasajes y quedar libre"
+      "description": "Timestamp (ms) hasta el cual el chofer está bloqueado para nuevos pasajes y quedar libre"
     },
     "last_queue_penalty_key": {
       "type": [
         "string",
         "null"
       ],
-      "description": "Clave idempotente de la \u00faltima penalizaci\u00f3n de cola aplicada por rechazo/timeout"
+      "description": "Clave idempotente de la última penalización de cola aplicada por rechazo/timeout"
     },
     "last_queue_penalty_base": {
       "type": [
         "string",
         "null"
       ],
-      "description": "Base donde se aplic\u00f3 la \u00faltima penalizaci\u00f3n idempotente de cola"
+      "description": "Base donde se aplicó la última penalización idempotente de cola"
     }
   },
   "required": [
