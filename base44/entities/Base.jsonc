@@ -10,7 +10,7 @@
         "3-Columna",
         "4-Base",
         "5-Cementerio",
-        "6-D\u00edaz V\u00e9lez",
+        "6-Díaz Vélez",
         "7-Don Bosco",
         "8-Monumento"
       ]
@@ -23,30 +23,6 @@
     },
     "address": {
       "type": "string"
-    },
-    "dispatch_status": {
-      "type": "string",
-      "enum": [
-        "libre",
-        "procesando",
-        "esperando_manual"
-      ],
-      "default": "libre"
-    },
-    "lock_token": {
-      "type": "string"
-    },
-    "lock_expires_at": {
-      "type": "number"
-    },
-    "active_order_id": {
-      "type": "string"
-    },
-    "manual_requested_at": {
-      "type": "number"
-    },
-    "manual_expires_at": {
-      "type": "number"
     }
   },
   "required": [
