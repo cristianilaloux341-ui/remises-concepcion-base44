@@ -24,7 +24,7 @@
     },
     "phone2": {
       "type": "string",
-      "description": "Teléfono de contacto secundario"
+      "description": "Tel\u00e9fono de contacto secundario"
     },
     "fecha_nacimiento": {
       "type": "string",
@@ -33,11 +33,11 @@
     },
     "dni": {
       "type": "string",
-      "description": "Número de DNI"
+      "description": "N\u00famero de DNI"
     },
     "direccion": {
       "type": "string",
-      "description": "Dirección del conductor"
+      "description": "Direcci\u00f3n del conductor"
     },
     "photo_url": {
       "type": "string",
@@ -54,11 +54,11 @@
         "F",
         "G"
       ],
-      "description": "Categoría del carnet de conducir"
+      "description": "Categor\u00eda del carnet de conducir"
     },
     "vehicle_model": {
       "type": "string",
-      "description": "ID del móvil asignado"
+      "description": "ID del m\u00f3vil asignado"
     },
     "vehicle_plate": {
       "type": "string"
@@ -83,11 +83,11 @@
     },
     "notas": {
       "type": "string",
-      "description": "Notas internas de la comisión"
+      "description": "Notas internas de la comisi\u00f3n"
     },
     "pin": {
       "type": "string",
-      "description": "PIN de acceso del chofer a la app (4-6 dígitos)"
+      "description": "PIN de acceso del chofer a la app (4-6 d\u00edgitos)"
     },
     "status": {
       "type": "string",
@@ -114,11 +114,11 @@
     },
     "next_order_id": {
       "type": "string",
-      "description": "Próximo pasaje tomado desde la cartelera de pendientes; no reemplaza el viaje activo"
+      "description": "Pr\u00f3ximo pasaje tomado desde la cartelera de pendientes; no reemplaza el viaje activo"
     },
     "next_order_token": {
       "type": "string",
-      "description": "Token exclusivo de la preasignación del próximo viaje"
+      "description": "Token exclusivo de la preasignaci\u00f3n del pr\u00f3ximo viaje"
     },
     "reservation_token": {
       "type": "string"
@@ -133,6 +133,13 @@
     "queue_position": {
       "type": "number"
     },
+    "queue_last_operation_key": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "\u00daltima operaci\u00f3n autoritativa que modific\u00f3 la pertenencia/prioridad de cola"
+    },
     "queue_authoritative_base": {
       "type": "string",
       "enum": [
@@ -141,7 +148,7 @@
         "3-Columna",
         "4-Base",
         "5-Cementerio",
-        "6-Díaz Vélez",
+        "6-D\u00edaz V\u00e9lez",
         "7-Don Bosco",
         "8-Monumento"
       ],
@@ -168,7 +175,7 @@
     },
     "bloqueo_post_aceptacion_hasta": {
       "type": "number",
-      "description": "Timestamp (ms) hasta el cual el chofer está bloqueado para nuevos pasajes y quedar libre"
+      "description": "Timestamp (ms) hasta el cual el chofer est\u00e1 bloqueado para nuevos pasajes y quedar libre"
     }
   },
   "required": [
