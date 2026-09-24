@@ -1,0 +1,41 @@
+{
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "suspender_desconectados_cola",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "disconnectQueueSweep",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "name": "Suspender desconectados de cola",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 1,
+      "interval_unit": "minutes",
+      "interval_anchor": "2026-09-24T23:27:00.000000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "description": "Retira de la cola a m\u00f3viles disponibles con m\u00e1s de 3 minutos sin heartbeat, sin confundirlo con salida voluntaria."
+}
