@@ -178,10 +178,6 @@
       "type": "number",
       "description": "Último marcador manual de cola aceptado por el servidor"
     },
-    "manual_reorder_token": {
-      "type": "string",
-      "description": "Firma HMAC server-side del último reordenamiento manual autorizado por manualReorderDriverQueue. Null para escrituras técnicas."
-    },
     "manual_reorder_at": {
       "type": "string",
       "description": "ISO timestamp del último reorden manual autorizado."
