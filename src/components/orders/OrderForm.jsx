@@ -127,27 +127,14 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     refetchOnWindowFocus: true,
   });
 
-  const availableDriverIds = [...new Set(drivers.map(d => d.id).filter(Boolean))].sort();
   const availableDriverMobileIds = [...new Set(drivers.map(d => String(d.vehicle_model || "")).filter(Boolean))].sort();
-  const availableDriverMobileNumbers = [...new Set(drivers.map(d => parseInt(String(d.vehicle_model || ""), 10)).filter(Number.isFinite))].sort((a, b) => a - b);
 
   const { data: moviles = [] } = useQuery({
-    queryKey: ["moviles_order_form", availableDriverIds.join(","), availableDriverMobileIds.join(","), availableDriverMobileNumbers.join(",")],
-    queryFn: async () => {
-      const clauses = [];
-      if (availableDriverMobileNumbers.length) clauses.push({ numero_movil: { $in: availableDriverMobileNumbers } });
-      if (availableDriverIds.length) {
-        clauses.push({ driver_id: { $in: availableDriverIds } });
-        clauses.push({ driver_ids: { $in: availableDriverIds } });
-      }
-      const [byId, fallback] = await Promise.all([
-        Promise.all(availableDriverMobileIds.map(id => base44.entities.Movil.get(id).catch(() => null))),
-        clauses.length ? base44.entities.Movil.filter({ $or: clauses }).catch(() => []) : Promise.resolve([])
-      ]);
-      return [...byId.filter(Boolean), ...fallback]
-        .filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i);
-    },
-    enabled: drivers.length > 0,
+    queryKey: ["moviles_order_form", availableDriverMobileIds.join(",")],
+    queryFn: async () => (await Promise.all(
+      availableDriverMobileIds.map(id => base44.entities.Movil.get(id).catch(() => null))
+    )).filter(Boolean),
+    enabled: availableDriverMobileIds.length > 0,
     staleTime: 10_000,
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
@@ -175,15 +162,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     if (d.dispatch_status != null && d.dispatch_status !== "normal") return false;
 
     const mobileId = String(d.vehicle_model || "");
-    const mobileNumber = parseInt(mobileId, 10);
-    const driverPlate = String(d.vehicle_plate || "").replace(/\s+/g, "").toUpperCase();
-    const movil = moviles?.find(m =>
-      m.id === mobileId ||
-      m.numero_movil === mobileNumber ||
-      m.driver_id === d.id ||
-      (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id)) ||
-      (driverPlate && String(m.dominio || "").replace(/\s+/g, "").toUpperCase() === driverPlate)
-    );
+    const movil = moviles?.find(m => String(m.id || "") === mobileId);
 
     // Sin un móvil real habilitado no existe candidato válido, aunque el Driver
     // conserve por error una base o un estado "disponible" antiguos.

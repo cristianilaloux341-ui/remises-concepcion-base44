@@ -15,9 +15,8 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   const isDriverWorking = (d) => {
     if (d.status !== "disponible") return false;
     const mobileId = String(d.vehicle_model || "");
-    const mobileNumber = parseInt(mobileId, 10);
-    const movil = moviles?.find(m => m.id === mobileId || m.numero_movil === mobileNumber);
-    if (movil && (movil.activo === false || movil.fuera_de_servicio === true)) {
+    const movil = moviles?.find(m => String(m.id || "") === mobileId);
+    if (!movil || movil.activo === false || movil.fuera_de_servicio === true || movil.suspension_motivo) {
       return false;
     }
     return true;
