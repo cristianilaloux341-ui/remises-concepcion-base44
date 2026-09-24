@@ -18,6 +18,14 @@ import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { getEffectiveQueueBase } from "@/lib/dispatchLogic";
 
+function isVisiblePending(order) {
+  if (!order || order.status !== "pendiente") return false;
+  // Una oferta con intento/vencimiento vigente no puede aparecer a la vez como Pendiente.
+  const hasLiveOfferClock = order.offerExpiresAt != null &&
+    Number.isFinite(Number(order.offerExpiresAt)) && Number(order.assignment_attempt || 0) > 0;
+  return !hasLiveOfferClock;
+}
+
 function RideAge({ createdDate }) {
   const [minutes, setMinutes] = useState(0);
 
