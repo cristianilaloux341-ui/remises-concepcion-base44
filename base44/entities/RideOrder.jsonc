@@ -241,6 +241,11 @@
         "null"
       ]
     },
+    "cancel_requeue_done": {
+      "type": "boolean",
+      "default": false,
+      "description": "Marca durable: el reingreso primero por cancelacion de Central ya fue aplicado"
+    },
     "pending_reason": {
       "type": [
         "string",
