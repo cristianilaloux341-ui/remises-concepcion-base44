@@ -133,9 +133,6 @@
     "queue_position": {
       "type": "number"
     },
-    "queue_entered_at": {
-      "type": "string"
-    },
     "queue_authoritative_base": {
       "type": "string",
       "enum": [

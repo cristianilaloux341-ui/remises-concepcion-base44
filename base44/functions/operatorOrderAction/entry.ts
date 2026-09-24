@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
             // Cancelación de Central: reingreso explícito primero bajo la misma autoridad de cola.
             const targetChanged = await b44.entities.Driver.updateMany(
               {id:target.id,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_ride_id:null,next_order_id:null},
-              {$set:{queue_authoritative_base:baseName,queue_position:1,queue_entered_at:now}}
+              {$set:{queue_authoritative_base:baseName,queue_position:1}}
             );
             const targetCount = targetChanged?.updated ?? targetChanged?.modifiedCount ?? targetChanged?.matchedCount ?? 0;
             if (targetCount !== 1) throw new Error(`CENTRAL_CANCEL_REQUEUE_RACE:${target.id}`);

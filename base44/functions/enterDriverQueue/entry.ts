@@ -39,7 +39,6 @@ Deno.serve(async (req) => {
       success: true,
       idempotent: true,
       baseName,
-      queueEnteredAt: current.queue_entered_at || null,
       position: currentPos,
       serverNow: new Date().toISOString()
     });
@@ -65,14 +64,12 @@ Deno.serve(async (req) => {
       }
       return {
         success:true, idempotent:true,
-        queueEnteredAt:fresh.queue_entered_at || null,
         position:freshPos,
         previousBase
       };
     }
 
     const position = await getNextQueuePosition(b44, baseName, driverId);
-    const queueEnteredAt = new Date().toISOString();
     const sealed = await b44.entities.Driver.updateMany(
       {
         id:driverId,
@@ -86,14 +83,14 @@ Deno.serve(async (req) => {
       },
       { $set:{
         
-        queue_entered_at:queueEnteredAt,
+        
         queue_authoritative_base:baseName,
         queue_position:position
       } }
     );
     const sealedCount = sealed?.updated ?? sealed?.modifiedCount ?? sealed?.matchedCount ?? 0;
     if (sealedCount !== 1) return { success:false, reason:'driver_busy_or_state_changed' };
-    return { success:true, queueEnteredAt, position, previousBase };
+    return { success:true, position, previousBase };
   });
 
   if (!placed?.success) {
@@ -109,7 +106,6 @@ Deno.serve(async (req) => {
     success:true,
     idempotent:Boolean(placed.idempotent),
     baseName,
-    queueEnteredAt:placed.queueEnteredAt,
     position:placed.position,
     serverNow:new Date().toISOString()
   });

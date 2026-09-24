@@ -17,7 +17,6 @@ function sleep(ms: number) {
 }
 
 // Cola operativa: queue_authoritative_base + queue_position son la única autoridad.
-// Los timestamps se conservan únicamente como historial/proyección; no deciden prioridad.
 export function getEffectiveQueueBase(driver: any) {
   if (!driver) return null;
   const authoritativeBase = driver.queue_authoritative_base || null;
@@ -36,8 +35,7 @@ export function sortQueue(driversArray: any[]) {
     const posB = Number.isFinite(Number(b.queue_position)) && Number(b.queue_position) > 0 ? Number(b.queue_position) : Infinity;
     if (posA !== posB) return posA - posB;
 
-    // Un empate de queue_position es un estado inválido. Los timestamps son
-    // sólo proyección y NUNCA pueden decidir prioridad. Desempate estable
+    // Un empate de queue_position es un estado inválido. Desempate estable
     // por ID; compactQueue corrige luego las posiciones bajo QueueLock.
     return (a.id || "").localeCompare(b.id || "");
   });
@@ -49,7 +47,6 @@ export function getBaseQueue(drivers: any[], baseName: string) {
     d.status === "disponible" &&
     (d.dispatch_status == null || d.dispatch_status === "normal") &&
     !d.reserved_order_id &&
-    !d.active_ride_id &&
     !d.active_ride_id &&
     !d.next_order_id
   ));

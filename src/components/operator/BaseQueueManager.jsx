@@ -220,11 +220,9 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilById = {} }) {
                           </p>
                           <ConnectivityIndicator lastActive={driver.last_active} />
                         </div>
-                        {driver.queue_entered_at && (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1" title="Posición">
-                            #{driver.queue_position}
-                          </span>
-                        )}
+                        <span className="text-xs text-muted-foreground flex items-center gap-1" title="Posición">
+                          #{driver.queue_position}
+                        </span>
                         <div className="flex gap-1 ml-auto">
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700"
                             onClick={() => removeMutation.mutate(driver)}>

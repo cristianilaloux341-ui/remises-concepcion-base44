@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
           status:'no_disponible',
           dispatch_status:'normal',
           
-          queue_entered_at:null,
+          
           queue_authoritative_base:null,
           queue_position:null,
           reserved_order_id:null,

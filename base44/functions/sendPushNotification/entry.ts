@@ -303,7 +303,7 @@ Deno.serve(async (req) => {
 
         // IMPORTANTE: enviar/cancelar una notificación NUNCA modifica la cola.
         // `cancel_multiple` puede incluir móviles que recibieron la oferta en intentos
-        // anteriores; tocar queue_entered_at acá desordena posiciones sin una orden
+        // anteriores; el transporte push no puede tocar la cola sin una orden
         // operativa real. La liberación/reubicación de un móvil pertenece al flujo
         // atómico de reject/timeout/cancel correspondiente, no al transporte push.
 
