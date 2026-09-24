@@ -133,41 +133,55 @@ Deno.serve(async (req) => {
       }
 
       // Regla comercial: sólo una cancelación de Central devuelve el móvil primero.
-      // Una cancelación del cliente libera el viaje sin alterar la prioridad de cola.
-      if (operatorAuthorized && order.driver_id && !order.preassigned_driver_id) {
+      // La marca durable impide que un retry posterior vuelva a moverlo al frente.
+      const requeueState = await b44.entities.RideOrder.get(orderId).catch(()=>order);
+      if (operatorAuthorized && requeueState?.cancel_requeue_done !== true &&
+          order.driver_id && !order.preassigned_driver_id) {
         const baseName = order.assigned_base || order.zone || null;
         if (baseName) {
-          await withQueueLock(b44, baseName, async () => {
-            const target = await b44.entities.Driver.get(order.driver_id).catch(()=>null);
-            if (!target || target.status !== 'disponible' || target.dispatch_status !== 'normal' ||
-                target.reserved_order_id || target.active_ride_id || target.next_order_id) return;
+          try {
+            const requeueApplied = await withQueueLock(b44, baseName, async () => {
+              const target = await b44.entities.Driver.get(order.driver_id).catch(()=>null);
+              if (!target || target.status !== 'disponible' || target.dispatch_status !== 'normal' ||
+                  target.reserved_order_id || target.active_ride_id || target.next_order_id) return false;
 
-            const drivers = await b44.entities.Driver.filter({
-              status:'disponible',
-              queue_authoritative_base:baseName
-            });
-            const queue = getBaseQueue(drivers, baseName).filter((d:any)=>d.id !== target.id);
-            // Cancelación de Central: reingreso explícito primero bajo la misma autoridad de cola.
-            const targetChanged = await b44.entities.Driver.updateMany(
-              {id:target.id,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_ride_id:null,next_order_id:null},
-              {$set:{queue_authoritative_base:baseName,queue_position:1}}
-            );
-            const targetCount = targetChanged?.updated ?? targetChanged?.modifiedCount ?? targetChanged?.matchedCount ?? 0;
-            if (targetCount !== 1) throw new Error(`CENTRAL_CANCEL_REQUEUE_RACE:${target.id}`);
-            for (let i=0;i<queue.length;i++) {
-              const d:any=queue[i]; const pos=i+2;
-              if (Number(d.queue_position)===pos) continue;
-              const shifted = await b44.entities.Driver.updateMany(
-                {id:d.id,queue_authoritative_base:baseName,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_ride_id:null,next_order_id:null},
-                {$set:{queue_position:pos,}}
+              const drivers = await b44.entities.Driver.filter({
+                status:'disponible',
+                queue_authoritative_base:baseName
+              });
+              const queue = getBaseQueue(drivers, baseName).filter((d:any)=>d.id !== target.id);
+              const targetChanged = await b44.entities.Driver.updateMany(
+                {id:target.id,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_ride_id:null,next_order_id:null},
+                {$set:{queue_authoritative_base:baseName,queue_position:1}}
               );
-              const shiftedCount = shifted?.updated ?? shifted?.modifiedCount ?? shifted?.matchedCount ?? 0;
-              if (shiftedCount !== 1) throw new Error(`CENTRAL_CANCEL_QUEUE_RACE:${d.id}`);
+              const targetCount = targetChanged?.updated ?? targetChanged?.modifiedCount ?? targetChanged?.matchedCount ?? 0;
+              if (targetCount !== 1) throw new Error(`CENTRAL_CANCEL_REQUEUE_RACE:${target.id}`);
+              for (let i=0;i<queue.length;i++) {
+                const d:any=queue[i]; const pos=i+2;
+                if (Number(d.queue_position)===pos) continue;
+                const shifted = await b44.entities.Driver.updateMany(
+                  {id:d.id,queue_authoritative_base:baseName,status:'disponible',dispatch_status:'normal',
+                   reserved_order_id:null,active_ride_id:null,next_order_id:null,queue_position:d.queue_position},
+                  {$set:{queue_position:pos}}
+                );
+                const shiftedCount = shifted?.updated ?? shifted?.modifiedCount ?? shifted?.matchedCount ?? 0;
+                if (shiftedCount !== 1) throw new Error(`CENTRAL_CANCEL_QUEUE_RACE:${d.id}`);
+              }
+              return true;
+            });
+
+            if (requeueApplied) {
+              const marked = await b44.entities.RideOrder.updateMany(
+                {id:orderId,status:'cancelado',cancel_effects_status:'PENDING',
+                 $or:[{cancel_requeue_done:false},{cancel_requeue_done:null},{cancel_requeue_done:{$exists:false}}]},
+                {$set:{cancel_requeue_done:true}}
+              ).catch(()=>null);
+              if ((marked?.updated ?? marked?.modifiedCount ?? marked?.matchedCount ?? 0) !== 1) {
+                const freshMarked = await b44.entities.RideOrder.get(orderId).catch(()=>null);
+                if (freshMarked?.cancel_requeue_done !== true) throw new Error('CENTRAL_CANCEL_REQUEUE_NOT_MARKED');
+              }
             }
-          }).catch(async (queueError:any)=>{
-            // La cancelación del viaje ya quedó confirmada. Si una carrera impidió
-            // devolver el móvil primero, no ocultar el fallo ni dejar huecos/duplicados:
-            // compactar la cola autoritativa y dejar auditoría para Central.
+          } catch (queueError:any) {
             await withQueueLock(b44, baseName, async ()=>{
               await compactQueueUnlocked(b44, baseName);
             }).catch(()=>{});
@@ -175,10 +189,10 @@ Deno.serve(async (req) => {
               action:'CENTRAL_CANCEL_REQUEUE_FAILED',
               user_type:'sistema',
               user_name:'operatorOrderAction',
-              details:`Cancelación ${orderId} confirmada, pero el reingreso primero requirió recuperación de cola.`,
+              details:`Cancelación ${orderId} confirmada, pero el reingreso primero no quedó confirmado.`,
               metadata:{orderId,driverId:order.driver_id,baseName,error:queueError?.message || String(queueError)}
             }).catch(()=>{});
-          });
+          }
         }
       }
       // Lease durable para el cierre FCM. Evita duplicados concurrentes y, si el
