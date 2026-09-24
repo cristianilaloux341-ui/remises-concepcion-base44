@@ -209,13 +209,20 @@ Deno.serve(async (req) => {
     const queueBase = actualDriver?.queue_authoritative_base || order.assigned_base || order.zone || null;
     if (queueBase && !deliveryExhausted) {
       await withQueueLock(b44, queueBase, async () => {
-        await b44.entities.Driver.updateMany(
-          { id:driverId, status:'disponible', reserved_order_id:null, active_ride_id:null, next_order_id:null, queue_authoritative_base:queueBase },
+        const freshQueued = await b44.entities.Driver.get(driverId).catch(()=>null);
+        if (!freshQueued || freshQueued.status !== 'disponible' ||
+            freshQueued.queue_authoritative_base !== queueBase ||
+            freshQueued.reserved_order_id || freshQueued.active_ride_id || freshQueued.next_order_id) return;
+        const removed = await b44.entities.Driver.updateMany(
+          { id:driverId, status:'disponible', reserved_order_id:null, active_ride_id:null, next_order_id:null,
+            queue_authoritative_base:queueBase, queue_position:freshQueued.queue_position },
           { $set:{
             queue_authoritative_base:null,
             queue_position:null,
           } }
         );
+        const removedCount = removed?.updated ?? removed?.modifiedCount ?? removed?.matchedCount ?? 0;
+        if (removedCount !== 1) throw new Error(`REJECT_QUEUE_STATE_CHANGED:${driverId}`);
         await compactQueueUnlocked(b44, queueBase);
       });
       await b44.entities.AuditLog.create({
