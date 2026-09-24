@@ -76,7 +76,6 @@ Deno.serve(async (req) => {
                dispatch_status: "normal", 
                reserved_order_id: null, 
                reservation_token: null,
-               manual_reservation_token: null,
                driver_reservation_key: null,
                active_order_id: null,
                active_ride_id: null
@@ -259,7 +258,7 @@ Deno.serve(async (req) => {
               query.reserved_order_id = order.id;
               set.reserved_order_id = null;
               set.reservation_token = null;
-              set.manual_reservation_token = null;
+              
               set.driver_reservation_key = null;
               ownsCurrent = true;
             }

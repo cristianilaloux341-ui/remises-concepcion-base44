@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
         { $set:{
           status: keepNext ? driver.status : 'disponible',
           dispatch_status: keepNext ? driver.dispatch_status : 'normal',
-          ...(driver.reserved_order_id === orderId ? {reserved_order_id:null,reservation_token:null,manual_reservation_token:null,driver_reservation_key:null} : {}),
+          ...(driver.reserved_order_id === orderId ? {reserved_order_id:null,reservation_token:null,driver_reservation_key:null} : {}),
           ...(driver.active_order_id === orderId ? {active_order_id:null} : {}),
           ...(driver.active_ride_id === orderId ? {active_ride_id:null} : {})
         } }

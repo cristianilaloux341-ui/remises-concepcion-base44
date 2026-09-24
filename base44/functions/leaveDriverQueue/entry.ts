@@ -106,7 +106,6 @@ Deno.serve(async (req) => {
           queue_left_at:queueLeftAt,
           reserved_order_id:null,
           reservation_token:null,
-          manual_reservation_token:null,
           driver_reservation_key:null,
           active_order_id:null,
           active_ride_id:null

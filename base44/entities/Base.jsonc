@@ -42,9 +42,6 @@
     "active_order_id": {
       "type": "string"
     },
-    "manual_reservation_token": {
-      "type": "string"
-    },
     "manual_requested_at": {
       "type": "number"
     },

@@ -236,7 +236,6 @@ Deno.serve(async (req) => {
             status:'completado',
             reserved_driver_id:null,
             reservation_token:null,
-            manual_reservation_token:null,
             offerExpiresAt:null,
             processingOwnerId:null,
             processingPhase:null,
@@ -449,7 +448,7 @@ Deno.serve(async (req) => {
     // Solo limpiamos si comprobamos que la referencia es huérfana/muerta.
     const cleaned = await b44.entities.Driver.updateMany(
       { id: driverId, reserved_order_id: driverReq.reserved_order_id ?? null, active_order_id: driverReq.active_order_id ?? null, active_ride_id: driverReq.active_ride_id ?? null, next_order_id: driverReq.next_order_id ?? null },
-      { $set: { status:'disponible', dispatch_status:'normal', reserved_order_id:null, active_order_id:null, active_ride_id:null, reservation_token:null, manual_reservation_token:null, driver_reservation_key:null } }
+      { $set: { status:'disponible', dispatch_status:'normal', reserved_order_id:null, active_order_id:null, active_ride_id:null, reservation_token:null, driver_reservation_key:null } }
     );
     if (cleaned.updated !== 1) return Response.json({ success:false, reason:'DRIVER_STATE_CHANGED_RETRY' });
     driverReq.status = 'disponible';

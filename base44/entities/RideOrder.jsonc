@@ -66,9 +66,6 @@
     "reservation_token": {
       "type": "string"
     },
-    "manual_reservation_token": {
-      "type": "string"
-    },
     "reserved_driver_id": {
       "type": "string"
     },
