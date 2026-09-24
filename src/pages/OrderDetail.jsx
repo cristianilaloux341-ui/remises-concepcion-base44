@@ -177,7 +177,7 @@ export default function OrderDetail() {
     // La base autoritativa de cola es la única base operativa del móvil.
     const effectiveBase = d.queue_authoritative_base || null;
     if (d.status !== "disponible" || !effectiveBase) return false;
-    if (d.active_order_id || d.active_ride_id || d.reserved_order_id) return false;
+    if (d.active_ride_id || d.reserved_order_id) return false;
     if (d.dispatch_status != null && d.dispatch_status !== "normal") return false;
     return true;
   };

@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     current.queue_position == null &&
     current.queue_authority_marker == null &&
     !current.reserved_order_id &&
-    !current.active_order_id &&
+    !current.active_ride_id &&
     !current.active_ride_id &&
     !current.next_order_id;
 
@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
       fresh.status !== 'disponible' ||
       (fresh.dispatch_status != null && fresh.dispatch_status !== 'normal') ||
       fresh.reserved_order_id ||
-      fresh.active_order_id ||
+      fresh.active_ride_id ||
       fresh.active_ride_id ||
       fresh.next_order_id
     ) {
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
           { dispatch_status:{ $exists:false } }
         ],
         reserved_order_id:null,
-        active_order_id:null,
+        active_ride_id:null,
         active_ride_id:null,
         next_order_id:null
       },
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
           reserved_order_id:null,
           reservation_token:null,
           driver_reservation_key:null,
-          active_order_id:null,
+          active_ride_id:null,
           active_ride_id:null
         }
       }

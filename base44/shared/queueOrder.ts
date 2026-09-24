@@ -49,7 +49,7 @@ export function getBaseQueue(drivers: any[], baseName: string) {
     d.status === "disponible" &&
     (d.dispatch_status == null || d.dispatch_status === "normal") &&
     !d.reserved_order_id &&
-    !d.active_order_id &&
+    !d.active_ride_id &&
     !d.active_ride_id &&
     !d.next_order_id
   ));
@@ -120,7 +120,7 @@ export async function getNextQueuePosition(b44: any, baseName: string, excludeDr
   for (const d of drivers || []) {
     if (!d || d.id === excludeDriverId) continue;
     if (getEffectiveQueueBase(d) !== baseName) continue;
-    if (d.status === 'en_viaje' || d.active_ride_id || d.active_order_id || d.reserved_order_id || d.next_order_id) continue;
+    if (d.status === 'en_viaje' || d.active_ride_id || d.reserved_order_id || d.next_order_id) continue;
     const pos = Number(d.queue_position);
     if (Number.isFinite(pos) && pos > 0) maxPos = Math.max(maxPos, pos);
   }
@@ -150,7 +150,6 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
         queue_authoritative_base: baseName,
         dispatch_status: d.dispatch_status ?? 'normal',
         reserved_order_id: null,
-        active_order_id: null,
         active_ride_id: null,
         next_order_id: null
       },

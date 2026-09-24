@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
   const currentPos = Number(current?.queue_position);
   const alreadyAuthoritative = current?.status === 'disponible' &&
     (current?.dispatch_status == null || current.dispatch_status === 'normal') &&
-    !current?.reserved_order_id && !current?.active_order_id && !current?.active_ride_id && !current?.next_order_id &&
+    !current?.reserved_order_id && !current?.active_ride_id && !current?.next_order_id &&
     current?.queue_authoritative_base === baseName && Number.isFinite(currentPos) && currentPos > 0;
 
   if (alreadyAuthoritative) {
@@ -41,7 +41,6 @@ Deno.serve(async (req) => {
           queue_authoritative_base: baseName,
           queue_position: current.queue_position,
           reserved_order_id: null,
-          active_order_id: null,
           active_ride_id: null,
           next_order_id: null
         },
@@ -70,7 +69,7 @@ Deno.serve(async (req) => {
     const freshPos = Number(fresh?.queue_position);
     const freshAlreadyAuthoritative = fresh?.status === 'disponible' &&
       (fresh?.dispatch_status == null || fresh.dispatch_status === 'normal') &&
-      !fresh?.reserved_order_id && !fresh?.active_order_id && !fresh?.active_ride_id && !fresh?.next_order_id &&
+      !fresh?.reserved_order_id && !fresh?.active_ride_id && !fresh?.active_ride_id && !fresh?.next_order_id &&
       fresh?.queue_authoritative_base === baseName && Number.isFinite(freshPos) && freshPos > 0;
 
     if (freshAlreadyAuthoritative) {
@@ -83,7 +82,7 @@ Deno.serve(async (req) => {
             queue_authoritative_base:baseName,
             queue_position:fresh.queue_position,
             reserved_order_id:null,
-            active_order_id:null,
+            active_ride_id:null,
             active_ride_id:null,
             next_order_id:null
           },
@@ -108,7 +107,7 @@ Deno.serve(async (req) => {
         status:'disponible',
         dispatch_status:'normal',
         reserved_order_id:null,
-        active_order_id:null,
+        active_ride_id:null,
         active_ride_id:null,
         next_order_id:null,
         reservation_token:null,

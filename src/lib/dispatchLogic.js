@@ -38,7 +38,7 @@ export function getBaseQueue(drivers, baseName) {
     d.status === "disponible" &&
     (d.dispatch_status == null || d.dispatch_status === "normal") &&
     !d.reserved_order_id &&
-    !d.active_order_id &&
+    !d.active_ride_id &&
     !d.active_ride_id &&
     !d.next_order_id
   ));

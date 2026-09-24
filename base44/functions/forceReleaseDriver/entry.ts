@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
     const driver = await b44.entities.Driver.get(driverId).catch(() => null);
     if (!driver) return Response.json({ success:false, reason:'driver_not_found' }, { status:404 });
 
-    const refs = [driver.active_order_id, driver.reserved_order_id, driver.active_ride_id, driver.next_order_id].filter(Boolean);
+    const refs = [driver.active_ride_id, driver.reserved_order_id, driver.active_ride_id, driver.next_order_id].filter(Boolean);
     const orders:any[] = [];
     for (const id of [...new Set(refs)]) {
       const o = await b44.entities.RideOrder.get(id).catch(() => null);
@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     const before = {
       status: driver.status,
       dispatch_status: driver.dispatch_status,
-      active_order_id: driver.active_order_id || null,
+      active_ride_id: driver.active_ride_id || null,
       active_ride_id: driver.active_ride_id || null,
       reserved_order_id: driver.reserved_order_id || null,
       reservation_token: driver.reservation_token || null,
@@ -44,14 +44,14 @@ Deno.serve(async (req) => {
     // Código 99 sólo libera fantasmas. Si apareció cualquier vínculo nuevo desde la
     // lectura inicial (incluido segundo slot), el CAS no toca al móvil.
     const releaseQuery:any = { id: driverId };
-    for (const field of ['active_order_id','active_ride_id','reserved_order_id','next_order_id']) {
+    for (const field of ['active_ride_id','active_ride_id','reserved_order_id','next_order_id']) {
       const value = driver[field];
       releaseQuery[field] = value == null ? null : value;
     }
     const released = await b44.entities.Driver.updateMany(
       releaseQuery,
       { $set: {
-        status:'disponible', dispatch_status:'normal', active_order_id:null, active_ride_id:null,
+        status:'disponible', dispatch_status:'normal', active_ride_id:null,
         reserved_order_id:null, reservation_token:null, driver_reservation_key:null,
         bloqueo_post_aceptacion_hasta:null
       }}
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
         reason:'CONCURRENT_CHANGE',
         driverId,
         current:{
-          active_order_id:fresh?.active_order_id || null,
+          active_ride_id:fresh?.active_ride_id || null,
           active_ride_id:fresh?.active_ride_id || null,
           reserved_order_id:fresh?.reserved_order_id || null,
           next_order_id:fresh?.next_order_id || null

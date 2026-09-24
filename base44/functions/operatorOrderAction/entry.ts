@@ -44,11 +44,11 @@ Deno.serve(async (req) => {
 
       // Primer slot/oferta: limpiar solamente las referencias que realmente apuntan
       // a esta orden. Un next_order_id distinto se conserva intacto.
-      const ownsCurrent = driver.reserved_order_id === orderId || driver.active_order_id === orderId || driver.active_ride_id === orderId;
+      const ownsCurrent = driver.reserved_order_id === orderId || driver.active_ride_id === orderId || driver.active_ride_id === orderId;
       if (!ownsCurrent) continue;
       const currentQuery:any = { id:driverId, next_order_id:driver.next_order_id ?? null, next_order_token:driver.next_order_token ?? null };
       if (driver.reserved_order_id === orderId) currentQuery.reserved_order_id = orderId;
-      if (driver.active_order_id === orderId) currentQuery.active_order_id = orderId;
+      if (driver.active_ride_id === orderId) currentQuery.active_ride_id = orderId;
       if (driver.active_ride_id === orderId) currentQuery.active_ride_id = orderId;
       const keepNext = Boolean(driver.next_order_id && driver.next_order_id !== orderId);
       const clearedCurrent = await b44.entities.Driver.updateMany(
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
           status: keepNext ? driver.status : 'disponible',
           dispatch_status: keepNext ? driver.dispatch_status : 'normal',
           ...(driver.reserved_order_id === orderId ? {reserved_order_id:null,reservation_token:null,driver_reservation_key:null} : {}),
-          ...(driver.active_order_id === orderId ? {active_order_id:null} : {}),
+          ...(driver.active_ride_id === orderId ? {active_ride_id:null} : {}),
           ...(driver.active_ride_id === orderId ? {active_ride_id:null} : {})
         } }
       ).catch(()=>null);
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
         const nextOrderId = fresh?.next_order_id;
         const nextToken = fresh?.next_order_token;
         if (!nextOrderId || !nextToken) continue;
-        if (fresh.reserved_order_id || fresh.active_order_id || fresh.active_ride_id) continue;
+        if (fresh.reserved_order_id || fresh.active_ride_id) continue;
         const next = await b44.entities.RideOrder.get(nextOrderId).catch(()=>null);
         if (!next || next.status !== 'preasignado_proximo' || next.preassigned_driver_id !== driverId || next.preassignment_token !== nextToken) continue;
         const promotedOrder = await b44.entities.RideOrder.updateMany(
@@ -90,8 +90,8 @@ Deno.serve(async (req) => {
         if ((promotedOrder?.updated ?? promotedOrder?.matchedCount ?? promotedOrder?.modifiedCount ?? 0) !== 1) continue;
         const promotedDriver = await b44.entities.Driver.updateMany(
           {id:driverId,next_order_id:nextOrderId,next_order_token:nextToken,
-           $and:[{$or:[{reserved_order_id:null},{reserved_order_id:{$exists:false}}]},{$or:[{active_order_id:null},{active_order_id:{$exists:false}}]},{$or:[{active_ride_id:null},{active_ride_id:{$exists:false}}]}]},
-          {$set:{status:'en_viaje',dispatch_status:'normal',active_order_id:nextOrderId,active_ride_id:nextOrderId,next_order_id:null,next_order_token:null}}
+           $and:[{$or:[{reserved_order_id:null},{reserved_order_id:{$exists:false}}]},{$or:[{active_ride_id:null},{active_ride_id:{$exists:false}}]},{$or:[{active_ride_id:null},{active_ride_id:{$exists:false}}]}]},
+          {$set:{status:'en_viaje',dispatch_status:'normal',active_ride_id:nextOrderId,next_order_id:null,next_order_token:null}}
         );
         if ((promotedDriver?.updated ?? promotedDriver?.matchedCount ?? promotedDriver?.modifiedCount ?? 0) !== 1) {
           const rollbackNext = await b44.entities.RideOrder.updateMany(
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
           await withQueueLock(b44, baseName, async () => {
             const target = await b44.entities.Driver.get(order.driver_id).catch(()=>null);
             if (!target || target.status !== 'disponible' || target.dispatch_status !== 'normal' ||
-                target.reserved_order_id || target.active_order_id || target.active_ride_id || target.next_order_id) return;
+                target.reserved_order_id || target.active_ride_id || target.active_ride_id || target.next_order_id) return;
 
             const drivers = await b44.entities.Driver.filter({
               status:'disponible',
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
 
             // Cancelación de Central: reingreso explícito primero bajo la misma autoridad de cola.
             const targetChanged = await b44.entities.Driver.updateMany(
-              {id:target.id,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_order_id:null,active_ride_id:null,next_order_id:null},
+              {id:target.id,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_ride_id:null,next_order_id:null},
               {$set:{queue_authoritative_base:baseName,queue_position:1,queue_authority_marker:1,queue_entered_at:now}}
             );
             const targetCount = targetChanged?.updated ?? targetChanged?.modifiedCount ?? targetChanged?.matchedCount ?? 0;
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
               const d:any=queue[i]; const pos=i+2;
               if (Number(d.queue_position)===pos && Number(d.queue_authority_marker)===pos) continue;
               const shifted = await b44.entities.Driver.updateMany(
-                {id:d.id,queue_authoritative_base:baseName,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_order_id:null,active_ride_id:null,next_order_id:null},
+                {id:d.id,queue_authoritative_base:baseName,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_ride_id:null,next_order_id:null},
                 {$set:{queue_position:pos,queue_authority_marker:pos}}
               );
               const shiftedCount = shifted?.updated ?? shifted?.modifiedCount ?? shifted?.matchedCount ?? 0;

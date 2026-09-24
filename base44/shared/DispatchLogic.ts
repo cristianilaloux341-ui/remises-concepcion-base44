@@ -14,7 +14,7 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
   let offerCommitted = false;
   try {
     const driverRes = await b44.entities.Driver.updateMany(
-      { id: driver.id, status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, active_order_id: null, active_ride_id: null, next_order_id: null },
+      { id: driver.id, status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, active_ride_id: null, next_order_id: null },
       { $set: { dispatch_status: 'automatic_pending', reserved_order_id: order.id, reservation_token: token } }
     );
     if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? driverRes.updated ?? 0) !== 1) return false;

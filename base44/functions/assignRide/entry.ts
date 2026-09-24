@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
     conflictingOrders.length > 0 &&
     driverReq.status === 'disponible' &&
     !driverReq.reserved_order_id &&
-    !driverReq.active_order_id &&
+    !driverReq.active_ride_id &&
     !driverReq.active_ride_id
   ) {
     const conflictIds = conflictingOrders.map((o:any) => o.id).filter(Boolean);
@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
   }
   
   hasCurrentRide = Boolean(
-    driverReq.active_order_id || driverReq.active_ride_id || driverReq.reserved_order_id ||
+    driverReq.active_ride_id || driverReq.reserved_order_id ||
     conflictingOrders.length > 0
   );
   hasNextRide = Boolean(driverReq.next_order_id);
@@ -332,7 +332,7 @@ Deno.serve(async (req) => {
       { id:driverId, status:{ $ne:'no_disponible' },
         $and:[
           { $or:[{next_order_id:null},{next_order_id:{ $exists:false }}] },
-          { $or:[{active_order_id:{ $ne:null }},{active_ride_id:{ $ne:null }},{reserved_order_id:{ $ne:null }}] }
+          { $or:[{active_ride_id:{ $ne:null }},{active_ride_id:{ $ne:null }},{reserved_order_id:{ $ne:null }}] }
         ] },
       { $set:{next_order_id:orderId,next_order_token:nextToken} }
     );
@@ -380,7 +380,7 @@ Deno.serve(async (req) => {
         $and:[
           { $or:[{next_order_id:null},{next_order_id:{ $exists:false }}] },
           { $or:[
-            {active_order_id:{ $ne:null }},
+            {active_ride_id:{ $ne:null }},
             {active_ride_id:{ $ne:null }},
             {reserved_order_id:{ $ne:null }}
           ] }
@@ -433,7 +433,7 @@ Deno.serve(async (req) => {
   // 2. Recuperación segura de referencias huérfanas.
   // NUNCA limpiar una reserva vigente solo para que una asignación manual entre:
   // otro operador puede haber reservado este móvil milisegundos antes.
-  const linkedOrderId = driverReq.reserved_order_id || driverReq.active_order_id || driverReq.active_ride_id;
+  const linkedOrderId = driverReq.reserved_order_id || driverReq.active_ride_id;
   if (linkedOrderId && linkedOrderId !== orderId) {
     const linkedOrder = await b44.entities.RideOrder.get(linkedOrderId).catch(() => null);
     const linkedIsActive = linkedOrder && activeStatuses.has(linkedOrder.status) &&
@@ -443,14 +443,14 @@ Deno.serve(async (req) => {
     }
     // Solo limpiamos si comprobamos que la referencia es huérfana/muerta.
     const cleaned = await b44.entities.Driver.updateMany(
-      { id: driverId, reserved_order_id: driverReq.reserved_order_id ?? null, active_order_id: driverReq.active_order_id ?? null, active_ride_id: driverReq.active_ride_id ?? null, next_order_id: driverReq.next_order_id ?? null },
-      { $set: { status:'disponible', dispatch_status:'normal', reserved_order_id:null, active_order_id:null, active_ride_id:null, reservation_token:null, driver_reservation_key:null } }
+      { id: driverId, reserved_order_id: driverReq.reserved_order_id ?? null, active_ride_id: driverReq.active_ride_id ?? null, active_ride_id: driverReq.active_ride_id ?? null, next_order_id: driverReq.next_order_id ?? null },
+      { $set: { status:'disponible', dispatch_status:'normal', reserved_order_id:null, active_ride_id:null, reservation_token:null, driver_reservation_key:null } }
     );
     if (cleaned.updated !== 1) return Response.json({ success:false, reason:'DRIVER_STATE_CHANGED_RETRY' });
     driverReq.status = 'disponible';
     driverReq.dispatch_status = 'normal';
     driverReq.reserved_order_id = null;
-    driverReq.active_order_id = null;
+    driverReq.active_ride_id = null;
     driverReq.active_ride_id = null;
     driverReq.reservation_token = null;
   } else if (driverReq.status !== 'disponible' || (driverReq.dispatch_status != null && driverReq.dispatch_status !== 'normal')) {

@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       if (!freshDriver || freshDriver.next_order_id !== nextOrderId || freshDriver.next_order_token !== token) {
         return Response.json({ success: false, promoted: false, reason: 'driver_state_changed' });
       }
-      if (freshDriver.active_order_id || freshDriver.active_ride_id || freshDriver.reserved_order_id) {
+      if (freshDriver.active_ride_id || freshDriver.active_ride_id || freshDriver.reserved_order_id) {
         return Response.json({ success: false, promoted: false, reason: 'current_ride_not_finished' });
       }
 
@@ -88,8 +88,8 @@ Deno.serve(async (req) => {
           next_order_id: nextOrderId,
           next_order_token: token,
           $or: [
-            { active_order_id: null },
-            { active_order_id: { $exists: false } }
+            { active_ride_id: null },
+            { active_ride_id: { $exists: false } }
           ],
           $and: [
             { $or: [{ active_ride_id: null }, { active_ride_id: { $exists: false } }] },
@@ -100,7 +100,6 @@ Deno.serve(async (req) => {
           $set: {
             status: 'en_viaje',
             dispatch_status: 'normal',
-            active_order_id: nextOrderId,
             active_ride_id: nextOrderId,
             next_order_id: null,
             next_order_token: null
@@ -204,7 +203,7 @@ Deno.serve(async (req) => {
     // como próximo si existen referencias reales a otro viaje o la app informa
     // explícitamente que mantiene un viaje/taxímetro actual en pantalla.
     const hasCurrentRide = !!(
-      driver.active_order_id || driver.active_ride_id || driver.reserved_order_id
+      driver.active_ride_id || driver.reserved_order_id
     );
     const hasNextRide = !!driver.next_order_id;
     // Contrato comercial: máximo DOS pasajes vinculados por móvil.
@@ -237,14 +236,14 @@ Deno.serve(async (req) => {
             // existe un primer slot evita dejar un próximo viaje huérfano.
             $and: [
               { $or:[
-                { active_order_id:{ $ne:null } },
+                { active_ride_id:{ $ne:null } },
                 { active_ride_id:{ $ne:null } },
                 { reserved_order_id:{ $ne:null } }
               ] }
             ]
           } : {
             $and: [
-              { $or:[{active_order_id:null},{active_order_id:{$exists:false}}] },
+              { $or:[{active_ride_id:null},{active_ride_id:{$exists:false}}] },
               { $or:[{active_ride_id:null},{active_ride_id:{$exists:false}}] },
               { $or:[{reserved_order_id:null},{reserved_order_id:{$exists:false}}] }
             ]
@@ -303,8 +302,8 @@ Deno.serve(async (req) => {
         id: driverId,
         status: { $ne: 'no_disponible' },
         $or: [
-          { active_order_id: null },
-          { active_order_id: { $exists: false } }
+          { active_ride_id: null },
+          { active_ride_id: { $exists: false } }
         ],
         $and: [
           { $or: [{ active_ride_id: null }, { active_ride_id: { $exists: false } }] },
@@ -316,7 +315,6 @@ Deno.serve(async (req) => {
         $set: {
           status: 'en_viaje',
           dispatch_status: 'normal',
-          active_order_id: orderId,
           active_ride_id: orderId
         }
       }
@@ -339,8 +337,8 @@ Deno.serve(async (req) => {
     );
     if (!changed(orderRes)) {
       await b44.entities.Driver.updateMany(
-        { id: driverId, active_order_id: orderId, active_ride_id: orderId },
-        { $set: { status: 'disponible', active_order_id: null, active_ride_id: null } }
+        { id: driverId, active_ride_id: orderId, active_ride_id: orderId },
+        { $set: { status: 'disponible', active_ride_id: null } }
       );
       return Response.json({ success: false, reason: 'already_taken' });
     }

@@ -46,7 +46,7 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
     const isAlreadyOffered = offeredDriverIds.includes(d.id);
     const isBlocked = Number(d.bloqueo_post_aceptacion_hasta) > Date.now();
     return isDriverWorking(d) && 
-           !d.active_order_id && 
+           !d.active_ride_id && 
            !d.active_ride_id && 
            !d.reserved_order_id &&
            !d.next_order_id &&

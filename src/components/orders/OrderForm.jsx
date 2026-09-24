@@ -158,7 +158,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
   const isDriverWorking = (d) => {
     if (d.status !== "disponible") return false;
-    if (d.active_order_id || d.active_ride_id || d.reserved_order_id) return false;
+    if (d.active_ride_id || d.reserved_order_id) return false;
     if (d.dispatch_status != null && d.dispatch_status !== "normal") return false;
 
     const mobileId = String(d.vehicle_model || "");

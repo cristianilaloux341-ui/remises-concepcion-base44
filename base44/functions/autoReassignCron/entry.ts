@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     const stuckDriverGroups = await Promise.all([
       b44.entities.Driver.filter({ reserved_order_id: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ active_ride_id: { $ne: null } }).catch(() => []),
-      b44.entities.Driver.filter({ active_order_id: { $ne: null } }).catch(() => []),
+      b44.entities.Driver.filter({ active_ride_id: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ dispatch_status: 'automatic_pending' }).catch(() => []),
       b44.entities.Driver.filter({ driver_reservation_key: { $ne: null } }).catch(() => []),
       b44.entities.Driver.filter({ reservation_token: { $ne: null } }).catch(() => []),
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
       // exista next_order_id: finishRide/checkAndRepairDriver son la autoridad allí.
       if (driver.next_order_id) continue;
 
-      const ghostOrderId = driver.reserved_order_id || driver.active_order_id || driver.active_ride_id;
+      const ghostOrderId = driver.reserved_order_id || driver.active_ride_id;
       let isDead = false;
       if (ghostOrderId) {
          try {
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
          const query = { id: driver.id, next_order_id: driver.next_order_id ?? null, next_order_token: driver.next_order_token ?? null };
          if (driver.reservation_token) query.reservation_token = driver.reservation_token;
          if (driver.reserved_order_id) query.reserved_order_id = driver.reserved_order_id;
-         if (driver.active_order_id) query.active_order_id = driver.active_order_id;
+         if (driver.active_ride_id) query.active_ride_id = driver.active_ride_id;
          if (driver.active_ride_id) query.active_ride_id = driver.active_ride_id;
          
          const res = await b44.entities.Driver.updateMany(query, {
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
                reserved_order_id: null, 
                reservation_token: null,
                driver_reservation_key: null,
-               active_order_id: null,
+               active_ride_id: null,
                active_ride_id: null
             }
          }).catch(()=>{ return { matchedCount: 0, updated: 0 }; });
@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
             if (!orphanDriver) throw new Error('ORPHAN_DRIVER_NOT_FOUND');
             const driverBusyElsewhere =
               orphanDriver.status === 'en_viaje' ||
-              Boolean(orphanDriver.active_order_id) ||
+              Boolean(orphanDriver.active_ride_id) ||
               Boolean(orphanDriver.active_ride_id) ||
               Boolean(orphanDriver.next_order_id) ||
               Boolean(orphanDriver.reserved_order_id && orphanDriver.reserved_order_id !== orphanOrder.id);
@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
                 status: orphanDriver.status,
                 dispatch_status: orphanDriver.dispatch_status,
                 reserved_order_id: orphanDriver.reserved_order_id ?? null,
-                active_order_id: orphanDriver.active_order_id ?? null,
+                active_ride_id: orphanDriver.active_ride_id ?? null,
                 active_ride_id: orphanDriver.active_ride_id ?? null,
                 next_order_id: orphanDriver.next_order_id ?? null,
                 next_order_token: orphanDriver.next_order_token ?? null,
@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
                 dispatch_status:'automatic_pending',
                 reserved_order_id:orphanOrder.id,
                 reservation_token:orphanOrder.reservation_token,
-                active_order_id:null,
+                active_ride_id:null,
                 active_ride_id:null
               } }
             );
@@ -262,9 +262,9 @@ Deno.serve(async (req) => {
               set.driver_reservation_key = null;
               ownsCurrent = true;
             }
-            if (currentDriver.active_order_id === order.id) {
-              query.active_order_id = order.id;
-              set.active_order_id = null;
+            if (currentDriver.active_ride_id === order.id) {
+              query.active_ride_id = order.id;
+              set.active_ride_id = null;
               ownsCurrent = true;
             }
             if (currentDriver.active_ride_id === order.id) {
