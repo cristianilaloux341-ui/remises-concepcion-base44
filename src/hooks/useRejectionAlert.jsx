@@ -60,12 +60,13 @@ export default function DriverRejectionAlert() {
         if (!order) return;
 
         if (event.type === "update") {
-           // Si estaba activa y ahora está pendiente sin chofer (el chofer rechazó/canceló)
+           // Sólo el requerido no aceptado vuelve a Central para decisión explícita.
+           // Un viaje normal que agota la cadena no debe generar una falsa alerta de rechazo del último móvil.
            const wasActive = activeOrdersRef.current.get(order.id);
            
-           if (order.status === "pendiente" && !order.driver_id) {
+           if (order.status === "pendiente" && !order.driver_id && order.pending_reason === "REQUESTED_DRIVER_NOT_ACCEPTED") {
               if (wasActive) {
-                // Chofer abandonó el viaje!
+                // El móvil requerido no aceptó el viaje.
                 const driverName = wasActive.driver_name;
                 activeOrdersRef.current.delete(order.id);
                 
@@ -114,8 +115,8 @@ export default function DriverRejectionAlert() {
           <div className="bg-orange-500 px-4 py-3 flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-white shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-white text-sm leading-tight">⚠️ Móvil Abortó el Viaje</p>
-              <p className="text-orange-100 text-xs truncate">{order.rejected_by} devolvió el viaje.</p>
+              <p className="font-bold text-white text-sm leading-tight">⚠️ Móvil requerido no aceptó</p>
+              <p className="text-orange-100 text-xs truncate">{order.rejected_by} no aceptó el viaje requerido.</p>
             </div>
             <button
               type="button"
