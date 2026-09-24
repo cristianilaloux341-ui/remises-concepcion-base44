@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
           active_ride_id: null,
           next_order_id: null
         },
-        { $set: {  queue_authority_marker: currentPos, queue_left_at: null } }
+        { $set: {  queue_authority_marker: currentPos } }
       );
     }
     return Response.json({
@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
             active_ride_id:null,
             next_order_id:null
           },
-          { $set:{  queue_authority_marker:freshPos, queue_left_at:null } }
+          { $set:{  queue_authority_marker:freshPos } }
         );
       }
       return {
@@ -118,8 +118,7 @@ Deno.serve(async (req) => {
         queue_entered_at:queueEnteredAt,
         queue_authoritative_base:baseName,
         queue_authority_marker:authorityMarker,
-        queue_position:position,
-        queue_left_at:null
+        queue_position:position
       } }
     );
     const sealedCount = sealed?.updated ?? sealed?.modifiedCount ?? sealed?.matchedCount ?? 0;

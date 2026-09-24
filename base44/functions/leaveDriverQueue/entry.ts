@@ -52,8 +52,7 @@ Deno.serve(async (req) => {
     return Response.json({
       success:true,
       idempotent:true,
-      previousBase:null,
-      queueLeftAt:current.queue_left_at || null
+      previousBase:null
     });
   }
 
@@ -102,7 +101,6 @@ Deno.serve(async (req) => {
           
           queue_authority_marker:null,
           queue_position:null,
-          queue_left_at:queueLeftAt,
           reserved_order_id:null,
           reservation_token:null,
           driver_reservation_key:null,

@@ -150,13 +150,6 @@
       ],
       "description": "Base autoritativa de cola mantenida por servidor; APK legacy no debe modificarla"
     },
-    "queue_left_at": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Hora histórica de salida de la base. No conserva posición ni prioridad; la cola operativa se define únicamente por queue_authoritative_base + queue_position del servidor."
-    },
     "queue_authority_marker": {
       "type": "number",
       "description": "Último marcador manual de cola aceptado por el servidor"

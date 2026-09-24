@@ -216,9 +216,7 @@ Deno.serve(async (req) => {
             
             queue_authoritative_base:null,
             queue_position:null,
-            queue_authority_marker:null,
-            queue_left_at:new Date().toISOString(),
-            queue_leave_reason: source === 'timeout' ? 'OFFER_TIMEOUT' : 'OFFER_REJECTED'
+            queue_authority_marker:null
           } }
         );
         await compactQueueUnlocked(b44, queueBase);
