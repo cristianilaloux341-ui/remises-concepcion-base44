@@ -97,9 +97,32 @@ export async function withQueueLock<T>(
 
   if (!acquired) throw new Error(`QUEUE_LOCK_BUSY:${baseName}`);
 
+  // Renovación mientras fn() trabaja: una reordenación larga no puede perder el
+  // lock a los 10 s y dejar entrar a otro escritor sobre la misma base.
+  let renewalStopped = false;
+  let leaseLost = false;
+  const renewal = (async () => {
+    while (!renewalStopped) {
+      await sleep(Math.max(1000, Math.floor(QUEUE_LOCK_TTL_MS / 3)));
+      if (renewalStopped) break;
+      const renewed = await b44.entities.QueueLock.updateMany(
+        { id: lock.id, owner },
+        { $set: { expires_at: Date.now() + QUEUE_LOCK_TTL_MS } }
+      ).catch(() => ({ updated: 0 }));
+      if (mutationCount(renewed) !== 1) {
+        leaseLost = true;
+        break;
+      }
+    }
+  })();
+
   try {
-    return await fn();
+    const result = await fn();
+    if (leaseLost) throw new Error(`QUEUE_LOCK_LEASE_LOST:${baseName}`);
+    return result;
   } finally {
+    renewalStopped = true;
+    await renewal.catch(() => {});
     await b44.entities.QueueLock.updateMany(
       { id: lock.id, owner },
       { $set: { owner: null, expires_at: null } }
