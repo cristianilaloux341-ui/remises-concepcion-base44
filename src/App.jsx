@@ -36,8 +36,6 @@ import AuditLogs from '@/pages/AuditLogs';
 import ActiveUsers from '@/pages/ActiveUsers';
 import Profile from '@/pages/Profile';
 import DesktopOnlyError from '@/components/DesktopOnlyError';
-import { Capacitor } from '@capacitor/core';
-import { App as CapApp } from '@capacitor/app';
 import LoginCentral from '@/pages/LoginCentral';
 import AdminUsuarios from '@/pages/AdminUsuarios';
 
@@ -56,7 +54,6 @@ import { useState, useEffect } from 'react';
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
   const location = useLocation();
-  const [nativeAppId, setNativeAppId] = useState(null);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -68,27 +65,6 @@ const AuthenticatedApp = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      CapApp.getInfo().then(info => setNativeAppId(info.id)).catch(console.error);
-    }
-  }, []);
-
-  // En Android nativo: Esperamos saber qué AppId es para enrutar correctamente.
-  if (Capacitor.isNativePlatform()) {
-    if (!nativeAppId) {
-      return (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-950">
-          <div className="w-8 h-8 border-4 border-slate-200 border-t-blue-500 rounded-full animate-spin"></div>
-        </div>
-      );
-    }
-
-    // Las apps móviles legacy fueron retiradas de Central. Las nuevas apps
-    // consumirán exclusivamente los endpoints canónicos del backend.
-    return <Navigate to="/login" replace />;
-  }
 
   // Forzar HTTPS en producción (Auditoría/Seguridad)
   if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
