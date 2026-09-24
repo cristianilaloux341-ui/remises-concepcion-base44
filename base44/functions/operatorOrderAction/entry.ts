@@ -28,6 +28,11 @@ Deno.serve(async (req) => {
       return Response.json({success:true,status:'cancelado',idempotent:true,reason:'ALREADY_CANCELLED'});
     }
 
+    // Reintentos de la misma cancelación son no-op: no volver a liberar, reinsertar ni enviar push.
+    if (order.status === 'cancelado') {
+      return Response.json({success:true,status:'cancelado',idempotent:true,reason:'ALREADY_CANCELLED'});
+    }
+
     const driverIds = [...new Set([order.driver_id, order.reserved_driver_id, order.preassigned_driver_id].filter(Boolean))];
     for (const driverId of driverIds) {
       const driver = await b44.entities.Driver.get(driverId).catch(()=>null);
