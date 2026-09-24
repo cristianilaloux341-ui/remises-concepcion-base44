@@ -164,7 +164,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilById = {} }) {
         if (fresh?.queue_authoritative_base === baseName &&
             fresh?.status === "disponible" &&
             (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
-            Number.isFinite(pos) && pos > 0 && &&
+            Number.isFinite(pos) && pos > 0 &&
             !fresh?.reserved_order_id && !fresh?.active_ride_id) {
           return fresh;
         }
@@ -374,7 +374,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
         const alreadyThere = fresh?.queue_authoritative_base === baseName &&
           fresh?.status === "disponible" &&
           (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
-          Number.isFinite(pos) && pos > 0 && &&
+          Number.isFinite(pos) && pos > 0 &&
           !fresh?.reserved_order_id && !fresh?.active_ride_id;
         if (!alreadyThere) throw new Error(data?.reason || "El móvil cambió de estado; no se modificó su posición.");
       }

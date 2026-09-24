@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
             if (targetCount !== 1) throw new Error(`CENTRAL_CANCEL_REQUEUE_RACE:${target.id}`);
             for (let i=0;i<queue.length;i++) {
               const d:any=queue[i]; const pos=i+2;
-              if (Number(d.queue_position)===pos && Number(d.queue_authority_marker)===pos) continue;
+              if (Number(d.queue_position)===pos) continue;
               const shifted = await b44.entities.Driver.updateMany(
                 {id:d.id,queue_authoritative_base:baseName,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_ride_id:null,next_order_id:null},
                 {$set:{queue_position:pos,}}
