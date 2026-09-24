@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
                 const shifted = await b44.entities.Driver.updateMany(
                   {id:d.id,queue_authoritative_base:baseName,status:'disponible',dispatch_status:'normal',
                    reserved_order_id:null,active_ride_id:null,next_order_id:null,queue_position:d.queue_position},
-                  {$set:{queue_position:pos}}
+                  {$set:{queue_position:pos,queue_last_operation_key:null}}
                 );
                 const shiftedCount = shifted?.updated ?? shifted?.modifiedCount ?? shifted?.matchedCount ?? 0;
                 if (shiftedCount !== 1) throw new Error(`CENTRAL_CANCEL_QUEUE_RACE:${d.id}`);
