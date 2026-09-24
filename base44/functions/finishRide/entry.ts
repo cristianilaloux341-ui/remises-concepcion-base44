@@ -111,7 +111,6 @@ Deno.serve(async (req) => {
       d &&
       ['disponible', 'no_disponible'].includes(d.status) &&
       !d.active_ride_id &&
-      !d.active_ride_id &&
       !d.reserved_order_id &&
       !d.reservation_token &&
       !d.next_order_id &&

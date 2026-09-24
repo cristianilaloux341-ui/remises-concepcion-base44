@@ -233,7 +233,6 @@ Deno.serve(async (req) => {
             $and: [
               { $or:[
                 { active_ride_id:{ $ne:null } },
-                { active_ride_id:{ $ne:null } },
                 { reserved_order_id:{ $ne:null } }
               ] }
             ]
@@ -296,10 +295,6 @@ Deno.serve(async (req) => {
       {
         id: driverId,
         status: { $ne: 'no_disponible' },
-        $or: [
-          { active_ride_id: null },
-          { active_ride_id: { $exists: false } }
-        ],
         $and: [
           { $or: [{ active_ride_id: null }, { active_ride_id: { $exists: false } }] },
           { $or: [{ reserved_order_id: null }, { reserved_order_id: { $exists: false } }] },
