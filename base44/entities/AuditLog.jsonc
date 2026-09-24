@@ -31,9 +31,6 @@
       "type": "string",
       "description": "Detalle en texto de la acci\u00f3n"
     },
-    "device": {
-      "type": "string"
-    },
     "metadata": {
       "type": "object",
       "additionalProperties": true,
