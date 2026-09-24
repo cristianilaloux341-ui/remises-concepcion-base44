@@ -55,7 +55,7 @@ const BASE_COLORS = {
   "7-Don Bosco": "bg-orange-500", "8-Monumento": "bg-cyan-500",
 };
 
-function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {}, movilById = {} }) {
+function QueueEditor({ baseName, queue, drivers, onClose, movilById = {} }) {
   const queryClient = useQueryClient();
   const [addingDriver, setAddingDriver] = useState("");
 
@@ -593,7 +593,6 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
             queue={getBaseQueue(workingDrivers, editingBase)}
             drivers={workingDrivers}
             onClose={() => setEditingBase(null)}
-            movilByPlate={movilByPlate}
             movilById={movilById}
           />
         )}
