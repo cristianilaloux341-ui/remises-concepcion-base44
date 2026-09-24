@@ -22,33 +22,11 @@
   "properties": {
     "numero_movil": {
       "type": "number",
-      "description": "N\u00famero de m\u00f3vil"
+      "description": "Número de móvil"
     },
     "apellido_nombre": {
       "type": "string",
       "description": "Apellido y nombre del titular"
-    },
-    "driver_id": {
-      "type": "string",
-      "description": "ID del chofer principal asignado (legacy)"
-    },
-    "driver_name": {
-      "type": "string",
-      "description": "Nombre del chofer principal (cache legacy)"
-    },
-    "driver_ids": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "IDs de todos los choferes asignados a este m\u00f3vil"
-    },
-    "driver_names": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "Nombres de los choferes asignados (cache)"
     },
     "dni": {
       "type": "string",
@@ -61,23 +39,23 @@
     },
     "direccion": {
       "type": "string",
-      "description": "Direcci\u00f3n del titular"
+      "description": "Dirección del titular"
     },
     "dominio": {
       "type": "string",
-      "description": "Dominio/patente del veh\u00edculo"
+      "description": "Dominio/patente del vehículo"
     },
     "marca": {
       "type": "string",
-      "description": "Marca del veh\u00edculo"
+      "description": "Marca del vehículo"
     },
     "modelo": {
       "type": "string",
-      "description": "Modelo del veh\u00edculo"
+      "description": "Modelo del vehículo"
     },
     "color": {
       "type": "string",
-      "description": "Color del veh\u00edculo"
+      "description": "Color del vehículo"
     },
     "carnet_categoria": {
       "type": "string",
@@ -90,7 +68,7 @@
         "F",
         "G"
       ],
-      "description": "Categor\u00eda del carnet de conducir"
+      "description": "Categoría del carnet de conducir"
     },
     "vtv_vencimiento": {
       "type": "string",
@@ -110,12 +88,12 @@
     "pago_semanal_al_dia": {
       "type": "boolean",
       "default": true,
-      "description": "Pago semanal al d\u00eda"
+      "description": "Pago semanal al día"
     },
     "pago_semanal_fecha": {
       "type": "string",
       "format": "date",
-      "description": "Fecha \u00faltimo pago semanal"
+      "description": "Fecha último pago semanal"
     },
     "deuda_monto": {
       "type": "number",
@@ -139,16 +117,16 @@
     "activo": {
       "type": "boolean",
       "default": true,
-      "description": "M\u00f3vil activo en la flota (habilitado por operador/comisi\u00f3n)"
+      "description": "Móvil activo en la flota (habilitado por operador/comisión)"
     },
     "suspension_motivo": {
       "type": "string",
-      "description": "Motivo de suspensi\u00f3n ingresado por el operador"
+      "description": "Motivo de suspensión ingresado por el operador"
     },
     "fuera_de_servicio": {
       "type": "boolean",
       "default": false,
-      "description": "Fuera de servicio definitivo (solo comisi\u00f3n): falta de pago, papeles, etc."
+      "description": "Fuera de servicio definitivo (solo comisión): falta de pago, papeles, etc."
     },
     "fuera_de_servicio_motivo": {
       "type": "string",
@@ -159,11 +137,11 @@
         "sancion_disciplinaria",
         "otro"
       ],
-      "description": "Motivo por el que la comisi\u00f3n lo sac\u00f3 de servicio"
+      "description": "Motivo por el que la comisión lo sacó de servicio"
     },
     "fuera_de_servicio_detalle": {
       "type": "string",
-      "description": "Detalle adicional del motivo (comisi\u00f3n)"
+      "description": "Detalle adicional del motivo (comisión)"
     },
     "notas": {
       "type": "string",
