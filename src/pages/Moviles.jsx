@@ -408,28 +408,14 @@ export default function Moviles() {
     onError: (err) => alert("Error al guardar el móvil: " + (err?.response?.data?.error || err?.message || JSON.stringify(err)))
   });
 
-  // Build a map: movil_id -> drivers that have this movil assigned (by driver_ids or legacy driver_id)
-  const driversByMovil = {};
-  for (const d of drivers) {
-    // Check if driver is linked to this movil via its own vehicle_plate or vehicle_model field
-    // The link is stored on the Movil entity (driver_ids array). We invert it here.
-    // Also support drivers who have vehicle_plate matching the movil's dominio
-  }
-  // Primary: group by driver_ids stored on each movil
+  // Un móvil muestra únicamente los choferes que lo referencian por su ID exacto.
   const driversByMovilId = {};
   for (const m of moviles) {
-    const ids = Array.isArray(m.driver_ids) ? m.driver_ids : (m.driver_id ? [m.driver_id] : []);
-    driversByMovilId[m.id] = drivers.filter(d => ids.includes(d.id));
-    // Also auto-match by vehicle_plate if driver has the same plate and isn't already listed
-    if (m.dominio) {
-      const plate = m.dominio.replace(/\s/g, "").toUpperCase();
-      const autoMatched = drivers.filter(d => {
-        const dp = (d.vehicle_plate || "").replace(/\s/g, "").toUpperCase();
-        return dp && dp === plate && !ids.includes(d.id);
-      });
-      driversByMovilId[m.id] = [...driversByMovilId[m.id], ...autoMatched];
-    }
+    driversByMovilId[m.id] = drivers.filter(
+      d => String(d.vehicle_model || "") === String(m.id)
+    );
   }
+
 
   const filtered = moviles.filter(m => {
     const matchSearch = !search ||
