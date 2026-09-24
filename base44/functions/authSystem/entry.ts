@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
           return Response.json({ success: false, message: "INIT_ADMIN_PIN no configurado en entorno de seguridad.", initialized: false }, { status: 500 });
         }
         const pinHash = await hashPin(initPin);
-        const nuevoAdmin = await base44.asServiceRole.entities.UsuariosSistema.create({
+        await base44.asServiceRole.entities.UsuariosSistema.create({
           nombre: "Administrador",
           telefono: "3442640443",
           pin_hash: pinHash,

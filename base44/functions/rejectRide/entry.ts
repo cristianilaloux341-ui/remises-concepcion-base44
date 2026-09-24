@@ -362,7 +362,6 @@ Deno.serve(async (req) => {
 
         const newAttempt = Number(assignmentAttempt) + 1;
         const assignedAt = new Date().toISOString();
-        const expiresAt = null;
         // Cada salto es una oferta NUEVA. offered_driver_ids queda sólo como historial
         // para no volver a ofrecer a quienes ya pasaron; la identidad activa se
         // reemplaza por completo con nextDriver + token + newAttempt.
