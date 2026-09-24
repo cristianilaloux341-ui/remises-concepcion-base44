@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
         { $set:{ status:'cancelado', offerExpiresAt:null, processingAction:'CANCELLED_BY_CENTRAL',
           processingOperationKey:null, processingOwnerId:null, processingLeaseExpiresAt:null, processingPhase:null,
           cancel_effects_status:'PENDING', cancel_effects_operation_key:cancelOperationKey,
-          cancel_push_claimed:false, cancel_push_claimed_at:null } }
+          cancel_push_claimed:false, cancel_push_claimed_at:null, cancel_requeue_done:false } }
       );
       if ((changed?.updated ?? changed?.matchedCount ?? changed?.modifiedCount ?? 0) !== 1) {
         const fresh = await b44.entities.RideOrder.get(orderId).catch(()=>null);
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       await b44.entities.RideOrder.updateMany(
         {id:orderId,status:'cancelado',$or:[{cancel_effects_status:null},{cancel_effects_status:{$exists:false}}]},
         {$set:{cancel_effects_status:'PENDING',cancel_effects_operation_key:cancelOperationKey,
-               cancel_push_claimed:false,cancel_push_claimed_at:null}}
+               cancel_push_claimed:false,cancel_push_claimed_at:null,cancel_requeue_done:false}}
       ).catch(()=>null);
     }
 
