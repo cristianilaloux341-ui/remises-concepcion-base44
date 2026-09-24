@@ -178,10 +178,6 @@
       "type": "number",
       "description": "Último marcador manual de cola aceptado por el servidor"
     },
-    "manual_reorder_at": {
-      "type": "string",
-      "description": "ISO timestamp del último reorden manual autorizado."
-    },
     "current_lat": {
       "type": "number"
     },

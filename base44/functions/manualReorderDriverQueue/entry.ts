@@ -56,8 +56,7 @@ Deno.serve(async (req) => {
           },
           { $set:{
             queue_position:pos,
-            queue_authority_marker:pos,
-            manual_reorder_at:reorderAt
+            queue_authority_marker:pos
           } }
         ).catch(()=>({updated:0}));
         const changedCount = changed?.updated ?? changed?.modifiedCount ?? changed?.matchedCount ?? 0;
