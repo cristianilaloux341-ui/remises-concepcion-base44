@@ -201,7 +201,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilByPlate = {}, mov
               {queue.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">Cola vacía</p>
               ) : queue.map((driver, idx) => {
-                const nroMovil = movilById[String(driver.vehicle_model || "")] || movilByPlate[driver.vehicle_plate?.toUpperCase()];
+                const nroMovil = movilById[String(driver.vehicle_model || "")];
                 return (
                   <Draggable key={driver.id} draggableId={driver.id} index={idx}>
                     {(provided, snapshot) => (
@@ -301,21 +301,11 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
     // Find movil
     let movil = moviles.find(m => m.numero_movil === movilNum);
     
-    // Buscar chofer por móvil o directamente si no hay móvil asignado
-    let driver = null;
-    if (movil && movil.dominio) {
-      driver = drivers.find(d => d.vehicle_plate?.toUpperCase() === movil.dominio.toUpperCase());
-    } else {
-      driver = drivers.find(d => d.vehicle_model === String(movilNum));
-    }
-
-    // Un fallback más directo: buscar por número de móvil exacto en caso de inconsistencia con patentes
-    if (!driver) {
-       driver = drivers.find(d => {
-         const m = moviles.find(mv => mv.dominio?.toUpperCase() === d.vehicle_plate?.toUpperCase());
-         return m && m.numero_movil === movilNum;
-       });
-    }
+    // El número ingresado resuelve primero el Movil; el chofer debe apuntar
+    // exactamente a ese ID mediante Driver.vehicle_model.
+    const driver = movil
+      ? drivers.find(d => String(d.vehicle_model || "") === String(movil.id))
+      : null;
 
     // Auto-crear bloqueado - evitamos crear móviles fantasma
     if (!movil || !driver) {
@@ -419,10 +409,7 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
 }
 
 export default function BaseQueueManager({ drivers, moviles = [] }) {
-  // Mapa patente → número de móvil para lookup rápido
-  const movilByPlate = Object.fromEntries(moviles.filter(m => m.dominio).map(m => [m.dominio.toUpperCase(), m.numero_movil]));
-  // Fuente principal: Driver.vehicle_model guarda el ID real de la entidad Movil.
-  // La patente queda solo como fallback legacy; nunca extraemos dígitos del ID como número de móvil.
+  // Driver.vehicle_model guarda el ID real de la entidad Movil.
   const movilById = Object.fromEntries(moviles.map(m => [String(m.id), m.numero_movil]));
   const [editingBase, setEditingBase] = useState(null);
 
@@ -476,15 +463,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
 
   const getLinkedMovil = (d) => {
     const mobileId = String(d.vehicle_model || "");
-    const mobileNumber = parseInt(mobileId, 10);
-    const driverPlate = String(d.vehicle_plate || "").replace(/\s+/g, "").toUpperCase();
-    return moviles?.find(m =>
-      m.id === mobileId ||
-      m.numero_movil === mobileNumber ||
-      m.driver_id === d.id ||
-      (Array.isArray(m.driver_ids) && m.driver_ids.includes(d.id)) ||
-      (driverPlate && String(m.dominio || "").replace(/\s+/g, "").toUpperCase() === driverPlate)
-    );
+    return moviles?.find(m => String(m.id || "") === mobileId);
   };
 
   const isDriverEnabled = (d) => {
@@ -551,7 +530,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                 ) : (
                   <>
                     {queue.slice(0, 4).map((driver, idx) => {
-                      const nroMovil = movilById[String(driver.vehicle_model || "")] || movilByPlate[driver.vehicle_plate?.toUpperCase()];
+                      const nroMovil = movilById[String(driver.vehicle_model || "")];
                       return (
                         <div key={driver.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-muted/50">
                           <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
@@ -579,7 +558,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                       <p className="text-xs text-muted-foreground text-center">+{queue.length - 4} libres más</p>
                     )}
                     {busyDrivers.map((driver) => {
-                      const nroMovil = movilById[String(driver.vehicle_model || "")] || movilByPlate[driver.vehicle_plate?.toUpperCase()];
+                      const nroMovil = movilById[String(driver.vehicle_model || "")];
                       return (
                         <div key={`busy-${driver.id}`} className="flex items-center gap-2 p-1.5 rounded-lg border border-dashed">
                           <span className="text-[10px] font-bold shrink-0">•</span>
