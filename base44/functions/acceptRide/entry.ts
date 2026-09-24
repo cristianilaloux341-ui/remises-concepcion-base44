@@ -425,13 +425,8 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
         lastCompletedAction: "ACCEPT", 
         lastCompletedResult: "SUCCESS", 
         lastCompletedAt: commitNow, 
-        lastCompletedOfferVersion: assignmentAttempt, 
-        pendingEffectKey: `ACCEPT:${rideOrderId}:${operationKey}`, 
-        pendingEffectType: "NOTIFY_CENTRAL", 
-        pendingEffectStatus: "PENDING", 
-        pendingEffectCorrelationId: correlationId 
-      },
-      $inc: { pendingEffectVersion: 1 } 
+        lastCompletedOfferVersion: assignmentAttempt
+      }
   };
 
   start = Date.now();

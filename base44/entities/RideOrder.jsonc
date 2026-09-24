@@ -221,34 +221,6 @@
         "null"
       ]
     },
-    "pendingEffectKey": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "pendingEffectType": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "pendingEffectStatus": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "pendingEffectVersion": {
-      "type": "number",
-      "default": 0
-    },
-    "pendingEffectCorrelationId": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "pending_reason": {
       "type": [
         "string",
