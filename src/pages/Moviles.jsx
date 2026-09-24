@@ -345,7 +345,13 @@ export default function Moviles() {
 
   const saveMutation = useMutation({
     mutationFn: async (form) => {
-      const { id, created_date, updated_date, created_by_id, ...cleanData } = form;
+      const {
+        id, created_date, updated_date, created_by_id,
+        // La relación chofer→móvil vive únicamente en Driver.vehicle_model.
+        // No volver a persistir caches/vínculos legacy que puedan venir de un registro viejo.
+        driver_id, driver_name, driver_ids, driver_names,
+        ...cleanData
+      } = form;
       const data = { ...cleanData, numero_movil: Number(cleanData.numero_movil) };
       
       // Eliminar campos vacíos para que no rompan la validación de fechas o números
