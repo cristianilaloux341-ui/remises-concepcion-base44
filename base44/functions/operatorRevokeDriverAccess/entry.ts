@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
 
     // Desvincular equipo no puede alterar una oferta/viaje activo ni reordenar la cola.
     // Si está trabajando, sólo se revoca la sesión/dispositivo.
-    const busy = Boolean(driver.active_ride_id || driver.reserved_order_id || driver.next_order_id || driver.dispatch_status === 'reserved');
+    const busy = Boolean(driver.active_ride_id || driver.reserved_order_id || driver.next_order_id || driver.dispatch_status === 'automatic_pending');
     const patch:any = { current_session_token:null, device_id:null };
     let queueRemoved = false;
     if (!busy) {
@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
         });
       } else {
         patch.status = 'no_disponible';
-                patch.queue_authoritative_base = null;
+        patch.queue_authoritative_base = null;
         patch.queue_position = null;
         const changed = await b44.entities.Driver.updateMany(
           {id:driverId,status:'disponible',active_ride_id:null,reserved_order_id:null,next_order_id:null,

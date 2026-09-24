@@ -120,8 +120,6 @@ Deno.serve(async (req) => {
               queue_authoritative_base:baseName
             });
             const queue = getBaseQueue(drivers, baseName).filter((d:any)=>d.id !== target.id);
-            const now = new Date().toISOString();
-
             // Cancelación de Central: reingreso explícito primero bajo la misma autoridad de cola.
             const targetChanged = await b44.entities.Driver.updateMany(
               {id:target.id,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_ride_id:null,next_order_id:null},

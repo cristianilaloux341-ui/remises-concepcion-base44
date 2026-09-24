@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
       actualDriver = await b44.entities.Driver.get(driverId).catch(() => null);
     }
 
-    // Regla nueva: RECHAZO o TIMEOUT PRESENTADO saca al móvil de la cola.
+    // RECHAZO o TIMEOUT PRESENTADO saca al móvil de la cola.
     // No existe "mandarlo al último" automáticamente. Para volver, el chofer debe
     // entrar explícitamente a una base y allí obtiene una posición nueva al final.
     const queueBase = actualDriver?.queue_authoritative_base || order.assigned_base || order.zone || null;
@@ -212,7 +212,6 @@ Deno.serve(async (req) => {
         await b44.entities.Driver.updateMany(
           { id:driverId, status:'disponible', reserved_order_id:null, active_ride_id:null, next_order_id:null, queue_authoritative_base:queueBase },
           { $set:{
-            
             queue_authoritative_base:null,
             queue_position:null,
           } }
