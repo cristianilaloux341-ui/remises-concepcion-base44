@@ -139,7 +139,7 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
     const wanted = i + 1;
     if (Number(d.queue_position) === wanted) continue;
 
-    await b44.entities.Driver.updateMany(
+    const changed = await b44.entities.Driver.updateMany(
       {
         id: d.id,
         status: 'disponible',
@@ -147,13 +147,18 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
         dispatch_status: d.dispatch_status ?? 'normal',
         reserved_order_id: null,
         active_ride_id: null,
-        next_order_id: null
+        next_order_id: null,
+        queue_position: d.queue_position
       },
       { $set: {
           queue_position: wanted,
         }
       }
     ).catch(() => ({ updated: 0 }));
+
+    if (mutationCount(changed) !== 1) {
+      throw new Error(`QUEUE_COMPACT_CONCURRENT_CHANGE:${baseName}:${d.id}`);
+    }
   }
 }
 
