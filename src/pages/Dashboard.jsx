@@ -20,10 +20,10 @@ import { getEffectiveQueueBase } from "@/lib/dispatchLogic";
 
 function isVisiblePending(order) {
   if (!order || order.status !== "pendiente") return false;
-  // Una oferta con intento/vencimiento vigente no puede aparecer a la vez como Pendiente.
-  const hasLiveOfferClock = order.offerExpiresAt != null &&
-    Number.isFinite(Number(order.offerExpiresAt)) && Number(order.assignment_attempt || 0) > 0;
-  return !hasLiveOfferClock;
+  // Pendientes visibles/reclamables sólo existen cuando el backend los autoriza.
+  // Las revisiones exclusivas de Central (zona faltante / móvil requerido) no se
+  // mezclan con la cartelera normal de Pendientes.
+  return order.processingAction === "PENDING_AUTHORIZED";
 }
 
 function RideAge({ createdDate }) {

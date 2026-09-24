@@ -234,7 +234,9 @@ export default function DispatchPanel({ orders, drivers, bases, moviles, onOrder
 
   const pending = orders.filter(o =>
     o.status === "pendiente" &&
-    !(o.offerExpiresAt != null && Number.isFinite(Number(o.offerExpiresAt)) && Number(o.assignment_attempt || 0) > 0)
+    (o.processingAction === "PENDING_AUTHORIZED" ||
+     o.processingAction === "CENTRAL_REVIEW_REQUIRED_DRIVER" ||
+     o.processingAction === "CENTRAL_REVIEW_ZONE_REQUIRED")
   );
   const active = orders.filter(o => ["ofrecido", "aceptado", "en_camino", "en_viaje"].includes(o.status));
 
@@ -245,8 +247,7 @@ export default function DispatchPanel({ orders, drivers, bases, moviles, onOrder
     // si existe candidato ni cuál es el primero.
     for (const order of pending) {
       // Los requeridos no aceptados exigen una decisión explícita del operador.
-      if (order.pending_reason === "REQUESTED_DRIVER_NOT_ACCEPTED" ||
-          order.processingAction === "CENTRAL_REVIEW_REQUIRED_DRIVER") continue;
+      if (order.processingAction !== "PENDING_AUTHORIZED") continue;
       try {
         const res = await base44.functions.invoke("operatorDispatchPendingRide", {
           orderId: order.id,
