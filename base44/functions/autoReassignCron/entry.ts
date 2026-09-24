@@ -260,11 +260,6 @@ Deno.serve(async (req) => {
               set.active_ride_id = null;
               ownsCurrent = true;
             }
-            if (currentDriver.active_ride_id === order.id) {
-              query.active_ride_id = order.id;
-              set.active_ride_id = null;
-              ownsCurrent = true;
-            }
             if (!ownsCurrent) continue;
 
             // Un segundo slot distinto nunca se borra ni convierte al móvil en libre.

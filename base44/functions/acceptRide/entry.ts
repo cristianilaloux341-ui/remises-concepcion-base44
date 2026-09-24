@@ -325,7 +325,6 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
       driver_reservation_version: expectedDriverVersion,
       $and: [
         { $or: [{ active_ride_id: null }, { active_ride_id: { $exists: false } }] },
-        { $or: [{ active_ride_id: null }, { active_ride_id: { $exists: false } }, { active_ride_id: rideOrderId }] },
         { $or: [{ reserved_order_id: null }, { reserved_order_id: { $exists: false } }, { reserved_order_id: rideOrderId }] }
       ]
   };
@@ -340,8 +339,6 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
         bloqueo_post_aceptacion_hasta: bloqueoHasta
       } 
   };
-
-  start = Date.now();
 
   start = Date.now();
   let resDriver;
@@ -371,8 +368,6 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
       processingLeaseExpiresAt: { $gt: Date.now() } 
   };
   const driverResTransUpdate = { $set: { processingPhase: "DRIVER_RESERVED" } };
-
-  start = Date.now();
 
   start = Date.now();
   let reservedPhase;
@@ -428,8 +423,6 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
         lastCompletedOfferVersion: assignmentAttempt
       }
   };
-
-  start = Date.now();
 
   start = Date.now();
   let commit;
