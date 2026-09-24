@@ -243,6 +243,7 @@ Deno.serve(async (req) => {
               
               queue_authoritative_base:null,
               queue_position:null,
+              queue_last_operation_key:null,
             };
             const query:any = {
               id:dId,
