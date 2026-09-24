@@ -210,20 +210,6 @@
     "bloqueo_post_aceptacion_hasta": {
       "type": "number",
       "description": "Timestamp (ms) hasta el cual el chofer está bloqueado para nuevos pasajes y quedar libre"
-    },
-    "last_queue_penalty_key": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Clave idempotente de la última penalización de cola aplicada por rechazo/timeout"
-    },
-    "last_queue_penalty_base": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Base donde se aplicó la última penalización idempotente de cola"
     }
   },
   "required": [
