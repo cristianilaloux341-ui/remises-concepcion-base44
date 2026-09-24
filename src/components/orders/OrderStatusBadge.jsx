@@ -11,7 +11,6 @@ const statusConfig = {
   en_viaje: { label: "Con Pasajero", className: "bg-cyan-100 text-cyan-700 border-cyan-200" },
   completado: { label: "Completado", className: "bg-green-100 text-green-700 border-green-200" },
   cancelado: { label: "Cancelado", className: "bg-red-100 text-red-700 border-red-200" },
-  rechazado: { label: "Rechazado", className: "bg-rose-100 text-rose-700 border-rose-200" },
 };
 
 export default function OrderStatusBadge({ status }) {

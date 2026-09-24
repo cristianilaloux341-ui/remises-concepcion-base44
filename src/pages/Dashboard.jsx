@@ -153,7 +153,7 @@ export default function Dashboard() {
       const estado = r.status;
       const importe = r.importe_real_actual || r.fare || 0;
       
-      if(estado !== 'cancelado' && estado !== 'rechazado') {
+      if(estado !== 'cancelado') {
           totalImporte += Number(importe) || 0;
           asignados++;
       }

@@ -49,8 +49,7 @@
         "en_camino",
         "en_viaje",
         "completado",
-        "cancelado",
-        "rechazado"
+        "cancelado"
       ],
       "default": "pendiente"
     },

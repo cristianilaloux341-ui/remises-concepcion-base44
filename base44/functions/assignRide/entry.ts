@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
   // Barrera de ciclo de vida: una orden que ya fue aceptada/iniciada/finalizada
   // nunca vuelve a entrar al motor de asignación. Esto protege contra timeouts,
   // cron/reconciliadores atrasados y pantallas viejas.
-  const lifecycleProtectedStatuses = new Set(['aceptado', 'en_camino', 'en_viaje', 'completado', 'cancelado', 'rechazado']);
+  const lifecycleProtectedStatuses = new Set(['aceptado', 'en_camino', 'en_viaje', 'completado', 'cancelado']);
   if (lifecycleProtectedStatuses.has(orderReq.status)) {
     return Response.json({ success: false, reason: 'ORDER_ALREADY_ACTIVE_OR_FINAL' });
   }

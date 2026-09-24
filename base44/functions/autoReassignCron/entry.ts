@@ -13,11 +13,11 @@ Deno.serve(async (req) => {
     // vencimientos ni decide por assigned_at; sólo actúa sobre ALERT_PRESENTED vencido.
     const offerOrders = await b44.entities.RideOrder.filter({ status: "ofrecido" });
 
-    // 1.5 Solo limpiar cancelados/rechazados recientes.
+    // 1.5 Solo limpiar cancelados recientes.
     // NUNCA considerar "abandonado" un aceptado/en_camino/en_viaje por antigüedad:
     // un viaje legítimo puede durar más de 2 horas y jamás debe volver a Pendientes.
     const recentlyCancelledOrders = await b44.entities.RideOrder.filter({
-      status: { $in: ["cancelado", "rechazado"] },
+      status: "cancelado",
       updated_date: { $gte: twoHoursAgoStr } // solo recientes para no barrer el histórico entero
     });
 
@@ -217,14 +217,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    // --- BLOQUE B: solo Cancelados/Rechazados ---
+    // --- BLOQUE B: solo Cancelados ---
     // Los viajes aceptados o iniciados nunca se resetean automáticamente por antigüedad.
     const allToReset = [...recentlyCancelledOrders];
     
     for (const order of allToReset) {
       if (order.status === 'completado') continue;
       
-      const isCancelled = order.status === 'cancelado' || order.status === 'rechazado';
+      const isCancelled = order.status === 'cancelado';
       
       if (order.driver_id || order.reserved_driver_id || (isCancelled && order.offered_driver_ids?.length > 0)) {
         // offered_driver_ids es historial, NO propiedad del viaje actual.
@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
           }
         }
         
-        // Esta rama procesa únicamente cancelados/rechazados; nunca reabre el viaje como pendiente.
+        // Esta rama procesa únicamente cancelados; nunca reabre el viaje como pendiente.
       }
     }
 

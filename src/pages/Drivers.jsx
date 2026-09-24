@@ -247,7 +247,6 @@ function DriverHistory({ driverId, driverName, onClose }) {
     en_viaje: "bg-cyan-50 border-cyan-200 text-cyan-700",
     completado: "bg-green-50 border-green-200 text-green-700",
     cancelado: "bg-red-50 border-red-200 text-red-700",
-    rechazado: "bg-red-50 border-red-200 text-red-700",
   };
 
   return (
