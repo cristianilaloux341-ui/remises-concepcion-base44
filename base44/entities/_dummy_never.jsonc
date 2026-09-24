@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "properties": {
+    "deprecated": {
+      "type": "boolean",
+      "default": true
+    },
+    "note": {
+      "type": "string",
+      "default": "unused"
+    },
+    "safe_to_ignore": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [],
+  "name": "_dummy_never"
+}

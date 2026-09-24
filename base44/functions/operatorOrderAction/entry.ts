@@ -22,6 +22,11 @@ Deno.serve(async (req) => {
 
     // Cancelación es terminal. Un pasaje cancelado no se reactiva: si vuelve a pedirse,
     // debe nacer una orden nueva y entrar por el motor canónico de despacho.
+    // Idempotencia: una repetición/reintento de la misma cancelación no puede volver
+    // a liberar el móvil, reinsertarlo primero ni emitir otro cancel_push.
+    if (order.status === 'cancelado') {
+      return Response.json({success:true,status:'cancelado',idempotent:true,reason:'ALREADY_CANCELLED'});
+    }
 
     const driverIds = [...new Set([order.driver_id, order.reserved_driver_id, order.preassigned_driver_id].filter(Boolean))];
     for (const driverId of driverIds) {
