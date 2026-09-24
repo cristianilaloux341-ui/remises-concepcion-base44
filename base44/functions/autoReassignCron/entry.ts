@@ -244,7 +244,19 @@ Deno.serve(async (req) => {
               queue_authoritative_base:null,
               queue_position:null,
             };
-            const query:any = { id:dId };
+            const query:any = {
+              id:dId,
+              // El snapshot del cron no puede borrar una cola creada después de leer
+              // el Driver. Si cambió base o posición, este CAS debe perder.
+              $and:[
+                currentDriver.queue_authoritative_base == null
+                  ? {$or:[{queue_authoritative_base:null},{queue_authoritative_base:{$exists:false}}]}
+                  : {queue_authoritative_base:currentDriver.queue_authoritative_base},
+                currentDriver.queue_position == null
+                  ? {$or:[{queue_position:null},{queue_position:{$exists:false}}]}
+                  : {queue_position:currentDriver.queue_position}
+              ]
+            };
             let ownsCurrent = false;
 
             if (currentDriver.reserved_order_id === order.id) {
