@@ -9,8 +9,8 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="RC Chófer" />
-    <meta name="application-name" content="RC Chófer" />
+    <meta name="apple-mobile-web-app-title" content="RC Central" />
+    <meta name="application-name" content="RC Central" />
     <meta name="theme-color" content="#030712" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
@@ -29,7 +29,7 @@
     <!-- Manifest -->
     <link rel="manifest" href="/manifest.json" />
 
-    <title>RC Chófer — Remises Concepción</title>
+    <title>RC Central — Remises Concepción</title>
   </head>
   <body>
     <!-- Agresivo overlay rojo removido para permitir reintentos silenciosos de red en producción -->
@@ -42,21 +42,9 @@
     </div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      // PWABuilder detection snippet
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          try {
-            if (navigator.userAgent.includes('RemisesConcepcion')) {
-              // Eliminar SW en la app de escritorio (Electron) para evitar bloqueos
-              navigator.serviceWorker.getRegistrations().then(regs => {
-                for (let r of regs) r.unregister();
-              }).catch(e => console.warn('SW unregister failed:', e));
-            } else {
-              navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(e => console.warn('SW register failed:', e));
-            }
-          } catch (err) {
-            console.warn('SW Init failed:', err);
-          }
+          navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(e => console.warn('SW register failed:', e));
         });
       }
     </script>

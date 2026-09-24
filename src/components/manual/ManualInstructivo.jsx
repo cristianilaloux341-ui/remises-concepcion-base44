@@ -178,28 +178,7 @@ const secciones = [
       }
     ]
   },
-  {
-    titulo: "📱 App Chófer",
-    rol: "admin",
-    contenido: [
-      {
-        subtitulo: "¿Qué es la App del Chófer?",
-        texto: "Es una app web (PWA) que el chófer instala en su celular. No requiere descarga desde tienda: se abre desde el navegador y se agrega a la pantalla de inicio."
-      },
-      {
-        subtitulo: "Funciones del chófer",
-        texto: "• Ver y aceptar/rechazar viajes en tiempo real.\n• Ver el taxímetro en vivo durante el viaje.\n• Cambiar su base actual (Puerto, Plaza, etc.).\n• Enviar y recibir mensajes del operador.\n• Activar el botón de pánico en emergencias.\n• Ver su resumen de viajes del día."
-      },
-      {
-        subtitulo: "Cómo vincular un chófer",
-        texto: "Desde la sección 'App Chófer' del menú admin, generás un link de acceso directo para cada chófer con su número de móvil. El chófer abre ese link en su celular y ya queda identificado."
-      },
-      {
-        subtitulo: "Notificaciones push",
-        texto: "Los chóferes reciben alertas de nuevos viajes directamente en el celular, incluso con la pantalla apagada, con acciones de Aceptar y Rechazar desde la notificación."
-      }
-    ]
-  },
+
   {
     titulo: "🗺️ Zonas",
     rol: "admin",
