@@ -266,7 +266,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     else if (order.driver_id === driverId && order.status === "aceptado") status = "ALREADY_ACCEPTED_BY_SAME_DRIVER";
     else if (order.status === "aceptado") status = "ALREADY_ACCEPTED_BY_OTHER_DRIVER";
     else if (order.offerExpiresAt != null && order.offerExpiresAt <= validationNow) status = "OFFER_EXPIRED";
-    else if order.assignment_attempt !== assignmentAttempt status = "STALE_ASSIGNMENT_ATTEMPT";
+    else if (order.assignment_attempt !== assignmentAttempt) status = "STALE_ASSIGNMENT_ATTEMPT";
     else if (order.driver_id !== driverId && order.reserved_driver_id !== driverId) status = "INVALID_DRIVER";
     else if (order.processingOwnerId !== ownerId || order.processingLeaseVersion !== acquiredLeaseVersion || order.processingLeaseExpiresAt <= validationNow) status = "LEASE_LOST";
     else status = "INVALID_STATE";
