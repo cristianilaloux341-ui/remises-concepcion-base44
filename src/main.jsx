@@ -2,7 +2,6 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
-import { Capacitor } from '@capacitor/core'
 
 // (Limpieza de cachés y SW removida: causaba reseteos constantes de la app)
 
@@ -37,11 +36,10 @@ if (window.location.hostname !== 'localhost') {
   });
 }
 
-// Detección de emulador removida para evitar falsos positivos en Capacitor
 
 // Registrar el Service Worker para PWA y push notifications (Solo en Web, bloqueado en Nativo)
 try {
-  if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
+  if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       try {
         navigator.serviceWorker.register('/sw.js').catch(() => {

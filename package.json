@@ -9,21 +9,11 @@
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
-    "preview": "vite preview",
-    "sync:chofer": "node scripts/setup-firebase.js driver && npx cap sync android",
-    "sync:cliente": "node scripts/setup-firebase.js cliente && npx cap sync android-cliente --config capacitor.cliente.config.json",
-    "sync:android": "npx cap sync android && node scripts/patch-android.js"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.50",
     "@base44/vite-plugin": "^1.0.42",
-    "@capacitor-community/background-geolocation": "^1.2.26",
-    "@capacitor/android": "^8.4.1",
-    "@capacitor/app": "^8.1.0",
-    "@capacitor/cli": "^7.6.7",
-    "@capacitor/core": "^8.4.1",
-    "@capacitor/local-notifications": "^7.0.6",
-    "@capacitor/push-notifications": "^8.1.1",
     "@hello-pangea/dnd": "^17.0.0",
     "@hookform/resolvers": "^4.1.2",
     "@radix-ui/react-accordion": "^1.2.3",
