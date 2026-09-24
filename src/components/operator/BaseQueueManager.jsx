@@ -218,7 +218,7 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilById = {} }) {
                         </span>
                         <div className="flex-1 min-w-0 flex items-center">
                           <p className="text-sm font-medium truncate text-slate-900">
-                            {getDriverDisplay(nroMovil || driver.vehicle_model || driver.vehicle_plate, driver.name)}
+                            {getDriverDisplay(nroMovil, driver.name)}
                           </p>
                           <ConnectivityIndicator lastActive={driver.last_active} />
                         </div>
@@ -538,7 +538,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                           </span>
                           <div className="flex-1 min-w-0 flex items-center">
                             <p className="text-xs font-medium truncate text-primary font-bold">
-                              {getDriverDisplay(nroMovil || driver.vehicle_model || driver.vehicle_plate, driver.name)}
+                              {getDriverDisplay(nroMovil, driver.name)}
                             </p>
                             {queueMovementAlerts[driver.id]?.base === baseName && (
                               <span
@@ -564,7 +564,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                           <span className="text-[10px] font-bold shrink-0">•</span>
                           <div className="flex-1 min-w-0 flex items-center">
                             <p className="text-xs font-medium truncate">
-                              {getDriverDisplay(nroMovil || driver.vehicle_model || driver.vehicle_plate, driver.name)}
+                              {getDriverDisplay(nroMovil, driver.name)}
                             </p>
                             <ConnectivityIndicator lastActive={driver.last_active} />
                           </div>
