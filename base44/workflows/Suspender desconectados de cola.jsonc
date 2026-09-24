@@ -19,7 +19,6 @@
       }
     ]
   },
-  "name": "Suspender desconectados de cola",
   "trigger": {
     "condition": null,
     "config": {
@@ -31,11 +30,12 @@
       "timezone": "UTC",
       "interval_value": 5,
       "interval_unit": "minutes",
-      "interval_anchor": "2026-09-24T23:27:00.000000",
+      "interval_anchor": "2026-09-24T23:27:00",
       "ends_type": "never",
       "ends_on_date": null,
       "ends_after_count": null
     }
   },
-  "description": "Retira de la cola a m\u00f3viles disponibles con m\u00e1s de 3 minutos sin heartbeat, sin confundirlo con salida voluntaria."
+  "description": "Retira de la cola a m\u00f3viles disponibles con m\u00e1s de 3 minutos sin heartbeat, sin confundirlo con salida voluntaria.",
+  "name": "Suspender desconectados de cola"
 }
