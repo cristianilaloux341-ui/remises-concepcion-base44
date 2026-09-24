@@ -151,7 +151,9 @@ Deno.serve(async (req) => {
               });
               const queue = getBaseQueue(drivers, baseName).filter((d:any)=>d.id !== target.id);
               const targetChanged = await b44.entities.Driver.updateMany(
-                {id:target.id,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_ride_id:null,next_order_id:null},
+                {id:target.id,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_ride_id:null,next_order_id:null,
+                 queue_authoritative_base:target.queue_authoritative_base ?? null,
+                 queue_position:target.queue_position ?? null},
                 {$set:{queue_authoritative_base:baseName,queue_position:1}}
               );
               const targetCount = targetChanged?.updated ?? targetChanged?.modifiedCount ?? targetChanged?.matchedCount ?? 0;
