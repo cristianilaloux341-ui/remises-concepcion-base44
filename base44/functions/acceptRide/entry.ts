@@ -445,8 +445,8 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     if (check.status === "aceptado" && check.driver_id === driverId) commercialStatus = "ALREADY_ACCEPTED_BY_SAME_DRIVER";
     else if (check.status === "aceptado" && check.driver_id !== driverId) commercialStatus = "ALREADY_ACCEPTED_BY_OTHER_DRIVER";
     else if (check.status === "cancelado") commercialStatus = "ORDER_CANCELLED";
-    else if (!isNowBroadcast && check.assignment_attempt !== assignmentAttempt) commercialStatus = "STALE_ASSIGNMENT_ATTEMPT";
-    else if (!isNowBroadcast && check.driver_id !== driverId && check.reserved_driver_id !== driverId) commercialStatus = "INVALID_DRIVER";
+    else if (check.assignment_attempt !== assignmentAttempt) commercialStatus = "STALE_ASSIGNMENT_ATTEMPT";
+    else if (check.driver_id !== driverId && check.reserved_driver_id !== driverId) commercialStatus = "INVALID_DRIVER";
     else if (check.processingOwnerId !== ownerId || check.processingLeaseVersion !== acquiredLeaseVersion || check.processingAction !== "ACCEPT" || check.processingOperationKey !== operationKey || check.processingLeaseExpiresAt <= commitNow) commercialStatus = "LEASE_LOST";
     else if (!["ofrecido", "aceptado", "en_camino", "en_viaje"].includes(check.status)) commercialStatus = "INVALID_STATE";
     else commercialStatus = "INTERNAL_INCONSISTENCY";
