@@ -22,8 +22,7 @@ export default function PrivacyPolicy() {
           <h2 className="text-2xl font-semibold">2. Finalidad del Uso de Ubicación</h2>
           <p className="leading-relaxed">La ubicación exacta del dispositivo se utiliza exclusivamente para los siguientes fines operativos:</p>
           <ul className="list-disc pl-6 space-y-2 leading-relaxed">
-            <li><strong>Despacho Inteligente:</strong> Asignar viajes automáticamente al chofer más cercano disponible.</li>
-            <li><strong>Seguridad (Botón de Pánico):</strong> Permitir a la central localizar el vehículo inmediatamente en caso de emergencia.</li>
+            <li><strong>Operación de flota:</strong> Registrar la ubicación necesaria para el seguimiento operativo y el funcionamiento del taxímetro.</li>
             <li><strong>Cálculo de Tarifas:</strong> Medir distancias recorridas y tiempos de espera para el taxímetro integrado.</li>
             <li><strong>Monitoreo de Flota:</strong> Mostrar la ubicación de los móviles en tiempo real en el mapa de la central de operaciones.</li>
           </ul>

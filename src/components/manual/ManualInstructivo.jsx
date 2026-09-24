@@ -21,10 +21,6 @@ const secciones = [
       {
         subtitulo: "Colas por Base",
         texto: "Muestra la cola de chóferes esperando en cada base (Puerto, Plaza, Columna, etc.), ordenados por llegada. El primero en la cola es el próximo en recibir un viaje."
-      },
-      {
-        subtitulo: "Alertas de Pánico",
-        texto: "Si un chófer activa el botón de pánico desde su app, aparece un aviso rojo con sonido en la central. Podés ver la ubicación en Google Maps y marcarlo como 'Atendido'."
       }
     ]
   },

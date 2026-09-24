@@ -17,7 +17,6 @@ const ENTITIES = [
   { name: "TarifaConfig", label: "Configuración de Tarifas" },
   { name: "ZoneMapping", label: "Mapeo de Zonas" },
   { name: "Base", label: "Bases" },
-  { name: "PanicAlert", label: "Alertas de Pánico" },
 ];
 
 export default function Backup() {
