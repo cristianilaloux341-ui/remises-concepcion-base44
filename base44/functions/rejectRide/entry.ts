@@ -219,6 +219,7 @@ Deno.serve(async (req) => {
           { $set:{
             queue_authoritative_base:null,
             queue_position:null,
+            queue_last_operation_key:null,
           } }
         );
         const removedCount = removed?.updated ?? removed?.modifiedCount ?? removed?.matchedCount ?? 0;
