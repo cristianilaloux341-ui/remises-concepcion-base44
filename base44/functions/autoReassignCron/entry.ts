@@ -181,7 +181,6 @@ Deno.serve(async (req) => {
                 dispatch_status: orphanDriver.dispatch_status,
                 reserved_order_id: orphanDriver.reserved_order_id ?? null,
                 active_ride_id: orphanDriver.active_ride_id ?? null,
-                active_ride_id: orphanDriver.active_ride_id ?? null,
                 next_order_id: orphanDriver.next_order_id ?? null,
                 next_order_token: orphanDriver.next_order_token ?? null,
                 reservation_token: orphanDriver.reservation_token ?? null

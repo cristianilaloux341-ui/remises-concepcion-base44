@@ -49,7 +49,6 @@ Deno.serve(async (req) => {
       const currentQuery:any = { id:driverId, next_order_id:driver.next_order_id ?? null, next_order_token:driver.next_order_token ?? null };
       if (driver.reserved_order_id === orderId) currentQuery.reserved_order_id = orderId;
       if (driver.active_ride_id === orderId) currentQuery.active_ride_id = orderId;
-      if (driver.active_ride_id === orderId) currentQuery.active_ride_id = orderId;
       const keepNext = Boolean(driver.next_order_id && driver.next_order_id !== orderId);
       const clearedCurrent = await b44.entities.Driver.updateMany(
         currentQuery,

@@ -332,7 +332,7 @@ Deno.serve(async (req) => {
       { id:driverId, status:{ $ne:'no_disponible' },
         $and:[
           { $or:[{next_order_id:null},{next_order_id:{ $exists:false }}] },
-          { $or:[{active_ride_id:{ $ne:null }},{active_ride_id:{ $ne:null }},{reserved_order_id:{ $ne:null }}] }
+          { $or:[{active_ride_id:{ $ne:null }},{reserved_order_id:{ $ne:null }}] }
         ] },
       { $set:{next_order_id:orderId,next_order_token:nextToken} }
     );
