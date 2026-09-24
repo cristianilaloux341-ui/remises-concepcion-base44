@@ -33,7 +33,7 @@ export function useRealtimeDrivers({ refreshIntervalMs = 10000 } = {}) {
         console.log(`[Realtime-Background] Fetch Drivers OK - ${arr.length} choferes`);
 
         // Un fetch puede arrancar antes que un evento realtime y terminar después.
-        // No permitimos que una respuesta vieja haga retroceder queue_entered_at/base
+        // No permitimos que una respuesta vieja haga retroceder la autoridad de cola
         // en pantalla. Si hubo realtime durante el fetch, se conserva por registro el
         // estado con updated_date más nuevo.
         if (realtimeSeqRef.current !== realtimeSeqAtStart) {

@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       success: true,
       idempotent: true,
       baseName,
-      queueEnteredAt: current.queue_authoritative_at || current.queue_entered_at || null,
+      queueEnteredAt: current.queue_entered_at || null,
       position: currentPos,
       authorityMarker: currentPos,
       serverNow: new Date().toISOString()
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
       }
       return {
         success:true, idempotent:true,
-        queueEnteredAt:fresh.queue_authoritative_at || fresh.queue_entered_at || null,
+        queueEnteredAt:fresh.queue_entered_at || null,
         position:freshPos,
         authorityMarker:freshPos,
         previousBase
@@ -118,7 +118,6 @@ Deno.serve(async (req) => {
         
         queue_entered_at:queueEnteredAt,
         queue_authoritative_base:baseName,
-        queue_authoritative_at:queueEnteredAt,
         queue_authority_marker:authorityMarker,
         queue_position:position,
         queue_left_at:null

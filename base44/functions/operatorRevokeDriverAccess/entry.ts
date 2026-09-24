@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
              queue_position:driver.queue_position,
              active_order_id:null,active_ride_id:null,reserved_order_id:null,next_order_id:null},
             {$set:{status:'no_disponible',queue_entered_at:null,
-                   queue_authoritative_base:null,queue_authoritative_at:null,
+                   queue_authoritative_base:null,
                    queue_authority_marker:null,queue_position:null,
                    current_session_token:null,device_id:null}}
           );
@@ -44,7 +44,6 @@ Deno.serve(async (req) => {
         patch.status = 'no_disponible';
         patch.queue_entered_at = null;
         patch.queue_authoritative_base = null;
-        patch.queue_authoritative_at = null;
         patch.queue_authority_marker = null;
         patch.queue_position = null;
         const changed = await b44.entities.Driver.updateMany(
