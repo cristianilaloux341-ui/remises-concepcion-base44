@@ -68,16 +68,7 @@ function VencimientoBadge({ fecha, label }) {
 }
 
 function MovilForm({ movil, onSave, onCancel, saving, drivers = [] }) {
-  const [form, setForm] = useState(() => {
-    if (!movil) return EMPTY_MOVIL;
-    // Migrar campo legacy driver_id a driver_ids si es necesario
-    const base = { ...movil };
-    if (!Array.isArray(base.driver_ids) || base.driver_ids.length === 0) {
-      base.driver_ids = base.driver_id ? [base.driver_id] : [];
-      base.driver_names = base.driver_name ? [base.driver_name] : [];
-    }
-    return base;
-  });
+  const [form, setForm] = useState(() => movil ? { ...movil } : EMPTY_MOVIL);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   return (
@@ -154,32 +145,14 @@ function MovilForm({ movil, onSave, onCancel, saving, drivers = [] }) {
       </div>
 
       <div>
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Choferes Asignados</label>
-        <div className="mt-2 space-y-2">
-          {drivers.map(d => {
-            const ids = Array.isArray(form.driver_ids) ? form.driver_ids : (form.driver_id ? [form.driver_id] : []);
-            const checked = ids.includes(d.id);
-            return (
-              <label key={d.id} className="flex items-center gap-2 cursor-pointer select-none text-sm">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => {
-                    const newIds = checked ? ids.filter(x => x !== d.id) : [...ids, d.id];
-                    const newNames = newIds.map(id => drivers.find(x => x.id === id)?.name).filter(Boolean);
-                    set("driver_ids", newIds);
-                    set("driver_names", newNames);
-                    // mantener campo legacy con el primer chofer
-                    set("driver_id", newIds[0] || "");
-                    set("driver_name", newNames[0] || "");
-                  }}
-                  className="w-4 h-4 rounded"
-                />
-                <span>{d.name}{d.vehicle_plate ? ` · ${d.vehicle_plate}` : ""}</span>
-              </label>
-            );
-          })}
-          {drivers.length === 0 && <p className="text-xs text-muted-foreground">No hay choferes registrados.</p>}
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Choferes vinculados</label>
+        <div className="mt-2 space-y-1">
+          {drivers.filter(d => String(d.vehicle_model || "") === String(form.id || "")).map(d => (
+            <p key={d.id} className="text-sm">{d.name}{d.vehicle_plate ? ` · ${d.vehicle_plate}` : ""}</p>
+          ))}
+          {(!form.id || drivers.filter(d => String(d.vehicle_model || "") === String(form.id)).length === 0) && (
+            <p className="text-xs text-muted-foreground">La vinculación se administra desde Choferes seleccionando el N° Móvil.</p>
+          )}
         </div>
       </div>
 
