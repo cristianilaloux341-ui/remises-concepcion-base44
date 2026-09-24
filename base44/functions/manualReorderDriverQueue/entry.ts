@@ -79,16 +79,30 @@ Deno.serve(async (req) => {
   } catch (error:any) {
     // Un CAS puede fallar después de que filas anteriores ya cambiaron. Recuperar
     // inmediatamente una cola secuencial bajo la misma autoridad antes de responder.
-    await withQueueLock(b44, baseName, async ()=>{
-      await compactQueueUnlocked(b44, baseName);
-    }).catch(()=>{});
-    await b44.entities.AuditLog.create({
-      action:'QUEUE_MANUAL_REORDER_RECOVERED',
-      user_type:'sistema',
-      user_name:'manualReorderDriverQueue',
-      details:`Reorden manual interrumpido en ${baseName}; se compactó la cola autoritativa.`,
-      metadata:{driverId,baseName,error:error?.message || String(error)}
-    }).catch(()=>{});
-    return Response.json({ success:false, reason:error?.message || 'QUEUE_REORDER_FAILED', queueRecovered:true }, { status:409 });
+    let queueRecovered = false;
+    try {
+      await withQueueLock(b44, baseName, async ()=>{
+        await compactQueueUnlocked(b44, baseName);
+      });
+      queueRecovered = true;
+    } catch (recoveryError:any) {
+      await b44.entities.AuditLog.create({
+        action:'QUEUE_MANUAL_REORDER_RECOVERY_FAILED',
+        user_type:'sistema',
+        user_name:'manualReorderDriverQueue',
+        details:`Reorden manual interrumpido en ${baseName}; la verificación de recuperación también falló.`,
+        metadata:{driverId,baseName,error:error?.message || String(error),recoveryError:recoveryError?.message || String(recoveryError)}
+      }).catch(()=>{});
+    }
+    if (queueRecovered) {
+      await b44.entities.AuditLog.create({
+        action:'QUEUE_MANUAL_REORDER_RECOVERED',
+        user_type:'sistema',
+        user_name:'manualReorderDriverQueue',
+        details:`Reorden manual interrumpido en ${baseName}; la cola autoritativa quedó compactada y verificada.`,
+        metadata:{driverId,baseName,error:error?.message || String(error)}
+      }).catch(()=>{});
+    }
+    return Response.json({ success:false, reason:error?.message || 'QUEUE_REORDER_FAILED', queueRecovered }, { status:409 });
   }
 });
