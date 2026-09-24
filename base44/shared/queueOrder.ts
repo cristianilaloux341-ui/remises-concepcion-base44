@@ -181,6 +181,7 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
       },
       { $set: {
           queue_position: wanted,
+          queue_last_operation_key: null,
         }
       }
     ).catch(() => ({ updated: 0 }));
