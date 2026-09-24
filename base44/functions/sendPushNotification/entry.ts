@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  if (action === 'cancel_multiple' || action === 'cancel_ride') {
+  if (action === 'cancel_multiple') {
     const listToCancel = driversToCancel || (driverId ? [driverId] : []);
     if (!listToCancel || listToCancel.length === 0 || !orderId) return Response.json({ ok: true, reason: 'no_drivers_to_cancel' });
     try {
@@ -316,7 +316,7 @@ Deno.serve(async (req) => {
         // operativa real. La liberación/reubicación de un móvil pertenece al flujo
         // atómico de reject/timeout/cancel correspondiente, no al transporte push.
 
-        // Native FCM Cancel (Prioritize over Web Push)
+        // Cierre nativo FCM de la oferta
         if (driver.fcm_token && cachedAccessToken) {
            try {
              const fcmRes = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
@@ -363,8 +363,7 @@ Deno.serve(async (req) => {
         }
         // El cierre de una oferta usa el mismo canal nativo que la oferta.
         // Web Push queda reservado para mensajería/no-despacho.
-        
-        // Limpieza de bloque obsoleto
+
       }
 
       return Response.json({ ok: true });
