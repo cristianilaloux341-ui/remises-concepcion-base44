@@ -306,7 +306,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="h-[400px]">
-                <RideMap orders={activeOrders} drivers={drivers} />
+                <RideMap orders={activeOrders} drivers={drivers} moviles={moviles} />
               </div>
             </CardContent>
           </Card>

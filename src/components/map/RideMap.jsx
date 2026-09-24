@@ -132,7 +132,7 @@ const BASE_COORDS = {
 // Límites aproximados del ejido urbano de Concepción del Uruguay
 const isUrbano = (lat, lng) => lat > -32.52 && lat < -32.43 && lng > -58.30 && lng < -58.18;
 
-export default function RideMap({ orders = [], drivers = [], center, zoom = 13, className = "", autoFit = true, centerOn = null }) {
+export default function RideMap({ orders = [], drivers = [], moviles = [], center, zoom = 13, className = "", autoFit = true, centerOn = null }) {
   const defaultCenter = center || [CENTRAL.lat, CENTRAL.lng];
   // No re-montamos el mapa en cada visibilitychange — InvalidateSize lo maneja
 
@@ -237,9 +237,12 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
         ))}
 
         {validDrivers.map((driver) => {
-          const effectiveBase = driver.queue_authoritative_base || null;
+          const isQueued = driver.status === "disponible" && driver.dispatch_status !== "automatic_pending" && !driver.reserved_order_id && !driver.active_ride_id;
+          const effectiveBase = isQueued ? (driver.queue_authoritative_base || null) : null;
           const lat = driver.current_lat || BASE_COORDS[effectiveBase]?.lat;
           const lng = driver.current_lng || BASE_COORDS[effectiveBase]?.lng;
+          const movil = moviles.find(m => String(m.id || "") === String(driver.vehicle_model || ""));
+          const numeroMovil = movil?.numero_movil;
           if (!lat || !lng) return null;
           return (
             <Marker
@@ -250,7 +253,7 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
               <Popup>
                 <div className="text-sm space-y-1 min-w-[140px]">
                   <p className="font-bold text-base">{driver.name}</p>
-                  {driver.vehicle_model && <p className="text-gray-600">{driver.vehicle_model} · {driver.vehicle_color || ""}</p>}
+                  {numeroMovil && <p className="text-gray-600">Móvil {numeroMovil}{driver.vehicle_color ? ` · ${driver.vehicle_color}` : ""}</p>}
                   <p className="text-gray-600 font-mono">{driver.vehicle_plate}</p>
                   <p className={`font-semibold capitalize ${
                     driver.status === "disponible" ? "text-green-600"

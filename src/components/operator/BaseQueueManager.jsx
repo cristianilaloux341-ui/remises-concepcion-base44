@@ -474,32 +474,13 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
   const workingDrivers = drivers.filter(isDriverWorking);
   const enabledDrivers = drivers.filter(isDriverEnabled);
 
-  // Visibilidad ≠ elegibilidad de despacho.
-  // Un móvil ofrecido/reservado/en viaje sigue perteneciendo visualmente a su base,
-  // pero NO participa de getBaseQueue ni recibe otro pasaje.
-  const getBusyDriversForBase = (baseName) => enabledDrivers.filter(d => {
-    if (d.status === "no_disponible") return false;
-    if (getEffectiveQueueBase(d) !== baseName) return false;
-    return (
-      d.status !== "disponible" ||
-      (d.dispatch_status != null && d.dispatch_status !== "normal") ||
-      Boolean(d.reserved_order_id || d.active_ride_id)
-    );
-  });
-
-  const getBusyLabel = (d) => {
-    if (d.status === "en_viaje" || d.active_ride_id) return "EN VIAJE";
-    if (d.dispatch_status === "automatic_pending" || d.reserved_order_id) return "OFRECIDO";
-    return "OCUPADO";
-  };
 
   return (
     <>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         {BASES.map(baseName => {
           const queue = getBaseQueue(workingDrivers, baseName);
-          const busyDrivers = getBusyDriversForBase(baseName);
-          const visibleCount = queue.length + busyDrivers.length;
+          const visibleCount = queue.length;
           const color = BASE_COLORS[baseName] || "bg-primary";
           return (
             <Card key={baseName} className="overflow-hidden">
