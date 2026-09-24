@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 const BASES = ["1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 
 // Fuente autoritativa de cola: base actual + posición numérica del servidor.
-// Los timestamps quedan sólo como compatibilidad/historial para APK legacy.
+// La cola se define únicamente por base autoritativa y posición numérica del servidor.
 export function getEffectiveQueueBase(driver) {
   if (!driver) return null;
   const authoritativeBase = driver.queue_authoritative_base || null;
@@ -21,8 +21,7 @@ export function sortQueue(driversArray) {
     if (posA !== posB) return posA - posB;
 
     // Un empate de queue_position es un estado inválido. La Central debe mostrar
-    // exactamente el mismo desempate estable que usa el backend; los timestamps
-    // son sólo informativos y nunca deciden prioridad.
+    // exactamente el mismo desempate estable que usa el backend.
     return (a.id || "").localeCompare(b.id || "");
   });
 }

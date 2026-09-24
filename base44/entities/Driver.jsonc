@@ -145,7 +145,7 @@
         "7-Don Bosco",
         "8-Monumento"
       ],
-      "description": "Base autoritativa de cola mantenida por servidor; APK legacy no debe modificarla"
+      "description": "Base autoritativa de cola mantenida exclusivamente por el servidor"
     },
     "current_lat": {
       "type": "number"

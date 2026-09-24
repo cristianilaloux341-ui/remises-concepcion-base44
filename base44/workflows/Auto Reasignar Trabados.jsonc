@@ -37,8 +37,5 @@
       "ends_after_count": null
     }
   },
-  "description": "",
-  "x-base44-migrated-from-automation": {
-    "legacy_payload_function": "autoReassignCron"
-  }
+  "description": ""
 }

@@ -508,7 +508,7 @@ Deno.serve(async (req) => {
     try {
         success = await assignDriverToOrderAtomic(b44, orderReq, driverReq, token);
     } catch (e) {
-        console.warn("Atomic assign threw (e.g. pilot mismatch), fallback logic disabled for raw error.", e);
+        console.warn("Atomic assign failed; no alternate dispatch path will run.", e);
         success = false;
     }
 

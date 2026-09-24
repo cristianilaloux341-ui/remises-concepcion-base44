@@ -314,8 +314,7 @@ Deno.serve(async (req) => {
       success:true,
       resetCount:count,
       ghostsDisconnected,
-      pendingAssigned:0,
-      dispatchReconcilerInvoked:false
+      pendingAssigned:0
     });
   } catch (error) {
     console.error("Error en autoReassignCron:", error);
