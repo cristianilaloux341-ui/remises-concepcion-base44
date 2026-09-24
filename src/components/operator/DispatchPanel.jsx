@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Zap, User, MapPin, Loader2, ChevronRight, Car, CheckCircle2, Radio } from "lucide-react";
+import { Zap, User, MapPin, Loader2, ChevronRight, Car, CheckCircle2 } from "lucide-react";
 import OrderStatusBadge from "@/components/orders/OrderStatusBadge";
 import { getBaseQueue } from "@/lib/dispatchLogic";
 import { getDriverDisplay } from "@/lib/utils";
@@ -23,7 +23,6 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   };
 
   const availableDrivers = drivers.filter(d => isDriverWorking(d));
-  const isBroadcast = (order.notes || "").startsWith("[BROADCAST]");
   const isRequestedReview = order.pending_reason === "REQUESTED_DRIVER_NOT_ACCEPTED" ||
     order.processingAction === "CENTRAL_REVIEW_REQUIRED_DRIVER";
   const isZoneZero = order.pending_reason === "ZONE_0_DIRECT_PENDING";
@@ -48,7 +47,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
         action: "asignar_viaje",
         user_type: localOp?.role || "operador",
         user_name: localOp?.name || "Operador",
-        details: `Despacho automático/broadcast para ${order.client_name}`
+        details: `Despacho de pendiente para ${order.client_name}`
       }).catch(() => {});
       onDispatched();
     } catch (err) {
@@ -96,17 +95,12 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   };
 
   return (
-    <div className={`p-3 rounded-xl border space-y-3 ${isRequestedReview ? "bg-red-50 border-red-300" : isZoneZero ? "bg-orange-50 border-orange-400" : isBroadcast ? "bg-orange-50 border-orange-300" : "bg-amber-50 border-amber-200"}`}> 
+    <div className={`p-3 rounded-xl border space-y-3 ${isRequestedReview ? "bg-red-50 border-red-300" : isZoneZero ? "bg-orange-50 border-orange-400" : "bg-amber-50 border-amber-200"}`}> 
       {/* Orden info */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="font-semibold text-sm truncate">{order.client_name}</p>
-            {isBroadcast && (
-              <Badge className="bg-orange-100 text-orange-700 border-0 text-xs gap-1 shrink-0">
-                <Radio className="w-2.5 h-2.5" /> broadcast
-              </Badge>
-            )}
           </div>
           <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
             <MapPin className="w-3 h-3 shrink-0 text-green-500" />{order.pickup_address}
@@ -136,7 +130,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       </div>
 
       {/* Chofer sugerido (primero en zona) */}
-      {!isBroadcast && !isRequestedReview && !isZoneZero && (
+      {!isRequestedReview && !isZoneZero && (
         suggestedDriver ? (
           <div className="bg-white rounded-lg border border-amber-200 px-3 py-2 flex items-center gap-2">
             <Car className="w-4 h-4 text-amber-500 shrink-0" />
@@ -152,13 +146,6 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
             Sin móviles en zona · Quedará pendiente
           </div>
         )
-      )}
-
-      {isBroadcast && (
-        <div className="flex items-center gap-2 text-xs text-orange-700 bg-orange-100 rounded-lg px-3 py-2">
-          <Radio className="w-3 h-3" />
-          Esperando que un móvil acepte...
-        </div>
       )}
 
       {/* Auto-asignar: nunca para un requerido retenido; ahí decide el operador */}

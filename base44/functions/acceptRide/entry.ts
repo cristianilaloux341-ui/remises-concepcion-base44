@@ -85,7 +85,6 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   // Los Pendientes se toman exclusivamente por claimNextRide. acceptRide sólo
   // puede confirmar una oferta directa vigente; así una notificación vieja no
   // puede aceptar un viaje que ya volvió a Pendientes.
-  const isBroadcast = false;
   const isDirectOffer = order.status === "ofrecido" && order.reserved_driver_id === driverId;
 
   const preValidationNow = Date.now();
@@ -97,8 +96,8 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   }
 
   if (order.status === "cancelado") preValStatus = "ORDER_CANCELLED";
-  else if (!isBroadcast && !isDirectOffer) preValStatus = "INVALID_STATE";
-  else if (!isBroadcast && order.assignment_attempt !== assignmentAttempt) preValStatus = "STALE_ASSIGNMENT_ATTEMPT";
+  else if (!isDirectOffer) preValStatus = "INVALID_STATE";
+  else if (order.assignment_attempt !== assignmentAttempt) preValStatus = "STALE_ASSIGNMENT_ATTEMPT";
   else if (order.offerExpiresAt != null && order.offerExpiresAt <= preValidationNow) preValStatus = "OFFER_EXPIRED";
 
   if (preValStatus) {
@@ -246,13 +245,12 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   order = await b44.entities.RideOrder.get(rideOrderId);
   const validationNow = Date.now();
   
-  const isNowBroadcast = false;
   const isNowDirectOffer = order.status === "ofrecido" && order.reserved_driver_id === driverId;
 
   if (
     !order ||
-    (!isNowBroadcast && !isNowDirectOffer) ||
-    (!isNowBroadcast && order.assignment_attempt !== assignmentAttempt) ||
+    !isNowDirectOffer ||
+    order.assignment_attempt !== assignmentAttempt ||
     (order.offerExpiresAt != null && order.offerExpiresAt <= validationNow) ||
     order.processingOwnerId !== ownerId ||
     order.processingLeaseVersion !== acquiredLeaseVersion ||
@@ -268,8 +266,8 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     else if (order.driver_id === driverId && order.status === "aceptado") status = "ALREADY_ACCEPTED_BY_SAME_DRIVER";
     else if (order.status === "aceptado") status = "ALREADY_ACCEPTED_BY_OTHER_DRIVER";
     else if (order.offerExpiresAt != null && order.offerExpiresAt <= validationNow) status = "OFFER_EXPIRED";
-    else if (!isNowBroadcast && order.assignment_attempt !== assignmentAttempt) status = "STALE_ASSIGNMENT_ATTEMPT";
-    else if (!isNowBroadcast && order.driver_id !== driverId && order.reserved_driver_id !== driverId) status = "INVALID_DRIVER";
+    else if order.assignment_attempt !== assignmentAttempt status = "STALE_ASSIGNMENT_ATTEMPT";
+    else if (order.driver_id !== driverId && order.reserved_driver_id !== driverId) status = "INVALID_DRIVER";
     else if (order.processingOwnerId !== ownerId || order.processingLeaseVersion !== acquiredLeaseVersion || order.processingLeaseExpiresAt <= validationNow) status = "LEASE_LOST";
     else status = "INVALID_STATE";
     
@@ -385,9 +383,9 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
       // orden siga exactamente OFRECIDA al mismo móvil e intento. Una vez que
       // cualquier aceptación cambia el estado, ningún segundo móvil puede
       // confirmar esa misma orden aunque conserve una pantalla/notificación vieja.
-      status: isNowBroadcast ? "pendiente" : "ofrecido",
-      ...(isNowBroadcast ? { driver_id: null, reserved_driver_id: null } : { driver_id: driverId, reserved_driver_id: driverId }), 
-      assignment_attempt: isNowBroadcast ? order.assignment_attempt : assignmentAttempt, 
+      status: "ofrecido",
+      driver_id: driverId, reserved_driver_id: driverId, 
+      assignment_attempt: assignmentAttempt, 
       processingOwnerId: ownerId, 
       processingPhase: "DRIVER_RESERVED", 
       processingLeaseVersion: acquiredLeaseVersion, 
@@ -450,7 +448,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     else if (!isNowBroadcast && check.assignment_attempt !== assignmentAttempt) commercialStatus = "STALE_ASSIGNMENT_ATTEMPT";
     else if (!isNowBroadcast && check.driver_id !== driverId && check.reserved_driver_id !== driverId) commercialStatus = "INVALID_DRIVER";
     else if (check.processingOwnerId !== ownerId || check.processingLeaseVersion !== acquiredLeaseVersion || check.processingAction !== "ACCEPT" || check.processingOperationKey !== operationKey || check.processingLeaseExpiresAt <= commitNow) commercialStatus = "LEASE_LOST";
-    else if (!isNowBroadcast && !["ofrecido", "aceptado", "en_camino", "en_viaje"].includes(check.status)) commercialStatus = "INVALID_STATE";
+    else if (!["ofrecido", "aceptado", "en_camino", "en_viaje"].includes(check.status)) commercialStatus = "INVALID_STATE";
     else commercialStatus = "INTERNAL_INCONSISTENCY";
 
     const comp = await compensateDriverCAS(b44, driverId, rideOrderId, reservationKey, reservedDriverVersion, correlationId);
