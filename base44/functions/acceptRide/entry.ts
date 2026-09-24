@@ -122,7 +122,8 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
       {$set:{status:'preasignado_proximo',preassigned_driver_id:driverId,preassignment_token:order.reservation_token,
         preassigned_at:new Date().toISOString(),second_slot_offer:false,reserved_driver_id:null,
         offerExpiresAt:null,processingAction:null,processingOwnerId:null,processingLeaseExpiresAt:null,processingPhase:null,
-        lastCompletedAction:'ACCEPT',lastCompletedResult:'SUCCESS'}}
+        lastCompletedOperationKey:operationKey,lastCompletedAction:'ACCEPT',lastCompletedResult:'SUCCESS',
+        lastCompletedOfferVersion:assignmentAttempt}}
     );
     if (mutationCount(acceptedSecond) !== 1) return {status:'OPERATION_IN_PROGRESS',correlationId};
     await b44.entities.AuditLog.create({action:'SECOND_RIDE_ACCEPTED_REQUIRED',user_type:'chofer',user_name:driverSecond.name || driverId,
