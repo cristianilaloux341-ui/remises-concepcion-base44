@@ -101,9 +101,14 @@ export async function withQueueLock<T>(
   // lock a los 10 s y dejar entrar a otro escritor sobre la misma base.
   let renewalStopped = false;
   let leaseLost = false;
+  let stopRenewal!: () => void;
+  const renewalStop = new Promise<void>(resolve => { stopRenewal = resolve; });
   const renewal = (async () => {
     while (!renewalStopped) {
-      await sleep(Math.max(1000, Math.floor(QUEUE_LOCK_TTL_MS / 3)));
+      await Promise.race([
+        sleep(Math.max(1000, Math.floor(QUEUE_LOCK_TTL_MS / 3))),
+        renewalStop
+      ]);
       if (renewalStopped) break;
       const renewed = await b44.entities.QueueLock.updateMany(
         { id: lock.id, owner },
@@ -122,6 +127,7 @@ export async function withQueueLock<T>(
     return result;
   } finally {
     renewalStopped = true;
+    stopRenewal();
     await renewal.catch(() => {});
     await b44.entities.QueueLock.updateMany(
       { id: lock.id, owner },
