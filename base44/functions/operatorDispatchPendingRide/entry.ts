@@ -20,6 +20,12 @@ Deno.serve(async (req) => {
     const centralReviewOnly = order.pending_reason === 'REQUESTED_DRIVER_NOT_ACCEPTED' ||
       order.processingAction === 'CENTRAL_REVIEW_REQUIRED_DRIVER';
 
+    // Una orden sin zona resuelta no puede despacharse manualmente todavía: hacerlo
+    // saltaría la autoridad de zona y podría enviar el viaje a cualquier móvil.
+    if (order.processingAction === 'CENTRAL_REVIEW_ZONE_REQUIRED') {
+      return Response.json({ success:false, reason:'ZONE_REVIEW_REQUIRED' }, { status:409 });
+    }
+
     // Un requerido no aceptado queda congelado para decisión humana. Nunca puede
     // reactivar por sí solo la cadena automática; Central debe elegir otro móvil.
     if (centralReviewOnly && !driverId) {

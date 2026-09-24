@@ -26,6 +26,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
   const isRequestedReview = order.pending_reason === "REQUESTED_DRIVER_NOT_ACCEPTED" ||
     order.processingAction === "CENTRAL_REVIEW_REQUIRED_DRIVER";
   const isZoneZero = order.pending_reason === "ZONE_0_DIRECT_PENDING";
+  const isZoneReview = order.processingAction === "CENTRAL_REVIEW_ZONE_REQUIRED";
 
   // Zona del pedido → primera en cola
   const zoneQueue = order.zone ? getBaseQueue(availableDrivers, order.zone) : [];
@@ -119,6 +120,12 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
               <p className="text-xs text-slate-700">No se envía a otros móviles automáticamente. Consultá al cliente o elegí otro móvil abajo.</p>
             </div>
           )}
+          {isZoneReview && (
+            <div className="mt-2 rounded-lg border border-red-300 bg-white px-3 py-2">
+              <p className="text-xs font-black text-red-700">⚠ ZONA SIN RESOLVER</p>
+              <p className="text-xs text-slate-700">Corregí la zona del viaje antes de despacharlo. No se permite asignar un móvil mientras la zona sea desconocida.</p>
+            </div>
+          )}
           {isZoneZero && (
             <div className="mt-2 rounded-lg border border-orange-400 bg-white px-3 py-2">
               <p className="text-xs font-black text-orange-700">⚠ ZONA 0 · ATENCIÓN OPERADOR</p>
@@ -130,7 +137,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       </div>
 
       {/* Chofer sugerido (primero en zona) */}
-      {!isRequestedReview && !isZoneZero && (
+      {!isRequestedReview && !isZoneZero && !isZoneReview && (
         suggestedDriver ? (
           <div className="bg-white rounded-lg border border-amber-200 px-3 py-2 flex items-center gap-2">
             <Car className="w-4 h-4 text-amber-500 shrink-0" />
@@ -149,7 +156,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
       )}
 
       {/* Auto-asignar: nunca para un requerido retenido; ahí decide el operador */}
-      {!isRequestedReview && !isZoneZero && (
+      {!isRequestedReview && !isZoneZero && !isZoneReview && (
         <Button
           size="sm"
           className="w-full gap-2 rounded-lg h-8 font-extrabold"
@@ -161,8 +168,8 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
         </Button>
       )}
 
-      {/* Selector manual */}
-      <div className="flex gap-2">
+      {/* Selector manual: una zona desconocida debe resolverse primero. */}
+      {!isZoneReview && <div className="flex gap-2">
         <input 
           className="flex-1 h-8 text-base font-extrabold text-slate-900 rounded-lg border-2 border-slate-400 px-3 bg-white placeholder:text-slate-500 placeholder:font-normal"
           style={{ color: "#000000", backgroundColor: "#ffffff" }}
