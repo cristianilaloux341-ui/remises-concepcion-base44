@@ -58,7 +58,6 @@ Deno.serve(async (req) => {
       const changed = await b44.entities.Driver.updateMany(
         {id:driverId,
          active_ride_id:driver.active_ride_id ?? null,
-         active_ride_id:driver.active_ride_id ?? null,
          reserved_order_id:driver.reserved_order_id ?? null,
          next_order_id:driver.next_order_id ?? null},
         {$set:patch}

@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
     const freshPos = Number(fresh?.queue_position);
     const freshAlreadyAuthoritative = fresh?.status === 'disponible' &&
       (fresh?.dispatch_status == null || fresh.dispatch_status === 'normal') &&
-      !fresh?.reserved_order_id && !fresh?.active_ride_id && !fresh?.active_ride_id && !fresh?.next_order_id &&
+      !fresh?.reserved_order_id && !fresh?.active_ride_id && !fresh?.next_order_id &&
       fresh?.queue_authoritative_base === baseName && Number.isFinite(freshPos) && freshPos > 0;
 
     if (freshAlreadyAuthoritative) {

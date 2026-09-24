@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       if (!freshDriver || freshDriver.next_order_id !== nextOrderId || freshDriver.next_order_token !== token) {
         return Response.json({ success: false, promoted: false, reason: 'driver_state_changed' });
       }
-      if (freshDriver.active_ride_id || freshDriver.active_ride_id || freshDriver.reserved_order_id) {
+      if (freshDriver.active_ride_id || freshDriver.reserved_order_id) {
         return Response.json({ success: false, promoted: false, reason: 'current_ride_not_finished' });
       }
 
@@ -337,7 +337,7 @@ Deno.serve(async (req) => {
     );
     if (!changed(orderRes)) {
       await b44.entities.Driver.updateMany(
-        { id: driverId, active_ride_id: orderId, active_ride_id: orderId },
+        { id: driverId, active_ride_id: orderId },
         { $set: { status: 'disponible', active_ride_id: null } }
       );
       return Response.json({ success: false, reason: 'already_taken' });

@@ -68,7 +68,6 @@ Deno.serve(async (req) => {
          if (driver.reservation_token) query.reservation_token = driver.reservation_token;
          if (driver.reserved_order_id) query.reserved_order_id = driver.reserved_order_id;
          if (driver.active_ride_id) query.active_ride_id = driver.active_ride_id;
-         if (driver.active_ride_id) query.active_ride_id = driver.active_ride_id;
          
          const res = await b44.entities.Driver.updateMany(query, {
             $set: {

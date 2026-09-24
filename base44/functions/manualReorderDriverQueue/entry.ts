@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
 
       const driverToMove = currentQueue[idx];
       if (driverToMove.dispatch_status !== 'normal' || driverToMove.reserved_order_id ||
-          driverToMove.active_ride_id || driverToMove.active_ride_id || driverToMove.next_order_id) {
+          driverToMove.active_ride_id || driverToMove.next_order_id) {
         return Response.json({ success:false, reason:'driver_busy' });
       }
 
