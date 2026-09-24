@@ -132,14 +132,12 @@ Deno.serve(async (req) => {
     metadata:{
       driverId,
       previousBase,
-      queueLeftAt,
       source
     }
   }).catch(() => {});
 
   return Response.json({
     success:true,
-    previousBase,
-    queueLeftAt
+    previousBase
   });
 });
