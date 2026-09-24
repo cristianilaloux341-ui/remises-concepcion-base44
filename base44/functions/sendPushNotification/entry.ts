@@ -199,9 +199,6 @@ Deno.serve(async (req) => {
     isAuthorized = true; 
   } else if (body.internalKey && body.internalKey === Deno.env.get("INTERNAL_SERVICE_KEY")) {
     isAuthorized = true;
-  } else if (body.event && body.event.entity_name) {
-    // Las automatizaciones de Base44 son confiables
-    isAuthorized = true;
   } else {
     if (['subscribe_fcm', 'subscribe'].includes(action)) {
       isAuthorized = await verifyRequestAuth(base44.asServiceRole, body, { allowDriverId: driverId });
