@@ -144,7 +144,7 @@ export default function RideMap({ orders = [], drivers = [], center, zoom = 13, 
     const effectiveBase = d.queue_authoritative_base || null;
     const enPosicion = d.status === "disponible" && !!effectiveBase;
     const conPasaje = ["en_viaje", "en_camino", "aceptado", "ofrecido"].includes(d.status) || 
-                      ["automatic_pending", "manual_pending"].includes(d.dispatch_status);
+                      d.dispatch_status === "automatic_pending";
 
     if (!enPosicion && !conPasaje) {
       return false;
