@@ -79,7 +79,8 @@ export default function LoginCentral() {
               type="button" 
               variant="outline"
               className="border-blue-200 text-blue-700 hover:bg-blue-100 bg-white"
-              onClick={() => navigate('/app-cliente')}
+              onClick={() => {}}
+              disabled
             >
               Abrir App
             </Button>
