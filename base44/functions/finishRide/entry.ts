@@ -123,7 +123,12 @@ Deno.serve(async (req) => {
     }
 
     const fixRes = await b44.entities.Driver.updateMany(
-      { id: driverId, next_order_id: freshDriver?.next_order_id ?? null, next_order_token: freshDriver?.next_order_token ?? null, $or: [{ reserved_order_id: orderId }, { active_ride_id: orderId }] },
+      { id: driverId, next_order_id: freshDriver?.next_order_id ?? null, next_order_token: freshDriver?.next_order_token ?? null,
+        $and:[
+          {$or:[{ reserved_order_id: orderId }, { active_ride_id: orderId }]},
+          {$or:[{queue_authoritative_base:null},{queue_authoritative_base:{$exists:false}}]},
+          {$or:[{queue_position:null},{queue_position:{$exists:false}}]}
+        ] },
       { $set: { status: 'disponible', dispatch_status: 'normal',   queue_authoritative_base: null, queue_position: null, reserved_order_id: null, reservation_token: null, driver_reservation_key: null, active_ride_id: null } }
     );
     if (mutationCount(fixRes) >= 1) {
@@ -239,7 +244,12 @@ Deno.serve(async (req) => {
   }
 
   const uDriver = await b44.entities.Driver.updateMany(
-    { id: driverId, next_order_id: driver?.next_order_id ?? null, next_order_token: driver?.next_order_token ?? null, $or: [{ reserved_order_id: orderId }, { active_ride_id: orderId }] },
+    { id: driverId, next_order_id: driver?.next_order_id ?? null, next_order_token: driver?.next_order_token ?? null,
+      $and:[
+        {$or:[{ reserved_order_id: orderId }, { active_ride_id: orderId }]},
+        {$or:[{queue_authoritative_base:null},{queue_authoritative_base:{$exists:false}}]},
+        {$or:[{queue_position:null},{queue_position:{$exists:false}}]}
+      ] },
     { $set: { status: 'disponible', dispatch_status: 'normal',   queue_authoritative_base: null, queue_position: null, reserved_order_id: null, reservation_token: null, driver_reservation_key: null, active_ride_id: null } }
   );
 
