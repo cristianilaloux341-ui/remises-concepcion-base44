@@ -219,10 +219,10 @@
         "null"
       ],
       "enum": [
-        "NEW_NO_DRIVER",
         "CHAIN_EXHAUSTED",
         "MANUAL_RETURN",
         "ZONE_0_DIRECT_PENDING",
+        "ZONE_EXHAUSTED_AT_CREATE",
         "MANUAL_ASSIGN_FAILED",
         "REQUESTED_DRIVER_NOT_ACCEPTED",
         null
