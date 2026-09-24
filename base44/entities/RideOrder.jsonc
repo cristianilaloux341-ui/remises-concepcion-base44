@@ -213,6 +213,34 @@
         "null"
       ]
     },
+    "cancel_effects_status": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "PENDING",
+        "DONE",
+        null
+      ],
+      "description": "Estado durable de los efectos secundarios de una cancelaci\u00f3n autoritativa"
+    },
+    "cancel_effects_operation_key": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cancel_push_claimed": {
+      "type": "boolean",
+      "default": false
+    },
+    "cancel_push_claimed_at": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
     "pending_reason": {
       "type": [
         "string",
@@ -227,19 +255,19 @@
         "REQUESTED_DRIVER_NOT_ACCEPTED",
         null
       ],
-      "description": "Clasificación server-side de Pendiente; REQUESTED_DRIVER_NOT_ACCEPTED queda retenido sólo para Central"
+      "description": "Clasificaci\u00f3n server-side de Pendiente; REQUESTED_DRIVER_NOT_ACCEPTED queda retenido s\u00f3lo para Central"
     },
     "requested_driver_id": {
       "type": [
         "string",
         "null"
       ],
-      "description": "Driver pedido expresamente por el cliente; no equivale a asignación manual de Central"
+      "description": "Driver pedido expresamente por el cliente; no equivale a asignaci\u00f3n manual de Central"
     },
     "requested_driver_only": {
       "type": "boolean",
       "default": false,
-      "description": "Si el requerido no acepta, detener despacho automático y retener para decisión del operador"
+      "description": "Si el requerido no acepta, detener despacho autom\u00e1tico y retener para decisi\u00f3n del operador"
     }
   },
   "required": [
