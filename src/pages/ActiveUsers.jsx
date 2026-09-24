@@ -101,19 +101,6 @@ export default function ActiveUsers() {
     }
   });
 
-  const testFCM = async (driver) => {
-    toast({ title: "Enviando Push...", description: `Intentando despertar a ${driver.name}` });
-    try {
-      const res = await base44.functions.invoke('checkFirebasePush', { driverId: driver.id });
-      if (res.data?.status === 200) {
-        toast({ title: "✅ Push Enviado", description: `Notificación nativa enviada a ${driver.name}. Debería sonar.`, variant: "default" });
-      } else {
-        toast({ title: "❌ Error de Push", description: JSON.stringify(res.data?.response || res.data?.error).substring(0,100), variant: "destructive" });
-      }
-    } catch (e) {
-      toast({ title: "❌ Error", description: e.message, variant: "destructive" });
-    }
-  };
 
   const isOnline = (isoString) => {
     if (!isoString) return false;
@@ -213,9 +200,6 @@ export default function ActiveUsers() {
                       <span className="text-xs text-muted-foreground">
                         Hace {formatDistanceToNow(new Date(d.last_active), { locale: es })}
                       </span>
-                      <Button variant="outline" size="sm" onClick={() => testFCM(d)} className="h-7 text-xs bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-transparent">
-                        Probar Push
-                      </Button>
                     </div>
                   </li>
                 ))}
@@ -331,9 +315,6 @@ export default function ActiveUsers() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Button variant="outline" size="sm" onClick={() => testFCM(d)} className="h-8 mr-2 text-xs bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-transparent">
-                          Probar Push FCM
-                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
