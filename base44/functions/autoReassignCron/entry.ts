@@ -248,7 +248,6 @@ Deno.serve(async (req) => {
               
               queue_authoritative_base:null,
               queue_position:null,
-              queue_authority_marker:null
             };
             const query:any = { id:dId };
             let ownsCurrent = false;

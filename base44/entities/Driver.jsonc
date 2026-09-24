@@ -150,10 +150,6 @@
       ],
       "description": "Base autoritativa de cola mantenida por servidor; APK legacy no debe modificarla"
     },
-    "queue_authority_marker": {
-      "type": "number",
-      "description": "Último marcador manual de cola aceptado por el servidor"
-    },
     "current_lat": {
       "type": "number"
     },

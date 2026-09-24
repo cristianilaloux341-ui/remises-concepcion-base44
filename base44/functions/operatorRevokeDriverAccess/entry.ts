@@ -31,8 +31,7 @@ Deno.serve(async (req) => {
              queue_position:driver.queue_position,
              active_ride_id:null,reserved_order_id:null,next_order_id:null},
             {$set:{status:'no_disponible',queue_entered_at:null,
-                   queue_authoritative_base:null,
-                   queue_authority_marker:null,queue_position:null,
+                   queue_authoritative_base:null,queue_position:null,
                    current_session_token:null,device_id:null}}
           );
           const count = Math.max(Number(removed?.updated||0),Number(removed?.modifiedCount||0),Number(removed?.matchedCount||0));

@@ -42,7 +42,6 @@ Deno.serve(async (req) => {
   const alreadyOut = current.status === 'no_disponible' &&
     !current.queue_authoritative_base &&
     current.queue_position == null &&
-    current.queue_authority_marker == null &&
     !current.reserved_order_id &&
     !current.active_ride_id &&
     !current.active_ride_id &&
@@ -98,8 +97,6 @@ Deno.serve(async (req) => {
           
           queue_entered_at:null,
           queue_authoritative_base:null,
-          
-          queue_authority_marker:null,
           queue_position:null,
           reserved_order_id:null,
           reservation_token:null,

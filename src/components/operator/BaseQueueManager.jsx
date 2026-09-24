@@ -161,12 +161,10 @@ function QueueEditor({ baseName, queue, drivers, onClose, movilById = {} }) {
       for (let check = 0; check < 8; check++) {
         const fresh = await base44.entities.Driver.get(driver.id).catch(() => null);
         const pos = Number(fresh?.queue_position);
-        const marker = Number(fresh?.queue_authority_marker);
         if (fresh?.queue_authoritative_base === baseName &&
             fresh?.status === "disponible" &&
             (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
-            Number.isFinite(pos) && pos > 0 &&
-            Number.isFinite(marker) && marker === pos &&
+            Number.isFinite(pos) && pos > 0 && &&
             !fresh?.reserved_order_id && !fresh?.active_ride_id) {
           return fresh;
         }
@@ -373,12 +371,10 @@ export function QuickAssignInput({ drivers, moviles = [] }) {
       if (data?.success !== true && data?.idempotent !== true) {
         const fresh = await base44.entities.Driver.get(driver.id);
         const pos = Number(fresh?.queue_position);
-        const marker = Number(fresh?.queue_authority_marker);
         const alreadyThere = fresh?.queue_authoritative_base === baseName &&
           fresh?.status === "disponible" &&
           (fresh?.dispatch_status == null || fresh?.dispatch_status === "normal") &&
-          Number.isFinite(pos) && pos > 0 &&
-          Number.isFinite(marker) && marker === pos &&
+          Number.isFinite(pos) && pos > 0 && &&
           !fresh?.reserved_order_id && !fresh?.active_ride_id;
         if (!alreadyThere) throw new Error(data?.reason || "El móvil cambió de estado; no se modificó su posición.");
       }

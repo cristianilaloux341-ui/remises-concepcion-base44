@@ -216,7 +216,6 @@ Deno.serve(async (req) => {
             
             queue_authoritative_base:null,
             queue_position:null,
-            queue_authority_marker:null
           } }
         );
         await compactQueueUnlocked(b44, queueBase);

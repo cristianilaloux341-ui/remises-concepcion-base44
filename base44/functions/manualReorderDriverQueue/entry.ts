@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
       for (let i = 0; i < currentQueue.length; i++) {
         const d:any = currentQueue[i];
         const pos = i + 1;
-        if (Number(d.queue_position) === pos && Number(d.queue_authority_marker) === pos && d.id !== driverId) continue;
+        if (Number(d.queue_position) === pos && d.id !== driverId) continue;
 
         const changed = await b44.entities.Driver.updateMany(
           {
@@ -56,7 +56,6 @@ Deno.serve(async (req) => {
           },
           { $set:{
             queue_position:pos,
-            queue_authority_marker:pos
           } }
         ).catch(()=>({updated:0}));
         const changedCount = changed?.updated ?? changed?.modifiedCount ?? changed?.matchedCount ?? 0;

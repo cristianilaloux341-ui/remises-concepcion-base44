@@ -31,20 +31,8 @@ Deno.serve(async (req) => {
     !current?.reserved_order_id && !current?.active_ride_id && !current?.next_order_id &&
     current?.queue_authoritative_base === baseName && Number.isFinite(currentPos) && currentPos > 0;
 
-  if (alreadyAuthoritative) {
-    const currentMarker = Number(current?.queue_authority_marker);
-    if (!Number.isFinite(currentMarker) || currentMarker !== currentPos) {
-      await b44.entities.Driver.updateMany(
-        {
-          id: driverId,
-          status: 'disponible',
-          queue_authoritative_base: baseName,
-          queue_position: current.queue_position,
-          reserved_order_id: null,
-          active_ride_id: null,
-          next_order_id: null
-        },
-        { $set: {  queue_authority_marker: currentPos } }
+  if (alreadyAuthoritative) {,
+        { $set: {} }
       );
     }
     return Response.json({
@@ -53,7 +41,6 @@ Deno.serve(async (req) => {
       baseName,
       queueEnteredAt: current.queue_entered_at || null,
       position: currentPos,
-      authorityMarker: currentPos,
       serverNow: new Date().toISOString()
     });
   }
@@ -72,35 +59,20 @@ Deno.serve(async (req) => {
       !fresh?.reserved_order_id && !fresh?.active_ride_id && !fresh?.next_order_id &&
       fresh?.queue_authoritative_base === baseName && Number.isFinite(freshPos) && freshPos > 0;
 
-    if (freshAlreadyAuthoritative) {
-      const freshMarker = Number(fresh?.queue_authority_marker);
-      if (!Number.isFinite(freshMarker) || freshMarker !== freshPos) {
-        await b44.entities.Driver.updateMany(
-          {
-            id:driverId,
-            status:'disponible',
-            queue_authoritative_base:baseName,
-            queue_position:fresh.queue_position,
-            reserved_order_id:null,
-            active_ride_id:null,
-            active_ride_id:null,
-            next_order_id:null
-          },
-          { $set:{  queue_authority_marker:freshPos } }
+    if (freshAlreadyAuthoritative) {,
+          { $set:{} }
         );
       }
       return {
         success:true, idempotent:true,
         queueEnteredAt:fresh.queue_entered_at || null,
         position:freshPos,
-        authorityMarker:freshPos,
         previousBase
       };
     }
 
     const position = await getNextQueuePosition(b44, baseName, driverId);
     const queueEnteredAt = new Date().toISOString();
-    const authorityMarker = position;
     const sealed = await b44.entities.Driver.updateMany(
       {
         id:driverId,
@@ -117,13 +89,12 @@ Deno.serve(async (req) => {
         
         queue_entered_at:queueEnteredAt,
         queue_authoritative_base:baseName,
-        queue_authority_marker:authorityMarker,
         queue_position:position
       } }
     );
     const sealedCount = sealed?.updated ?? sealed?.modifiedCount ?? sealed?.matchedCount ?? 0;
     if (sealedCount !== 1) return { success:false, reason:'driver_busy_or_state_changed' };
-    return { success:true, queueEnteredAt, position, authorityMarker, previousBase };
+    return { success:true, queueEnteredAt, position, previousBase };
   });
 
   if (!placed?.success) {
@@ -141,7 +112,6 @@ Deno.serve(async (req) => {
     baseName,
     queueEnteredAt:placed.queueEnteredAt,
     position:placed.position,
-    authorityMarker:placed.authorityMarker,
     serverNow:new Date().toISOString()
   });
 });

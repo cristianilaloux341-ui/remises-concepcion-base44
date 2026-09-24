@@ -141,7 +141,7 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
   for (let i = 0; i < queue.length; i++) {
     const d = queue[i];
     const wanted = i + 1;
-    if (Number(d.queue_position) === wanted && Number(d.queue_authority_marker) === wanted) continue;
+    if (Number(d.queue_position) === wanted) continue;
 
     await b44.entities.Driver.updateMany(
       {
@@ -155,7 +155,6 @@ export async function compactQueueUnlocked(b44: any, baseName: string) {
       },
       { $set: {
           queue_position: wanted,
-          queue_authority_marker: wanted
         }
       }
     ).catch(() => ({ updated: 0 }));
