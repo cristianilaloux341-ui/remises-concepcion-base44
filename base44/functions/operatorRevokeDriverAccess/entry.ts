@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
              queue_position:driver.queue_position,
              active_ride_id:null,reserved_order_id:null,next_order_id:null},
             {$set:{status:'no_disponible',
-                   queue_authoritative_base:null,queue_position:null,
+                   queue_authoritative_base:null,queue_position:null,queue_last_operation_key:null,
                    current_session_token:null,device_id:null}}
           );
           const count = Math.max(Number(removed?.updated||0),Number(removed?.modifiedCount||0),Number(removed?.matchedCount||0));
@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
         patch.status = 'no_disponible';
         patch.queue_authoritative_base = null;
         patch.queue_position = null;
+        patch.queue_last_operation_key = null;
         const changed = await b44.entities.Driver.updateMany(
           {id:driverId,status:'disponible',active_ride_id:null,reserved_order_id:null,next_order_id:null,
            $or:[{queue_authoritative_base:null},{queue_authoritative_base:{$exists:false}}]},
