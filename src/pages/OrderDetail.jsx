@@ -174,7 +174,7 @@ export default function OrderDetail() {
     // En esta pantalla no descargamos la tabla completa de Movil. La lista visual
     // usa el estado operativo del Driver y assignRide hace la validación definitiva
     // del Movil seleccionado (activo, suspensión y fuera de servicio) antes del push.
-    // La base autoritativa manda. current_base queda sólo como dato compatible/visual.
+    // La base autoritativa de cola es la única base operativa del móvil.
     const effectiveBase = d.queue_authoritative_base || null;
     if (d.status !== "disponible" || !effectiveBase) return false;
     if (d.active_order_id || d.active_ride_id || d.reserved_order_id) return false;

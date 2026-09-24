@@ -42,7 +42,6 @@ Deno.serve(async (req) => {
         });
       } else {
         patch.status = 'no_disponible';
-        patch.current_base = null;
         patch.queue_entered_at = null;
         patch.queue_authoritative_base = null;
         patch.queue_authoritative_at = null;
