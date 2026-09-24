@@ -384,20 +384,8 @@ Deno.serve(async (req) => {
                console.error("FCM Cancel Exception:", e);
            }
         }
-        // Fallback to Web Push
-        else if (driver.push_subscription && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-          try {
-            const sub = JSON.parse(driver.push_subscription);
-            const payload = JSON.stringify({
-              type: 'RIDE_CANCELLED',
-              orderId,
-              title: '❌ Viaje ya no disponible',
-              body: 'El viaje fue asignado a otro móvil o cancelado.'
-            });
-            const status = await sendWebPush(sub, payload, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-            if (status === 410 || status === 404) await base44.asServiceRole.entities.Driver.update(driver.id, { push_subscription: null });
-          } catch(e) {}
-        }
+        // El cierre de una oferta usa el mismo canal nativo que la oferta.
+        // Web Push queda reservado para mensajería/no-despacho.
         
         // Limpieza de bloque obsoleto
       }
@@ -473,7 +461,7 @@ Deno.serve(async (req) => {
       const drivers = await base44.asServiceRole.entities.Driver.filter({ id: driverId });
       const driver = drivers[0];
 
-      // Última barrera antes de FCM/WebPush. Aunque una ruta vieja o una carrera
+      // Última barrera antes de FCM. Aunque una ruta vieja o una carrera
       // intente notificar, no despertar un teléfono fuera de servicio, sin base o
       // que ya no conserve la reserva de ESTA orden.
       const cleanOrderId = String(orderId).split('_att_')[0];
