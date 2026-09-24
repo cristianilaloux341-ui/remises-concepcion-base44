@@ -76,7 +76,9 @@ Deno.serve(async (req) => {
         active_ride_id:null,
         next_order_id:null,
         reservation_token:null,
-        driver_reservation_key:null
+        driver_reservation_key:null,
+        queue_authoritative_base:fresh?.queue_authoritative_base ?? null,
+        queue_position:fresh?.queue_position ?? null
       },
       { $set:{
         dispatch_status:'normal',
