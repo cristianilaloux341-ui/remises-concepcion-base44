@@ -40,30 +40,16 @@ async function validateDriverAndVehicle(base44: any, driver: any) {
     return { status: "blocked", message: "Chofer bloqueado por conducta." };
   }
 
-  let movil = null;
-  if (driver.vehicle_model) {
-    try {
-      movil = await base44.asServiceRole.entities.Movil.get(driver.vehicle_model);
-    } catch (_) {}
-  }
-  if (!movil) {
-    const moviles = await base44.asServiceRole.entities.Movil.list();
-    movil = moviles.find((candidate: any) => {
-      const ids = Array.isArray(candidate.driver_ids) ? candidate.driver_ids : [];
-      if (ids.includes(driver.id) || candidate.driver_id === driver.id) return true;
-      if (String(candidate.numero_movil ?? "") === String(driver.vehicle_model ?? "")) return true;
-      const mobilePlate = String(candidate.dominio || "").replace(/\s+/g, "").toUpperCase();
-      const driverPlate = String(driver.vehicle_plate || "").replace(/\s+/g, "").toUpperCase();
-      return mobilePlate && mobilePlate === driverPlate;
-    }) || null;
-  }
+  // La sesión nueva usa la misma identidad autoritativa que el despacho:
+  // Driver.vehicle_model debe apuntar al ID exacto de Movil.
+  const movil = driver.vehicle_model
+    ? await base44.asServiceRole.entities.Movil.get(String(driver.vehicle_model)).catch(() => null)
+    : null;
 
   if (movil?.fuera_de_servicio) return { status: "blocked", message: "Móvil fuera de servicio." };
   if (movil?.activo === false) return { status: "rejected", message: "Móvil inactivo o rechazado." };
   if (movil?.suspension_motivo) return { status: "blocked", message: "Móvil suspendido." };
-  if (!movil && driver.status === "no_disponible") {
-    return { status: "pending", message: "Móvil no asignado o registro pendiente." };
-  }
+  if (!movil) return { status: "pending", message: "Móvil no asignado o registro pendiente." };
   return { movil };
 }
 

@@ -26,29 +26,10 @@ Deno.serve(async (req) => {
     // del vehículo que el despacho automático. Un Driver puede quedar momentáneamente
     // como disponible aunque Central haya desactivado/suspendido su registro Movil.
     const driverMobileId = String(driver.vehicle_model || '');
-    const driverMobileNumber = parseInt(driverMobileId, 10);
-    const driverPlateRaw = String(driver.vehicle_plate || '').trim();
-    const driverPlate = driverPlateRaw.replace(/\s+/g, '').toUpperCase();
-    const movilLookup: any[] = [
-      { driver_id: driverId },
-      { driver_ids: { $in: [driverId] } }
-    ];
-    if (driverMobileId) movilLookup.push({ id: driverMobileId });
-    if (Number.isFinite(driverMobileNumber)) movilLookup.push({ numero_movil: driverMobileNumber });
-    if (driverPlateRaw) movilLookup.push({ dominio: driverPlateRaw });
-
-    const directMovil = driverMobileId
+    const linkedMovil = driverMobileId
       ? await b44.entities.Movil.get(driverMobileId).catch(() => null)
       : null;
-    const fallbackMoviles = await b44.entities.Movil.filter({ $or: movilLookup }).catch(() => []);
-    const linkedMoviles = directMovil ? [directMovil, ...fallbackMoviles] : fallbackMoviles;
-    const linkedMovil = linkedMoviles.find((m: any) =>
-      m.id === driverMobileId ||
-      m.numero_movil === driverMobileNumber ||
-      m.driver_id === driverId ||
-      (Array.isArray(m.driver_ids) && m.driver_ids.includes(driverId)) ||
-      (driverPlate && String(m.dominio || '').replace(/\s+/g, '').toUpperCase() === driverPlate)
-    );
+
     if (!linkedMovil || linkedMovil.activo === false || linkedMovil.fuera_de_servicio === true || linkedMovil.suspension_motivo) {
       return Response.json({ success: false, reason: 'mobile_off_service' });
     }
