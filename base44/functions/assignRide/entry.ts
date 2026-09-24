@@ -381,7 +381,6 @@ Deno.serve(async (req) => {
           { $or:[{next_order_id:null},{next_order_id:{ $exists:false }}] },
           { $or:[
             {active_ride_id:{ $ne:null }},
-            {active_ride_id:{ $ne:null }},
             {reserved_order_id:{ $ne:null }}
           ] }
         ]

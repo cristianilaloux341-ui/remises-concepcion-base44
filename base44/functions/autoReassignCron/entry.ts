@@ -76,7 +76,6 @@ Deno.serve(async (req) => {
                reservation_token: null,
                driver_reservation_key: null,
                active_ride_id: null,
-               active_ride_id: null
             }
          }).catch(()=>{ return { matchedCount: 0, updated: 0 }; });
          
@@ -168,7 +167,6 @@ Deno.serve(async (req) => {
             const driverBusyElsewhere =
               orphanDriver.status === 'en_viaje' ||
               Boolean(orphanDriver.active_ride_id) ||
-              Boolean(orphanDriver.active_ride_id) ||
               Boolean(orphanDriver.next_order_id) ||
               Boolean(orphanDriver.reserved_order_id && orphanDriver.reserved_order_id !== orphanOrder.id);
             if (driverBusyElsewhere) throw new Error('ORPHAN_DRIVER_BUSY');
@@ -190,7 +188,6 @@ Deno.serve(async (req) => {
                 reserved_order_id:orphanOrder.id,
                 reservation_token:orphanOrder.reservation_token,
                 active_ride_id:null,
-                active_ride_id:null
               } }
             );
             const restoredCount = restoredDriver?.updated ?? restoredDriver?.modifiedCount ?? restoredDriver?.matchedCount ?? 0;
