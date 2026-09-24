@@ -145,6 +145,11 @@ Deno.serve(async (req) => {
               if (!target || target.status !== 'disponible' || target.dispatch_status !== 'normal' ||
                   target.reserved_order_id || target.active_ride_id || target.next_order_id) return false;
 
+              // Si el movimiento ya se comprometió en Driver pero el proceso murió antes
+              // de marcar RideOrder, el retry sólo completa la marca durable: no vuelve
+              // a adelantar al móvil ni desplaza la cola por segunda vez.
+              if (target.queue_last_operation_key === cancelOperationKey) return true;
+
               const drivers = await b44.entities.Driver.filter({
                 status:'disponible',
                 queue_authoritative_base:baseName
@@ -154,7 +159,7 @@ Deno.serve(async (req) => {
                 {id:target.id,status:'disponible',dispatch_status:'normal',reserved_order_id:null,active_ride_id:null,next_order_id:null,
                  queue_authoritative_base:target.queue_authoritative_base ?? null,
                  queue_position:target.queue_position ?? null},
-                {$set:{queue_authoritative_base:baseName,queue_position:1}}
+                {$set:{queue_authoritative_base:baseName,queue_position:1,queue_last_operation_key:cancelOperationKey}}
               );
               const targetCount = targetChanged?.updated ?? targetChanged?.modifiedCount ?? targetChanged?.matchedCount ?? 0;
               if (targetCount !== 1) throw new Error(`CENTRAL_CANCEL_REQUEUE_RACE:${target.id}`);
