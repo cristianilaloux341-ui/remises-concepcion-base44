@@ -490,7 +490,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
           const visibleCount = queue.length;
           const color = BASE_COLORS[baseName] || "bg-primary";
           return (
-            <Card key={baseName} className="overflow-hidden">
+            <Card key={baseName} className="overflow-hidden border-blue-100 bg-white/95 shadow-sm hover:shadow-md transition-shadow">
               <CardHeader className="pb-2 pt-4 px-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -498,7 +498,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                     <CardTitle className="text-sm font-semibold">{baseName}</CardTitle>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Badge variant="secondary" className="text-xs">{visibleCount}</Badge>
+                    <Badge className="text-xs bg-blue-100 text-blue-950 hover:bg-blue-100 font-extrabold">{visibleCount}</Badge>
                     <Button size="icon" variant="ghost" className="h-6 w-6"
                       onClick={() => setEditingBase(baseName)}>
                       <Settings className="w-3 h-3" />
@@ -514,12 +514,12 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                     {queue.slice(0, 4).map((driver, idx) => {
                       const nroMovil = movilById[String(driver.vehicle_model || "")];
                       return (
-                        <div key={driver.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-muted/50">
+                        <div key={driver.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-blue-50/70 border border-blue-100">
                           <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
                             {idx + 1}
                           </span>
                           <div className="flex-1 min-w-0 flex items-center">
-                            <p className="text-xs font-medium truncate text-primary font-bold">
+                            <p className="text-xs truncate text-blue-950 font-extrabold">
                               {getDriverDisplay(nroMovil, driver.name)}
                             </p>
                             {queueMovementAlerts[driver.id]?.base === baseName && (
