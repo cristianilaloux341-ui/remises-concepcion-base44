@@ -6,7 +6,7 @@ import 'leaflet-draw/dist/leaflet.draw.css';
 import 'leaflet-draw';
 import { base44 } from "@/api/base44Client";
 
-const CENTER = [-32.483, -58.233]; // Concepción del Uruguay, default center
+const FALLBACK_CENTER = [-32.4853, -58.2375];
 
 function DrawControl({ onCreated, onEdited, onDeleted, featureGroup }) {
   const map = useMap();
@@ -64,6 +64,9 @@ function DrawControl({ onCreated, onEdited, onDeleted, featureGroup }) {
 
 export default function ZoneDrawMap({ polygons, onPolygonCreated, onPolygonEdited, onPolygonDeleted }) {
   const [mapConfig, setMapConfig] = useState(null);
+  const mapCenter = Array.isArray(mapConfig?.center) && mapConfig.center.length === 2
+    ? mapConfig.center
+    : FALLBACK_CENTER;
 
   useEffect(() => {
     let alive = true;
@@ -113,7 +116,7 @@ export default function ZoneDrawMap({ polygons, onPolygonCreated, onPolygonEdite
   return (
     <div className="h-[500px] w-full rounded-xl overflow-hidden border border-border/50 relative z-0">
       <MapContainer 
-        center={CENTER} 
+        center={mapCenter} 
         zoom={14} 
         className="h-full w-full z-0" 
         ref={mapRef}
