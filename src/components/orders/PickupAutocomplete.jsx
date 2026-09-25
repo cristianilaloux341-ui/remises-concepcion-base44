@@ -131,6 +131,26 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
       } catch (_) {}
     }
 
+    // Historial/clientes viejos pueden no tener coordenadas guardadas.
+    // Resolverlas antes de entregar la selección para que la zona no dependa del color/fuente.
+    if (!coords) {
+      try {
+        const sessionToken = sessionStorage.getItem("local_operator_token");
+        const res = await base44.functions.invoke("geocodeRoute", {
+          action: "autocomplete",
+          input: s.full_address,
+          sessionToken,
+        });
+        const first = res.data?.predictions?.[0];
+        if (first?.place_id) {
+          const details = await getPlaceDetails(first.place_id, first.description || s.full_address);
+          if (details?.lat && details?.lng) {
+            coords = { lat: Number(details.lat), lng: Number(details.lng) };
+          }
+        }
+      } catch (_) {}
+    }
+
     onChange(s.full_address, coords);
 
     if (s.type === "client") {
