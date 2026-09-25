@@ -491,7 +491,7 @@ Deno.serve(async (req) => {
     // Update memory object for Push payload
     orderReq.assignment_attempt = newAttempt;
     orderReq.offered_driver_ids = offeredIds;
-    orderReq.assigned_base = effectiveDriverBase;
+    orderReq.assigned_base = orderReq.zone || orderReq.assigned_base || null;
     orderReq.driver_name = driverReq.name;
     orderReq.assigned_at = assignedAt;
     orderReq.offerExpiresAt = offerExpiresAt;
