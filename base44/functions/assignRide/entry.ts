@@ -412,7 +412,8 @@ Deno.serve(async (req) => {
         preassigned_driver_id:driverId,
         preassignment_token:nextToken,
         preassigned_at:new Date().toISOString(),
-        assigned_base:effectiveDriverBase || orderReq.zone || null,
+        // La zona pertenece al viaje, no al móvil que lo recibe.
+        assigned_base:orderReq.zone || orderReq.assigned_base || null,
         pending_reason:null
       }}
     );
