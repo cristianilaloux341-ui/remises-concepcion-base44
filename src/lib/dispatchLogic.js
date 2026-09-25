@@ -231,48 +231,11 @@ export async function detectZoneFromAddress(address) {
   const learned = history.find(h => (h.normalized_address || _normalize(h.address)) === addressNorm && h.zone_confirmed && h.zone);
   if (learned) return learned.zone;
 
-  const mappings = await getZoneMappingsCached();
-  if (!mappings.length) return null;
-
-  const parsed = parseAddress(address);
-  const streetNorm = (parsed.street || address).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-  
-  let blockNorm = null;
-  if (parsed.number) {
-    const block = Math.floor(parsed.number / 100);
-    blockNorm = `${streetNorm} ${block}`;
-  }
-
-  let bestMatch = null;
-  let bestPriority = -1;
-
-  for (const m of mappings) {
-    const keyword = (m.keyword || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    if (!keyword) continue;
-    
-    // Primero, si el operador configuró manualmente las alturas (ej: san martin 12)
-    if (blockNorm && keyword === blockNorm) {
-      const priority = m.priority || 10;
-      if (priority > bestPriority) {
-        bestPriority = priority;
-        bestMatch = m.zone;
-      }
-    } 
-    // Luego, coincidencia exacta del nombre de la calle entera
-    else if (keyword === streetNorm) {
-      const priority = m.priority || 1;
-      if (priority > bestPriority) {
-        bestPriority = priority;
-        bestMatch = m.zone;
-      }
-    }
-  }
-
-  // SE ELIMINÓ EL FALLBACK GENÉRICO (.includes)
-  // Si no hay coincidencia exacta de calle o manzana, delegamos obligatoriamente a
-  // la geocodificación y a los polígonos matemáticos. Un string no puede secuestrar la zona.
-
-  return bestMatch || null;
+  // Los ZoneMapping históricos pueden contener calles completas o bloques aprendidos
+  // con cartografía/geocodificación vieja. Ya no son autoridad para despachar.
+  // Sólo una dirección confirmada explícitamente por operador puede resolver zona
+  // sin coordenadas; el resto debe pasar por geocodificación estricta + polígonos.
+  return null;
 }
 
 export { BASES };
