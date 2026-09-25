@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Polygon, Tooltip, useMap } from "react-leaflet";
 import OrderStatusBadge from "../orders/OrderStatusBadge";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -133,7 +133,7 @@ const BASE_COORDS = {
 // Límites aproximados del ejido urbano de Concepción del Uruguay
 const isUrbano = (lat, lng) => lat > -32.52 && lat < -32.43 && lng > -58.30 && lng < -58.18;
 
-export default function RideMap({ orders = [], drivers = [], moviles = [], center, zoom = 13, className = "", autoFit = true, centerOn = null }) {
+export default function RideMap({ orders = [], drivers = [], moviles = [], zonePolygons = [], center, zoom = 13, className = "", autoFit = true, centerOn = null }) {
   const defaultCenter = center || [CENTRAL.lat, CENTRAL.lng];
   // No re-montamos el mapa en cada visibilitychange — InvalidateSize lo maneja
 
