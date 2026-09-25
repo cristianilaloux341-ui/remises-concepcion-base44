@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-
 import OrderStatusBadge from "../orders/OrderStatusBadge";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { getDriverDisplay } from "@/lib/utils";
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -248,11 +249,11 @@ export default function RideMap({ orders = [], drivers = [], moviles = [], cente
             <Marker
               key={driver.id}
               position={[lat, lng]}
-              icon={makeDriverIcon(driver.status, driver.name)}
+              icon={makeDriverIcon(driver.status, numeroMovil != null ? String(numeroMovil) : driver.name)}
             >
               <Popup>
                 <div className="text-sm space-y-1 min-w-[140px]">
-                  <p className="font-bold text-base">{driver.name}</p>
+                  <p className="font-bold text-base">{getDriverDisplay(numeroMovil, driver.name)}</p>
                   {numeroMovil && <p className="text-gray-600">Móvil {numeroMovil}{driver.vehicle_color ? ` · ${driver.vehicle_color}` : ""}</p>}
                   <p className="text-gray-600 font-mono">{driver.vehicle_plate}</p>
                   <p className={`font-semibold capitalize ${
