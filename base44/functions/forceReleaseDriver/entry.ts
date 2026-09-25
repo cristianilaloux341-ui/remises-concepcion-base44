@@ -52,6 +52,9 @@ Deno.serve(async (req) => {
       { $set: {
         status:'disponible', dispatch_status:'normal', active_ride_id:null,
         reserved_order_id:null, reservation_token:null, driver_reservation_key:null,
+        // Código 99 libera también un segundo-slot fantasma comprobado arriba.
+        // No debe quedar next_order_id apuntando a un viaje inexistente.
+        next_order_id:null, next_order_token:null,
         bloqueo_post_aceptacion_hasta:null
       }}
     );
