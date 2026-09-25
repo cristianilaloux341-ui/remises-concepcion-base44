@@ -21,8 +21,16 @@ Deno.serve(async (req) => {
   const current = currentRows?.[0];
   if (!current) return Response.json({ success: false, reason: 'driver_not_found' }, { status: 404 });
 
-  if (current.bloqueo_post_aceptacion_hasta && Number(current.bloqueo_post_aceptacion_hasta) > Date.now()) {
-    return Response.json({ success: false, reason: 'driver_blocked_post_acceptance' }, { status: 403 });
+  const serverNowMs = Date.now();
+  const queueAllowedAtMs = Number(current.bloqueo_post_aceptacion_hasta || 0);
+  if (queueAllowedAtMs > serverNowMs) {
+    return Response.json({
+      success: false,
+      reason: 'driver_blocked_post_acceptance',
+      serverNowMs,
+      queueAllowedAtMs,
+      remainingMs: queueAllowedAtMs - serverNowMs
+    }, { status: 403 });
   }
 
   const currentPos = Number(current?.queue_position);
@@ -46,6 +54,18 @@ Deno.serve(async (req) => {
     const freshRows = await b44.entities.Driver.filter({ id: driverId });
     const fresh = freshRows?.[0];
     if (!fresh) return { success:false, reason:'driver_not_found' };
+
+    const lockNowMs = Date.now();
+    const freshQueueAllowedAtMs = Number(fresh?.bloqueo_post_aceptacion_hasta || 0);
+    if (freshQueueAllowedAtMs > lockNowMs) {
+      return {
+        success:false,
+        reason:'driver_blocked_post_acceptance',
+        serverNowMs:lockNowMs,
+        queueAllowedAtMs:freshQueueAllowedAtMs,
+        remainingMs:freshQueueAllowedAtMs-lockNowMs
+      };
+    }
 
     const previousBase = fresh?.queue_authoritative_base || null;
     const freshPos = Number(fresh?.queue_position);
@@ -97,8 +117,14 @@ Deno.serve(async (req) => {
   });
 
   if (!placed?.success) {
-    const status = placed?.reason === 'driver_not_found' ? 404 : 409;
-    return Response.json({ success:false, reason:placed?.reason || 'queue_entry_failed' }, { status });
+    const status = placed?.reason === 'driver_not_found' ? 404 : placed?.reason === 'driver_blocked_post_acceptance' ? 403 : 409;
+    return Response.json({
+      success:false,
+      reason:placed?.reason || 'queue_entry_failed',
+      serverNowMs:placed?.serverNowMs,
+      queueAllowedAtMs:placed?.queueAllowedAtMs,
+      remainingMs:placed?.remainingMs
+    }, { status });
   }
 
   if (placed.previousBase && placed.previousBase !== baseName) {
