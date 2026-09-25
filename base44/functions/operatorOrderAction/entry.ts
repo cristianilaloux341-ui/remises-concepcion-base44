@@ -137,7 +137,9 @@ Deno.serve(async (req) => {
       const requeueState = await b44.entities.RideOrder.get(orderId).catch(()=>order);
       if (operatorAuthorized && requeueState?.cancel_requeue_done !== true &&
           order.driver_id && !order.preassigned_driver_id) {
-        const baseName = order.assigned_base || order.zone || null;
+        // La cola de retorno pertenece a la zona original del viaje. assigned_base
+        // puede existir en datos históricos contaminados por asignaciones cruzadas.
+        const baseName = order.zone || order.assigned_base || null;
         if (baseName) {
           try {
             const requeueApplied = await withQueueLock(b44, baseName, async () => {
