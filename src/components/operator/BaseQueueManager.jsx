@@ -490,7 +490,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
           const visibleCount = queue.length;
           const color = BASE_COLORS[baseName] || "bg-primary";
           return (
-            <Card key={baseName} className="overflow-hidden border-slate-700 bg-slate-900/95 text-white shadow-lg hover:border-cyan-400/40 hover:shadow-xl transition-all">
+            <Card key={baseName} className="overflow-hidden border-cyan-900/70 bg-[#0d2135] text-white shadow-lg hover:border-cyan-400/40 hover:shadow-xl transition-all">
               <CardHeader className="pb-2 pt-4 px-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -514,7 +514,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                     {queue.slice(0, 4).map((driver, idx) => {
                       const nroMovil = movilById[String(driver.vehicle_model || "")];
                       return (
-                        <div key={driver.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-slate-800 border border-slate-700">
+                        <div key={driver.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-[#102a43] border border-cyan-900/60">
                           <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
                             {idx + 1}
                           </span>
@@ -554,23 +554,23 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
         })}
       </div>
 
-      <Card className="mt-4 border-blue-200 bg-blue-50/70 shadow-sm">
+      <Card className="mt-4 border-cyan-800/70 bg-[#0b1b2b] text-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-sm font-extrabold text-blue-950">Móviles sin posición</CardTitle>
-            <Badge className="bg-blue-700 text-white">{unpositionedDrivers.length}</Badge>
+            <CardTitle className="text-sm font-extrabold text-cyan-50">Móviles sin posición</CardTitle>
+            <Badge className="bg-cyan-600 text-white">{unpositionedDrivers.length}</Badge>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
           {unpositionedDrivers.length === 0 ? (
-            <p className="text-xs font-medium text-blue-800/70">No hay móviles disponibles fuera de las bases.</p>
+            <p className="text-xs font-medium text-cyan-200/70">No hay móviles disponibles fuera de las bases.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {unpositionedDrivers.map(driver => {
                 const nroMovil = movilById[String(driver.vehicle_model || "")];
                 return (
-                  <div key={driver.id} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 shadow-sm">
-                    <span className="text-xs font-extrabold text-blue-950">{getDriverDisplay(nroMovil, driver.name)}</span>
+                  <div key={driver.id} className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-800 bg-[#102a43] px-2.5 py-1.5 shadow-sm">
+                    <span className="text-xs font-extrabold text-white">{getDriverDisplay(nroMovil, driver.name)}</span>
                     <ConnectivityIndicator lastActive={driver.last_active} />
                   </div>
                 );
