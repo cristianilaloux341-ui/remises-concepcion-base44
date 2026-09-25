@@ -13,6 +13,13 @@ Deno.serve(async (req) => {
   const cutoff = Date.now() - DISCONNECT_GRACE_MS;
 
   try {
+    // SEGURIDAD: last_active actualmente se escribe al autenticar el dispositivo,
+    // no mediante un heartbeat periódico comprobado. Hasta que exista ese heartbeat
+    // autoritativo, este sweep no puede retirar móviles de la cola por antigüedad.
+    // Mantener la función como no-op permite dejar el workflow instalado sin que
+    // modifique posiciones reales.
+    return Response.json({ success:true, suspended:0, graceSeconds:DISCONNECT_GRACE_MS/1000, disabledUntilHeartbeat:true });
+
     // Solo candidatos realmente en cola. No convierte la desconexión en una salida
     // voluntaria: conserva status=disponible pero elimina pertenencia/prioridad.
     const queued = await b44.entities.Driver.filter({ status:'disponible', queue_authoritative_base:{ $ne:null } });
