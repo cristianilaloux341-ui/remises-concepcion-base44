@@ -602,20 +602,20 @@ function AgendaContent() {
           const isUrgent = mins <= (ride.notify_minutes_before ?? 10) && mins >= 0;
           const isOverdue = mins < 0;
           return (
-            <Card key={ride.id} className={`transition-all ${isUrgent ? "border-amber-400 bg-amber-50" : ""} ${isOverdue && ride.status === "notificado" ? "border-red-400 bg-red-50" : ""}`}>
+            <Card key={ride.id} className={`transition-all border-slate-700 bg-slate-900 text-white ${isUrgent ? "border-amber-400" : ""} ${isOverdue && ride.status === "notificado" ? "border-red-400" : ""}`}>
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-bold text-black text-lg">{ride.client_name}</p>
+                      <p className="font-bold text-white text-lg">{ride.client_name}</p>
                       <Badge className={STATUS_COLORS[ride.status] + " border-0 text-xs font-bold"}>{ride.status}</Badge>
                       {isUrgent && <Badge className="bg-amber-500 text-white border-0 text-xs animate-pulse">¡{Math.max(0, Math.ceil(mins))} min!</Badge>}
                     </div>
-                    <p className="text-sm text-black font-bold">{ride.client_phone}</p>
+                    <p className="text-sm text-cyan-100 font-bold">{ride.client_phone}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-bold text-lg text-black">{isDateValid ? format(new Date(ride.scheduled_datetime), "HH:mm", { locale: es }) : "--:--"}</p>
-                    <p className="text-sm text-black font-bold">{isDateValid ? format(new Date(ride.scheduled_datetime), "dd/MM/yy") : "--/--/--"}</p>
+                    <p className="font-bold text-lg text-white">{isDateValid ? format(new Date(ride.scheduled_datetime), "HH:mm", { locale: es }) : "--:--"}</p>
+                    <p className="text-sm text-cyan-100 font-bold">{isDateValid ? format(new Date(ride.scheduled_datetime), "dd/MM/yy") : "--/--/--"}</p>
                   </div>
                 </div>
 
@@ -684,11 +684,11 @@ function AgendaContent() {
               <Card key={ride.id} className="opacity-90 border-slate-700 bg-slate-900 text-white">
                 <CardContent className="p-3 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-bold text-black">{ride.client_name}</p>
-                    <p className="text-xs text-black font-medium">{ride.pickup_address}</p>
+                    <p className="text-sm font-bold text-white">{ride.client_name}</p>
+                    <p className="text-xs text-cyan-100 font-medium">{ride.pickup_address}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className="text-xs text-black font-bold">{isDateValid ? format(new Date(ride.scheduled_datetime), "dd/MM HH:mm") : "--/-- --:--"}</p>
+                    <p className="text-xs text-cyan-100 font-bold">{isDateValid ? format(new Date(ride.scheduled_datetime), "dd/MM HH:mm") : "--/-- --:--"}</p>
                     <Badge className={STATUS_COLORS[ride.status] + " border-0 text-xs font-bold"}>{ride.status}</Badge>
                   </div>
                 </CardContent>
