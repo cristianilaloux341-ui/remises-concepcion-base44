@@ -178,7 +178,17 @@ Deno.serve(async (req) => {
           const r = await fetch("https://api.geoapify.com/v1/geocode/search?" + params.toString(), { signal: AbortSignal.timeout(8000) });
           const data = await r.json();
           const requestedNumber = String(address).match(/\b(\d+[a-zA-Z]?)\b/)?.[1]?.toLowerCase() || "";
-          const candidates = (data.results || []).filter(h => Number.isFinite(Number(h.lat)) && Number.isFinite(Number(h.lon)));
+          const normalizeText = (v = "") => String(v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+          const requestedStreet = normalizeText(String(address).replace(/\b\d+[a-zA-Z]?\b/g, "").split(",")[0]);
+          const cityNorm = normalizeText(cityConfig.city_name || "");
+          const candidates = (data.results || []).filter(h => {
+            if (!Number.isFinite(Number(h.lat)) || !Number.isFinite(Number(h.lon))) return false;
+            const hitStreet = normalizeText(h.street || h.address_line1 || "");
+            const hitCity = normalizeText(h.city || h.municipality || h.county || h.address_line2 || "");
+            const streetOK = !requestedStreet || hitStreet.includes(requestedStreet) || requestedStreet.includes(hitStreet);
+            const cityOK = !cityNorm || hitCity.includes(cityNorm) || normalizeText(h.formatted || "").includes(cityNorm);
+            return streetOK && cityOK;
+          });
           // Si se pidió una altura, priorizar coincidencia de número de puerta.
           // Si Geoapify no conoce esa altura, preferir building/amenity antes que
           // un centroide genérico de calle.
