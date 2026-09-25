@@ -35,6 +35,25 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, reason: 'mobile_off_service' });
     }
 
+    if (action === 'summary') {
+      // La APK recibe únicamente zona + cantidad; nunca direcciones ni datos de clientes.
+      const pending = await b44.entities.RideOrder.filter({
+        status: 'pendiente',
+        processingAction: 'PENDING_AUTHORIZED'
+      }, 'created_date', 500).catch(() => []);
+      const counts: Record<string, number> = {};
+      for (const item of pending) {
+        if (!item?.zone || item.driver_id || item.reserved_driver_id || item.preassigned_driver_id) continue;
+        if (String(item.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]')) continue;
+        if (item.processingPhase === 'REASSIGNING' || item.pending_reason === 'REQUESTED_DRIVER_NOT_ACCEPTED') continue;
+        counts[item.zone] = (counts[item.zone] || 0) + 1;
+      }
+      return Response.json({
+        success: true,
+        groups: Object.entries(counts).map(([zone, count]) => ({ zone, count }))
+      });
+    }
+
     if (action === 'promote') {
       const nextOrderId = driver.next_order_id;
       const token = driver.next_order_token;
