@@ -121,10 +121,10 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
 
     let coords = s.lat && s.lng ? { lat: s.lat, lng: s.lng } : null;
 
-    // Para resultados externos de Geoapify, recuperar las coordenadas exactas.
-    if (s.type === "geoapify" && s.place_id) {
+    // Resolver coordenadas exactas cuando la sugerencia externa trae place_id.
+    if (!coords && s.place_id) {
       try {
-        const details = await getPlaceDetails(s.place_id);
+        const details = await getPlaceDetails(s.place_id, s.full_address);
         if (details?.lat && details?.lng) {
           coords = { lat: details.lat, lng: details.lng };
         }
