@@ -63,7 +63,29 @@ async function handleNewApp(base44: any, action: string, payload: any) {
       driver.device_id === String(payload.device_id || "") &&
       driver.current_session_token === String(payload.access_token || ""),
     );
-    if (action === "restore_state" && valid) return json({ valid, driver: safeDriver(driver) });
+    if (action === "restore_state" && valid) {
+      const loadOrder = async (id: any) => id
+        ? await base44.asServiceRole.entities.RideOrder.get(String(id)).catch(() => null)
+        : null;
+      const [activeOrder, reservedOrder, nextOrder] = await Promise.all([
+        loadOrder(driver.active_ride_id),
+        loadOrder(driver.reserved_order_id),
+        loadOrder(driver.next_order_id),
+      ]);
+      return json({
+        valid,
+        server_time: new Date().toISOString(),
+        driver: {
+          ...safeDriver(driver),
+          dispatch_status: driver.dispatch_status || "normal",
+          queue_authoritative_base: driver.queue_authoritative_base || null,
+          queue_position: driver.queue_position ?? null,
+        },
+        active_order: activeOrder,
+        reserved_order: reservedOrder,
+        next_order: nextOrder,
+      });
+    }
     return json({ valid });
   }
 
