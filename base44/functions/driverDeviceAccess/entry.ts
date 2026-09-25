@@ -63,6 +63,7 @@ async function handleNewApp(base44: any, action: string, payload: any) {
       driver.device_id === String(payload.device_id || "") &&
       driver.current_session_token === String(payload.access_token || ""),
     );
+    if (body.action === "restore_state" && valid) return json({ valid, driver: safeDriver(driver) });
     return json({ valid });
   }
 
