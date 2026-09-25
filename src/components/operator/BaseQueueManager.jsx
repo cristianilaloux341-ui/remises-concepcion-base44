@@ -50,9 +50,9 @@ export function ConnectivityIndicator({ lastActive }) {
 }
 
 const BASE_COLORS = {
-  "1-Puerto": "bg-blue-500", "2-Plaza": "bg-green-500", "3-Columna": "bg-purple-500",
-  "4-Base": "bg-yellow-500", "5-Cementerio": "bg-gray-500", "6-Díaz Vélez": "bg-pink-500",
-  "7-Don Bosco": "bg-orange-500", "8-Monumento": "bg-cyan-500",
+  "1-Puerto": "bg-cyan-400", "2-Plaza": "bg-emerald-400", "3-Columna": "bg-violet-400",
+  "4-Base": "bg-amber-400", "5-Cementerio": "bg-slate-400", "6-Díaz Vélez": "bg-fuchsia-400",
+  "7-Don Bosco": "bg-orange-400", "8-Monumento": "bg-sky-400",
 };
 
 function QueueEditor({ baseName, queue, drivers, onClose, movilById = {} }) {
@@ -490,7 +490,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
           const visibleCount = queue.length;
           const color = BASE_COLORS[baseName] || "bg-primary";
           return (
-            <Card key={baseName} className="overflow-hidden border-blue-100 bg-white/95 shadow-sm hover:shadow-md transition-shadow">
+            <Card key={baseName} className="overflow-hidden border-slate-700 bg-slate-900/95 text-white shadow-lg hover:border-cyan-400/40 hover:shadow-xl transition-all">
               <CardHeader className="pb-2 pt-4 px-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -498,7 +498,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                     <CardTitle className="text-sm font-semibold">{baseName}</CardTitle>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Badge className="text-xs bg-blue-100 text-blue-950 hover:bg-blue-100 font-extrabold">{visibleCount}</Badge>
+                    <Badge className="text-sm bg-cyan-400 text-slate-950 hover:bg-cyan-300 font-black px-2.5">{visibleCount}</Badge>
                     <Button size="icon" variant="ghost" className="h-6 w-6"
                       onClick={() => setEditingBase(baseName)}>
                       <Settings className="w-3 h-3" />
@@ -514,12 +514,12 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                     {queue.slice(0, 4).map((driver, idx) => {
                       const nroMovil = movilById[String(driver.vehicle_model || "")];
                       return (
-                        <div key={driver.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-blue-50/70 border border-blue-100">
+                        <div key={driver.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-slate-800 border border-slate-700">
                           <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
                             {idx + 1}
                           </span>
                           <div className="flex-1 min-w-0 flex items-center">
-                            <p className="text-xs truncate text-blue-950 font-extrabold">
+                            <p className="text-xs truncate text-white font-extrabold">
                               {getDriverDisplay(nroMovil, driver.name)}
                             </p>
                             {queueMovementAlerts[driver.id]?.base === baseName && (
@@ -540,7 +540,7 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                       <button
                         type="button"
                         onClick={() => setEditingBase(baseName)}
-                        className="w-full text-xs font-bold text-blue-700 text-center rounded-lg py-1.5 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        className="w-full text-xs font-bold text-cyan-300 text-center rounded-lg py-1.5 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-400"
                         title="Ver la cola completa"
                       >
                         +{queue.length - 4} libres más · ver cola
