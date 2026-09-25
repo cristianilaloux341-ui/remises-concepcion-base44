@@ -196,12 +196,30 @@ Deno.serve(async (req) => {
             })
             .sort((x, y) => x.rank - y.rank)[0]?.h;
           if (hit) {
+            const hitHouse = String(hit.housenumber || "").toLowerCase();
+            const exactHouse = !!requestedNumber && hitHouse === requestedNumber;
+            const resultType = String(hit.result_type || "");
+            // Una dirección con altura NO puede convertirse silenciosamente en el
+            // centro de una calle. Sin coincidencia exacta devolvemos el candidato
+            // sólo como diagnóstico; la Central no lo usa para decidir la zona.
+            const preciseEnough = !requestedNumber || exactHouse;
+            if (!preciseEnough) {
+              return Response.json({
+                error: "ADDRESS_NUMBER_NOT_CONFIRMED",
+                lat: null, lng: null,
+                candidate_lat: Number(hit.lat), candidate_lng: Number(hit.lon),
+                full_address: hit.formatted || query, source: "geoapify",
+                result_type: resultType || null,
+                housenumber: hit.housenumber || null,
+                exact_housenumber: false
+              }, { status: 422 });
+            }
             return Response.json({
               lat: Number(hit.lat), lng: Number(hit.lon),
               full_address: hit.formatted || query, source: "geoapify",
-              result_type: hit.result_type || null,
+              result_type: resultType || null,
               housenumber: hit.housenumber || null,
-              exact_housenumber: !!requestedNumber && String(hit.housenumber || "").toLowerCase() === requestedNumber
+              exact_housenumber: exactHouse
             });
           }
         } catch(e) { console.error("Forward geocoding error:", e); }
