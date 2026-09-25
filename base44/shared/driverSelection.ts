@@ -46,15 +46,11 @@ export async function findNextDriverInZone(b44: any, order: any, excludeDriverId
     const isAlreadyOffered = offeredDriverIds.includes(d.id);
     const isBlocked = Number(d.bloqueo_post_aceptacion_hasta) > Date.now();
 
-    // Conectividad y pertenencia a cola son estados distintos.
-    // Cerrar/perder señal NO modifica base ni queue_position. Mientras el
-    // heartbeat está vencido, el despacho lo saltea sin reordenar la cola.
-    const lastActiveMs = new Date(d.last_active || 0).getTime();
-    const heartbeatFresh = Number.isFinite(lastActiveMs) &&
-      (Date.now() - lastActiveMs) <= 60_000;
-
+    // last_active hoy se actualiza al autenticar el dispositivo, no existe todavía
+    // un heartbeat periódico autoritativo. Por eso NO puede usarse como barrera de
+    // despacho: a los 60 s dejaría fuera a móviles sanos. La pertenencia a cola y
+    // el estado operativo siguen siendo la autoridad hasta incorporar heartbeat real.
     return isDriverWorking(d) &&
-           heartbeatFresh &&
            !d.active_ride_id && 
            !d.reserved_order_id &&
            !d.next_order_id &&
