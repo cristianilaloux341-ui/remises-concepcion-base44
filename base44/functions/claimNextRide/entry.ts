@@ -305,7 +305,9 @@ Deno.serve(async (req) => {
         $set: {
           status: 'en_viaje',
           dispatch_status: 'normal',
-          active_ride_id: orderId
+          active_ride_id: orderId,
+          queue_authoritative_base: null,
+          queue_position: null
         }
       }
     );
