@@ -189,15 +189,25 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       setDetectingZone(true);
       let zone = null;
       
-      // La sugerencia sólo ayuda a escribir. Para decidir zona usamos SIEMPRE
-      // la misma geocodificación autoritativa del texto y luego nuestros polígonos.
-      // Así OSM/Geoapify/historial no pueden producir zonas distintas por su fuente.
-      const coords = await geocodeAddress(form.pickup_address);
+      // Si el operador eligió una sugerencia con coordenadas exactas, esa seleccion
+      // es autoritativa. No volvemos a geocodificar el texto: el proveedor puede
+      // elegir otro punto de la misma calle y mandar el viaje a otra zona.
+      let coords = null;
+      const selectedLat = Number(form.pickup_lat);
+      const selectedLng = Number(form.pickup_lng);
+      if (Number.isFinite(selectedLat) && Number.isFinite(selectedLng)) {
+        coords = { lat: selectedLat, lng: selectedLng };
+      } else {
+        coords = await geocodeAddress(form.pickup_address);
+      }
       if (!isCurrent()) return;
       if (coords) {
         zone = await detectZoneFromCoords(coords.lat, coords.lng);
         if (!isCurrent()) return;
-        setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
+        // Nunca sustituir las coordenadas de una sugerencia elegida explicitamente.
+        if (!Number.isFinite(selectedLat) || !Number.isFinite(selectedLng)) {
+          setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
+        }
       }
 
       // Si el proveedor autoritativo no pudo ubicarla, recién ahí aceptamos
