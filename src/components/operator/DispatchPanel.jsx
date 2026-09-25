@@ -164,7 +164,7 @@ function PendingOrderCard({ order, drivers, moviles, bases, onDispatched }) {
           disabled={dispatching}
         >
           {dispatching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-          {suggestedDriver ? `Despachar · sugerido ${suggestedDriver.name}` : "Consultar cola y despachar"}
+          {suggestedDriver ? `Despachar · sugerido ${getDriverDisplay(moviles.find(m => String(m.id || "") === String(suggestedDriver.vehicle_model || ""))?.numero_movil, suggestedDriver.name)}` : "Consultar cola y despachar"}
         </Button>
       )}
 
