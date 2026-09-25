@@ -193,9 +193,15 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       // es autoritativa. No volvemos a geocodificar el texto: el proveedor puede
       // elegir otro punto de la misma calle y mandar el viaje a otra zona.
       let coords = null;
-      const selectedLat = Number(form.pickup_lat);
-      const selectedLng = Number(form.pickup_lng);
-      if (Number.isFinite(selectedLat) && Number.isFinite(selectedLng)) {
+      // null/"" NO son coordenadas: Number(null) y Number("") dan 0.
+      // Ese detalle hacía que una dirección todavía no resuelta pudiera evaluarse
+      // falsamente como (0,0) o conservar una selección anterior.
+      const hasSelectedCoords =
+        form.pickup_lat !== null && form.pickup_lat !== undefined && form.pickup_lat !== "" &&
+        form.pickup_lng !== null && form.pickup_lng !== undefined && form.pickup_lng !== "";
+      const selectedLat = hasSelectedCoords ? Number(form.pickup_lat) : NaN;
+      const selectedLng = hasSelectedCoords ? Number(form.pickup_lng) : NaN;
+      if (hasSelectedCoords && Number.isFinite(selectedLat) && Number.isFinite(selectedLng)) {
         coords = { lat: selectedLat, lng: selectedLng };
       } else {
         coords = await geocodeAddress(form.pickup_address);
@@ -205,7 +211,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
         zone = await detectZoneFromCoords(coords.lat, coords.lng);
         if (!isCurrent()) return;
         // Nunca sustituir las coordenadas de una sugerencia elegida explicitamente.
-        if (!Number.isFinite(selectedLat) || !Number.isFinite(selectedLng)) {
+        if (!hasSelectedCoords || !Number.isFinite(selectedLat) || !Number.isFinite(selectedLng)) {
           setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
         }
       }
