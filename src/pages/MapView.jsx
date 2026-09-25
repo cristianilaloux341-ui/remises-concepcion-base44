@@ -15,6 +15,7 @@ export default function MapView() {
   const [moviles, setMoviles] = useState([]);
   const [zonePolygons, setZonePolygons] = useState([]);
   useEffect(() => { base44.entities.Movil.list().then(setMoviles).catch(() => setMoviles([])); }, []);
+  useEffect(() => { base44.entities.ZonePolygon.list().then(setZonePolygons).catch(() => setZonePolygons([])); }, []);
 
   const activeOrders = orders.filter(o =>
     ["pendiente", "procesando_despacho", "preasignado_proximo", "ofrecido", "aceptado", "en_camino", "en_viaje"].includes(o.status)
@@ -31,7 +32,7 @@ export default function MapView() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3 h-[calc(100vh-220px)] min-h-[500px]">
-          <RideMap orders={activeOrders} drivers={drivers} moviles={moviles} className="h-full" />
+          <RideMap orders={activeOrders} drivers={drivers} moviles={moviles} zonePolygons={zonePolygons} className="h-full" />
         </div>
 
         <div className="space-y-4">
