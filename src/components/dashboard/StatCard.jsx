@@ -3,11 +3,11 @@ import { cn } from "@/lib/utils";
 
 export default function StatCard({ title, value, icon: Icon, color, children }) {
   return (
-    <Card className="p-5 relative overflow-hidden group hover:shadow-lg transition-shadow duration-300">
+    <Card className="p-5 relative overflow-hidden group border-blue-100 bg-white/95 shadow-sm hover:shadow-lg transition-shadow duration-300">
       <div className="flex items-start justify-between">
         <div className="space-y-1 w-full min-w-0">
-          <p className="text-sm text-muted-foreground font-medium truncate">{title}</p>
-          <p className="text-3xl font-bold tracking-tight">{value}</p>
+          <p className="text-sm text-blue-700/80 font-bold truncate">{title}</p>
+          <p className="text-3xl font-black tracking-tight text-blue-950">{value}</p>
         </div>
         <div className={cn("p-3 rounded-xl shrink-0 ml-2", color)}>
           <Icon className="w-5 h-5 text-white" />
