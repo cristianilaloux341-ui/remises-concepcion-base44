@@ -189,32 +189,22 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       setDetectingZone(true);
       let zone = null;
       
-      // 1) Si la dirección elegida ya tiene coordenadas, manda la cartografía real.
-      // Una memoria histórica equivocada no puede pisar el polígono actual.
-      const selectedCoords = (form.pickup_lat && form.pickup_lng)
-        ? { lat: form.pickup_lat, lng: form.pickup_lng }
-        : null;
-
-      if (selectedCoords) {
-        zone = await detectZoneFromCoords(selectedCoords.lat, selectedCoords.lng);
+      // La sugerencia sólo ayuda a escribir. Para decidir zona usamos SIEMPRE
+      // la misma geocodificación autoritativa del texto y luego nuestros polígonos.
+      // Así OSM/Geoapify/historial no pueden producir zonas distintas por su fuente.
+      const coords = await geocodeAddress(form.pickup_address);
+      if (!isCurrent()) return;
+      if (coords) {
+        zone = await detectZoneFromCoords(coords.lat, coords.lng);
         if (!isCurrent()) return;
+        setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
       }
 
-      // 2) Sólo sin coordenadas usamos una dirección confirmada previamente.
-      if (!zone && !selectedCoords) {
+      // Si el proveedor autoritativo no pudo ubicarla, recién ahí aceptamos
+      // una dirección previamente confirmada por el operador. Nunca inventamos zona.
+      if (!zone && !coords) {
         zone = await detectZoneFromAddress(form.pickup_address);
         if (!isCurrent()) return;
-      }
-
-      // 3) Último recurso: geocodificar el texto y resolver por el polígono real.
-      if (!zone && !selectedCoords) {
-        const coords = await geocodeAddress(form.pickup_address);
-        if (!isCurrent()) return;
-        if (coords) {
-          zone = await detectZoneFromCoords(coords.lat, coords.lng);
-          if (!isCurrent()) return;
-          setForm(prev => ({ ...prev, pickup_lat: coords.lat, pickup_lng: coords.lng }));
-        }
       }
 
       if (!isCurrent() || zoneManualOverrideRef.current) return;
