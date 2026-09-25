@@ -84,7 +84,11 @@ Deno.serve(async (req) => {
         dispatch_status:'normal',
         queue_authoritative_base:baseName,
         queue_position:position,
-        queue_last_operation_key:null
+        queue_last_operation_key:null,
+        // Una entrada explícita después de suspensión por desconexión crea una
+        // pertenencia nueva al final; la marca anterior queda consumida.
+        disconnect_suspended_at:null,
+        disconnect_suspended_base:null
       } }
     );
     const sealedCount = sealed?.updated ?? sealed?.modifiedCount ?? sealed?.matchedCount ?? 0;
