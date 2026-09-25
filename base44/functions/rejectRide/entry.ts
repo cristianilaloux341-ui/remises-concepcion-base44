@@ -390,7 +390,10 @@ Deno.serve(async (req) => {
               driver_name:nextDriver.name,
               reserved_driver_id:nextDriver.id,
               reservation_token:token,
-              assigned_base:nextDriver.queue_authoritative_base || order.zone || null,
+              // El pasaje conserva siempre su zona de origen. Un móvil puede haber sido
+              // asignado manualmente desde otra base, pero al rechazar/timeout la cadena
+              // automática continúa por order.zone.
+              assigned_base:order.zone || null,
               offerExpiresAt:null,
               assignment_attempt:newAttempt,
               assigned_at:assignedAt,
