@@ -69,11 +69,6 @@
       "default": 0,
       "description": "Hora de fin de tarifa nocturna (0-23)"
     },
-    "minutos_libre_post_viaje": {
-      "type": "number",
-      "default": 0,
-      "description": "Minutos que debe esperar el chofer antes de poder ponerse libre luego de completar un viaje (0 = sin restricci\u00f3n)"
-    },
     "minutos_bloqueo_post_aceptacion": {
       "type": "number",
       "default": 0,
