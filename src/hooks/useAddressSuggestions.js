@@ -119,7 +119,14 @@ export async function recordAddressUsage(address, queryClient, metadata = {}) {
     height: metadata.height || parsed?.[2] || "",
     ...(Number.isFinite(Number(metadata.lat)) ? { lat: Number(metadata.lat) } : {}),
     ...(Number.isFinite(Number(metadata.lng)) ? { lng: Number(metadata.lng) } : {}),
-    ...(metadata.zone ? { zone: metadata.zone, zone_confirmed: true, zone_source: metadata.zone_source || "polygon" } : {}),
+    ...(metadata.zone ? {
+      zone: metadata.zone,
+      // Sólo una corrección explícita del operador queda como memoria autoritativa.
+      // La zona calculada por polígono puede guardarse para auditoría, pero al
+      // reutilizar la dirección debe volver a validarse con su coordenada actual.
+      zone_confirmed: metadata.zone_source === "operator",
+      zone_source: metadata.zone_source || "polygon"
+    } : {}),
   };
 
   if (existing) {
