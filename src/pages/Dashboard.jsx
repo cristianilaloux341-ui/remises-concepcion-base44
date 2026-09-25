@@ -184,24 +184,24 @@ export default function Dashboard() {
   };
 
   const stats = [
-    { title: "Activos", value: activeOrders.length, icon: Car, color: "bg-cyan-400" },
-    { title: "Pendientes", value: pendingOrders.length, icon: Clock, color: "bg-orange-400" },
-    { title: "Completados Hoy", value: completedToday.length, icon: CheckCircle2, color: "bg-emerald-400" }
+    { title: "Activos", value: activeOrders.length, icon: Car, color: "bg-violet-500" },
+    { title: "Pendientes", value: pendingOrders.length, icon: Clock, color: "bg-fuchsia-500" },
+    { title: "Completados Hoy", value: completedToday.length, icon: CheckCircle2, color: "bg-indigo-500" }
   ];
 
   return (
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 space-y-6 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-cyan-400/20 bg-slate-900/90 p-4 shadow-xl backdrop-blur-sm">
+    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 space-y-6 bg-gradient-to-br from-[#120d2b] via-[#1d1642] to-[#251257]">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-violet-400/30 bg-[#191238]/95 p-4 shadow-xl backdrop-blur-sm">
         <div>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">Central de Despacho</h1>
-          <p className="text-cyan-300 font-medium mt-1">Gestión en tiempo real</p>
+          <p className="text-violet-300 font-medium mt-1">Gestión en tiempo real</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={handleDownloadReport} variant="outline" className="rounded-xl border-slate-600 text-slate-100 bg-slate-800 hover:bg-slate-700 font-bold">
+          <Button onClick={handleDownloadReport} variant="outline" className="rounded-xl border-violet-400/40 text-violet-100 bg-violet-950/70 hover:bg-violet-900 font-bold">
             Descargar Reporte 06-13hs
           </Button>
           <Link to="/orders/new">
-            <Button className="rounded-xl gap-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-lg shadow-cyan-950/30">
+            <Button className="rounded-xl gap-2 bg-violet-500 hover:bg-violet-400 text-white font-black shadow-lg shadow-violet-950/40">
               <Car className="w-4 h-4" />
               Nuevo Pedido
             </Button>
@@ -232,7 +232,7 @@ export default function Dashboard() {
 
       {claimedPendingOrders.length > 0 && (
         <div className="space-y-2">
-          <h2 className="text-lg font-extrabold text-blue-950 flex items-center gap-2">
+          <h2 className="text-lg font-extrabold text-violet-100 flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-green-600" />
             Tomados desde Pendientes
           </h2>
@@ -271,22 +271,22 @@ export default function Dashboard() {
         </h2>
         
         {/* Top Bar for Quick Assign - Posición de Choferes */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-blue-950 border border-blue-900 p-3 rounded-xl mb-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#191238] border border-violet-500/30 p-3 rounded-xl mb-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-yellow-500 text-slate-900 rounded-lg shadow-sm">
+            <div className="p-2 bg-fuchsia-500 text-white rounded-lg shadow-sm">
               <Zap className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-sm font-bold text-white leading-none">Chóferes en Posición: {availableDrivers.length}</h2>
-              <p className="text-xs text-slate-400 font-medium">Asignación rápida a bases</p>
+              <p className="text-xs text-violet-300 font-medium">Asignación rápida a bases</p>
             </div>
           </div>
           <div className="hidden xl:flex items-center gap-2 overflow-x-auto">
             {bases.map(b => {
               const q = drivers.filter(d => getEffectiveQueueBase(d) === b.name && isDriverWorking(d));
               return (
-                <div key={b.name} className="flex flex-col items-center justify-center bg-slate-800 rounded-lg px-2 py-1 min-w-[3rem]">
-                  <span className="text-[10px] text-slate-400 truncate w-full text-center max-w-[4rem]">{b.name.split("-")[1]}</span>
+                <div key={b.name} className="flex flex-col items-center justify-center bg-violet-950/80 border border-violet-500/20 rounded-lg px-2 py-1 min-w-[3rem]">
+                  <span className="text-[10px] text-violet-300 truncate w-full text-center max-w-[4rem]">{b.name.split("-")[1]}</span>
                   <span className="text-sm font-bold text-white">{q.length}</span>
                 </div>
               );
@@ -303,11 +303,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-6">
         {/* Map */}
         <div className="col-span-1">
-          <Card className="border-blue-100 bg-white/95 shadow-sm">
+          <Card className="border-violet-500/30 bg-[#191238]/95 shadow-xl">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-lg font-extrabold text-blue-950">Mapa en Vivo</CardTitle>
+              <CardTitle className="text-lg font-extrabold text-violet-100">Mapa en Vivo</CardTitle>
               <Link to="/map">
-                <Button variant="ghost" size="sm" className="text-xs gap-1 text-blue-700 hover:text-blue-900 hover:bg-blue-50">
+                <Button variant="ghost" size="sm" className="text-xs gap-1 text-violet-300 hover:text-white hover:bg-violet-900/60">
                   Ver completo <ArrowRight className="w-3 h-3" />
                 </Button>
               </Link>
