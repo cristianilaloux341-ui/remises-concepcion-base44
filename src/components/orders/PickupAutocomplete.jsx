@@ -138,8 +138,10 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
       ? { lat: Number(s.lat), lng: Number(s.lng) }
       : null;
 
-    // Resolver coordenadas exactas cuando la sugerencia externa trae place_id.
-    if (!coords && s.place_id) {
+    // Una sugerencia con altura nunca usa directamente el punto del autocomplete:
+    // debe pasar por geocode estricto para confirmar calle, ciudad y número.
+    const hasNumber = /[0-9]/.test(s.full_address || "");
+    if (!coords && s.place_id && !hasNumber) {
       try {
         const details = await getPlaceDetails(s.place_id, s.full_address);
         if (details?.lat && details?.lng) {
