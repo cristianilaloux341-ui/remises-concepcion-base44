@@ -41,13 +41,18 @@ Deno.serve(async (req) => {
       const manualMode = manualRes?.data?.mode || null;
       if (!assigned) {
         const requestedHold = requestedDriverOnly === true && Boolean(manualDriverId);
+        // Una asignación manual común fallida NO demuestra que la zona esté
+        // agotada y por lo tanto no puede publicar PENDING_AUTHORIZED. Sólo el
+        // selector canónico de zona puede autorizar Pendientes. La orden queda
+        // retenida para Central; si era un requerido conserva su motivo específico.
         await b44.entities.RideOrder.update(order.id, {
           status: "pendiente",
           driver_id:null,
+          driver_name:null,
           reserved_driver_id:null,
           reservation_token:null,
           offerExpiresAt:null,
-          processingAction: requestedHold ? "CENTRAL_REVIEW_REQUIRED_DRIVER" : "PENDING_AUTHORIZED",
+          processingAction: requestedHold ? "CENTRAL_REVIEW_REQUIRED_DRIVER" : "CENTRAL_REVIEW_MANUAL_ASSIGN_FAILED",
           pending_reason: requestedHold ? "REQUESTED_DRIVER_NOT_ACCEPTED" : "MANUAL_ASSIGN_FAILED"
         });
         return Response.json({
@@ -55,7 +60,7 @@ Deno.serve(async (req) => {
           orderId:order.id,
           assigned:false,
           status:"pendiente",
-          centralReview:requestedHold,
+          centralReview:true,
           error:manualRes?.data?.reason || "MANUAL_ASSIGN_FAILED"
         }, { status:409 });
       }
