@@ -239,12 +239,10 @@ Deno.serve(async (req) => {
           try {
             const currentDriver = await b44.entities.Driver.get(dId).catch(() => null);
             if (!currentDriver) continue;
-            const set:any = {
-              
-              queue_authoritative_base:null,
-              queue_position:null,
-              queue_last_operation_key:null,
-            };
+            // Un cancelado puede haber sido reencolado deliberadamente por Central
+            // después de liberar su viaje. La limpieza del vínculo viejo NO posee la
+            // cola y por lo tanto jamás debe borrar base/posición/marker.
+            const set:any = {};
             const query:any = {
               id:dId,
               // El snapshot del cron no puede borrar una cola creada después de leer
@@ -281,19 +279,11 @@ Deno.serve(async (req) => {
               set.dispatch_status = 'normal';
             }
 
-            // Si este vínculo viejo todavía figura dentro de una cola, la salida y
-            // compactación deben ocurrir bajo el mismo lock de esa base. El cron
-            // jamás lo reingresa: sólo evita dejar huecos o carreras de posición.
-            const oldBase = currentDriver.queue_authoritative_base || null;
-            const releaseAndCompact = async () => {
-              const released = await b44.entities.Driver.updateMany(query, { $set:set });
-              const releasedCount = released?.updated ?? released?.modifiedCount ?? released?.matchedCount ?? 0;
-              if (releasedCount === 1 && oldBase) await compactQueueUnlocked(b44, oldBase);
-              return releasedCount;
-            };
-            const releasedCount = oldBase
-              ? await withQueueLock(b44, oldBase, releaseAndCompact)
-              : await releaseAndCompact();
+            // Este cron sólo limpia propiedad del viaje cancelado. La pertenencia a
+            // cola tiene autoridades propias (enter/leave/requeue de Central) y se
+            // preserva exactamente como fue observada por el CAS.
+            const released = await b44.entities.Driver.updateMany(query, { $set:set });
+            const releasedCount = released?.updated ?? released?.modifiedCount ?? released?.matchedCount ?? 0;
             if (releasedCount === 1) count++;
           } catch(e) {
             console.error("Error liberando driver", dId, e);
