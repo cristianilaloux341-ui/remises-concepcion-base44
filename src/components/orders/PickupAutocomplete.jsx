@@ -59,6 +59,8 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     const queryParts = norm.split(/\s+/).filter(Boolean);
     const clientResults = clientAddresses
       .filter((ca) => {
+        // Clientes viejos sin coordenadas no deben imponerse a una dirección geocodificada.
+        if (!Number.isFinite(Number(ca.lat)) || !Number.isFinite(Number(ca.lng))) return false;
         const address = normalize(ca.full_address);
         return queryParts.every(part => address.includes(part));
       })
@@ -81,7 +83,9 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     const clientAddressNorms = new Set(clientResults.map((r) => normalize(r.full_address)));
     
     const historyResults = osmAndHistory
-      .filter(x => x.source === "history" && !clientAddressNorms.has(normalize(x.address)))
+      // Historial sin coordenadas confirmadas no puede competir con un geocodificador:
+      // una dirección vieja sólo es autoritativa si conserva su punto real.
+      .filter(x => x.source === "history" && Number.isFinite(Number(x.lat)) && Number.isFinite(Number(x.lng)) && !clientAddressNorms.has(normalize(x.address)))
       .map(x => ({ ...x, type: "history", full_address: x.address }))
       .slice(0, 3);
 
