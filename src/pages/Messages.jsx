@@ -30,6 +30,12 @@ function playMsgSound() {
 }
 
 export default function Messages() {
+  const localOperator = (() => { try { return JSON.parse(sessionStorage.getItem("local_operator") || "null"); } catch { return null; } })();
+  const isAdmin = localOperator?.role === "admin";
+  const operatorId = String(localOperator?.id || "");
+  const operatorName = localOperator?.name || localOperator?.nombre || "Operador";
+  const shiftKey = operatorId ? `${operatorId}:${new Date().toISOString().slice(0, 10)}` : "";
+
   const [content, setContent] = useState("");
   const [targetDriverId, setTargetDriverId] = useState("todos");
   const [searchNum, setSearchNum] = useState("");
@@ -118,7 +124,11 @@ export default function Messages() {
     mutationFn: async () => {
       const newMsg = await base44.entities.Message.create({
         from_type: "operador",
-        from_name: "Operador",
+        from_name: operatorName,
+        operator_id: operatorId,
+        operator_name: operatorName,
+        shift_key: shiftKey,
+        is_general: targetDriverId === "todos",
         to_driver_id: targetDriverId === "todos" ? "" : targetDriverId,
         content: content.trim(),
         read: false,
@@ -151,7 +161,7 @@ export default function Messages() {
     : getDriverLabel(targetDriverId);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)] relative">
+    <div className="flex flex-col h-[calc(100vh-120px)] relative -m-4 md:-m-6 p-4 md:p-6 bg-gradient-to-br from-[#06111f] via-[#0b1f33] to-[#102a43] text-white">
       {/* Toast de mensaje entrante */}
       {toast && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-2 animate-in slide-in-from-top-3 fade-in duration-300">
@@ -181,8 +191,8 @@ export default function Messages() {
       )}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Mensajes</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Comunicación base ↔ móviles</p>
+          <h1 className="text-2xl font-black tracking-tight text-white">Mensajes</h1>
+          <p className="text-cyan-200 text-sm mt-0.5">Comunicación base ↔ móviles · {isAdmin ? "vista administración" : operatorName}</p>
         </div>
         <Badge className="bg-green-100 text-green-700 border-0">
           <Radio className="w-3 h-3 mr-1" /> En línea
@@ -192,6 +202,12 @@ export default function Messages() {
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto space-y-2 px-1 pb-4">
         {messages.filter(msg => {
+          // Administración conserva vista completa. Cada operador ve su turno,
+          // mientras que los mensajes generales se acumulan entre turnos.
+          const belongsToOperator = !msg.operator_id || msg.operator_id === operatorId ||
+            (msg.from_type === "movil" && !msg.operator_id);
+          if (!isAdmin && !msg.is_general && !belongsToOperator) return false;
+
           if (targetDriverId === "todos") {
             // Vista broadcast: solo mensajes enviados a todos (sin destinatario específico)
             // y mensajes de móviles sin destinatario (broadcasts de choferes)
@@ -237,7 +253,7 @@ export default function Messages() {
       </div>
 
       {/* Input area */}
-      <div className="border-t pt-4 space-y-2 bg-background">
+      <div className="border-t border-cyan-800/70 pt-4 space-y-2 bg-[#0b1b2b]/95 rounded-xl p-3">
         <div className="flex gap-2">
           <Input 
             className="w-24 h-9 rounded-xl text-xs" 
