@@ -13,6 +13,7 @@ export default function MapView() {
   const { orders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 6000 });
   const { drivers } = useRealtimeDrivers({ refreshIntervalMs: 30000 });
   const [moviles, setMoviles] = useState([]);
+  const [zonePolygons, setZonePolygons] = useState([]);
   useEffect(() => { base44.entities.Movil.list().then(setMoviles).catch(() => setMoviles([])); }, []);
 
   const activeOrders = orders.filter(o =>
