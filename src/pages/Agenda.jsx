@@ -580,7 +580,7 @@ function AgendaContent() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <div className="space-y-6 pb-6">
+      <div className="space-y-6 pb-6 rounded-2xl p-4 bg-slate-950 text-white">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">Agenda</h1>
