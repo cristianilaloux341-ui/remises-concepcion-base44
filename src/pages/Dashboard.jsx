@@ -191,13 +191,13 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 space-y-6 bg-gradient-to-b from-blue-50 via-sky-50/60 to-white">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-blue-100 bg-white/80 p-4 shadow-sm backdrop-blur-sm">
         <div>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-blue-950">Central de Despacho</h1>
           <p className="text-blue-700/80 font-medium mt-1">Gestión en tiempo real</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={handleDownloadReport} variant="outline" className="rounded-xl border-green-200 text-green-700 bg-green-50">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={handleDownloadReport} variant="outline" className="rounded-xl border-blue-200 text-blue-800 bg-blue-50 hover:bg-blue-100 font-bold">
             Descargar Reporte 06-13hs
           </Button>
           <Link to="/orders/new">
@@ -232,7 +232,7 @@ export default function Dashboard() {
 
       {claimedPendingOrders.length > 0 && (
         <div className="space-y-2">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
+          <h2 className="text-lg font-extrabold text-blue-950 flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-green-600" />
             Tomados desde Pendientes
           </h2>
@@ -265,7 +265,7 @@ export default function Dashboard() {
 
       {/* Base Queues */}
       <div>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-extrabold text-blue-950 mb-4 flex items-center gap-2">
           <Users className="w-5 h-5" />
           Colas por Base
         </h2>
