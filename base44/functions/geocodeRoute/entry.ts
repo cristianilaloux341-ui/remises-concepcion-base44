@@ -90,16 +90,30 @@ Deno.serve(async (req) => {
       }
       const data = await r.json();
 
-      const predictions = (data.results || []).map((p, i) => ({
-        place_id: `geoapify_${p.lat}_${p.lon}_${i}`,
-        description: p.formatted || [p.address_line1, p.address_line2].filter(Boolean).join(", "),
-        structured_formatting: {
-          main_text: p.address_line1 || p.street || p.formatted || "",
-          secondary_text: p.address_line2 || "",
-        },
-        _lat: p.lat,
-        _lng: p.lon,
-      }));
+      const predictions = (data.results || [])
+        // Para calles con altura, no ofrecer primero un centroide de calle/barrio.
+        // Esos puntos aproximados eran capaces de caer en otro polígono y cambiar
+        // la zona aunque el texto de la dirección pareciera correcto.
+        .map((p, i) => {
+          const resultType = String(p.result_type || "");
+          const rank = resultType === "building" || p.housenumber ? 0
+            : resultType === "amenity" ? 1
+            : resultType === "street" ? 3
+            : 2;
+          return {
+            place_id: `geoapify_${p.lat}_${p.lon}_${i}`,
+            description: p.formatted || [p.address_line1, p.address_line2].filter(Boolean).join(", "),
+            structured_formatting: {
+              main_text: p.address_line1 || p.street || p.formatted || "",
+              secondary_text: p.address_line2 || "",
+            },
+            _lat: p.lat,
+            _lng: p.lon,
+            _rank: rank,
+            _result_type: resultType,
+          };
+        })
+        .sort((a, b) => a._rank - b._rank);
 
       return Response.json({ predictions });
     }
@@ -159,13 +173,36 @@ Deno.serve(async (req) => {
           params.set("lang", "es");
           params.set("filter", `circle:${centerLng},${centerLat},${radiusM}`);
           params.set("bias", `proximity:${centerLng},${centerLat}`);
-          params.set("limit", "1");
+          params.set("limit", "8");
           params.set("apiKey", key || "");
           const r = await fetch("https://api.geoapify.com/v1/geocode/search?" + params.toString(), { signal: AbortSignal.timeout(8000) });
           const data = await r.json();
-          const hit = data.results?.[0];
-          if (hit && Number.isFinite(Number(hit.lat)) && Number.isFinite(Number(hit.lon))) {
-            return Response.json({ lat: Number(hit.lat), lng: Number(hit.lon), full_address: hit.formatted || query, source: "geoapify" });
+          const requestedNumber = String(address).match(/\b(\d+[a-zA-Z]?)\b/)?.[1]?.toLowerCase() || "";
+          const candidates = (data.results || []).filter(h => Number.isFinite(Number(h.lat)) && Number.isFinite(Number(h.lon)));
+          // Si se pidió una altura, priorizar coincidencia de número de puerta.
+          // Si Geoapify no conoce esa altura, preferir building/amenity antes que
+          // un centroide genérico de calle.
+          const hit = candidates
+            .map(h => {
+              const house = String(h.housenumber || "").toLowerCase();
+              const type = String(h.result_type || "");
+              const exactHouse = requestedNumber && house === requestedNumber;
+              const rank = exactHouse ? 0
+                : type === "building" || house ? 1
+                : type === "amenity" ? 2
+                : type === "street" ? 4
+                : 3;
+              return { h, rank };
+            })
+            .sort((x, y) => x.rank - y.rank)[0]?.h;
+          if (hit) {
+            return Response.json({
+              lat: Number(hit.lat), lng: Number(hit.lon),
+              full_address: hit.formatted || query, source: "geoapify",
+              result_type: hit.result_type || null,
+              housenumber: hit.housenumber || null,
+              exact_housenumber: !!requestedNumber && String(hit.housenumber || "").toLowerCase() === requestedNumber
+            });
           }
         } catch(e) { console.error("Forward geocoding error:", e); }
       }
