@@ -9,7 +9,8 @@ Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
   const payload = await req.json();
-  const { action = 'claim', orderId, driverId, asNext = false } = payload;
+  const { action = 'claim', orderId: requestedOrderId, zone, driverId, asNext = false } = payload;
+  let orderId = requestedOrderId;
 
   if (!driverId || !(await verifyRequestAuth(b44, payload, { allowDriverId: driverId }))) {
     return Response.json({ success: false, reason: 'unauthorized' }, { status: 401 });
@@ -131,6 +132,23 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, promoted: true, orderId: nextOrderId });
     }
 
+    // La APK nueva puede pedir sólo una zona: el servidor elige el pendiente autorizado
+    // más antiguo. Así el chofer nunca recibe la lista/direcciones para elegir viaje.
+    if (!orderId && zone) {
+      const candidates = await b44.entities.RideOrder.filter({
+        status: 'pendiente',
+        zone,
+        processingAction: 'PENDING_AUTHORIZED'
+      }, 'created_date', 100).catch(() => []);
+      const oldest = candidates.find((candidate: any) =>
+        !candidate.driver_id && !candidate.reserved_driver_id && !candidate.preassigned_driver_id &&
+        !String(candidate.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]') &&
+        candidate.processingPhase !== 'REASSIGNING' &&
+        candidate.pending_reason !== 'REQUESTED_DRIVER_NOT_ACCEPTED'
+      );
+      orderId = oldest?.id || null;
+      if (!orderId) return Response.json({ success: false, reason: 'no_pending_in_zone' });
+    }
     if (!orderId) return Response.json({ success: false, reason: 'missing_order_id' });
     const order = await b44.entities.RideOrder.get(orderId);
     if (String(order?.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]')) {
