@@ -7,6 +7,7 @@ import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useRealtimeDrivers } from "@/hooks/useRealtimeDrivers";
 import { base44 } from "@/api/base44Client";
 import { useEffect, useState } from "react";
+import { getDriverDisplay } from "@/lib/utils";
 
 export default function MapView() {
   const { orders } = useRealtimeOrders({ limit: 100, verifyActiveMs: 6000 });
@@ -71,7 +72,7 @@ export default function MapView() {
                 drivers.map(driver => (
                   <div key={driver.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-xs">
                     <div>
-                      <p className="font-medium">{driver.name}</p>
+                      <p className="font-medium">{getDriverDisplay(moviles.find(m => String(m.id || "") === String(driver.vehicle_model || ""))?.numero_movil, driver.name)}</p>
                       <p className="text-muted-foreground">{driver.vehicle_plate}</p>
                     </div>
                     <Badge
