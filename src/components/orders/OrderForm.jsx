@@ -190,19 +190,20 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       setDetectingZone(true);
       let zone = null;
       
-      // 1) Memoria propia confirmada: una dirección exacta ya aprendida manda.
-      // Esto evita repetir errores de geocodificadores que devuelven el centro de una calle
-      // o las mismas coordenadas para alturas distintas.
-      zone = await detectZoneFromAddress(form.pickup_address);
-      if (!isCurrent()) return;
-
-      // 2) Si todavía no la conocemos y la sugerencia trae coordenadas, resolver por polígonos.
+      // 1) Si la dirección elegida ya tiene coordenadas, manda la cartografía real.
+      // Una memoria histórica equivocada no puede pisar el polígono actual.
       const selectedCoords = (form.pickup_lat && form.pickup_lng)
         ? { lat: form.pickup_lat, lng: form.pickup_lng }
         : null;
 
-      if (!zone && selectedCoords) {
+      if (selectedCoords) {
         zone = await detectZoneFromCoords(selectedCoords.lat, selectedCoords.lng);
+        if (!isCurrent()) return;
+      }
+
+      // 2) Sólo sin coordenadas usamos una dirección confirmada previamente.
+      if (!zone && !selectedCoords) {
+        zone = await detectZoneFromAddress(form.pickup_address);
         if (!isCurrent()) return;
       }
 
