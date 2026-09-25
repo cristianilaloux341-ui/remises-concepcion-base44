@@ -583,8 +583,8 @@ function AgendaContent() {
       <div className="space-y-6 pb-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-black">Agenda</h1>
-          <p className="text-muted-foreground mt-1 font-bold">Viajes programados</p>
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">Agenda</h1>
+          <p className="text-cyan-200 mt-1 font-bold">Viajes programados</p>
         </div>
         <Button className="rounded-xl gap-2 font-bold" onClick={() => { setEditing(null); setShowForm(true); }}>
           <Plus className="w-4 h-4" /> Nueva Agenda
@@ -593,7 +593,7 @@ function AgendaContent() {
 
       {/* Upcoming */}
       <div className="space-y-3">
-        <h2 className="text-sm font-bold text-black uppercase tracking-wide">Próximos</h2>
+        <h2 className="text-sm font-bold text-cyan-50 uppercase tracking-wide">Próximos</h2>
         {upcoming.length === 0 ? (
           <Card><CardContent className="p-8 text-center text-muted-foreground font-bold">Sin viajes programados</CardContent></Card>
         ) : upcoming.map(ride => {
@@ -677,7 +677,7 @@ function AgendaContent() {
       {/* Past */}
       {past.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-black uppercase tracking-wide mt-6">Historial reciente</h2>
+          <h2 className="text-sm font-bold text-cyan-50 uppercase tracking-wide mt-6">Historial reciente</h2>
           {past.map(ride => {
             const isDateValid = ride.scheduled_datetime && !isNaN(new Date(ride.scheduled_datetime).getTime());
             return (
