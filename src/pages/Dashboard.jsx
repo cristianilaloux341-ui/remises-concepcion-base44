@@ -184,24 +184,24 @@ export default function Dashboard() {
   };
 
   const stats = [
-    { title: "Activos", value: activeOrders.length, icon: Car, color: "bg-blue-500" },
-    { title: "Pendientes", value: pendingOrders.length, icon: Clock, color: "bg-amber-500" },
-    { title: "Completados Hoy", value: completedToday.length, icon: CheckCircle2, color: "bg-green-500" }
+    { title: "Activos", value: activeOrders.length, icon: Car, color: "bg-cyan-400" },
+    { title: "Pendientes", value: pendingOrders.length, icon: Clock, color: "bg-orange-400" },
+    { title: "Completados Hoy", value: completedToday.length, icon: CheckCircle2, color: "bg-emerald-400" }
   ];
 
   return (
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 space-y-6 bg-gradient-to-b from-blue-50 via-sky-50/60 to-white">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-blue-100 bg-white/80 p-4 shadow-sm backdrop-blur-sm">
+    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 space-y-6 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-cyan-400/20 bg-slate-900/90 p-4 shadow-xl backdrop-blur-sm">
         <div>
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-blue-950">Central de Despacho</h1>
-          <p className="text-blue-700/80 font-medium mt-1">Gestión en tiempo real</p>
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">Central de Despacho</h1>
+          <p className="text-cyan-300 font-medium mt-1">Gestión en tiempo real</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={handleDownloadReport} variant="outline" className="rounded-xl border-blue-200 text-blue-800 bg-blue-50 hover:bg-blue-100 font-bold">
+          <Button onClick={handleDownloadReport} variant="outline" className="rounded-xl border-slate-600 text-slate-100 bg-slate-800 hover:bg-slate-700 font-bold">
             Descargar Reporte 06-13hs
           </Button>
           <Link to="/orders/new">
-            <Button className="rounded-xl gap-2 bg-blue-700 hover:bg-blue-800 text-white shadow-sm">
+            <Button className="rounded-xl gap-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-lg shadow-cyan-950/30">
               <Car className="w-4 h-4" />
               Nuevo Pedido
             </Button>
