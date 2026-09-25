@@ -78,7 +78,9 @@ Deno.serve(async (req) => {
 
     const zoneKey = String(order.zone || "").trim().toLowerCase();
     const isDirectPendingZone = zoneKey === "0" || zoneKey === "0-pendientes" || zoneKey === "0-pendiente";
-    if (!zoneKey) {
+    const validDispatchZones = new Set(["1-puerto","2-plaza","3-columna","4-base","5-cementerio","6-díaz vélez","6-diaz velez","7-don bosco","8-monumento"]);
+    const hasValidZone = isDirectPendingZone || validDispatchZones.has(zoneKey);
+    if (!hasValidZone) {
       await b44.entities.RideOrder.update(order.id, {
         status:"pendiente",
         driver_id:null,
@@ -95,7 +97,7 @@ Deno.serve(async (req) => {
         user_type:"sistema",
         user_name:"clientCreateAndDispatchRide",
         details:`Pasaje ${order.id} sin zona válida: requiere revisión de Central y no se publica en Pendientes.`,
-        metadata:{orderId:order.id}
+        metadata:{orderId:order.id,receivedZone:order.zone || null}
       }).catch(()=>{});
       return Response.json({success:false,orderId:order.id,assigned:false,status:"pendiente",centralReview:true,reason:"ZONE_REQUIRED"},{status:409});
     }
