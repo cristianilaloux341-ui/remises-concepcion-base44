@@ -467,8 +467,10 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     if (data.dropoff_address) recordAddressUsage(data.dropoff_address, queryClient).catch(() => {});
     (data.dropoff_addresses || []).forEach(a => a && recordAddressUsage(a, queryClient).catch(() => {}));
 
-    // Compatibilidad temporal con el diccionario viejo; la memoria exacta de AddressHistory manda.
-    if (data.zone && data.pickup_address) {
+    // El diccionario por calle/manzana sólo aprende correcciones manuales.
+    // Una zona obtenida automáticamente del polígono no debe crear una regla textual
+    // capaz de contaminar otras alturas de la misma calle.
+    if (data.zone && data.pickup_address && zoneManualOverrideRef.current) {
       learnZoneMapping(data.pickup_address, data.zone).catch(() => {});
     }
 
