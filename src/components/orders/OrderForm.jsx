@@ -58,20 +58,19 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
   const zoneDetectSeqRef = useRef(0);
   const zoneManualOverrideRef = useRef(false);
 
-  // Geocodifica una dirección de texto si no tiene coords, usando Google Places
+  // Geocodificación autoritativa para zona/tarifa: una sola ruta estable.
+  // El autocomplete puede mezclar fuentes para ayudar a escribir, pero no decide la coordenada final.
   const geocodeAddress = async (address) => {
     try {
       const sessionToken = sessionStorage.getItem('local_operator_token');
-      const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address, sessionToken });
-      const predictions = res.data?.predictions;
-      if (!predictions || predictions.length === 0) return null;
-      const details = await base44.functions.invoke("geocodeRoute", {
-        action: "placedetails",
-        place_id: predictions[0].place_id,
-        description: predictions[0].description,
+      const res = await base44.functions.invoke("geocodeRoute", {
+        action: "geocode",
+        address,
         sessionToken
       });
-      if (details.data?.lat && details.data?.lng) return { lat: details.data.lat, lng: details.data.lng };
+      const lat = Number(res.data?.lat);
+      const lng = Number(res.data?.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
     } catch (_) {}
     return null;
   };
