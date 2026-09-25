@@ -145,23 +145,24 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     }
 
     // Historial/clientes viejos pueden no tener coordenadas guardadas.
-    // Resolverlas antes de entregar la selección para que la zona no dependa del color/fuente.
+    // NO tomar la primera sugerencia de autocomplete: para una calle+altura podía
+    // devolver el centro de la calle. El geocode exacto valida también la altura.
     if (!coords) {
       try {
         const sessionToken = sessionStorage.getItem("local_operator_token");
         const res = await base44.functions.invoke("geocodeRoute", {
-          action: "autocomplete",
-          input: s.full_address,
+          action: "geocode",
+          address: s.full_address,
           sessionToken,
         });
-        const first = res.data?.predictions?.[0];
-        if (first?.place_id) {
-          const details = await getPlaceDetails(first.place_id, first.description || s.full_address);
-          if (details?.lat && details?.lng) {
-            coords = { lat: Number(details.lat), lng: Number(details.lng) };
-          }
+        const lat = Number(res.data?.lat);
+        const lng = Number(res.data?.lng);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          coords = { lat, lng };
         }
-      } catch (_) {}
+      } catch (_) {
+        // Sin punto confirmado: queda para selección manual de zona.
+      }
     }
 
     onChange(s.full_address, coords);
