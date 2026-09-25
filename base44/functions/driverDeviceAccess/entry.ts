@@ -67,11 +67,15 @@ async function handleNewApp(base44: any, action: string, payload: any) {
       const loadOrder = async (id: any) => id
         ? await base44.asServiceRole.entities.RideOrder.get(String(id)).catch(() => null)
         : null;
-      const [activeOrder, reservedOrder, nextOrder] = await Promise.all([
+      const [activeOrderRaw, reservedOrderRaw, nextOrderRaw] = await Promise.all([
         loadOrder(driver.active_ride_id),
         loadOrder(driver.reserved_order_id),
         loadOrder(driver.next_order_id),
       ]);
+      const belongsToDriver = (order: any) => order && String(order.driver_id || '') === String(driver.id);
+      const activeOrder = belongsToDriver(activeOrderRaw) && ['aceptado','en_camino','en_viaje'].includes(String(activeOrderRaw.status || '')) ? activeOrderRaw : null;
+      const reservedOrder = belongsToDriver(reservedOrderRaw) && ['ofrecido','aceptado'].includes(String(reservedOrderRaw.status || '')) ? reservedOrderRaw : null;
+      const nextOrder = belongsToDriver(nextOrderRaw) && !['completado','cancelado'].includes(String(nextOrderRaw.status || '')) ? nextOrderRaw : null;
       return json({
         valid,
         server_time: new Date().toISOString(),
