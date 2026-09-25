@@ -27,6 +27,27 @@ export async function startRideCAS(b44: any, rideOrderId: string, driverId: stri
   if (!allowedTransition) {
     return { status: "INVALID_TRANSITION" };
   }
+
+  // Los tiempos de pantalla son autoridad de Central/backend. La APK no lleva
+  // un reloj comercial para estas transiciones: sólo intenta avanzar y el
+  // servidor decide si ya se cumplió la espera mínima configurada.
+  const configs = await b44.entities.TarifaConfig.list();
+  const config = configs?.[0] || {};
+  const nowMs = Date.now();
+  if (order.status === "aceptado" && targetStatus === "en_camino") {
+    const waitSeconds = Math.max(0, Number(config.segundos_aceptado_antes_en_camino) || 0);
+    const originMs = Date.parse(order.accepted_at || order.updated_date || order.created_date || "");
+    if (Number.isFinite(originMs) && nowMs < originMs + waitSeconds * 1000) {
+      return { status: "TOO_EARLY", retryAfterMs: originMs + waitSeconds * 1000 - nowMs };
+    }
+  }
+  if (order.status === "en_camino" && targetStatus === "en_viaje") {
+    const waitSeconds = Math.max(0, Number(config.segundos_en_camino_antes_en_viaje) || 0);
+    const originMs = Date.parse(order.en_camino_at || order.updated_date || "");
+    if (Number.isFinite(originMs) && nowMs < originMs + waitSeconds * 1000) {
+      return { status: "TOO_EARLY", retryAfterMs: originMs + waitSeconds * 1000 - nowMs };
+    }
+  }
   
   // ACQUIRE LEASE
   const expectedLeaseVersion = order.processingLeaseVersion ?? 0;
@@ -95,10 +116,12 @@ export async function startRideCAS(b44: any, rideOrderId: string, driverId: stri
       processingLeaseVersion: acquiredLeaseVersion,
       processingOperationKey: operationKey
   };
+  const transitionAt = new Date().toISOString();
   const commitUpdate = {
       $set: {
         status: targetStatus,
-        updated_date: new Date().toISOString(),
+        ...(targetStatus === "en_camino" ? { en_camino_at: transitionAt } : {}),
+        updated_date: transitionAt,
         ...rideStartFields,
         processingOwnerId: null,
         processingPhase: null,
@@ -153,7 +176,7 @@ Deno.serve(async (req) => {
     const result = await startRideCAS(b44, orderId, driverId, targetStatus, operationKey);
     
     const isSuccess = result.status === "SUCCESS" || result.status === "SUCCESS_ALREADY_PROCESSED";
-    return Response.json({ success: isSuccess, reason: result.status });
+    return Response.json({ success: isSuccess, reason: result.status, retryAfterMs: result.retryAfterMs ?? 0 });
   } catch (error: any) {
     return Response.json({ error: error.message, success: false }, { status: 500 });
   }
