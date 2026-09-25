@@ -83,10 +83,17 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     const clientAddressNorms = new Set(clientResults.map((r) => normalize(r.full_address)));
     
     const historyResults = osmAndHistory
-      // Historial sin coordenadas confirmadas no puede competir con un geocodificador:
-      // una dirección vieja sólo es autoritativa si conserva su punto real.
-      .filter(x => x.source === "history" && Number.isFinite(Number(x.lat)) && Number.isFinite(Number(x.lng)) && !clientAddressNorms.has(normalize(x.address)))
-      .map(x => ({ ...x, type: "history", full_address: x.address }))
+      // El historial viejo ayuda a encontrar el texto, pero sus coordenadas no son
+      // autoritativas salvo que estén confirmadas. Esto evita reutilizar puntos
+      // heredados que mandaban calles conocidas a Plaza/Base u otra zona.
+      .filter(x => x.source === "history" && !clientAddressNorms.has(normalize(x.address)))
+      .map(x => ({
+        ...x,
+        lat: x.zone_confirmed === true ? x.lat : null,
+        lng: x.zone_confirmed === true ? x.lng : null,
+        type: "history",
+        full_address: x.address
+      }))
       .slice(0, 3);
 
     const localNorms = new Set([...clientResults, ...historyResults].map(r => normalize(r.full_address)));
