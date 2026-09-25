@@ -115,7 +115,9 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
   const handleChange = (e) => {
     const val = e.target.value;
     setInputValue(val);
-    onChange(val);
+    // Al teclear, la dirección todavía NO tiene un punto confirmado.
+    // El padre debe borrar cualquier lat/lng de la selección anterior.
+    onChange(val, null);
     setOpen(val.length >= 3);
   };
 
