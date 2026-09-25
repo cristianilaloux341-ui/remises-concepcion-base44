@@ -22,7 +22,7 @@
   "properties": {
     "clave_modificacion": {
       "type": "string",
-      "description": "Clave numérica para habilitar la edición de tarifas"
+      "description": "Clave num\u00e9rica para habilitar la edici\u00f3n de tarifas"
     },
     "bajada_bandera": {
       "type": "number",
@@ -42,7 +42,7 @@
     "valor_ficha_espera": {
       "type": "number",
       "default": 0,
-      "description": "Importe que suma cada ficha mientras está detenido"
+      "description": "Importe que suma cada ficha mientras est\u00e1 detenido"
     },
     "segundos_por_ficha_espera": {
       "type": "number",
@@ -72,22 +72,32 @@
     "minutos_libre_post_viaje": {
       "type": "number",
       "default": 0,
-      "description": "Minutos que debe esperar el chofer antes de poder ponerse libre luego de completar un viaje (0 = sin restricción)"
+      "description": "Minutos que debe esperar el chofer antes de poder ponerse libre luego de completar un viaje (0 = sin restricci\u00f3n)"
     },
     "minutos_bloqueo_post_aceptacion": {
       "type": "number",
       "default": 0,
-      "description": "Minutos que debe esperar el chofer (bloqueado) desde que acepta una oferta"
+      "description": "Minutos contados desde la aceptaci\u00f3n antes de que el chofer pueda volver a posicionarse en una base"
+    },
+    "segundos_aceptado_antes_en_camino": {
+      "type": "number",
+      "default": 60,
+      "description": "Espera m\u00ednima autoritativa desde Aceptado antes de permitir pasar a En camino; sin cron\u00f3metro visible en APK"
+    },
+    "segundos_en_camino_antes_en_viaje": {
+      "type": "number",
+      "default": 120,
+      "description": "Espera m\u00ednima autoritativa desde En camino antes de permitir Pasajero a bordo/En viaje; sin cron\u00f3metro visible en APK"
     },
     "tiempo_maximo_respuesta_segundos": {
       "type": "number",
       "default": 60,
-      "description": "Segundos máximos que tiene el chofer para aceptar un viaje antes de que se reasigne"
+      "description": "Segundos m\u00e1ximos que tiene el chofer para aceptar un viaje antes de que se reasigne"
     },
     "auto_reasignacion_activa": {
       "type": "boolean",
       "default": true,
-      "description": "Indica si el sistema debe reasignar automáticamente los viajes si los choferes no responden a tiempo."
+      "description": "Indica si el sistema debe reasignar autom\u00e1ticamente los viajes si los choferes no responden a tiempo."
     }
   },
   "required": []
