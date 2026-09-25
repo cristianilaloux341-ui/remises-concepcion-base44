@@ -270,13 +270,6 @@ Deno.serve(async (req) => {
   }
   assignAsNext = hasCurrentRide && !hasNextRide;
 
-  // Regla comercial: un móvil ocupado sólo puede recibir un segundo pasaje cuando
-  // ese móvil fue requerido expresamente por el cliente. Ni el despacho automático
-  // ni una asignación manual ordinaria pueden llenar el segundo cupo.
-  if (assignAsNext && !(orderReq.requested_driver_only === true && orderReq.requested_driver_id === driverId)) {
-    return Response.json({ success:false, reason:'SECOND_RIDE_REQUIRES_REQUESTED_DRIVER' });
-  }
-
   // Fuera de servicio siempre bloquea. Para slot 1 se exige disponibilidad/base;
   // para slot 2 no: el móvil ocupado está deliberadamente fuera de la cola.
   if (driverReq.status === 'no_disponible' || (!assignAsNext && (driverReq.status !== 'disponible' || !effectiveDriverBase))) {
