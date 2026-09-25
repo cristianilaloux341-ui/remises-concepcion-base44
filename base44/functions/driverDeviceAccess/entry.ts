@@ -76,6 +76,24 @@ async function handleNewApp(base44: any, action: string, payload: any) {
       const activeOrder = belongsToDriver(activeOrderRaw) && ['aceptado','en_camino','en_viaje'].includes(String(activeOrderRaw.status || '')) ? activeOrderRaw : null;
       const reservedOrder = belongsToDriver(reservedOrderRaw) && ['ofrecido','aceptado'].includes(String(reservedOrderRaw.status || '')) ? reservedOrderRaw : null;
       const nextOrder = belongsToDriver(nextOrderRaw) && !['completado','cancelado'].includes(String(nextOrderRaw.status || '')) ? nextOrderRaw : null;
+
+      // Reparación conservadora de referencias huérfanas: sólo limpiamos el ID
+      // que ya no apunta a una orden vigente de este mismo chofer. No cambiamos
+      // estado, base ni posición desde restore_state.
+      const staleRefs:any = {};
+      if (driver.active_ride_id && !activeOrder) staleRefs.active_ride_id = null;
+      if (driver.reserved_order_id && !reservedOrder) {
+        staleRefs.reserved_order_id = null;
+        staleRefs.reservation_token = null;
+        staleRefs.driver_reservation_key = null;
+      }
+      if (driver.next_order_id && !nextOrder) {
+        staleRefs.next_order_id = null;
+        staleRefs.next_order_token = null;
+      }
+      if (Object.keys(staleRefs).length > 0) {
+        await base44.asServiceRole.entities.Driver.update(driver.id, staleRefs).catch(() => null);
+      }
       return json({
         valid,
         server_time: new Date().toISOString(),
