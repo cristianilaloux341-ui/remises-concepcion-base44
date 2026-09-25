@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
         const promotedDriver = await b44.entities.Driver.updateMany(
           {id:driverId,next_order_id:nextOrderId,next_order_token:nextToken,
            $and:[{$or:[{reserved_order_id:null},{reserved_order_id:{$exists:false}}]},{$or:[{active_ride_id:null},{active_ride_id:{$exists:false}}]}]},
-          {$set:{status:'en_viaje',dispatch_status:'normal',active_ride_id:nextOrderId,next_order_id:null,next_order_token:null}}
+          {$set:{status:'en_viaje',dispatch_status:'normal',active_ride_id:nextOrderId,next_order_id:null,next_order_token:null,queue_authoritative_base:null,queue_position:null}}
         );
         if ((promotedDriver?.updated ?? promotedDriver?.matchedCount ?? promotedDriver?.modifiedCount ?? 0) !== 1) {
           const rollbackNext = await b44.entities.RideOrder.updateMany(
