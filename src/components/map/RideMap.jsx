@@ -4,6 +4,7 @@ import OrderStatusBadge from "../orders/OrderStatusBadge";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { getDriverDisplay } from "@/lib/utils";
+import { base44 } from "@/api/base44Client";
 
 // Fix default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -135,6 +136,20 @@ const isUrbano = (lat, lng) => lat > -32.52 && lat < -32.43 && lng > -58.30 && l
 
 export default function RideMap({ orders = [], drivers = [], moviles = [], zonePolygons = [], center, zoom = 13, className = "", autoFit = true, centerOn = null }) {
   const defaultCenter = center || [CENTRAL.lat, CENTRAL.lng];
+  const [mapConfig, setMapConfig] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    const loadMapConfig = async () => {
+      try {
+        const sessionToken = sessionStorage.getItem("local_operator_token");
+        const res = await base44.functions.invoke("geocodeRoute", { action: "mapconfig", sessionToken });
+        if (alive && res.data?.tileUrl) setMapConfig(res.data);
+      } catch (_) {}
+    };
+    loadMapConfig();
+    return () => { alive = false; };
+  }, []);
   // No re-montamos el mapa en cada visibilitychange — InvalidateSize lo maneja
 
   // Filtramos choferes y puntos fuera del ejido urbano para no mostrarlos ni centrar en ellos
@@ -183,10 +198,12 @@ export default function RideMap({ orders = [], drivers = [], moviles = [], zoneP
         style={{ height: "100%", width: "100%", minHeight: "200px", zIndex: 0 }}
         scrollWheelZoom={true}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        {mapConfig?.tileUrl && (
+          <TileLayer
+            attribution={mapConfig.attribution || "© OpenStreetMap contributors © Geoapify"}
+            url={mapConfig.tileUrl}
+          />
+        )}
 
         <InvalidateSize />
         {autoFit && allPoints.length > 1 && <FitBounds bounds={allPoints} />}
