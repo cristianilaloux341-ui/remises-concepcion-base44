@@ -88,16 +88,10 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       let origenCoords = (form.pickup_lat && form.pickup_lng) ? { lat: form.pickup_lat, lng: form.pickup_lng } : await geocodeAddress(pickup);
       let destinoCoords = (form.dropoff_lat && form.dropoff_lng) ? { lat: form.dropoff_lat, lng: form.dropoff_lng } : await geocodeAddress(dropoff);
 
-      // Guardar coords en el form si las obtuvimos por geocodificación
-      if (origenCoords || destinoCoords) {
-        setForm(prev => ({
-          ...prev,
-          pickup_lat: origenCoords?.lat ?? prev.pickup_lat,
-          pickup_lng: origenCoords?.lng ?? prev.pickup_lng,
-          dropoff_lat: destinoCoords?.lat ?? prev.dropoff_lat,
-          dropoff_lng: destinoCoords?.lng ?? prev.dropoff_lng,
-        }));
-      }
+      // No escribir coordenadas desde el cálculo de tarifa. La ubicación de recogida
+      // pertenece exclusivamente al flujo dirección→selección/geocode→zona.
+      // Una respuesta tardía de tarifa no puede volver a inyectar coordenadas de
+      // una dirección anterior mientras el operador ya está escribiendo otra.
 
       const metros = await calcularDistanciaRuta(pickup, dropoff, origenCoords, destinoCoords);
       setCalculandoTarifa(false);
