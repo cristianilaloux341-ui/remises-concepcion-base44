@@ -221,10 +221,14 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       if (!isCurrent() || zoneManualOverrideRef.current) return;
       setDetectingZone(false);
       if (zone) {
+        inheritedZoneRef.current = false;
         setDetectedZone(zone);
         setForm(prev => ({ ...prev, zone }));
       } else {
         setDetectedZone(null);
+        if (inheritedZoneRef.current) {
+          setForm(prev => ({ ...prev, zone: "" }));
+        }
       }
     }, 600);
 
@@ -276,6 +280,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     // Si el operador corrige la zona manualmente, ninguna detección que estaba
     // en vuelo puede volver a sobreescribir esa decisión.
     if (field === "zone") {
+      inheritedZoneRef.current = false;
       zoneManualOverrideRef.current = true;
       zoneDetectSeqRef.current += 1;
       setDetectingZone(false);
