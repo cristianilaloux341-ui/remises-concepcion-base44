@@ -620,17 +620,17 @@ function AgendaContent() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <p className="text-sm flex items-center gap-1.5 font-bold text-black">
+                  <p className="text-sm flex items-center gap-1.5 font-bold text-cyan-50">
                     <div className="w-3 h-3 rounded-full bg-green-500 shrink-0" />{ride.pickup_address}
                   </p>
                   {ride.dropoff_address && (
-                    <p className="text-sm flex items-center gap-1.5 font-bold text-black">
+                    <p className="text-sm flex items-center gap-1.5 font-bold text-cyan-50">
                       <MapPin className="w-4 h-4 text-red-500 shrink-0" />{ride.dropoff_address}
                     </p>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 text-sm text-black font-bold flex-wrap">
+                <div className="flex items-center gap-2 text-sm text-cyan-100 font-bold flex-wrap">
                   {ride.zone && (
                     <>
                       <Tag className="w-4 h-4 text-purple-600" />
