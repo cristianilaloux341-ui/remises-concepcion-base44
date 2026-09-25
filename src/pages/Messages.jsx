@@ -68,6 +68,16 @@ export default function Messages() {
           setMessages(prev => [...prev, event.data]);
           // Toast + sonido solo para mensajes de móviles entrantes — UNA sola vez, sin loop
           if (event.data?.from_type === "movil") {
+            // El primer operador que recibe el mensaje lo incorpora a su turno.
+            // Administración seguirá pudiendo ver todo el historial.
+            if (!event.data.operator_id && operatorId) {
+              base44.entities.Message.update(event.id, {
+                operator_id: operatorId,
+                operator_name: operatorName,
+                shift_key: shiftKey,
+                is_general: !event.data.driver_id && !event.data.to_driver_id
+              }).catch(() => {});
+            }
             playMsgSound();
             const isAudio = event.data.content?.startsWith("[AUDIO]");
             const audioUrl = isAudio ? event.data.content.replace("[AUDIO]", "") : null;
