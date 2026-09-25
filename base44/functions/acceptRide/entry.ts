@@ -117,6 +117,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     const acceptedSecond = await b44.entities.RideOrder.updateMany(
       {id:rideOrderId,status:'ofrecido',reserved_driver_id:driverId,reservation_token:order.reservation_token,
        assignment_attempt:assignmentAttempt,second_slot_offer:true,
+       offerExpiresAt:{ $gt: Date.now() },
        $or:[{processingOwnerId:null},{processingOwnerId:{$exists:false}}]},
       {$set:{status:'preasignado_proximo',preassigned_driver_id:driverId,preassignment_token:order.reservation_token,
         preassigned_at:new Date().toISOString(),second_slot_offer:false,reserved_driver_id:null,
@@ -390,7 +391,11 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
       processingPhase: "DRIVER_RESERVED", 
       processingLeaseVersion: acquiredLeaseVersion, 
       processingAction: "ACCEPT", 
-      processingOperationKey: operationKey, 
+      processingOperationKey: operationKey,
+      // El vencimiento participa del MISMO CAS del commit comercial. No alcanza
+      // con haber pasado una validación anterior: si el reloj expiró antes de
+      // esta escritura, ACEPTAR ya no puede ganar.
+      offerExpiresAt: { $gt: commitNow },
       processingLeaseExpiresAt: { $gt: commitNow } 
   };
   const commitUpdate = { 
