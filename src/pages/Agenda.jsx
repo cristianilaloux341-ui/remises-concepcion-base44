@@ -17,7 +17,7 @@ const ZONES = ["0-Pendientes", "1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-
 import { useLocation, useNavigate } from "react-router-dom";
 import { format, formatDistanceToNow, isPast, differenceInMinutes, addDays, addWeeks, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
-import { detectZoneFromAddress } from "@/lib/dispatchLogic";
+import { detectZoneFromAddress, detectZoneFromCoords } from "@/lib/dispatchLogic";
 import PullToRefresh from "@/components/ui/pull-to-refresh";
 import { useTarifaConfig, calcularDistanciaRuta, calcularImporte } from "@/hooks/useTarifaConfig";
 
@@ -74,16 +74,12 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
   const geocodeAddress = async (address) => {
     try {
       const sessionToken = sessionStorage.getItem('local_operator_token');
-      const res = await base44.functions.invoke("geocodeRoute", { action: "autocomplete", input: address, sessionToken });
-      const predictions = res.data?.predictions;
-      if (!predictions || predictions.length === 0) return null;
-      const details = await base44.functions.invoke("geocodeRoute", {
-        action: "placedetails",
-        place_id: predictions[0].place_id,
-        description: predictions[0].description,
-        sessionToken
+      const res = await base44.functions.invoke("geocodeRoute", {
+        action: "geocode", address, sessionToken
       });
-      if (details.data?.lat && details.data?.lng) return { lat: details.data.lat, lng: details.data.lng };
+      const lat = Number(res.data?.lat);
+      const lng = Number(res.data?.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
     } catch (_) {}
     return null;
   };
@@ -152,7 +148,10 @@ function ScheduledForm({ ride, drivers, onSave, onClose }) {
     debounceTimer.current = setTimeout(async () => {
       // Auto-detect zone
       if (form.pickup_address && !form.zone) {
-        const detectedZone = await detectZoneFromAddress(form.pickup_address);
+        const coords = await geocodeAddress(form.pickup_address);
+        const detectedZone = coords
+          ? await detectZoneFromCoords(coords.lat, coords.lng)
+          : await detectZoneFromAddress(form.pickup_address);
         if (detectedZone) {
           setForm(f => ({ ...f, zone: detectedZone }));
         }
