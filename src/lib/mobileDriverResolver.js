@@ -33,25 +33,40 @@ export function resolveActiveDriverForMobile(input, drivers = [], mobiles = []) 
     return { driver: null, mobile: null, error: `No existe un móvil o chofer registrado como "${raw}".` };
   }
   const mobileMatches = mobiles.filter((mobile) => Number(mobile.numero_movil) === numericInput);
-  if (mobileMatches.length > 1) {
-    return { driver: null, mobile: null, error: `Hay más de un móvil registrado como ${raw}. Corregí el duplicado antes de asignar.` };
-  }
-  if (mobileMatches.length !== 1) {
+  if (mobileMatches.length === 0) {
     return { driver: null, mobile: null, error: `No existe el móvil ${raw}.` };
   }
 
-  const mobile = mobileMatches[0];
-  if (mobile.activo === false || mobile.fuera_de_servicio || mobile.suspension_motivo) {
-    return { driver: null, mobile, error: `El móvil ${mobile.numero_movil} está inhabilitado o suspendido.` };
+  // El número de móvil es la identidad operativa para Central. Puede haber
+  // registros históricos/duplicados con el mismo número: gana únicamente el
+  // que tenga UN chofer actualmente en servicio y el móvil habilitado.
+  const candidates = [];
+  for (const mobile of mobileMatches) {
+    if (mobile.activo === false || mobile.fuera_de_servicio || mobile.suspension_motivo) continue;
+    const linked = linkedDrivers(mobile, drivers);
+    for (const driver of linked) {
+      if (driver.status === "disponible" || driver.status === "en_viaje") {
+        candidates.push({ driver, mobile });
+      }
+    }
   }
-  const linked = linkedDrivers(mobile, drivers);
-  const available = linked.filter((driver) => driver.status === "disponible");
-  if (available.length === 1) return { driver: available[0], mobile, error: null };
-  if (available.length > 1) {
-    return { driver: null, mobile, error: `El móvil ${mobile.numero_movil} tiene más de un chofer en servicio. Corregí el vínculo antes de asignar.` };
+
+  if (candidates.length === 1) {
+    return { ...candidates[0], error: null };
   }
-  if (linked.length > 0) return { driver: null, mobile, error: `El móvil ${mobile.numero_movil} no tiene ningún chofer en servicio.` };
-  return { driver: null, mobile, error: `El móvil ${mobile.numero_movil} no tiene chofer vinculado por ID.` };
+  if (candidates.length > 1) {
+    return {
+      driver: null,
+      mobile: null,
+      error: `El móvil ${raw} tiene más de un chofer en servicio. No se puede decidir de forma segura cuál usar.`
+    };
+  }
+
+  return {
+    driver: null,
+    mobile: mobileMatches[0] || null,
+    error: `El móvil ${raw} no tiene ningún chofer en servicio.`
+  };
 }
 
 export function getLinkedDriversForMobile(mobile, drivers = []) {
