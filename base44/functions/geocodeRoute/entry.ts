@@ -124,16 +124,24 @@ Deno.serve(async (req) => {
         } catch(e) { console.error("Reverse geocoding error:", e); }
       }
       
-      // Forward Geocoding (Dirección Libre -> Lat/Lng)
+      // Forward Geocoding: reutiliza el mismo resultado Geoapify del autocomplete.
       if (address) {
         try {
-          const query = address.toLowerCase().includes("concepci") ? address : `${address}, Concepción del Uruguay`;
-          const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}&language=es&components=country:ar`;
-          const r = await fetch(url);
+          const key = Deno.env.get("GEOAPIFY_API_KEY");
+          const query = address.toLowerCase().includes("concepci") ? address : address + ", Concepción del Uruguay";
+          const params = new URLSearchParams();
+          params.set("text", query);
+          params.set("format", "json");
+          params.set("lang", "es");
+          params.set("filter", "circle:-58.2375,-32.4853,15000");
+          params.set("bias", "proximity:-58.2375,-32.4853");
+          params.set("limit", "1");
+          params.set("apiKey", key || "");
+          const r = await fetch("https://api.geoapify.com/v1/geocode/search?" + params.toString(), { signal: AbortSignal.timeout(8000) });
           const data = await r.json();
-          if (data.status === "OK" && data.results.length > 0) {
-            const loc = data.results[0].geometry.location;
-            return Response.json({ lat: loc.lat, lng: loc.lng, full_address: data.results[0].formatted_address });
+          const hit = data.results?.[0];
+          if (hit && Number.isFinite(Number(hit.lat)) && Number.isFinite(Number(hit.lon))) {
+            return Response.json({ lat: Number(hit.lat), lng: Number(hit.lon), full_address: hit.formatted || query, source: "geoapify" });
           }
         } catch(e) { console.error("Forward geocoding error:", e); }
       }
