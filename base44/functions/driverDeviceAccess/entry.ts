@@ -80,6 +80,7 @@ async function handleNewApp(base44: any, action: string, payload: any) {
           dispatch_status: driver.dispatch_status || "normal",
           queue_authoritative_base: driver.queue_authoritative_base || null,
           queue_position: driver.queue_position ?? null,
+          bloqueo_post_aceptacion_hasta: driver.bloqueo_post_aceptacion_hasta ?? null,
         },
         active_order: activeOrder,
         reserved_order: reservedOrder,
