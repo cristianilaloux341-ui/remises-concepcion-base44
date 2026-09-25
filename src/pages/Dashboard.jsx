@@ -219,7 +219,7 @@ export default function Dashboard() {
       {activeOrders.some(o => o.status === "ofrecido") && (
         <div className="space-y-2">
           {activeOrders.filter(o => o.status === "ofrecido").map(order => (
-            <div key={order.id} className="flex items-center justify-between gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3 shadow-sm">
+            <div key={order.id} className="flex items-center justify-between gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-3 shadow-sm ring-1 ring-amber-100">
               <div className="min-w-0">
                 <p className="text-sm font-black text-slate-900 truncate">{order.client_name || "Viaje"}</p>
                 <p className="text-xs font-semibold text-slate-600 truncate">Ofrecido a {order.driver_name || "móvil"}</p>
@@ -303,11 +303,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-6">
         {/* Map */}
         <div className="col-span-1">
-          <Card>
+          <Card className="border-blue-100 bg-white/95 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-lg">Mapa en Vivo</CardTitle>
+              <CardTitle className="text-lg font-extrabold text-blue-950">Mapa en Vivo</CardTitle>
               <Link to="/map">
-                <Button variant="ghost" size="sm" className="text-xs gap-1">
+                <Button variant="ghost" size="sm" className="text-xs gap-1 text-blue-700 hover:text-blue-900 hover:bg-blue-50">
                   Ver completo <ArrowRight className="w-3 h-3" />
                 </Button>
               </Link>
