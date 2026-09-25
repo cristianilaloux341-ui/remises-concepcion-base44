@@ -396,6 +396,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   const commitUpdate = { 
       $set: { 
         status: "aceptado", 
+        accepted_at: new Date(commitNow).toISOString(),
         driver_id: driverId,
         driver_name: driver.name,
         // La base del pasaje pertenece a la orden/zona, no a la posición actual del móvil.
