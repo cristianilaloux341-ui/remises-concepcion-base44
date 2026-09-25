@@ -330,7 +330,7 @@ Deno.serve(async (req) => {
     if (!changed(orderRes)) {
       await b44.entities.Driver.updateMany(
         { id: driverId, active_ride_id: orderId },
-        { $set: { status: 'disponible', active_ride_id: null } }
+        { $set: { status: 'disponible', active_ride_id: null, queue_authoritative_base: driver.queue_authoritative_base || null, queue_position: driver.queue_position || null } }
       );
       return Response.json({ success: false, reason: 'already_taken' });
     }
