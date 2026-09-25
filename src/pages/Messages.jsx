@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Send, Radio, User, MessageCircle, X } from "lucide-react";
 import { formatTimeBA } from "@/lib/utils";
+import { resolveActiveDriverForMobile } from "@/lib/mobileDriverResolver";
 
 function playMsgSound() {
   try {
@@ -136,9 +137,18 @@ export default function Messages() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, targetDriverId]);
 
+  const getDriverLabel = (driverId) => {
+    const driver = drivers.find(d => d.id === driverId);
+    if (!driver) return "Móvil";
+    const movil = moviles.find(m => String(m.id || "") === String(driver.vehicle_model || ""));
+    return movil?.numero_movil != null
+      ? `Móvil ${movil.numero_movil} · ${driver.name || "Chofer"}`
+      : (driver.name || "Móvil");
+  };
+
   const targetName = targetDriverId === "todos"
     ? "Todos los móviles"
-    : drivers.find(d => d.id === targetDriverId)?.name || "Móvil";
+    : getDriverLabel(targetDriverId);
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] relative">
@@ -208,7 +218,7 @@ export default function Messages() {
                   <span className="font-semibold">{msg.from_name}</span>
                   {isOperator && !msg.to_driver_id && <span>→ Todos</span>}
                   {isOperator && msg.to_driver_id && (
-                    <span>→ {drivers.find(d => d.id === msg.to_driver_id)?.name || msg.to_driver_id}</span>
+                    <span>→ {getDriverLabel(msg.to_driver_id)}</span>
                   )}
                 </div>
                 {isAudio ? (
@@ -244,26 +254,8 @@ export default function Messages() {
                   return;
                 }
                 
-                let targetId = null;
-                const movil = /^\d+$/.test(val)
-                  ? moviles.find(m => Number(m.numero_movil) === Number(val))
-                  : null;
-                if (movil) {
-                  const linked = drivers.filter(d => String(d.vehicle_model || "") === String(movil.id));
-                  if (linked.length === 1) targetId = linked[0].id;
-                  else if (linked.length > 1) {
-                    alert(`El móvil ${val} tiene más de un chofer vinculado. Corregí el vínculo antes de enviar.`);
-                    return;
-                  }
-                }
-                if (!targetId) {
-                  const byName = drivers.filter(d => String(d.name || "").trim().toLowerCase() === val.toLowerCase());
-                  if (byName.length === 1) {
-                    const d = byName[0];
-                    const linkedMovil = moviles.find(m => String(m.id || "") === String(d.vehicle_model || ""));
-                    if (linkedMovil) targetId = d.id;
-                  }
-                }
+                const resolved = resolveActiveDriverForMobile(val, drivers, moviles);
+                const targetId = resolved?.driver?.id || null;
 
                 if (targetId) {
                   setTargetDriverId(targetId);
@@ -282,11 +274,13 @@ export default function Messages() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">📡 Todos los móviles</SelectItem>
-              {drivers.map(d => (
-                <SelectItem key={d.id} value={d.id}>
-                  🚗 {d.name}
-                </SelectItem>
-              ))}
+              {drivers
+                .filter(d => d.status === "disponible" || d.status === "en_viaje")
+                .map(d => (
+                  <SelectItem key={d.id} value={d.id}>
+                    🚗 {getDriverLabel(d.id)}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
           <span className="text-xs text-muted-foreground self-center">→ {targetName}</span>
