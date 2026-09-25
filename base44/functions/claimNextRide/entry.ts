@@ -98,7 +98,9 @@ Deno.serve(async (req) => {
             dispatch_status: 'normal',
             active_ride_id: nextOrderId,
             next_order_id: null,
-            next_order_token: null
+            next_order_token: null,
+            queue_authoritative_base: null,
+            queue_position: null
           }
         }
       );
