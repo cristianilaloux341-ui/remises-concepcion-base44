@@ -36,6 +36,20 @@ Deno.serve(async (req) => {
        }
     }
 
+    // ── 0. Configuración de mapa visual Geoapify ────────────────────────────
+    // La clave se entrega sólo a solicitudes autenticadas de la app.
+    // Geoapify requiere apiKey en la URL de tiles del navegador.
+    if (action === "mapconfig") {
+      const GEOAPIFY_API_KEY = Deno.env.get("GEOAPIFY_API_KEY");
+      if (!GEOAPIFY_API_KEY) {
+        return Response.json({ error: "GEOAPIFY_API_KEY no configurada" }, { status: 500 });
+      }
+      return Response.json({
+        tileUrl: `https://maps.geoapify.com/v1/tile/osm-bright/{z}/{x}/{y}.png?apiKey=${GEOAPIFY_API_KEY}`,
+        attribution: "© OpenStreetMap contributors © Geoapify"
+      });
+    }
+
     // ── 1. Autocomplete (Geoapify) ─────────────────────────────────────────
     if (action === "autocomplete") {
       const { input } = body;
