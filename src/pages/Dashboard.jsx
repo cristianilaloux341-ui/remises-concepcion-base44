@@ -265,7 +265,7 @@ export default function Dashboard() {
 
       {/* Base Queues */}
       <div>
-        <h2 className="text-lg font-extrabold text-blue-950 mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-extrabold text-cyan-50 mb-4 flex items-center gap-2">
           <Users className="w-5 h-5" />
           Colas por Base
         </h2>
@@ -305,9 +305,9 @@ export default function Dashboard() {
         <div className="col-span-1">
           <Card className="border-cyan-500/25 bg-[#0b1b2b]/95 shadow-xl">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-lg font-extrabold text-violet-100">Mapa en Vivo</CardTitle>
+              <CardTitle className="text-lg font-extrabold text-cyan-50">Mapa en Vivo</CardTitle>
               <Link to="/map">
-                <Button variant="ghost" size="sm" className="text-xs gap-1 text-violet-300 hover:text-white hover:bg-violet-900/60">
+                <Button variant="ghost" size="sm" className="text-xs gap-1 text-cyan-200 hover:text-white hover:bg-cyan-950/70">
                   Ver completo <ArrowRight className="w-3 h-3" />
                 </Button>
               </Link>
