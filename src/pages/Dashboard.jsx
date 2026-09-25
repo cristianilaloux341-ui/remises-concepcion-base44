@@ -184,24 +184,24 @@ export default function Dashboard() {
   };
 
   const stats = [
-    { title: "Activos", value: activeOrders.length, icon: Car, color: "bg-violet-500" },
-    { title: "Pendientes", value: pendingOrders.length, icon: Clock, color: "bg-fuchsia-500" },
-    { title: "Completados Hoy", value: completedToday.length, icon: CheckCircle2, color: "bg-indigo-500" }
+    { title: "Activos", value: activeOrders.length, icon: Car, color: "bg-cyan-500" },
+    { title: "Pendientes", value: pendingOrders.length, icon: Clock, color: "bg-amber-500" },
+    { title: "Completados Hoy", value: completedToday.length, icon: CheckCircle2, color: "bg-emerald-500" }
   ];
 
   return (
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 space-y-6 bg-gradient-to-br from-[#120d2b] via-[#1d1642] to-[#251257]">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-violet-400/30 bg-[#191238]/95 p-4 shadow-xl backdrop-blur-sm">
+    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 space-y-6 bg-gradient-to-br from-[#06111f] via-[#0b1f33] to-[#102a43]">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-cyan-400/25 bg-[#0b1b2b]/95 p-4 shadow-xl backdrop-blur-sm">
         <div>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">Central de Despacho</h1>
-          <p className="text-violet-300 font-medium mt-1">Gestión en tiempo real</p>
+          <p className="text-cyan-200 font-medium mt-1">Gestión en tiempo real</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={handleDownloadReport} variant="outline" className="rounded-xl border-violet-400/40 text-violet-100 bg-violet-950/70 hover:bg-violet-900 font-bold">
+          <Button onClick={handleDownloadReport} variant="outline" className="rounded-xl border-cyan-400/40 text-cyan-50 bg-slate-900/70 hover:bg-cyan-950 font-bold">
             Descargar Reporte 06-13hs
           </Button>
           <Link to="/orders/new">
-            <Button className="rounded-xl gap-2 bg-violet-500 hover:bg-violet-400 text-white font-black shadow-lg shadow-violet-950/40">
+            <Button className="rounded-xl gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-black shadow-lg shadow-cyan-950/40">
               <Car className="w-4 h-4" />
               Nuevo Pedido
             </Button>
@@ -271,22 +271,22 @@ export default function Dashboard() {
         </h2>
         
         {/* Top Bar for Quick Assign - Posición de Choferes */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#191238] border border-violet-500/30 p-3 rounded-xl mb-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#0b1b2b] border border-cyan-500/25 p-3 rounded-xl mb-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-fuchsia-500 text-white rounded-lg shadow-sm">
+            <div className="p-2 bg-cyan-600 text-white rounded-lg shadow-sm">
               <Zap className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-sm font-bold text-white leading-none">Chóferes en Posición: {availableDrivers.length}</h2>
-              <p className="text-xs text-violet-300 font-medium">Asignación rápida a bases</p>
+              <p className="text-xs text-cyan-200 font-medium">Asignación rápida a bases</p>
             </div>
           </div>
           <div className="hidden xl:flex items-center gap-2 overflow-x-auto">
             {bases.map(b => {
               const q = drivers.filter(d => getEffectiveQueueBase(d) === b.name && isDriverWorking(d));
               return (
-                <div key={b.name} className="flex flex-col items-center justify-center bg-violet-950/80 border border-violet-500/20 rounded-lg px-2 py-1 min-w-[3rem]">
-                  <span className="text-[10px] text-violet-300 truncate w-full text-center max-w-[4rem]">{b.name.split("-")[1]}</span>
+                <div key={b.name} className="flex flex-col items-center justify-center bg-slate-950/70 border border-cyan-500/20 rounded-lg px-2 py-1 min-w-[3rem]">
+                  <span className="text-[10px] text-cyan-200 truncate w-full text-center max-w-[4rem]">{b.name.split("-")[1]}</span>
                   <span className="text-sm font-bold text-white">{q.length}</span>
                 </div>
               );
@@ -303,7 +303,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-6">
         {/* Map */}
         <div className="col-span-1">
-          <Card className="border-violet-500/30 bg-[#191238]/95 shadow-xl">
+          <Card className="border-cyan-500/25 bg-[#0b1b2b]/95 shadow-xl">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-lg font-extrabold text-violet-100">Mapa en Vivo</CardTitle>
               <Link to="/map">
