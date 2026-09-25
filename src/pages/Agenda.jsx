@@ -633,8 +633,8 @@ function AgendaContent() {
                 <div className="flex items-center gap-2 text-sm text-cyan-100 font-bold flex-wrap">
                   {ride.zone && (
                     <>
-                      <Tag className="w-4 h-4 text-purple-600" />
-                      <span className="text-purple-700 font-bold">{ride.zone}</span>
+                      <Tag className="w-4 h-4 text-cyan-400" />
+                      <span className="text-cyan-300 font-bold">{ride.zone}</span>
                       <span>·</span>
                     </>
                   )}
@@ -643,11 +643,11 @@ function AgendaContent() {
                   {ride.require_specific_driver && ride.preferred_driver_name && (
                     <>
                       <span>·</span>
-                      <Car className="w-4 h-4 text-blue-600" />
-                      <span className="text-blue-700 font-bold">{ride.preferred_driver_name}</span>
+                      <Car className="w-4 h-4 text-cyan-400" />
+                      <span className="text-cyan-300 font-bold">{ride.preferred_driver_name}</span>
                     </>
                   )}
-                  {ride.fare && <><span>·</span><span className="font-bold text-green-700 text-base">${ride.fare}</span></>}
+                  {ride.fare && <><span>·</span><span className="font-bold text-emerald-400 text-base">${ride.fare}</span></>}
                 </div>
 
                 <div className="flex gap-2">
