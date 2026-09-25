@@ -10,27 +10,31 @@ function normalize(str) {
     .trim();
 }
 
-// Ciudad y provincia para acotar la búsqueda en Nominatim
-const CITY = "Concepción del Uruguay";
-const PROVINCE = "Entre Ríos";
-const COUNTRY = "Argentina";
-
 // Cache simple para no repetir llamadas idénticas
 const nominatimCache = new Map();
 
-// Bounding box de Concepción del Uruguay (lon_izq,lat_sup,lon_der,lat_inf)
-const VIEWBOX = "-58.35,-32.35,-58.10,-32.60";
+async function getCityConfig() {
+  const rows = await base44.entities.CityConfig.filter({ active: true }).catch(() => []);
+  return rows[0] || {
+    city_name: "Concepción del Uruguay", province: "Entre Ríos", country: "Argentina",
+    country_code: "ar", search_viewbox: "-58.35,-32.35,-58.10,-32.60"
+  };
+}
 
 async function fetchNominatim(query) {
   if (nominatimCache.has(query)) return nominatimCache.get(query);
-  const q = `${query}, ${CITY}, ${PROVINCE}, ${COUNTRY}`;
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=8&countrycodes=ar&accept-language=es&viewbox=${VIEWBOX}&bounded=1&addressdetails=1`;
+  const cfg = await getCityConfig();
+  const q = [query, cfg.city_name, cfg.province, cfg.country].filter(Boolean).join(", ");
+  const countryCode = String(cfg.country_code || "ar").toLowerCase();
+  const viewbox = cfg.search_viewbox ? `&viewbox=${encodeURIComponent(cfg.search_viewbox)}&bounded=1` : "";
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=8&countrycodes=${encodeURIComponent(countryCode)}&accept-language=es${viewbox}&addressdetails=1`;
   const res = await fetch(url, { headers: { "Accept-Language": "es" } });
   const data = await res.json();
   const results = data
     .filter(d => {
-      const city = (d.address?.city || d.address?.town || d.address?.village || "").toLowerCase();
-      return city.includes("concepci") || city === "";
+      const city = normalize(d.address?.city || d.address?.town || d.address?.village || "");
+      const expected = normalize(cfg.city_name);
+      return !city || !expected || city === expected || city.includes(expected) || expected.includes(city);
     })
     .map(d => {
       const a = d.address || {};
