@@ -1,6 +1,62 @@
 {
   "name": "Message",
   "type": "object",
+  "properties": {
+    "from_type": {
+      "type": "string",
+      "enum": [
+        "operador",
+        "movil",
+        "cliente"
+      ],
+      "description": "Qui\u00e9n env\u00eda"
+    },
+    "from_name": {
+      "type": "string"
+    },
+    "driver_id": {
+      "type": "string",
+      "description": "ID del m\u00f3vil. Se conserva por compatibilidad con la mensajer\u00eda actual de choferes."
+    },
+    "to_driver_id": {
+      "type": "string",
+      "description": "ID del m\u00f3vil destinatario cuando el operador escribe a un m\u00f3vil espec\u00edfico; vac\u00edo para broadcast."
+    },
+    "client_id": {
+      "type": "string"
+    },
+    "to_client_id": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "read": {
+      "type": "boolean",
+      "default": false
+    },
+    "operator_id": {
+      "type": "string",
+      "description": "Operador de turno propietario del mensaje"
+    },
+    "operator_name": {
+      "type": "string"
+    },
+    "shift_key": {
+      "type": "string",
+      "description": "Clave del turno para agrupar historial"
+    },
+    "is_general": {
+      "type": "boolean",
+      "default": false,
+      "description": "Mensaje general acumulativo entre turnos"
+    }
+  },
+  "required": [
+    "from_type",
+    "from_name",
+    "content"
+  ],
   "rls": {
     "create": null,
     "read": null,
@@ -10,47 +66,5 @@
         "role": "admin"
       }
     }
-  },
-  "properties": {
-    "from_type": {
-      "type": "string",
-      "enum": [
-        "operador",
-        "movil",
-        "cliente"
-      ],
-      "description": "Quién envía"
-    },
-    "from_name": {
-      "type": "string"
-    },
-    "driver_id": {
-      "type": "string",
-      "description": "ID del móvil. Se conserva por compatibilidad con la mensajería actual de choferes."
-    },
-    "to_driver_id": {
-      "type": "string",
-      "description": "ID del móvil destinatario cuando el operador escribe a un móvil específico; vacío para broadcast."
-    },
-    "client_id": {
-      "type": "string",
-      "description": "ID exclusivo del cliente cuando el mensaje pertenece a la app de clientes."
-    },
-    "to_client_id": {
-      "type": "string",
-      "description": "ID exclusivo del cliente destinatario cuando operador/base responde a un cliente."
-    },
-    "content": {
-      "type": "string"
-    },
-    "read": {
-      "type": "boolean",
-      "default": false
-    }
-  },
-  "required": [
-    "from_type",
-    "from_name",
-    "content"
-  ]
+  }
 }
