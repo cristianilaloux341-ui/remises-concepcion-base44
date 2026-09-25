@@ -270,6 +270,15 @@ Deno.serve(async (req) => {
   }
   assignAsNext = hasCurrentRide && !hasNextRide;
 
+  // assignRide NO es la vía para que un ocupado tome voluntariamente Pendientes
+  // (eso pertenece exclusivamente a claimNextRide). Si aquí el móvil ya está
+  // ocupado, el segundo cupo sólo puede utilizarse para un viaje requerido
+  // específicamente para ese móvil. Así el despacho normal/manual ordinario
+  // jamás llena automáticamente el slot 2.
+  if (assignAsNext && !(orderReq.requested_driver_only === true && orderReq.requested_driver_id === driverId)) {
+    return Response.json({ success:false, reason:'SECOND_RIDE_REQUIRES_REQUESTED_DRIVER' });
+  }
+
   // Fuera de servicio siempre bloquea. Para slot 1 se exige disponibilidad/base;
   // para slot 2 no: el móvil ocupado está deliberadamente fuera de la cola.
   if (driverReq.status === 'no_disponible' || (!assignAsNext && (driverReq.status !== 'disponible' || !effectiveDriverBase))) {
@@ -343,7 +352,7 @@ Deno.serve(async (req) => {
       {id:orderId,status:{ $in:['pendiente','procesando_despacho'] }},
       {$set:{status:'ofrecido',driver_id:driverId,driver_name:driverReq.name,reserved_driver_id:driverId,
         reservation_token:nextToken,second_slot_offer:true,assignment_attempt:newAttempt,assigned_at:assignedAt,
-        assigned_base:null,offerExpiresAt:null,push_ack_at:null,push_ack_assignment_attempt:null,
+        assigned_base:orderReq.zone || orderReq.assigned_base || null,offerExpiresAt:null,push_ack_at:null,push_ack_assignment_attempt:null,
         alert_presented_at:null,alert_presented_assignment_attempt:null,alert_presented_protocol_attempt:null,
         delivery_retry_count:0,pending_reason:null},$addToSet:{offered_driver_ids:driverId}}
     );
