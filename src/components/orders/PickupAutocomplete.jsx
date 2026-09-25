@@ -132,7 +132,11 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     setInputValue(s.full_address);
     setOpen(false);
 
-    let coords = s.lat && s.lng ? { lat: s.lat, lng: s.lng } : null;
+    // Las sugerencias externas no son coordenadas autoritativas para decidir zona.
+    // Se validan abajo con el geocode estricto de calle + ciudad + altura.
+    let coords = s.zone_confirmed === true && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng))
+      ? { lat: Number(s.lat), lng: Number(s.lng) }
+      : null;
 
     // Resolver coordenadas exactas cuando la sugerencia externa trae place_id.
     if (!coords && s.place_id) {
