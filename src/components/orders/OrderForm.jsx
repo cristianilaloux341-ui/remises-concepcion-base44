@@ -57,6 +57,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
   const submitLockRef = useRef(false);
   const zoneDetectSeqRef = useRef(0);
   const zoneManualOverrideRef = useRef(false);
+  const inheritedZoneRef = useRef(Boolean(order?.zone));
 
   // Geocodificación autoritativa para zona/tarifa: una sola ruta estable.
   // El autocomplete puede mezclar fuentes para ayudar a escribir, pero no decide la coordenada final.
