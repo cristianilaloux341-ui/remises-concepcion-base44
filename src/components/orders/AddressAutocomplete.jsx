@@ -64,14 +64,19 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
 
     let coords = null;
 
-    if (s.source === "google" && s.place_id) {
-      try {
-        const details = await getPlaceDetails(s.place_id);
-        if (details?.lat && details?.lng) {
-          coords = { lat: details.lat, lng: details.lng };
-        }
-      } catch (_) {}
-    }
+    try {
+      const sessionToken = sessionStorage.getItem("local_operator_token");
+      const res = await base44.functions.invoke("geocodeRoute", {
+        action: "geocode",
+        address: s.address,
+        sessionToken
+      });
+      const lat = Number(res.data?.lat);
+      const lng = Number(res.data?.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        coords = { lat, lng };
+      }
+    } catch (_) {}
 
     onChange(s.address, coords);
   };
