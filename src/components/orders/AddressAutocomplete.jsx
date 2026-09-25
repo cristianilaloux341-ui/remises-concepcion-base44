@@ -26,7 +26,7 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
   }, []);
 
   const osmAndHistory = useAddressSuggestions(inputValue);
-  const { predictions, getPlaceDetails } = useGooglePlaces(inputValue);
+  const { predictions } = useGooglePlaces(inputValue);
 
   const suggestions = (() => {
     if (!inputValue || inputValue.length < 3) return [];
