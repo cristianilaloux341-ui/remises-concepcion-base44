@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import 'leaflet-draw';
+import { base44 } from "@/api/base44Client";
 
 const CENTER = [-32.483, -58.233]; // Concepción del Uruguay, default center
 
@@ -62,6 +63,20 @@ function DrawControl({ onCreated, onEdited, onDeleted, featureGroup }) {
 }
 
 export default function ZoneDrawMap({ polygons, onPolygonCreated, onPolygonEdited, onPolygonDeleted }) {
+  const [mapConfig, setMapConfig] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    const loadMapConfig = async () => {
+      try {
+        const sessionToken = sessionStorage.getItem("local_operator_token");
+        const res = await base44.functions.invoke("geocodeRoute", { action: "mapconfig", sessionToken });
+        if (alive && res.data?.tileUrl) setMapConfig(res.data);
+      } catch (_) {}
+    };
+    loadMapConfig();
+    return () => { alive = false; };
+  }, []);
   const mapRef = useRef();
   const fgRef = useRef();
   const [fgReady, setFgReady] = useState(false);
@@ -103,10 +118,12 @@ export default function ZoneDrawMap({ polygons, onPolygonCreated, onPolygonEdite
         className="h-full w-full z-0" 
         ref={mapRef}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        {mapConfig?.tileUrl && (
+          <TileLayer
+            attribution={mapConfig.attribution || "© OpenStreetMap contributors © Geoapify"}
+            url={mapConfig.tileUrl}
+          />
+        )}
         
         <FeatureGroup 
           ref={(ref) => { 
