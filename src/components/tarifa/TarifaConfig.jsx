@@ -19,6 +19,8 @@ const DEFAULTS = {
   nocturna_hora_inicio: 22,
   nocturna_hora_fin: 6,
   minutos_bloqueo_post_aceptacion: 0,
+  segundos_aceptado_antes_en_camino: 60,
+  segundos_en_camino_antes_en_viaje: 120,
   tiempo_maximo_respuesta_segundos: 60,
   auto_reasignacion_activa: true,
 };
@@ -74,6 +76,8 @@ export default function TarifaConfigPanel() {
          nocturna_hora_inicio: config.nocturna_hora_inicio ?? DEFAULTS.nocturna_hora_inicio,
          nocturna_hora_fin: config.nocturna_hora_fin ?? DEFAULTS.nocturna_hora_fin,
          minutos_bloqueo_post_aceptacion: config.minutos_bloqueo_post_aceptacion ?? DEFAULTS.minutos_bloqueo_post_aceptacion,
+         segundos_aceptado_antes_en_camino: config.segundos_aceptado_antes_en_camino ?? DEFAULTS.segundos_aceptado_antes_en_camino,
+         segundos_en_camino_antes_en_viaje: config.segundos_en_camino_antes_en_viaje ?? DEFAULTS.segundos_en_camino_antes_en_viaje,
          tiempo_maximo_respuesta_segundos: config.tiempo_maximo_respuesta_segundos ?? DEFAULTS.tiempo_maximo_respuesta_segundos,
          auto_reasignacion_activa: config.auto_reasignacion_activa ?? DEFAULTS.auto_reasignacion_activa,
        });
