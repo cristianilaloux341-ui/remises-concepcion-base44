@@ -116,7 +116,7 @@ export default function Messages() {
       unsubscribe?.();
       clearInterval(pollInterval);
     };
-  }, []);
+  }, [operatorId, operatorName, shiftKey]);
 
   // Drivers en tiempo real
   const { data: drivers = [] } = useQuery({
