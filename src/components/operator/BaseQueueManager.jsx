@@ -473,6 +473,13 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
   const isDriverWorking = (d) => d.status === "disponible" && isDriverEnabled(d);
   const workingDrivers = drivers.filter(isDriverWorking);
   const enabledDrivers = drivers.filter(isDriverEnabled);
+  const unpositionedDrivers = workingDrivers.filter(d =>
+    !getEffectiveQueueBase(d) &&
+    !d.active_ride_id &&
+    !d.reserved_order_id &&
+    !d.next_order_id &&
+    (d.dispatch_status == null || d.dispatch_status === "normal")
+  );
 
 
   return (
@@ -530,7 +537,14 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
                       );
                     })}
                     {queue.length > 4 && (
-                      <p className="text-xs text-muted-foreground text-center">+{queue.length - 4} libres más</p>
+                      <button
+                        type="button"
+                        onClick={() => setEditingBase(baseName)}
+                        className="w-full text-xs font-bold text-blue-700 text-center rounded-lg py-1.5 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        title="Ver la cola completa"
+                      >
+                        +{queue.length - 4} libres más · ver cola
+                      </button>
                     )}
                   </>
                 )}
@@ -539,6 +553,32 @@ export default function BaseQueueManager({ drivers, moviles = [] }) {
           );
         })}
       </div>
+
+      <Card className="mt-4 border-blue-200 bg-blue-50/70 shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-sm font-extrabold text-blue-950">Móviles sin posición</CardTitle>
+            <Badge className="bg-blue-700 text-white">{unpositionedDrivers.length}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {unpositionedDrivers.length === 0 ? (
+            <p className="text-xs font-medium text-blue-800/70">No hay móviles disponibles fuera de las bases.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {unpositionedDrivers.map(driver => {
+                const nroMovil = movilById[String(driver.vehicle_model || "")];
+                return (
+                  <div key={driver.id} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 shadow-sm">
+                    <span className="text-xs font-extrabold text-blue-950">{getDriverDisplay(nroMovil, driver.name)}</span>
+                    <ConnectivityIndicator lastActive={driver.last_active} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <DraggableModal 
         isOpen={!!editingBase} 
