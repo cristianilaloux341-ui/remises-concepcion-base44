@@ -10,6 +10,20 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, sessionToken } = body;
 
+    // Configuración territorial única: permite reutilizar la Central en otra ciudad
+    // sin recompilar geocodificación/mapas. Si todavía no existe, conserva los
+    // valores históricos de Concepción del Uruguay como fallback seguro.
+    const cityRows = await base44.asServiceRole.entities.CityConfig.filter({ active: true }).catch(() => []);
+    const cityConfig = cityRows[0] || {
+      city_name: "Concepción del Uruguay", province: "Entre Ríos", country: "Argentina",
+      country_code: "ar", center_lat: -32.4853, center_lng: -58.2375,
+      search_radius_m: 15000, search_viewbox: "-58.35,-32.35,-58.10,-32.60"
+    };
+    const centerLat = Number(cityConfig.center_lat);
+    const centerLng = Number(cityConfig.center_lng);
+    const radiusM = Number(cityConfig.search_radius_m) || 15000;
+    const cityLabel = [cityConfig.city_name, cityConfig.province, cityConfig.country].filter(Boolean).join(", ");
+
     let isAppRequest = false;
     let validDriver = null;
     
@@ -46,7 +60,13 @@ Deno.serve(async (req) => {
       }
       return Response.json({
         tileUrl: `https://maps.geoapify.com/v1/tile/osm-bright/{z}/{x}/{y}.png?apiKey=${GEOAPIFY_API_KEY}`,
-        attribution: "© OpenStreetMap contributors © Geoapify"
+        attribution: "© OpenStreetMap contributors © Geoapify",
+        city: cityConfig.city_name,
+        province: cityConfig.province,
+        country: cityConfig.country,
+        center: [centerLat, centerLng],
+        searchRadiusM: radiusM,
+        viewbox: cityConfig.search_viewbox || null
       });
     }
 
@@ -60,8 +80,8 @@ Deno.serve(async (req) => {
         return Response.json({ error: "GEOAPIFY_API_KEY no configurada" }, { status: 500 });
       }
 
-      const filter = "circle:-58.2375,-32.4853,15000";
-      const bias = "proximity:-58.2375,-32.4853";
+      const filter = `circle:${centerLng},${centerLat},${radiusM}`;
+      const bias = `proximity:${centerLng},${centerLat}`;
       const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(input)}&format=json&lang=es&filter=${encodeURIComponent(filter)}&bias=${encodeURIComponent(bias)}&limit=8&apiKey=${GEOAPIFY_API_KEY}`;
       const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) {
@@ -128,13 +148,17 @@ Deno.serve(async (req) => {
       if (address) {
         try {
           const key = Deno.env.get("GEOAPIFY_API_KEY");
-          const query = address.toLowerCase().includes("concepci") ? address : address + ", Concepción del Uruguay";
+          const normalizedAddress = address.toLowerCase();
+          const normalizedCity = String(cityConfig.city_name || "").toLowerCase();
+          const query = normalizedCity && normalizedAddress.includes(normalizedCity)
+            ? address
+            : address + ", " + cityLabel;
           const params = new URLSearchParams();
           params.set("text", query);
           params.set("format", "json");
           params.set("lang", "es");
-          params.set("filter", "circle:-58.2375,-32.4853,15000");
-          params.set("bias", "proximity:-58.2375,-32.4853");
+          params.set("filter", `circle:${centerLng},${centerLat},${radiusM}`);
+          params.set("bias", `proximity:${centerLng},${centerLat}`);
           params.set("limit", "1");
           params.set("apiKey", key || "");
           const r = await fetch("https://api.geoapify.com/v1/geocode/search?" + params.toString(), { signal: AbortSignal.timeout(8000) });

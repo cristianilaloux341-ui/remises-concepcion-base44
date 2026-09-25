@@ -1,0 +1,62 @@
+{
+  "name": "CityConfig",
+  "type": "object",
+  "properties": {
+    "city_name": {
+      "type": "string"
+    },
+    "province": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "country_code": {
+      "type": "string"
+    },
+    "center_lat": {
+      "type": "number"
+    },
+    "center_lng": {
+      "type": "number"
+    },
+    "search_radius_m": {
+      "type": "number",
+      "default": 15000
+    },
+    "search_viewbox": {
+      "type": "string"
+    },
+    "company_name": {
+      "type": "string"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "city_name",
+    "country",
+    "center_lat",
+    "center_lng"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
