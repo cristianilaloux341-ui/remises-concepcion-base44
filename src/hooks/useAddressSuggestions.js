@@ -84,7 +84,16 @@ export function useAddressSuggestions(query) {
     .filter(a => normalize(a.address).includes(norm))
     .sort((a, b) => (b.usage_count || 1) - (a.usage_count || 1))
     .slice(0, 4)
-    .map(a => ({ id: `h_${a.id}`, address: a.address, lat: a.lat, lng: a.lng, zone: a.zone, zone_confirmed: a.zone_confirmed, usage_count: a.usage_count, source: "history" }));
+    .map(a => ({
+      id: `h_${a.id}`,
+      address: a.address,
+      lat: a.zone_confirmed === true ? a.lat : null,
+      lng: a.zone_confirmed === true ? a.lng : null,
+      zone: a.zone_confirmed === true ? a.zone : null,
+      zone_confirmed: a.zone_confirmed === true,
+      usage_count: a.usage_count,
+      source: "history"
+    }));
 
   // Sugerencias OSM — deduplicar contra historial (osmSuggestions ahora son { address, lat, lng })
   const historialNorms = new Set(historial.map(h => normalize(h.address)));
