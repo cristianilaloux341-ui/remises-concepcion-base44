@@ -54,7 +54,7 @@ async function validateDriverAndVehicle(base44: any, driver: any) {
 }
 
 async function handleNewApp(base44: any, action: string, payload: any) {
-  if (action === "validate_session") {
+  if (action === "validate_session" || action === "restore_state") {
     const driver = await base44.asServiceRole.entities.Driver
       .get(String(payload.driver_id || ""))
       .catch(() => null);
@@ -63,7 +63,7 @@ async function handleNewApp(base44: any, action: string, payload: any) {
       driver.device_id === String(payload.device_id || "") &&
       driver.current_session_token === String(payload.access_token || ""),
     );
-    if (body.action === "restore_state" && valid) return json({ valid, driver: safeDriver(driver) });
+    if (action === "restore_state" && valid) return json({ valid, driver: safeDriver(driver) });
     return json({ valid });
   }
 
