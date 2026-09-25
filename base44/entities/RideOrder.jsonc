@@ -89,6 +89,20 @@
     "driver_name": {
       "type": "string"
     },
+    "accepted_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Instante autoritativo de aceptaci\u00f3n; origen de los tiempos configurados por Central"
+    },
+    "en_camino_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Instante autoritativo en que pas\u00f3 a En camino"
+    },
     "offered_driver_ids": {
       "type": "array",
       "items": {
