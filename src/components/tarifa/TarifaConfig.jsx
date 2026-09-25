@@ -400,9 +400,9 @@ export default function TarifaConfigPanel() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-3 pt-4 border-t">
-            <p className="text-sm font-semibold text-slate-800">Tiempo de bloqueo post-aceptación</p>
+            <p className="text-sm font-semibold text-slate-800">Volver a posicionarse después de aceptar</p>
             <p className="text-sm text-muted-foreground">
-              Minutos que debe esperar el chofer antes de poder volver a ponerse libre o recibir una nueva oferta luego de ACEPTAR un viaje. <strong>0 = sin restricción</strong>.
+              Minutos contados desde el instante exacto en que el chofer ACEPTA. Hasta que se cumpla este tiempo no puede volver a entrar a una cola. La APK mostrará cuánto falta. Ejemplo: si acepta a las 10:00 y configurás 5 min, podrá posicionarse desde las 10:05. <strong>0 = sin espera.</strong>
             </p>
             <div className="space-y-1.5 max-w-xs">
               <div className="relative">
@@ -418,6 +418,28 @@ export default function TarifaConfigPanel() {
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">min</span>
               </div>
             </div>
+          </div>
+
+          <div className="space-y-3 pt-4 border-t">
+            <p className="text-sm font-semibold text-slate-800">Aceptado → En camino</p>
+            <p className="text-sm text-muted-foreground">
+              Espera mínima que impone Central después de aceptar antes de permitir pasar a En camino. No muestra cronómetro en esa pantalla; el backend simplemente impide adelantar el cambio.
+            </p>
+            <div className="space-y-1.5 max-w-xs"><div className="relative">
+              <Input type="number" min={0} max={3600} step={1} className="pr-14" value={form.segundos_aceptado_antes_en_camino} onChange={(e) => handleChange("segundos_aceptado_antes_en_camino", e.target.value)} />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">seg</span>
+            </div></div>
+          </div>
+
+          <div className="space-y-3 pt-4 border-t">
+            <p className="text-sm font-semibold text-slate-800">En camino → Pasajero a bordo</p>
+            <p className="text-sm text-muted-foreground">
+              Espera mínima que impone Central desde En camino antes de permitir Pasajero a bordo/En viaje. Tampoco necesita cronómetro visible en la APK.
+            </p>
+            <div className="space-y-1.5 max-w-xs"><div className="relative">
+              <Input type="number" min={0} max={3600} step={1} className="pr-14" value={form.segundos_en_camino_antes_en_viaje} onChange={(e) => handleChange("segundos_en_camino_antes_en_viaje", e.target.value)} />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">seg</span>
+            </div></div>
           </div>
 
           <div className="space-y-3 pt-4 border-t">
