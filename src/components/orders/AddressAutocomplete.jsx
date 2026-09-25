@@ -62,7 +62,7 @@ export default function AddressAutocomplete({ value, onChange, placeholder, clas
     setInputValue(s.address);
     setOpen(false);
 
-    let coords = Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)) ? { lat: Number(s.lat), lng: Number(s.lng) } : null;
+    let coords = null;
 
     if (s.source === "google" && s.place_id) {
       try {
