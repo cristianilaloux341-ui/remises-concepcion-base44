@@ -192,6 +192,21 @@ export default function RideMap({ orders = [], drivers = [], moviles = [], zoneP
         {autoFit && allPoints.length > 1 && <FitBounds bounds={allPoints} />}
         {centerOn && <CenterMap centerOn={centerOn} zoom={zoom} />}
 
+        {zonePolygons.map((poly) => {
+          const positions = Array.isArray(poly.coordinates)
+            ? poly.coordinates
+                .filter(p => Array.isArray(p) && p.length >= 2)
+                .map(p => [Number(p[0]), Number(p[1])])
+                .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]))
+            : [];
+          if (positions.length < 3) return null;
+          return (
+            <Polygon key={poly.id || poly.zone} positions={positions}>
+              <Tooltip sticky>{poly.zone}</Tooltip>
+            </Polygon>
+          );
+        })}
+
         {/* Marcador fijo de la central */}
         <Marker position={[CENTRAL.lat, CENTRAL.lng]} icon={centralIcon}>
           <Popup>
