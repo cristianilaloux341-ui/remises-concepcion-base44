@@ -190,18 +190,18 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 space-y-6 bg-gradient-to-b from-blue-50 via-sky-50/60 to-white">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Central de Despacho</h1>
-          <p className="text-muted-foreground mt-1">Gestión en tiempo real</p>
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-blue-950">Central de Despacho</h1>
+          <p className="text-blue-700/80 font-medium mt-1">Gestión en tiempo real</p>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={handleDownloadReport} variant="outline" className="rounded-xl border-green-200 text-green-700 bg-green-50">
             Descargar Reporte 06-13hs
           </Button>
           <Link to="/orders/new">
-            <Button className="rounded-xl gap-2">
+            <Button className="rounded-xl gap-2 bg-blue-700 hover:bg-blue-800 text-white shadow-sm">
               <Car className="w-4 h-4" />
               Nuevo Pedido
             </Button>
@@ -271,7 +271,7 @@ export default function Dashboard() {
         </h2>
         
         {/* Top Bar for Quick Assign - Posición de Choferes */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-3 rounded-xl mb-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-blue-950 border border-blue-900 p-3 rounded-xl mb-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-yellow-500 text-slate-900 rounded-lg shadow-sm">
               <Zap className="w-5 h-5" />
