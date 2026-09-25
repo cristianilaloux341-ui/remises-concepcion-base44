@@ -586,7 +586,7 @@ function AgendaContent() {
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">Agenda</h1>
           <p className="text-cyan-200 mt-1 font-bold">Viajes programados</p>
         </div>
-        <Button className="rounded-xl gap-2 font-bold" onClick={() => { setEditing(null); setShowForm(true); }}>
+        <Button className="rounded-xl gap-2 font-bold bg-cyan-600 hover:bg-cyan-500 text-white" onClick={() => { setEditing(null); setShowForm(true); }}>
           <Plus className="w-4 h-4" /> Nueva Agenda
         </Button>
       </div>
@@ -595,7 +595,7 @@ function AgendaContent() {
       <div className="space-y-3">
         <h2 className="text-sm font-bold text-cyan-50 uppercase tracking-wide">Próximos</h2>
         {upcoming.length === 0 ? (
-          <Card><CardContent className="p-8 text-center text-muted-foreground font-bold">Sin viajes programados</CardContent></Card>
+          <Card className="border-slate-700 bg-slate-900"><CardContent className="p-8 text-center text-cyan-100 font-bold">Sin viajes programados</CardContent></Card>
         ) : upcoming.map(ride => {
           const mins = minutesUntil(ride.scheduled_datetime);
           const isDateValid = ride.scheduled_datetime && !isNaN(new Date(ride.scheduled_datetime).getTime());
@@ -681,7 +681,7 @@ function AgendaContent() {
           {past.map(ride => {
             const isDateValid = ride.scheduled_datetime && !isNaN(new Date(ride.scheduled_datetime).getTime());
             return (
-              <Card key={ride.id} className="opacity-80">
+              <Card key={ride.id} className="opacity-90 border-slate-700 bg-slate-900 text-white">
                 <CardContent className="p-3 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-bold text-black">{ride.client_name}</p>
