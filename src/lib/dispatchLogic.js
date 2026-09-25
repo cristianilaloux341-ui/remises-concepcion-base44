@@ -200,6 +200,27 @@ export async function detectZoneFromCoords(lat, lng) {
   return matches.length === 1 ? matches[0] : null;
 }
 
+// Diagnóstico explícito: permite distinguir coordenada inválida, hueco y solapamiento.
+// No decide una zona cuando la cartografía es ambigua.
+export async function diagnoseZoneFromCoords(lat, lng) {
+  const latN = Number(lat), lngN = Number(lng);
+  if (!Number.isFinite(latN) || !Number.isFinite(lngN)) {
+    return { zone: null, matches: [], reason: "INVALID_COORDS" };
+  }
+  const polygons = await base44.entities.ZonePolygon.list();
+  const matches = [];
+  for (const poly of polygons) {
+    if (poly.coordinates && poly.coordinates.length > 2 && isPointInPolygon([latN, lngN], poly.coordinates)) {
+      if (poly.zone && !matches.includes(poly.zone)) matches.push(poly.zone);
+    }
+  }
+  return {
+    zone: matches.length === 1 ? matches[0] : null,
+    matches,
+    reason: matches.length === 1 ? "OK" : (matches.length === 0 ? "NO_ZONE" : "OVERLAP"),
+  };
+}
+
 // Detecta primero desde la memoria propia de direcciones confirmadas.
 // ZoneMapping queda sólo como compatibilidad para datos históricos.
 export async function detectZoneFromAddress(address) {
