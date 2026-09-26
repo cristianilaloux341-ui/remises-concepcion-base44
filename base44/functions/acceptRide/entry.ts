@@ -334,7 +334,13 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   const reserveDriverUpdate = { 
       $set: { 
         status: "en_viaje",
-        dispatch_status: "normal", 
+        dispatch_status: "normal",
+        // Un móvil con viaje activo no pertenece a ninguna base/cola.
+        // La oferta ya lo había excluido de la cola efectiva; al aceptar limpiamos
+        // también la membresía física para que ninguna lectura legacy vea zona vieja.
+        queue_authoritative_base: null,
+        queue_position: null,
+        queue_last_operation_key: null,
         active_ride_id: rideOrderId, 
         reserved_order_id: rideOrderId, 
         driver_reservation_key: reservationKey, 
