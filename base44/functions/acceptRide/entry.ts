@@ -47,7 +47,9 @@ async function compensateDriverCAS(b44: any, driverId: string, rideOrderId: stri
       dispatch_status: "normal",
       active_ride_id: null,
       reserved_order_id: null,
-      driver_reservation_key: null
+      reservation_token: null,
+      driver_reservation_key: null,
+      bloqueo_post_aceptacion_hasta: null
     }
   };
 
