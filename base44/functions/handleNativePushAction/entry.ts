@@ -143,7 +143,8 @@ Deno.serve(async (req) => {
         return Response.json({
           success: true,
           alreadyPresented: true,
-          offerExpiresAt: order.offerExpiresAt
+          offerExpiresAt: order.offerExpiresAt,
+          serverTimeMs: Date.now()
         });
       }
 
@@ -211,7 +212,8 @@ Deno.serve(async (req) => {
         success: true,
         presentedRecorded,
         offerExpiresAt: presentedRecorded ? targetExpiry : order.offerExpiresAt,
-        timeoutSeconds: responseSeconds
+        timeoutSeconds: responseSeconds,
+        serverTimeMs: Date.now()
       });
     } else if (action === "native_accept") {
       const order = await b44.entities.RideOrder.get(realOrderId);
