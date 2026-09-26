@@ -71,8 +71,11 @@ Deno.serve(async (req) => {
          {$or:[{active_ride_id:null},{active_ride_id:{$exists:false}}]},
          {$or:[{reserved_order_id:null},{reserved_order_id:{$exists:false}}]}
        ]},
-      {$set:{status:'en_viaje',dispatch_status:'normal',active_ride_id:nextOrderId,
-             next_order_id:null,next_order_token:null}}
+      {$set:{status:'en_viaje',dispatch_status:'normal',
+             // Al promover el segundo viaje el móvil continúa ocupado: no pertenece
+             // a ninguna base/cola y no puede conservar una posición histórica.
+             queue_authoritative_base:null,queue_position:null,queue_last_operation_key:null,
+             active_ride_id:nextOrderId,next_order_id:null,next_order_token:null}}
     );
     if (mutationCount(driverPromote) === 1) {
       promotedNextOrderId = nextOrderId;
