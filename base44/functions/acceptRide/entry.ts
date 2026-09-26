@@ -121,7 +121,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     const acceptedSecond = await b44.entities.RideOrder.updateMany(
       {id:rideOrderId,status:'ofrecido',reserved_driver_id:driverId,reservation_token:order.reservation_token,
        assignment_attempt:assignmentAttempt,second_slot_offer:true,
-       offerExpiresAt:{ $gt: Date.now() },
+       offerExpiresAt:{ $gt: acceptReceivedAt },
        $or:[{processingOwnerId:null},{processingOwnerId:{$exists:false}}]},
       {$set:{status:'preasignado_proximo',preassigned_driver_id:driverId,preassignment_token:order.reservation_token,
         preassigned_at:new Date().toISOString(),second_slot_offer:false,reserved_driver_id:null,
@@ -185,7 +185,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
       blocked.status === "ofrecido" &&
       blocked.reserved_driver_id === driverId &&
       Number(blocked.assignment_attempt) === Number(assignmentAttempt) &&
-      (blocked.offerExpiresAt == null || Number(blocked.offerExpiresAt) > Date.now())
+      (blocked.offerExpiresAt == null || Number(blocked.offerExpiresAt) > acceptReceivedAt)
     );
 
     if (sameLiveOffer && blocked.processingOwnerId && Number(blocked.processingLeaseExpiresAt || 0) > Date.now()) {
@@ -198,7 +198,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
         retryOrder.status === "ofrecido" &&
         retryOrder.reserved_driver_id === driverId &&
         Number(retryOrder.assignment_attempt) === Number(assignmentAttempt) &&
-        (retryOrder.offerExpiresAt == null || Number(retryOrder.offerExpiresAt) > Date.now())
+        (retryOrder.offerExpiresAt == null || Number(retryOrder.offerExpiresAt) > acceptReceivedAt)
       ) {
         const retryExpectedVersion = retryOrder.processingLeaseVersion ?? 0;
         const retryAcquiredVersion = retryExpectedVersion + 1;
@@ -249,6 +249,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   // 3. VALIDACIÓN POST-LEASE
   order = await b44.entities.RideOrder.get(rideOrderId);
   const validationNow = Date.now();
+  const acceptWasTimely = order.offerExpiresAt == null || Number(order.offerExpiresAt) > acceptReceivedAt;
   
   const isNowDirectOffer = order.status === "ofrecido" && order.reserved_driver_id === driverId;
 
@@ -256,7 +257,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     !order ||
     !isNowDirectOffer ||
     order.assignment_attempt !== assignmentAttempt ||
-    (order.offerExpiresAt != null && order.offerExpiresAt <= validationNow) ||
+    !acceptWasTimely ||
     order.processingOwnerId !== ownerId ||
     order.processingLeaseVersion !== acquiredLeaseVersion ||
     order.processingAction !== "ACCEPT" ||
@@ -270,7 +271,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
     else if (order.status === "cancelado") status = "ORDER_CANCELLED";
     else if (order.driver_id === driverId && order.status === "aceptado") status = "ALREADY_ACCEPTED_BY_SAME_DRIVER";
     else if (order.status === "aceptado") status = "ALREADY_ACCEPTED_BY_OTHER_DRIVER";
-    else if (order.offerExpiresAt != null && order.offerExpiresAt <= validationNow) status = "OFFER_EXPIRED";
+    else if (!acceptWasTimely) status = "OFFER_EXPIRED";
     else if (order.assignment_attempt !== assignmentAttempt) status = "STALE_ASSIGNMENT_ATTEMPT";
     else if (order.driver_id !== driverId && order.reserved_driver_id !== driverId) status = "INVALID_DRIVER";
     else if (order.processingOwnerId !== ownerId || order.processingLeaseVersion !== acquiredLeaseVersion || order.processingLeaseExpiresAt <= validationNow) status = "LEASE_LOST";
