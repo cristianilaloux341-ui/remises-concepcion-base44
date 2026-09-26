@@ -29,7 +29,22 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
       },
       { $set: { dispatch_status: 'automatic_pending', reserved_order_id: order.id, reservation_token: token } }
     );
-    if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? driverRes.updated ?? 0) !== 1) return false;
+    if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? driverRes.updated ?? 0) !== 1) {
+      // Distinguir "otro pasaje ganó este móvil" de "la foto de cola quedó vieja".
+      // El caller sólo puede avanzar al siguiente en el primer caso; en el segundo
+      // debe releer la cola desde el principio para no saltear injustamente al 1.º.
+      const freshDriver = await b44.entities.Driver.get(driver.id).catch(() => null);
+      if (!freshDriver) return { success:false, reason:'DRIVER_MISSING' };
+      const busy = freshDriver.status !== 'disponible' ||
+        (freshDriver.dispatch_status != null && freshDriver.dispatch_status !== 'normal') ||
+        Boolean(freshDriver.reserved_order_id || freshDriver.active_ride_id || freshDriver.next_order_id);
+      if (busy) return { success:false, reason:'DRIVER_BUSY' };
+      const queueChanged =
+        (freshDriver.queue_authoritative_base ?? null) !== (driver.queue_authoritative_base ?? null) ||
+        Number(freshDriver.queue_position ?? 0) !== Number(driver.queue_position ?? 0);
+      if (queueChanged) return { success:false, reason:'QUEUE_SNAPSHOT_STALE' };
+      return { success:false, reason:'DRIVER_STATE_CHANGED' };
+    }
 
     await failureInjector.hit('AFTER_AUTO_DRIVER_RESERVE');
 
@@ -78,7 +93,7 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
         { id: driver.id, status:'disponible', dispatch_status:'automatic_pending', reserved_order_id:order.id, reservation_token:token },
         { $set: { dispatch_status: 'normal', reserved_order_id: null, reservation_token: null } }
       );
-      return false;
+      return { success:false, reason:'ORDER_COMMIT_RACE' };
     }
 
     // Desde este punto la oferta es estado comercial comprometido y MONÓTONO.
@@ -123,7 +138,7 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
       await safeAuditLog(b44, { action: 'DELIVERY_WARNING', user_type: 'sistema', user_name: 'System', details: 'Fallo push, pero se mantiene asignación: ' + pushErr.message }, failureInjector);
     }
     
-    return true;
+    return { success:true };
   } catch (e) {
     if (!offerCommitted) {
       // Antes del commit comercial sí corresponde soltar únicamente nuestra reserva.
