@@ -13,8 +13,20 @@ async function safeAuditLog(b44: any, data: any, failureInjector = defaultFailur
 export async function assignDriverToOrderAtomic(b44: any, order: any, driver: any, token: string, failureInjector = defaultFailureInjector) {
   let offerCommitted = false;
   try {
+    // Sellar también la pertenencia y prioridad que fueron seleccionadas.
+    // Si el móvil cambió de base/posición entre findNextDriverInZone y este CAS,
+    // esta foto quedó vieja y la asignación debe perder la carrera.
     const driverRes = await b44.entities.Driver.updateMany(
-      { id: driver.id, status: 'disponible', dispatch_status: 'normal', reserved_order_id: null, active_ride_id: null, next_order_id: null },
+      {
+        id: driver.id,
+        status: 'disponible',
+        dispatch_status: 'normal',
+        reserved_order_id: null,
+        active_ride_id: null,
+        next_order_id: null,
+        queue_authoritative_base: driver.queue_authoritative_base ?? null,
+        queue_position: driver.queue_position ?? null
+      },
       { $set: { dispatch_status: 'automatic_pending', reserved_order_id: order.id, reservation_token: token } }
     );
     if ((driverRes.matchedCount ?? driverRes.modifiedCount ?? driverRes.updated ?? 0) !== 1) return false;
