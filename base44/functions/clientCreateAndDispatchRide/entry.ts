@@ -128,6 +128,22 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Revalidación final de zona: la foto inicial puede quedar vieja bajo carga.
+    // Antes de autorizar Pendientes, dar una última oportunidad a cualquier móvil
+    // que esté realmente elegible AHORA y que no haya sido intentado por esta orden.
+    if (!assigned && !isDirectPendingZone) {
+      const finalDriver = await findNextDriverInZone(b44, order, excludedDriverIds);
+      if (finalDriver) {
+        const finalRes = await b44.functions.invoke("assignRide", {
+          orderId: order.id,
+          driverId: finalDriver.id,
+          sessionToken: sessionToken || null,
+          internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+        });
+        assigned = finalRes?.data?.success === true;
+      }
+    }
+
     // Si no hay móvil disponible en esa zona, queda en Pendientes.
     if (!assigned) {
       const pendingRes = await b44.entities.RideOrder.updateMany(
@@ -150,7 +166,7 @@ Deno.serve(async (req) => {
         if (freshOrder?.status === "ofrecido" || freshOrder?.status === "aceptado") assigned = true;
         else return Response.json({success:false,orderId:order.id,assigned:false,status:freshOrder?.status || "unknown",reason:"PENDING_COMMIT_RACE"},{status:409});
       }
-      await b44.entities.AuditLog.create({
+      if (!assigned) await b44.entities.AuditLog.create({
         action: "PENDING_AUTHORIZED",
         user_type: "sistema",
         user_name: "clientCreateAndDispatchRide",
