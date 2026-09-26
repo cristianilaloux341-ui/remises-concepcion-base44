@@ -86,7 +86,10 @@ Deno.serve(async (req) => {
     const sealed = await b44.entities.Driver.updateMany(
       {
         id:driverId,
-        status:'disponible',
+        // Una entrada explícita también es la forma de volver a servicio después
+        // de cerrar la APK. El estado puede ser disponible o no_disponible; los
+        // campos de viaje/reserva de abajo siguen impidiendo posicionar ocupados.
+        status:{ $in:['disponible','no_disponible'] },
         $or:[
           {dispatch_status:'normal'},
           {dispatch_status:null},
@@ -101,6 +104,7 @@ Deno.serve(async (req) => {
         queue_position:fresh?.queue_position ?? null
       },
       { $set:{
+        status:'disponible',
         dispatch_status:'normal',
         queue_authoritative_base:baseName,
         queue_position:position,
