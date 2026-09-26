@@ -18,7 +18,16 @@ Deno.serve(async (req) => {
 
   const baseName = self.queue_authoritative_base || null;
   const selfPosition = Number(self.queue_position);
-  if (!baseName || self.status !== 'disponible' || !Number.isFinite(selfPosition) || selfPosition <= 0) {
+  const selfIsEffectiveQueueMember =
+    Boolean(baseName) &&
+    self.status === 'disponible' &&
+    (self.dispatch_status == null || self.dispatch_status === 'normal') &&
+    !self.reserved_order_id &&
+    !self.active_ride_id &&
+    !self.next_order_id &&
+    Number.isFinite(selfPosition) &&
+    selfPosition > 0;
+  if (!selfIsEffectiveQueueMember) {
     return Response.json({
       success:true,
       serverNowMs:Date.now(),
