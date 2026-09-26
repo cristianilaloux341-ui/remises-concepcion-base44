@@ -95,6 +95,24 @@ async function handleNewApp(base44: any, action: string, payload: any) {
         await base44.asServiceRole.entities.Driver.update(driver.id, staleRefs).catch(() => null);
       }
       const serverTimeMs = Date.now();
+      // Resumen diario autoritativo para la APK: sólo viajes realmente completados
+      // por este chofer. El teléfono no mantiene un contador propio.
+      const dayKey = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Argentina/Buenos_Aires', year:'numeric', month:'2-digit', day:'2-digit'
+      }).format(new Date(serverTimeMs));
+      const completed = await base44.asServiceRole.entities.RideOrder
+        .filter({ driver_id: driver.id, status: 'completado' })
+        .catch(() => []);
+      const todayCompleted = completed.filter((order:any) => {
+        const finished = order.ride_finished_at ? new Date(order.ride_finished_at) : null;
+        return finished && !Number.isNaN(finished.getTime()) &&
+          new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Argentina/Buenos_Aires', year:'numeric', month:'2-digit', day:'2-digit'
+          }).format(finished) === dayKey;
+      });
+      const todayEarnings = todayCompleted.reduce(
+        (sum:number, order:any) => sum + Math.max(0, Number(order.importe_real_actual ?? order.fare ?? 0)), 0
+      );
       return json({
         valid,
         server_time: new Date(serverTimeMs).toISOString(),
