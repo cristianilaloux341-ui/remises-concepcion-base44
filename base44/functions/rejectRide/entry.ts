@@ -171,16 +171,29 @@ Deno.serve(async (req) => {
       driver_reservation_key: null
     };
 
-    const releasedCurrent = await b44.entities.Driver.updateMany(
-      {
-        id: driverId,
-        status: 'disponible',
-        dispatch_status: 'automatic_pending',
-        reserved_order_id: orderId,
-        reservation_token: order.reservation_token
-      },
-      { $set: releaseSet }
-    );
+    // El segundo cupo vive en next_order_id y el móvil conserva su viaje activo.
+    // No intentar liberarlo como si fuera una oferta de primer slot: eso producía
+    // DRIVER_RELEASE_STATE_MISMATCH y podía dejar el segundo pasaje enganchado.
+    const isSecondSlotOffer = order.second_slot_offer === true;
+    const releasedCurrent = isSecondSlotOffer
+      ? await b44.entities.Driver.updateMany(
+          {
+            id: driverId,
+            next_order_id: orderId,
+            next_order_token: order.reservation_token
+          },
+          { $set: { next_order_id: null, next_order_token: null } }
+        )
+      : await b44.entities.Driver.updateMany(
+          {
+            id: driverId,
+            status: 'disponible',
+            dispatch_status: 'automatic_pending',
+            reserved_order_id: orderId,
+            reservation_token: order.reservation_token
+          },
+          { $set: releaseSet }
+        );
     const releasedCount = releasedCurrent.matchedCount ?? releasedCurrent.modifiedCount ?? releasedCurrent.updated ?? 0;
     
     if (releasedCount !== 1) {
