@@ -117,6 +117,7 @@ async function handleNewApp(base44: any, action: string, payload: any) {
         valid,
         server_time: new Date(serverTimeMs).toISOString(),
         serverTimeMs,
+        daily_summary: { earnings: todayEarnings, trips: todayCompleted.length, day: dayKey },
         driver: {
           ...safeDriver(driver),
           dispatch_status: driver.dispatch_status || "normal",
