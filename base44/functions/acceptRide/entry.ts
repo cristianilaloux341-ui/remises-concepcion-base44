@@ -64,6 +64,10 @@ async function compensateDriverCAS(b44: any, driverId: string, rideOrderId: stri
 export async function acceptRideV2(b44: any, rideOrderId: string, driverId: string, operationKey: string, assignmentAttempt: number, invocationId: string) {
   const correlationId = crypto.randomUUID();
   const ownerId = crypto.randomUUID();
+  // Instante autoritativo de entrada de ACEPTAR al backend. Si la solicitud llegó
+  // dentro de la ventana y gana el lease, la latencia interna posterior no consume
+  // el derecho comercial que el chofer ejerció a tiempo.
+  const acceptReceivedAt = Date.now();
   let order = await b44.entities.RideOrder.get(rideOrderId);
 
   // 1. IDEMPOTENCIA
@@ -87,7 +91,7 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   // puede aceptar un viaje que ya volvió a Pendientes.
   const isDirectOffer = order.status === "ofrecido" && order.reserved_driver_id === driverId;
 
-  const preValidationNow = Date.now();
+  const preValidationNow = acceptReceivedAt;
   let preValStatus = null;
   
   // Idempotency check: if already accepted by this driver, just return success
@@ -392,10 +396,11 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
       processingLeaseVersion: acquiredLeaseVersion, 
       processingAction: "ACCEPT", 
       processingOperationKey: operationKey,
-      // El vencimiento participa del MISMO CAS del commit comercial. No alcanza
-      // con haber pasado una validación anterior: si el reloj expiró antes de
-      // esta escritura, ACEPTAR ya no puede ganar.
-      offerExpiresAt: { $gt: commitNow },
+      // El derecho a aceptar se fija cuando la solicitud ENTRA al backend, no
+      // cuando terminan nuestras escrituras internas. El lease sigue garantizando
+      // exclusión mutua contra rechazo/timeout; una solicitud que llegó tarde ya
+      // fue rechazada en pre-validación y nunca puede adquirir este camino.
+      offerExpiresAt: { $gt: acceptReceivedAt },
       processingLeaseExpiresAt: { $gt: commitNow } 
   };
   const commitUpdate = { 
