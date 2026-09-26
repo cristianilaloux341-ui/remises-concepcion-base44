@@ -130,6 +130,22 @@ Deno.serve(async (req) => {
       return Response.json({ok:true,chained:true,reason:'presented_won_delivery_race'});
     }
 
+    // Si el ACK del intento actual existe, FCM YA llegó al proceso nativo.
+    // No podemos quitarle el viaje al chofer porque ALERT_PRESENTED se haya demorado
+    // por nuestra propia llamada HTTP/backend. Mantener el mismo móvil hasta que
+    // PRESENTED abra la ventana comercial o la oferta cambie por una acción explícita.
+    const hasCurrentAck = Boolean(
+      order.push_ack_at &&
+      Number(order.push_ack_assignment_attempt) === Number(assignmentAttempt)
+    );
+    if (hasCurrentAck) {
+      await sleep(MAX_WAIT_MS);
+      chain();
+      return Response.json({ok:true,chained:true,reason:'push_received_waiting_alert_presented'});
+    }
+
+    // Sin ACK después del reintento sí es una falla de entrega: el teléfono nunca
+    // confirmó recepción. Sólo en ese caso se permite avanzar la cadena.
     const result=await b44.functions.invoke('rejectRide',{
       orderId,driverId,assignmentAttempt:Number(assignmentAttempt),source:'delivery_unconfirmed_exhausted',
       internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
