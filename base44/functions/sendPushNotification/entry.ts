@@ -295,6 +295,11 @@ Deno.serve(async (req) => {
       // La cancelación debe apuntar al intento que tenía el teléfono anterior,
       // no al assignment_attempt actual del pasaje.
       const currentAttempt = Number(orderData?.assignmentAttempt ?? currentOrder?.assignment_attempt ?? 1);
+      // Contrato nativo explícito: una cancelación de segundo cupo jamás debe
+      // interpretarse como cierre global del viaje activo que el móvil está realizando.
+      const cancelScope = (currentOrder?.second_slot_offer === true || currentOrder?.status === 'preasignado_proximo')
+        ? 'second_slot'
+        : 'offer';
       
       for (const dId of listToCancel) {
         const drivers = await base44.asServiceRole.entities.Driver.filter({ id: dId });
@@ -321,6 +326,7 @@ Deno.serve(async (req) => {
                      // El cierre queda ligado al mismo viaje + intento de la oferta.
                      orderId: String(orderId),
                      assignmentAttempt: String(currentAttempt),
+                     cancelScope,
                      sentAt: Date.now().toString()
                    },
                    android: {
