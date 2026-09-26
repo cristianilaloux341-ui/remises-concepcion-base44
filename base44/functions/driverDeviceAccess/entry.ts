@@ -94,9 +94,11 @@ async function handleNewApp(base44: any, action: string, payload: any) {
       if (Object.keys(staleRefs).length > 0) {
         await base44.asServiceRole.entities.Driver.update(driver.id, staleRefs).catch(() => null);
       }
+      const serverTimeMs = Date.now();
       return json({
         valid,
-        server_time: new Date().toISOString(),
+        server_time: new Date(serverTimeMs).toISOString(),
+        serverTimeMs,
         driver: {
           ...safeDriver(driver),
           dispatch_status: driver.dispatch_status || "normal",
