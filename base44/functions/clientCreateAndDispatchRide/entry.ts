@@ -125,6 +125,11 @@ Deno.serve(async (req) => {
           internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
         });
         assigned = res?.data?.success === true;
+        if (!assigned && res?.data?.reason === "QUEUE_SNAPSHOT_STALE") {
+          // No excluir: la prioridad cambió. Releer desde la cabeza autoritativa.
+          excludedDriverIds.delete(nextDriver.id);
+          continue;
+        }
       }
     }
 
