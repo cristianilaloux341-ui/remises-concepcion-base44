@@ -48,7 +48,8 @@ Deno.serve(async (req) => {
             dispatch_status:'normal',
             reserved_order_id:null,
             active_ride_id:null,
-            next_order_id:null
+            next_order_id:null,
+            queue_position:d.queue_position
           },
           { $set:{
             queue_position:pos,
