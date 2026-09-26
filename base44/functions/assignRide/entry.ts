@@ -511,11 +511,14 @@ Deno.serve(async (req) => {
     // 3. Dispatch Logic Atomic Run (handles the lock, Push, and Audit)
     const token = crypto.randomUUID();
     let success = false;
+    let atomicReason = null;
     const oldDriverId = orderReq.reserved_driver_id;
     const oldToken = orderReq.reservation_token;
 
     try {
-        success = await assignDriverToOrderAtomic(b44, orderReq, driverReq, token);
+        const atomicResult:any = await assignDriverToOrderAtomic(b44, orderReq, driverReq, token);
+        success = atomicResult?.success === true;
+        atomicReason = atomicResult?.reason || null;
     } catch (e) {
         console.warn("Atomic assign failed; no alternate dispatch path will run.", e);
         success = false;
@@ -549,7 +552,7 @@ Deno.serve(async (req) => {
       // No modificamos la orden para no pisar un éxito concurrente.
       return Response.json({
         success: false,
-        reason: "No se pudo reservar el pasaje (asignación concurrente o móvil ocupado)."
+        reason: atomicReason || "ASSIGNMENT_CONFLICT"
       });
     }
 
