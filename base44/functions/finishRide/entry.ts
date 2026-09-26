@@ -246,8 +246,11 @@ Deno.serve(async (req) => {
     return Response.json({ success: false, reason: 'race_condition_or_invalid_state', db_result: uOrder });
   }
 
+  // Releer justo antes del CAS: un segundo viaje puede haberse confirmado mientras
+  // se cerraba RideOrder. Sellamos el next slot actual, no la foto tomada al entrar.
+  const driverBeforeRelease = await b44.entities.Driver.get(driverId).catch(() => driver);
   const uDriver = await b44.entities.Driver.updateMany(
-    { id: driverId, next_order_id: driver?.next_order_id ?? null, next_order_token: driver?.next_order_token ?? null,
+    { id: driverId, next_order_id: driverBeforeRelease?.next_order_id ?? null, next_order_token: driverBeforeRelease?.next_order_token ?? null,
       $and:[
         {$or:[{ reserved_order_id: orderId }, { active_ride_id: orderId }]},
         {$or:[{queue_authoritative_base:null},{queue_authoritative_base:{$exists:false}}]},
