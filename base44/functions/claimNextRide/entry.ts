@@ -159,12 +159,20 @@ Deno.serve(async (req) => {
         zone,
         processingAction: 'PENDING_AUTHORIZED'
       }, 'created_date', 100).catch(() => []);
-      const oldest = candidates.find((candidate: any) =>
+      const eligible = candidates.filter((candidate: any) =>
         !candidate.driver_id && !candidate.reserved_driver_id && !candidate.preassigned_driver_id &&
         !String(candidate.notes || '').includes('[REVISION_CENTRAL_CANCELADO_CHOFER]') &&
         candidate.processingPhase !== 'REASSIGNING' &&
         candidate.pending_reason !== 'REQUESTED_DRIVER_NOT_ACCEPTED'
       );
+      // FIFO explícito: no dependemos de si el SDK interpreta created_date asc/desc.
+      // El pendiente más antiguo de la zona es siempre el único candidato elegido.
+      const oldest = eligible.sort((a: any, b: any) => {
+        const at = Date.parse(String(a?.created_date || a?.created_at || '')) || Number.MAX_SAFE_INTEGER;
+        const bt = Date.parse(String(b?.created_date || b?.created_at || '')) || Number.MAX_SAFE_INTEGER;
+        if (at !== bt) return at - bt;
+        return String(a?.id || '').localeCompare(String(b?.id || ''));
+      })[0];
       orderId = oldest?.id || null;
       if (!orderId) return Response.json({ success: false, reason: 'no_pending_in_zone' });
     }
