@@ -32,12 +32,10 @@ Deno.serve(async (req) => {
     return Response.json({ success:false, reason:'driver_not_found' }, { status:404 });
   }
 
-  const isFromCentral = source.startsWith('central');
-  const bloqueoHasta = Number(current?.bloqueo_post_aceptacion_hasta);
-  if (!isFromCentral && bloqueoHasta > Date.now()) {
-    const minutosRestantes = Math.ceil((bloqueoHasta - Date.now()) / 60000);
-    return Response.json({ success: false, reason: 'driver_blocked', message: `Esperá ${minutosRestantes} minutos para salir de servicio` }, { status: 403 });
-  }
+  // bloqueo_post_aceptacion_hasta limita VOLVER A POSICIONARSE, no salir de servicio.
+  // Cerrar realmente la APK debe poder ejecutar la misma salida que el botón SALIR.
+  // Si hay viaje/reserva/segundo viaje activo, las validaciones autoritativas de abajo
+  // impiden tocarlo y preservan el viaje para restaurarlo al reabrir.
 
   const alreadyOut = current.status === 'no_disponible' &&
     !current.queue_authoritative_base &&
