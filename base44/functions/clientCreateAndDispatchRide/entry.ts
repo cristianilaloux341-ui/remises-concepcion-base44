@@ -130,17 +130,26 @@ Deno.serve(async (req) => {
 
     // Si no hay móvil disponible en esa zona, queda en Pendientes.
     if (!assigned) {
-      await b44.entities.RideOrder.update(order.id, {
-        status: "pendiente",
-        driver_id: null,
-        driver_name: null,
-        reserved_driver_id: null,
-        assigned_base: null,
-        reservation_token: null,
-        offerExpiresAt: null,
-        processingAction: "PENDING_AUTHORIZED",
-        pending_reason: isDirectPendingZone ? "ZONE_0_DIRECT_PENDING" : "ZONE_EXHAUSTED_AT_CREATE"
-      });
+      const pendingRes = await b44.entities.RideOrder.updateMany(
+        { id: order.id, status: "procesando_despacho" },
+        { $set: {
+          status: "pendiente",
+          driver_id: null,
+          driver_name: null,
+          reserved_driver_id: null,
+          assigned_base: null,
+          reservation_token: null,
+          offerExpiresAt: null,
+          processingAction: "PENDING_AUTHORIZED",
+          pending_reason: isDirectPendingZone ? "ZONE_0_DIRECT_PENDING" : "ZONE_EXHAUSTED_AT_CREATE"
+        } }
+      );
+      const pendingCommitted = (pendingRes?.updated ?? pendingRes?.matchedCount ?? pendingRes?.modifiedCount ?? 0) === 1;
+      if (!pendingCommitted) {
+        const freshOrder = await b44.entities.RideOrder.get(order.id).catch(()=>null);
+        if (freshOrder?.status === "ofrecido" || freshOrder?.status === "aceptado") assigned = true;
+        else return Response.json({success:false,orderId:order.id,assigned:false,status:freshOrder?.status || "unknown",reason:"PENDING_COMMIT_RACE"},{status:409});
+      }
       await b44.entities.AuditLog.create({
         action: "PENDING_AUTHORIZED",
         user_type: "sistema",
