@@ -1,6 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { verifyRequestAuth } from '../../shared/security.ts';
-import { compactQueue } from '../../shared/queueOrder.ts';
 
 // Trazado detallado retirado del camino crítico de ACEPTAR.
 // Las carreras se protegen con CAS y se validan con las pruebas canónicas.
@@ -45,6 +44,12 @@ async function compensateDriverCAS(b44: any, driverId: string, rideOrderId: stri
     $set: {
       status: "disponible",
       dispatch_status: "normal",
+      // La compensación no reconstruye una prioridad histórica. Si ACEPTAR no
+      // llegó a commit comercial, el móvil queda fuera de cola y sólo una entrada
+      // explícita puede darle una nueva posición.
+      queue_authoritative_base: null,
+      queue_position: null,
+      queue_last_operation_key: null,
       active_ride_id: null,
       reserved_order_id: null,
       reservation_token: null,
