@@ -319,16 +319,10 @@ Deno.serve(async (req) => {
       if ((held.matchedCount ?? held.modifiedCount ?? held.updated ?? 0) !== 1) {
         throw new Error('ORDER_CHANGED_BEFORE_REQUESTED_DRIVER_HOLD');
       }
-      // Si era una oferta del segundo cupo, liberar sólo esa reserva provisional.
+      // Si era segundo cupo, la reserva next_order_id ya fue liberada arriba
+      // mediante el mismo CAS que valida este intento. Aquí sólo cerramos la marca
+      // comercial de la orden; no hacemos una segunda liberación no-idempotente.
       if (order.second_slot_offer === true) {
-        const clearedNext = await b44.entities.Driver.updateMany(
-          {id:driverId,next_order_id:orderId,next_order_token:order.reservation_token},
-          {$set:{next_order_id:null,next_order_token:null}}
-        ).catch(()=>null);
-        if ((clearedNext?.matchedCount ?? clearedNext?.modifiedCount ?? clearedNext?.updated ?? 0) !== 1) {
-          await b44.entities.AuditLog.create({action:'REQUESTED_SECOND_SLOT_CLEANUP_FAILED',user_type:'sistema',user_name:'rejectRide',details:`No se pudo liberar segundo cupo requerido ${orderId} tras ${source}`,metadata:{orderId,driverId,assignmentAttempt:Number(assignmentAttempt),reservationToken:order.reservation_token}}).catch(()=>{});
-          throw new Error('REQUESTED_SECOND_SLOT_CLEANUP_FAILED');
-        }
         const clearedFlag = await b44.entities.RideOrder.updateMany(
           {id:orderId,status:'pendiente',pending_reason:'REQUESTED_DRIVER_NOT_ACCEPTED',second_slot_offer:true},
           {$set:{second_slot_offer:false}}
