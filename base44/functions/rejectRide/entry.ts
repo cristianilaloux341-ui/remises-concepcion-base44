@@ -483,41 +483,67 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Última revalidación antes de declarar la cadena agotada. Un móvil puede
-    // haberse liberado/entrado en la zona después del último intento del bucle.
-    // Si existe, no publicamos Pendiente por una foto vieja: relanzamos el mismo
-    // intento autoritativo para que vuelva a seleccionar desde la cabeza.
+    // Última revalidación antes de declarar la cadena agotada. No reentrar a
+    // rejectRide con el intento viejo: la reserva del chofer anterior ya fue
+    // liberada. Si apareció un candidato, reservarlo y comprometer la nueva oferta
+    // directamente bajo el lock comercial que todavía posee esta ejecución.
     if (autoReassignActive) {
       const finalSelectionOrder = { ...order, offered_driver_ids:[...excluded] };
       const finalCandidate = await findNextDriverInZone(b44, finalSelectionOrder, driverId);
       if (finalCandidate) {
-        const retryOwner = lockOwner;
-        await b44.entities.RideOrder.updateMany(
+        const finalToken = crypto.randomUUID();
+        const finalReserve = await b44.entities.Driver.updateMany(
           {
-            id:orderId,
-            status:'ofrecido',
-            reserved_driver_id:driverId,
-            reservation_token:order.reservation_token,
-            assignment_attempt:assignmentAttempt,
-            processingOwnerId:retryOwner
+            id:finalCandidate.id,
+            status:'disponible',
+            dispatch_status:'normal',
+            reserved_order_id:null,
+            active_ride_id:null,
+            next_order_id:null,
+            queue_authoritative_base:finalCandidate.queue_authoritative_base ?? null,
+            queue_position:finalCandidate.queue_position ?? null
           },
-          { $set:{
-            processingOwnerId:null,
-            processingAction:null,
-            processingOperationKey:null,
-            processingLeaseExpiresAt:null,
-            processingPhase:null
-          } }
+          { $set:{dispatch_status:'automatic_pending',reserved_order_id:orderId,reservation_token:finalToken} }
         );
-        lockOwner = null;
-        b44.functions.invoke('rejectRide', {
-          orderId,
-          driverId,
-          assignmentAttempt:Number(assignmentAttempt),
-          source,
-          internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
-        }).catch(e=>console.error('Final zone revalidation retry error:',e));
-        return Response.json({success:true,reassigned_to:null,retry:true,reason:'ZONE_CHANGED_BEFORE_PENDING',source});
+        if ((finalReserve.matchedCount ?? finalReserve.modifiedCount ?? finalReserve.updated ?? 0) === 1) {
+          const finalAttempt = Number(assignmentAttempt) + 1;
+          const finalOfferedIds = [...new Set([...(order.offered_driver_ids || []), driverId, finalCandidate.id].filter(Boolean))];
+          const finalCommit = await b44.entities.RideOrder.updateMany(
+            {
+              id:orderId,status:'ofrecido',reserved_driver_id:driverId,
+              reservation_token:order.reservation_token,assignment_attempt:assignmentAttempt,
+              processingOwnerId:lockOwner
+            },
+            { $set:{
+              driver_id:finalCandidate.id,driver_name:finalCandidate.name,
+              reserved_driver_id:finalCandidate.id,reservation_token:finalToken,
+              assigned_base:order.zone || null,offerExpiresAt:null,
+              assignment_attempt:finalAttempt,assigned_at:new Date().toISOString(),
+              push_ack_at:null,push_ack_assignment_attempt:null,
+              alert_presented_at:null,alert_presented_assignment_attempt:null,
+              alert_presented_protocol_attempt:null,delivery_retry_count:0,
+              processingAction:null,processingOperationKey:null,processingOwnerId:null,
+              processingLeaseExpiresAt:null,processingPhase:null,offered_driver_ids:finalOfferedIds
+            } }
+          );
+          if ((finalCommit.matchedCount ?? finalCommit.modifiedCount ?? finalCommit.updated ?? 0) === 1) {
+            lockOwner = null;
+            await b44.functions.invoke('sendPushNotification',{
+              action:'send',driverId:finalCandidate.id,orderId,
+              orderData:{pickup_address:order.pickup_address,dropoff_address:order.dropoff_address,fare:order.fare,notes:order.notes,assignmentAttempt:finalAttempt},
+              internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+            }).catch(e=>console.error('Final revalidation push error:',e));
+            b44.functions.invoke('autoReassignOnTimeout',{
+              orderId,driverId:finalCandidate.id,assignmentAttempt:finalAttempt,
+              internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+            }).catch(e=>console.error('Final revalidation watchdog error:',e));
+            return Response.json({success:true,reassigned_to:finalCandidate.name,source});
+          }
+          await b44.entities.Driver.updateMany(
+            {id:finalCandidate.id,reserved_order_id:orderId,reservation_token:finalToken},
+            {$set:{dispatch_status:'normal',reserved_order_id:null,reservation_token:null}}
+          ).catch(()=>{});
+        }
       }
     }
 
