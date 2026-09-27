@@ -24,10 +24,11 @@ Deno.serve(async (req) => {
     // Única excepción al principio "el cron no despacha": detectar fallas internas
     // explícitamente marcadas por rejectRide. El cron NO elige móvil ni toca cola;
     // sólo entrega el mismo orderId al recuperador autoritativo.
-    const recoveryOrders = await b44.entities.RideOrder.filter({
-      status: "ofrecido",
-      processingAction: "REASSIGN_RECOVERY_REQUIRED"
-    }).catch(() => []);
+    const recoveryGroups = await Promise.all([
+      b44.entities.RideOrder.filter({status:"ofrecido",processingAction:"REASSIGN_RECOVERY_REQUIRED"}).catch(()=>[]),
+      b44.entities.RideOrder.filter({status:"procesando_despacho",processingAction:"REASSIGN_RECOVERY_DISPATCH"}).catch(()=>[])
+    ]);
+    const recoveryOrders = [...new Map(recoveryGroups.flat().filter(Boolean).map((o:any)=>[o.id,o])).values()];
 
     // La falta de heartbeat no cambia el estado operativo del chofer.
     // Android puede suspender JavaScript durante horas aunque el servicio nativo siga activo.
@@ -95,6 +96,11 @@ Deno.serve(async (req) => {
 
     // --- NUEVO BLOQUE A: Vencimiento estricto de ofertas ---
     for (const order of offerOrders) {
+      // Una reasignación que ya liberó/castigó al chofer anterior pertenece
+      // exclusivamente a recoverReassign. La rama huérfana histórica NO puede
+      // restaurar ese móvil ni volver a ejecutar el timeout del mismo intento.
+      if (order.processingAction === 'REASSIGN_RECOVERY_REQUIRED') continue;
+
       // Barrera absoluta: sin PRESENTED del intento actual no existe timeout comercial.
       // La recuperación técnica (reintento único y avance sin penalizar) pertenece al
       // watchdog, no al cron.
