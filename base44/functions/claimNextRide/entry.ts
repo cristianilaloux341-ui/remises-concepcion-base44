@@ -249,14 +249,16 @@ Deno.serve(async (req) => {
       driver.active_ride_id || driver.reserved_order_id
     );
     const hasNextRide = !!driver.next_order_id;
-    // Contrato comercial: máximo DOS pasajes vinculados por móvil.
-    // Slot 1 = viaje actual/reservado. Slot 2 = próximo viaje, incluso si ambos
-    // fueron tomados desde Pendientes. Dos llamadas concurrentes compiten por
-    // next_order_id mediante CAS y sólo una puede ganar.
-    if (hasCurrentRide && hasNextRide) {
-      return Response.json({ success:false, reason:'driver_capacity_full' });
+    // Pendientes públicos NO alimenta el segundo slot. Si el móvil ya está ocupado,
+    // el próximo viaje sólo puede nacer de una asignación dirigida por Central/base
+    // (assignRide) y queda reservado/oculto para ese móvil.
+    if (hasCurrentRide) {
+      return Response.json({ success:false, reason:'occupied_driver_cannot_claim_pending' }, {status:409});
     }
-    const queueAsNext = asNext === true || hasCurrentRide;
+    if (hasNextRide) {
+      return Response.json({ success:false, reason:'driver_capacity_full' }, {status:409});
+    }
+    const queueAsNext = asNext === true;
 
     if (queueAsNext) {
       if (hasNextRide) {
