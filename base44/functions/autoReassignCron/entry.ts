@@ -314,9 +314,11 @@ Deno.serve(async (req) => {
     // selector + assignRide del despacho canónico.
     for (const recoveryOrder of recoveryOrders) {
       const freshRecovery = await b44.entities.RideOrder.get(recoveryOrder.id).catch(()=>null);
-      if (!freshRecovery ||
-          freshRecovery.status !== 'ofrecido' ||
-          freshRecovery.processingAction !== 'REASSIGN_RECOVERY_REQUIRED' ||
+      const recoverableState = Boolean(freshRecovery && (
+        (freshRecovery.status === 'ofrecido' && freshRecovery.processingAction === 'REASSIGN_RECOVERY_REQUIRED') ||
+        (freshRecovery.status === 'procesando_despacho' && freshRecovery.processingAction === 'REASSIGN_RECOVERY_DISPATCH')
+      ));
+      if (!recoverableState ||
           (freshRecovery.processingOwnerId && Number(freshRecovery.processingLeaseExpiresAt || 0) > Date.now())) {
         continue;
       }
