@@ -15,4 +15,28 @@ test('timeout gana lease => accept no pisa',()=>{const s=setup();assert.equal(re
 test('timeout tardío tras commit aceptado',()=>{const s=setup();assert.equal(acceptLease(s,10000),1);assert.equal(acceptCommit(s,10001),1);assert.equal(rejectLease(s,30000),0);assert.equal(s.o.status,'aceptado');});
 test('acción vieja intento 1 no toca intento 2',()=>{const s=setup();Object.assign(s.o,{driver_id:'E',reserved_driver_id:'E',reservation_token:'T2',assignment_attempt:2,processingOwnerId:null,processingLeaseVersion:0});assert.equal(rejectLease(s,40000),0);assert.equal(acceptLease(s,20000),0);});
 test('doble timeout sólo un lease',()=>{const s=setup();assert.equal(rejectLease(s,30000),1);assert.equal(rejectLease(s,30000),0);});
+test('rechazo + cambio concurrente de posición: relee y no saltea al primero',()=>{
+  const drivers=[
+    {id:'B',pos:1,status:'disponible',dispatch:'normal',reserved:null},
+    {id:'C',pos:2,status:'disponible',dispatch:'normal',reserved:null}
+  ];
+  const excluded=new Set(['A']);
+  let firstCas=true,assigned=null,pending=false;
+  for(let attempt=0;attempt<3 && !assigned;attempt++){
+    const candidate=drivers.filter(d=>d.status==='disponible'&&d.dispatch==='normal'&&!d.reserved&&!excluded.has(d.id)).sort((a,b)=>a.pos-b.pos||a.id.localeCompare(b.id))[0];
+    if(!candidate){pending=true;break;}
+    excluded.add(candidate.id);
+    const snapshotPos=candidate.pos;
+    if(firstCas){firstCas=false;candidate.pos=3;drivers.find(d=>d.id==='C').pos=4;}
+    if(candidate.pos!==snapshotPos){
+      const stillEligible=candidate.status==='disponible'&&candidate.dispatch==='normal'&&!candidate.reserved;
+      if(stillEligible)excluded.delete(candidate.id);
+      continue;
+    }
+    candidate.reserved='O';assigned=candidate.id;
+  }
+  assert.equal(assigned,'B');
+  assert.equal(pending,false);
+  assert.equal(drivers.find(d=>d.id==='C').reserved,null);
+});
 const failed=out.filter(x=>!x.ok);console.log(JSON.stringify({casRaceIterations:10000,tests:out,failed:failed.length},null,2));assert.equal(failed.length,0);
