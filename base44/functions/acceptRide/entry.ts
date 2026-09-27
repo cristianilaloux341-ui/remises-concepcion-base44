@@ -137,9 +137,49 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
         lastCompletedOfferVersion:assignmentAttempt}}
     );
     if (mutationCount(acceptedSecond) !== 1) return {status:'OPERATION_IN_PROGRESS',correlationId};
+
+    // El primer viaje puede haber terminado mientras esta segunda oferta estaba
+    // visible. En ese caso ya no habrá otro finishRide que la promueva: hacerlo
+    // aquí, sellando next_order_id+token y que el móvil siga fuera de la cola.
+    let mode = 'next';
+    const afterAcceptDriver = await b44.entities.Driver.get(driverId).catch(()=>null);
+    const firstAlreadyFinished = Boolean(
+      afterAcceptDriver &&
+      afterAcceptDriver.next_order_id === rideOrderId &&
+      afterAcceptDriver.next_order_token === order.reservation_token &&
+      !afterAcceptDriver.active_ride_id &&
+      !afterAcceptDriver.reserved_order_id
+    );
+    if (firstAlreadyFinished) {
+      const promoteDriver = await b44.entities.Driver.updateMany(
+        {id:driverId,next_order_id:rideOrderId,next_order_token:order.reservation_token,
+         $and:[
+           {$or:[{active_ride_id:null},{active_ride_id:{$exists:false}}]},
+           {$or:[{reserved_order_id:null},{reserved_order_id:{$exists:false}}]}
+         ]},
+        {$set:{status:'en_viaje',dispatch_status:'normal',active_ride_id:rideOrderId,
+          next_order_id:null,next_order_token:null,queue_authoritative_base:null,queue_position:null,queue_last_operation_key:null}}
+      );
+      if (mutationCount(promoteDriver) === 1) {
+        const promoteOrder = await b44.entities.RideOrder.updateMany(
+          {id:rideOrderId,status:'preasignado_proximo',preassigned_driver_id:driverId,preassignment_token:order.reservation_token},
+          {$set:{status:'aceptado',driver_id:driverId,driver_name:driverSecond.name,
+            preassigned_driver_id:null,preassignment_token:null,preassigned_at:null}}
+        );
+        if (mutationCount(promoteOrder) === 1) mode = 'promoted';
+        else {
+          // No inventar disponibilidad: si la orden cambió concurrentemente,
+          // dejamos trazabilidad para reparación explícita y no reinsertamos cola.
+          await b44.entities.AuditLog.create({action:'SECOND_RIDE_PROMOTION_ORDER_RACE',user_type:'sistema',user_name:'acceptRide',
+            details:`Driver promovido pero RideOrder cambió durante aceptación de ${rideOrderId}.`,
+            metadata:{orderId:rideOrderId,driverId,assignmentAttempt}}).catch(()=>{});
+        }
+      }
+    }
+
     await b44.entities.AuditLog.create({action:'SECOND_RIDE_ACCEPTED_REQUIRED',user_type:'chofer',user_name:driverSecond.name || driverId,
-      details:`Móvil requerido aceptó segundo pasaje ${rideOrderId}.`,metadata:{orderId:rideOrderId,driverId,assignmentAttempt}}).catch(()=>{});
-    return {status:'SUCCESS',mode:'next',correlationId};
+      details:`Móvil requerido aceptó segundo pasaje ${rideOrderId}.`,metadata:{orderId:rideOrderId,driverId,assignmentAttempt,mode}}).catch(()=>{});
+    return {status:'SUCCESS',mode,correlationId};
   }
 
   // 2. ADQUISICIÓN DEL LEASE
