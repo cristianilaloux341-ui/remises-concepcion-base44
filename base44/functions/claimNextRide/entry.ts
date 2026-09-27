@@ -364,7 +364,7 @@ Deno.serve(async (req) => {
     }
 
     const orderRes = await b44.entities.RideOrder.updateMany(
-      { id: orderId, status: 'pendiente' },
+      { id: orderId, status: 'pendiente', processingAction:'PENDING_AUTHORIZED' },
       {
         $set: {
           status: 'aceptado',
