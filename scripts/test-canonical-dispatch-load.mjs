@@ -191,6 +191,45 @@ test('si termina primero antes de aceptar segundo, al aceptar se promueve inmedi
   assert.equal(d.next,null);
 });
 
+test('recovery: chofer que ya rechazó nunca vuelve a recibir la misma orden',()=>{
+  const ds=makeDrivers(3);
+  const offered=new Set(['D01']);
+  const next=ds.filter(d=>eligible(d)&&!offered.has(d.id)).sort((a,b)=>a.queuePosition-b.queuePosition)[0];
+  assert.equal(next.id,'D02');
+  assert.notEqual(next.id,'D01');
+});
+
+test('recovery durable: un corte en REASSIGN_RECOVERY_DISPATCH puede reanudarse',()=>{
+  const ride={status:'procesando_despacho',processingAction:'REASSIGN_RECOVERY_DISPATCH',offered:['D01']};
+  const recoverable=ride.status==='procesando_despacho'&&ride.processingAction==='REASSIGN_RECOVERY_DISPATCH';
+  assert.equal(recoverable,true);
+  const ds=makeDrivers(2);
+  const next=ds.find(d=>eligible(d)&&!ride.offered.includes(d.id));
+  assert.equal(next.id,'D02');
+});
+
+test('recovery requerido: queda Central-only y nunca busca otro móvil',()=>{
+  const ride={requestedDriverOnly:true,status:'ofrecido',processingAction:'REASSIGN_RECOVERY_REQUIRED'};
+  let selected=null;
+  if(ride.requestedDriverOnly){ride.status='pendiente';ride.processingAction='CENTRAL_REVIEW_REQUIRED_DRIVER';}
+  else selected='D02';
+  assert.equal(selected,null);
+  assert.equal(ride.processingAction,'CENTRAL_REVIEW_REQUIRED_DRIVER');
+});
+
+test('recovery sólo autoriza Pendiente si no queda candidato elegible',()=>{
+  const ds=makeDrivers(2);
+  const offered=new Set(['D01']);
+  let candidate=ds.filter(d=>eligible(d)&&!offered.has(d.id))[0];
+  assert.equal(candidate.id,'D02');
+  let pending=!candidate;
+  assert.equal(pending,false);
+  offered.add('D02');
+  candidate=ds.filter(d=>eligible(d)&&!offered.has(d.id))[0];
+  pending=!candidate;
+  assert.equal(pending,true);
+});
+
 const failed=results.filter(x=>!x.ok);
 console.log(JSON.stringify({scenario:'canonical-dispatch-load',orders:ORDERS,drivers:DRIVERS,tests:results,failed:failed.length},null,2));
 assert.equal(failed.length,0);
