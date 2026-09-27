@@ -21,6 +21,14 @@ Deno.serve(async (req) => {
       updated_date: { $gte: twoHoursAgoStr } // solo recientes para no barrer el histórico entero
     });
 
+    // Única excepción al principio "el cron no despacha": detectar fallas internas
+    // explícitamente marcadas por rejectRide. El cron NO elige móvil ni toca cola;
+    // sólo entrega el mismo orderId al recuperador autoritativo.
+    const recoveryOrders = await b44.entities.RideOrder.filter({
+      status: "ofrecido",
+      processingAction: "REASSIGN_RECOVERY_REQUIRED"
+    }).catch(() => []);
+
     // La falta de heartbeat no cambia el estado operativo del chofer.
     // Android puede suspender JavaScript durante horas aunque el servicio nativo siga activo.
     // Un móvil sale de servicio únicamente por una acción explícita del chofer.
@@ -295,10 +303,31 @@ Deno.serve(async (req) => {
     }
 
 
-    // El cron NO drena Pendientes y NO invoca reconciliadores de despacho.
-    // PENDING_AUTHORIZED es un estado público final del ciclo actual; sólo una acción
-    // explícita del motor (p. ej. entrada real de un móvil a la base) puede iniciar
-    // un nuevo intento. Así evitamos un segundo despachador paralelo.
+    // Recuperación acotada de fallas internas de reasignación. No procesa
+    // Pendientes normales y no implementa selección: recoverReassign usa el mismo
+    // selector + assignRide del despacho canónico.
+    for (const recoveryOrder of recoveryOrders) {
+      const freshRecovery = await b44.entities.RideOrder.get(recoveryOrder.id).catch(()=>null);
+      if (!freshRecovery ||
+          freshRecovery.status !== 'ofrecido' ||
+          freshRecovery.processingAction !== 'REASSIGN_RECOVERY_REQUIRED' ||
+          (freshRecovery.processingOwnerId && Number(freshRecovery.processingLeaseExpiresAt || 0) > Date.now())) {
+        continue;
+      }
+      try {
+        const recoveryRes = await b44.functions.invoke('recoverReassign',{
+          orderId:freshRecovery.id,
+          internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+        });
+        const recoveryData = recoveryRes?.data || recoveryRes;
+        if (recoveryData?.success === true) count++;
+      } catch(e) {
+        console.error('Error recuperando reasignación marcada',freshRecovery.id,e);
+      }
+    }
+
+    // El cron NO drena Pendientes. PENDING_AUTHORIZED sigue siendo estado final del
+    // ciclo; la única excepción es la marca técnica REASSIGN_RECOVERY_REQUIRED.
     if (count > 0 || ghostsDisconnected > 0) {
       console.log(`AutoReassignCron recuperó: ${count}; desconectados: ${ghostsDisconnected}.`);
     }
