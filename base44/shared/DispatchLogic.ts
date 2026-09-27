@@ -55,7 +55,15 @@ export async function assignDriverToOrderAtomic(b44: any, order: any, driver: an
       status: 'ofrecido',
       reservation_token: token,
       driver_id: driver.id,
-      reserved_driver_id: driver.id,};
+      reserved_driver_id: driver.id,
+      // Una asignación ganadora cierra cualquier marca técnica previa de
+      // recuperación. El nuevo intento queda gobernado sólo por su propia oferta.
+      processingAction: null,
+      processingOwnerId: null,
+      processingOperationKey: null,
+      processingLeaseExpiresAt: null,
+      processingPhase: null,
+    };
     for (const field of ['driver_name', 'assigned_base', 'assigned_at', 'offerExpiresAt', 'assignment_attempt', 'offered_driver_ids', 'notes', 'push_ack_at', 'push_ack_assignment_attempt', 'alert_presented_at', 'alert_presented_assignment_attempt', 'alert_presented_protocol_attempt', 'delivery_retry_count', 'pending_reason']) {
       if (order[field] !== undefined) offerSet[field] = order[field];
     }
