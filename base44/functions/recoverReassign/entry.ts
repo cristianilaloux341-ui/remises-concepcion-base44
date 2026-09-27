@@ -15,25 +15,44 @@ Deno.serve(async (req) => {
 
     const order = await b44.entities.RideOrder.get(orderId).catch(()=>null);
     if (!order) return Response.json({success:false,reason:'ORDER_NOT_FOUND'},{status:404});
-    if (order.status !== 'ofrecido' || order.processingAction !== 'REASSIGN_RECOVERY_REQUIRED') {
+    const initialRecovery = order.status === 'ofrecido' && order.processingAction === 'REASSIGN_RECOVERY_REQUIRED';
+    const resumedRecovery = order.status === 'procesando_despacho' && order.processingAction === 'REASSIGN_RECOVERY_DISPATCH';
+    if (!initialRecovery && !resumedRecovery) {
       return Response.json({success:false,reason:'NOT_RECOVERABLE_STATE'},{status:409});
+    }
+
+    // Un requerido por cliente jamás puede saltar a otro móvil durante una
+    // recuperación técnica. Si llegó aquí por una falla interna, queda oculto
+    // para resolución de Central.
+    if (order.requested_driver_only === true) {
+      const held = await b44.entities.RideOrder.updateMany(
+        {id:order.id,status:order.status,processingAction:order.processingAction},
+        {$set:{status:'pendiente',processingAction:'CENTRAL_REVIEW_REQUIRED_DRIVER',
+          pending_reason:'REQUESTED_DRIVER_NOT_ACCEPTED',driver_id:null,driver_name:null,
+          reserved_driver_id:null,reservation_token:null,offerExpiresAt:null}}
+      );
+      if ((held?.updated ?? held?.modifiedCount ?? held?.matchedCount ?? 0) === 1) {
+        return Response.json({success:true,status:'pendiente',central_only:true});
+      }
+      return Response.json({success:false,reason:'REQUESTED_RECOVERY_CAS_LOST'},{status:409});
     }
 
     // El móvil del intento fallido ya fue liberado por rejectRide. Nunca restaurarlo.
     // Conservamos offered_driver_ids para que el selector no vuelva a ofrecerle.
-    const oldDriverId = order.reserved_driver_id || order.driver_id || null;
+    const oldDriverId = initialRecovery ? (order.reserved_driver_id || order.driver_id || null) : null;
     const offered = [...new Set([...(order.offered_driver_ids || []), oldDriverId].filter(Boolean))];
-    const reopened = await b44.entities.RideOrder.updateMany(
-      {
-        id:order.id,
-        status:'ofrecido',
-        processingAction:'REASSIGN_RECOVERY_REQUIRED',
-        reserved_driver_id:order.reserved_driver_id ?? null,
-        reservation_token:order.reservation_token ?? null,
-        assignment_attempt:order.assignment_attempt
-      },
-      { $set:{
-        status:'procesando_despacho',
+    if (initialRecovery) {
+      const reopened = await b44.entities.RideOrder.updateMany(
+        {
+          id:order.id,
+          status:'ofrecido',
+          processingAction:'REASSIGN_RECOVERY_REQUIRED',
+          reserved_driver_id:order.reserved_driver_id ?? null,
+          reservation_token:order.reservation_token ?? null,
+          assignment_attempt:order.assignment_attempt
+        },
+        { $set:{
+          status:'procesando_despacho',
         driver_id:null,
         driver_name:null,
         reserved_driver_id:null,
@@ -46,7 +65,7 @@ Deno.serve(async (req) => {
         alert_presented_at:null,
         alert_presented_assignment_attempt:null,
         alert_presented_protocol_attempt:null,
-        processingAction:null,
+        processingAction:'REASSIGN_RECOVERY_DISPATCH',
         processingOwnerId:null,
         processingOperationKey:null,
         processingLeaseExpiresAt:null,
@@ -55,14 +74,16 @@ Deno.serve(async (req) => {
         offered_driver_ids:offered
       } }
     );
-    if ((reopened?.updated ?? reopened?.modifiedCount ?? reopened?.matchedCount ?? 0) !== 1) {
-      return Response.json({success:false,reason:'RECOVERY_CAS_LOST'},{status:409});
+      if ((reopened?.updated ?? reopened?.modifiedCount ?? reopened?.matchedCount ?? 0) !== 1) {
+        return Response.json({success:false,reason:'RECOVERY_CAS_LOST'},{status:409});
+      }
     }
 
-    const recoveryOrder = {...order,status:'procesando_despacho',driver_id:null,reserved_driver_id:null,reservation_token:null,offered_driver_ids:offered};
+    const recoveryOrder = {...order,status:'procesando_despacho',processingAction:'REASSIGN_RECOVERY_DISPATCH',driver_id:null,reserved_driver_id:null,reservation_token:null,offered_driver_ids:offered};
     const excluded = new Set<string>(offered);
     const snapshot = await b44.entities.Driver.filter({status:'disponible',queue_authoritative_base:order.zone}).catch(()=>[]);
-    const maxAttempts = Math.max(1,Math.min(100,Array.isArray(snapshot)?snapshot.length:0));
+    const snapshotSize = Array.isArray(snapshot) ? snapshot.length : 0;
+    const maxAttempts = Math.max(3,Math.min(100,Math.max(1,snapshotSize)*3));
 
     for (let i=0;i<maxAttempts;i++) {
       const next = await findNextDriverInZone(b44,recoveryOrder,excluded);
@@ -94,7 +115,7 @@ Deno.serve(async (req) => {
     }
 
     const pending = await b44.entities.RideOrder.updateMany(
-      {id:order.id,status:'procesando_despacho'},
+      {id:order.id,status:'procesando_despacho',processingAction:'REASSIGN_RECOVERY_DISPATCH'},
       {$set:{status:'pendiente',processingAction:'PENDING_AUTHORIZED',pending_reason:'ZONE_EXHAUSTED_AFTER_RECOVERY'}}
     );
     if ((pending?.updated ?? pending?.modifiedCount ?? pending?.matchedCount ?? 0) !== 1) {
