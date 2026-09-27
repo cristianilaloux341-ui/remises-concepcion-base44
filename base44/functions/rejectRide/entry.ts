@@ -606,7 +606,11 @@ Deno.serve(async (req) => {
     // el mismo motor autoritativo. Pendiente queda reservado a cadena agotada.
     if (b44 && lockOwner && lockOrderId && lockedOrder) {
       if (currentReleased) {
-        const retryOwner = lockOwner;
+        // El chofer del intento viejo ya fue liberado: NO reentrar a rejectRide con
+        // esa identidad porque ya no existe una reserva válida que rechazar.
+        // Dejamos la orden explícitamente recuperable por Central/reconciliador y
+        // soltamos el lease sin fabricar una reasignación con datos viejos.
+        const recoveryOwner = lockOwner;
         await b44.entities.RideOrder.updateMany(
           {
             id:lockOrderId,
@@ -614,22 +618,25 @@ Deno.serve(async (req) => {
             reserved_driver_id:lockedOrder.reserved_driver_id,
             reservation_token:lockedOrder.reservation_token,
             assignment_attempt:lockedOrder.assignment_attempt,
-            processingOwnerId:retryOwner
+            processingOwnerId:recoveryOwner
           },
-          { $set:{ processingLeaseExpiresAt:Date.now()+30000, processingPhase:'REASSIGNING' } }
+          { $set:{
+            processingOwnerId:null,
+            processingOperationKey:null,
+            processingLeaseExpiresAt:null,
+            processingPhase:null,
+            processingAction:'REASSIGN_RECOVERY_REQUIRED',
+            pending_reason:'REASSIGN_INTERNAL_FAILURE'
+          } }
         ).catch(()=>{});
-        await b44.entities.RideOrder.updateMany(
-          { id:lockOrderId, processingOwnerId:retryOwner, processingPhase:'REASSIGNING' },
-          { $set:{ processingOwnerId:null, processingAction:null, processingOperationKey:null, processingLeaseExpiresAt:null, processingPhase:null } }
-        ).catch(()=>{});
-        lockOwner = null;
-        b44.functions.invoke('rejectRide', {
-          orderId:lockOrderId,
-          driverId:lockedOrder.reserved_driver_id,
-          assignmentAttempt:Number(lockedOrder.assignment_attempt),
-          source,
-          internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+        await b44.entities.AuditLog.create({
+          action:'REASSIGN_RECOVERY_REQUIRED',
+          user_type:'sistema',
+          user_name:'rejectRide',
+          details:`Falla interna tras liberar el móvil anterior en ${lockOrderId}; requiere recuperación autoritativa sin reutilizar el intento viejo.`,
+          metadata:{orderId:lockOrderId,driverId:lockedOrder.reserved_driver_id,assignmentAttempt:Number(lockedOrder.assignment_attempt),error:error?.message || String(error)}
         }).catch(()=>{});
+        lockOwner = null;
       } else {
         await b44.entities.RideOrder.updateMany(
           { id:lockOrderId, processingOwnerId:lockOwner },
