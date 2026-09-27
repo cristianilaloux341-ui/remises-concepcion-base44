@@ -300,6 +300,7 @@ Deno.serve(async (req) => {
         {
           id: orderId,
           status: 'pendiente',
+          processingAction: 'PENDING_AUTHORIZED',
           $or: [
             { preassigned_driver_id: null },
             { preassigned_driver_id: { $exists: false } }
