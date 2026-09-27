@@ -249,19 +249,14 @@ Deno.serve(async (req) => {
       driver.active_ride_id || driver.reserved_order_id
     );
     const hasNextRide = !!driver.next_order_id;
-    // Pendientes públicos NO alimenta el segundo slot. Si el móvil ya está ocupado,
-    // el próximo viaje sólo puede nacer de una asignación dirigida por Central/base
-    // (assignRide) y queda reservado/oculto para ese móvil.
-    if (hasCurrentRide) {
-      return Response.json({ success:false, reason:'occupied_driver_cannot_claim_pending' }, {status:409});
+    // Contrato comercial: máximo DOS pasajes vinculados por móvil.
+    // Slot 1 = viaje actual/reservado. Slot 2 puede ser tomado por el propio chofer
+    // desde Pendientes públicos. Esto es distinto de un segundo viaje dirigido por
+    // Central/base, que queda reservado/oculto y nunca se publica como Pendiente.
+    if (hasCurrentRide && hasNextRide) {
+      return Response.json({ success:false, reason:'driver_capacity_full' });
     }
-    if (hasNextRide) {
-      return Response.json({ success:false, reason:'driver_capacity_full' }, {status:409});
-    }
-    if (asNext === true) {
-      return Response.json({success:false,reason:'pending_cannot_be_reserved_as_next'},{status:409});
-    }
-    const queueAsNext = false;
+    const queueAsNext = asNext === true || hasCurrentRide;
 
     if (queueAsNext) {
       if (hasNextRide) {
