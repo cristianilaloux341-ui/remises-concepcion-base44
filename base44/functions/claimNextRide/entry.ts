@@ -258,7 +258,10 @@ Deno.serve(async (req) => {
     if (hasNextRide) {
       return Response.json({ success:false, reason:'driver_capacity_full' }, {status:409});
     }
-    const queueAsNext = asNext === true;
+    if (asNext === true) {
+      return Response.json({success:false,reason:'pending_cannot_be_reserved_as_next'},{status:409});
+    }
+    const queueAsNext = false;
 
     if (queueAsNext) {
       if (hasNextRide) {
