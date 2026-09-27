@@ -111,7 +111,11 @@ Deno.serve(async (req) => {
         status:'disponible',
         queue_authoritative_base:order.zone
       }).catch(()=>[]);
-      const maxCandidateAttempts = Math.max(1, Math.min(100, Array.isArray(zoneSnapshot) ? zoneSnapshot.length : 0));
+      const snapshotSize = Array.isArray(zoneSnapshot) ? zoneSnapshot.length : 0;
+      // Una foto vieja de cola no puede consumir el único intento. Bajo cambios
+      // concurrentes de posición/base releemos varias veces antes de concluir
+      // que la zona está agotada.
+      const maxCandidateAttempts = Math.max(3, Math.min(100, Math.max(1, snapshotSize) * 3));
 
       for (let attempt = 0; attempt < maxCandidateAttempts && !assigned; attempt++) {
         const nextDriver = await findNextDriverInZone(b44, order, excludedDriverIds);
@@ -146,6 +150,23 @@ Deno.serve(async (req) => {
           internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
         });
         assigned = finalRes?.data?.success === true;
+        if (!assigned && finalRes?.data?.reason === "QUEUE_SNAPSHOT_STALE") {
+          // La última foto también envejeció. Releer una vez más la cabeza actual;
+          // sólo la ausencia real de candidato habilita Pendientes.
+          const liveDriver = await findNextDriverInZone(b44, order, excludedDriverIds);
+          if (liveDriver) {
+            const liveRes = await b44.functions.invoke("assignRide", {
+              orderId: order.id,
+              driverId: liveDriver.id,
+              sessionToken: sessionToken || null,
+              internalKey: Deno.env.get("INTERNAL_SERVICE_KEY")
+            });
+            assigned = liveRes?.data?.success === true;
+            if (!assigned && liveRes?.data?.reason === "QUEUE_SNAPSHOT_STALE") {
+              return Response.json({success:false,orderId:order.id,assigned:false,status:"procesando_despacho",reason:"QUEUE_STILL_MOVING_RETRY"},{status:409});
+            }
+          }
+        }
       }
     }
 
