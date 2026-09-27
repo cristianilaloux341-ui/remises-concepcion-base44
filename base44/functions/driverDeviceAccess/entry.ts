@@ -80,19 +80,26 @@ async function handleNewApp(base44: any, action: string, payload: any) {
       // Reparación conservadora de referencias huérfanas: sólo limpiamos el ID
       // que ya no apunta a una orden vigente de este mismo chofer. No cambiamos
       // estado, base ni posición desde restore_state.
-      const staleRefs:any = {};
-      if (driver.active_ride_id && !activeOrder) staleRefs.active_ride_id = null;
+      // Nunca limpiar referencias con un update ciego: restore_state puede correr
+      // al mismo tiempo que aceptar/asignar/finalizar. Cada reparación usa CAS sobre
+      // la identidad exacta que leyó, para no borrar un viaje nuevo creado después.
+      if (driver.active_ride_id && !activeOrder) {
+        await base44.asServiceRole.entities.Driver.updateMany(
+          { id:driver.id, active_ride_id:driver.active_ride_id },
+          { $set:{ active_ride_id:null } }
+        ).catch(()=>null);
+      }
       if (driver.reserved_order_id && !reservedOrder) {
-        staleRefs.reserved_order_id = null;
-        staleRefs.reservation_token = null;
-        staleRefs.driver_reservation_key = null;
+        await base44.asServiceRole.entities.Driver.updateMany(
+          { id:driver.id, reserved_order_id:driver.reserved_order_id, reservation_token:driver.reservation_token ?? null },
+          { $set:{ reserved_order_id:null, reservation_token:null, driver_reservation_key:null } }
+        ).catch(()=>null);
       }
       if (driver.next_order_id && !nextOrder) {
-        staleRefs.next_order_id = null;
-        staleRefs.next_order_token = null;
-      }
-      if (Object.keys(staleRefs).length > 0) {
-        await base44.asServiceRole.entities.Driver.update(driver.id, staleRefs).catch(() => null);
+        await base44.asServiceRole.entities.Driver.updateMany(
+          { id:driver.id, next_order_id:driver.next_order_id, next_order_token:driver.next_order_token ?? null },
+          { $set:{ next_order_id:null, next_order_token:null } }
+        ).catch(()=>null);
       }
       const serverTimeMs = Date.now();
       // Resumen diario autoritativo para la APK: sólo viajes realmente completados
