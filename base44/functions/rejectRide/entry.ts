@@ -370,10 +370,29 @@ Deno.serve(async (req) => {
 
         const token = crypto.randomUUID();
         const reserve = await b44.entities.Driver.updateMany(
-          { id:nextDriver.id, status:'disponible', dispatch_status:'normal', reserved_order_id:null, active_ride_id:null, next_order_id:null },
+          {
+            id:nextDriver.id,
+            status:'disponible',
+            dispatch_status:'normal',
+            reserved_order_id:null,
+            active_ride_id:null,
+            next_order_id:null,
+            queue_authoritative_base:nextDriver.queue_authoritative_base ?? null,
+            queue_position:nextDriver.queue_position ?? null
+          },
           { $set:{ dispatch_status:'automatic_pending', reserved_order_id:orderId, reservation_token:token } }
         );
-        if ((reserve.matchedCount ?? reserve.modifiedCount ?? reserve.updated ?? 0) !== 1) continue;
+        if ((reserve.matchedCount ?? reserve.modifiedCount ?? reserve.updated ?? 0) !== 1) {
+          // Si perdió por cambio de cola, no castigamos ni salteamos al móvil:
+          // la próxima vuelta relee la cola autoritativa completa.
+          const freshCandidate = await b44.entities.Driver.get(nextDriver.id).catch(()=>null);
+          const candidateBusy = !freshCandidate ||
+            freshCandidate.status !== 'disponible' ||
+            (freshCandidate.dispatch_status != null && freshCandidate.dispatch_status !== 'normal') ||
+            Boolean(freshCandidate.reserved_order_id || freshCandidate.active_ride_id || freshCandidate.next_order_id);
+          if (!candidateBusy) excluded.delete(nextDriver.id);
+          continue;
+        }
 
         const newAttempt = Number(assignmentAttempt) + 1;
         const assignedAt = new Date().toISOString();
