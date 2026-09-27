@@ -350,18 +350,16 @@ Deno.serve(async (req) => {
     const excluded = new Set<string>([...(order.offered_driver_ids || []), driverId].filter(Boolean));
 
     if (autoReassignActive) {
-      // Nunca tiene sentido intentar más veces que la cantidad real de móviles
-      // disponibles en la zona. El límite fijo de 100 podía multiplicar consultas
-      // en una ráfaga de rechazos/timeouts. Tomamos una foto sólo para acotar los
-      // CAS fallidos; findNextDriverInZone sigue releyendo y decide el candidato real.
+      // La foto inicial sólo dimensiona el trabajo; NO puede limitar a una sola
+      // lectura porque un cambio concurrente de queue_position puede hacer perder
+      // ese CAS sin que el candidato haya dejado de ser elegible. Damos margen
+      // acotado para releer la cabeza autoritativa sin caer en un bucle infinito.
       const zoneSnapshot = await b44.entities.Driver.filter({
         status:'disponible',
         queue_authoritative_base:order.zone
       }).catch(()=>[]);
-      const maxCandidateAttempts = Math.max(1, Math.min(
-        100,
-        Array.isArray(zoneSnapshot) ? zoneSnapshot.length : 0
-      ));
+      const snapshotSize = Array.isArray(zoneSnapshot) ? zoneSnapshot.length : 0;
+      const maxCandidateAttempts = Math.max(3, Math.min(100, snapshotSize * 3));
       for (let i=0; i<maxCandidateAttempts; i++) {
         const selectionOrder = { ...order, offered_driver_ids:[...excluded] };
         const nextDriver = await findNextDriverInZone(b44, selectionOrder, driverId);
