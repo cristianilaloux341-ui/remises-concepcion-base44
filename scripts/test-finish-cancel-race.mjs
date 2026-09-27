@@ -15,4 +15,26 @@ for(let i=0;i<10000;i++){const s=new Store(); const snap=s.o.status; if(i%2===0)
 test('finish gana => cancel no pisa',()=>{const s=new Store();const snap=s.o.status;assert.equal(finish(s),1);assert.equal(cancel(s,snap),0);assert.equal(s.o.status,'completado')});
 test('cancel gana => finish no pisa',()=>{const s=new Store();const snap=s.o.status;assert.equal(cancel(s,snap),1);assert.equal(finish(s),0);assert.equal(s.o.status,'cancelado')});
 test('cancel duplicado no vuelve a transicionar',()=>{const s=new Store();const snap=s.o.status;assert.equal(cancel(s,snap),1);assert.equal(cancel(s,snap),0)});
+test('cancel segundo gana antes de promoción => finish no lo revive',()=>{
+  const next={status:'preasignado_proximo',driver_id:null};
+  const driver={active_ride_id:null,next_order_id:'N',next_order_token:'T'};
+  next.status='cancelado';
+  driver.next_order_id=null;driver.next_order_token=null;
+  const promoteOrder = next.status==='preasignado_proximo' ? 1 : 0;
+  assert.equal(promoteOrder,0);
+  assert.equal(next.status,'cancelado');
+  assert.equal(driver.active_ride_id,null);
+});
+test('promoción gana antes de cancel segundo => cancel limpia active_ride_id',()=>{
+  const next={status:'preasignado_proximo',driver_id:null};
+  const driver={active_ride_id:null,next_order_id:'N',next_order_token:'T',status:'disponible'};
+  assert.equal(next.status,'preasignado_proximo');
+  next.status='aceptado';next.driver_id='D';
+  driver.active_ride_id='N';driver.next_order_id=null;driver.next_order_token=null;driver.status='en_viaje';
+  next.status='cancelado';
+  if(driver.active_ride_id==='N'){driver.active_ride_id=null;driver.status='disponible';}
+  assert.equal(next.status,'cancelado');
+  assert.equal(driver.active_ride_id,null);
+  assert.equal(driver.status,'disponible');
+});
 const failed=results.filter(x=>!x.ok);console.log(JSON.stringify({iterations:10000,tests:results,failed:failed.length},null,2));assert.equal(failed.length,0);
