@@ -56,6 +56,24 @@ test('100 despachos: ningún móvil recibe dos ofertas simultáneas',()=>{
   assert.equal(assigned.filter(x=>x===null).length,ORDERS-DRIVERS);
 });
 
+test('5 pasajes simultáneos + 3 móviles => 3 ofertas únicas + 2 Pendientes',()=>{
+  const ds=makeDrivers(3);
+  const orders=Array.from({length:5},(_,i)=>({id:`B${i+1}`,status:'procesando_despacho',driverId:null}));
+  for(const order of orders){
+    const d=reserveFirst(ds,order.id);
+    if(d){order.status='ofrecido';order.driverId=d.id;}
+    else order.status='pendiente';
+  }
+  const offered=orders.filter(o=>o.status==='ofrecido');
+  const pending=orders.filter(o=>o.status==='pendiente');
+  assert.equal(offered.length,3);
+  assert.equal(pending.length,2);
+  assert.equal(new Set(offered.map(o=>o.driverId)).size,3);
+  assert.deepEqual(offered.map(o=>o.driverId),['D01','D02','D03']);
+  assert.equal(ds.filter(d=>d.current).length,3);
+  assert(ds.every(d=>d.current && !d.next));
+});
+
 test('orden autoritativo: gana siempre el primero de cola',()=>{
   const ds=makeDrivers(8);
   for(let i=0;i<8;i++) assert.equal(reserveFirst(ds,`O${i}`).id,`D${String(i+1).padStart(2,'0')}`);
