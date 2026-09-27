@@ -483,6 +483,44 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Última revalidación antes de declarar la cadena agotada. Un móvil puede
+    // haberse liberado/entrado en la zona después del último intento del bucle.
+    // Si existe, no publicamos Pendiente por una foto vieja: relanzamos el mismo
+    // intento autoritativo para que vuelva a seleccionar desde la cabeza.
+    if (autoReassignActive) {
+      const finalSelectionOrder = { ...order, offered_driver_ids:[...excluded] };
+      const finalCandidate = await findNextDriverInZone(b44, finalSelectionOrder, driverId);
+      if (finalCandidate) {
+        const retryOwner = lockOwner;
+        await b44.entities.RideOrder.updateMany(
+          {
+            id:orderId,
+            status:'ofrecido',
+            reserved_driver_id:driverId,
+            reservation_token:order.reservation_token,
+            assignment_attempt:assignmentAttempt,
+            processingOwnerId:retryOwner
+          },
+          { $set:{
+            processingOwnerId:null,
+            processingAction:null,
+            processingOperationKey:null,
+            processingLeaseExpiresAt:null,
+            processingPhase:null
+          } }
+        );
+        lockOwner = null;
+        b44.functions.invoke('rejectRide', {
+          orderId,
+          driverId,
+          assignmentAttempt:Number(assignmentAttempt),
+          source,
+          internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch(e=>console.error('Final zone revalidation retry error:',e));
+        return Response.json({success:true,reassigned_to:null,retry:true,reason:'ZONE_CHANGED_BEFORE_PENDING',source});
+      }
+    }
+
     const pending = await b44.entities.RideOrder.updateMany(
       {
         id:orderId,
