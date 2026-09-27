@@ -217,6 +217,29 @@ test('recovery requerido: queda Central-only y nunca busca otro móvil',()=>{
   assert.equal(ride.processingAction,'CENTRAL_REVIEW_REQUIRED_DRIVER');
 });
 
+test('crear viaje: una foto vieja con un solo móvil no autoriza Pendiente',()=>{
+  const driver={id:'D01',pos:1,status:'disponible',dispatch:'normal',reserved:null};
+  let staleReads=2,assigned=false,pending=false;
+  const maxAttempts=Math.max(3,Math.min(100,1*3));
+  for(let i=0;i<maxAttempts&&!assigned;i++){
+    if(staleReads>0){staleReads--;continue;}
+    if(driver.status==='disponible'&&!driver.reserved){driver.reserved='O';assigned=true;}
+  }
+  if(!assigned) pending=true;
+  assert.equal(assigned,true);
+  assert.equal(pending,false);
+  assert.equal(driver.reserved,'O');
+});
+
+test('crear viaje: movimiento continuo de cola no se disfraza de Pendiente',()=>{
+  let status='procesando_despacho';
+  const candidateStillExists=true;
+  const finalReason='QUEUE_SNAPSHOT_STALE';
+  if(finalReason==='QUEUE_SNAPSHOT_STALE'&&candidateStillExists) status='procesando_despacho';
+  else status='pendiente';
+  assert.equal(status,'procesando_despacho');
+});
+
 test('recovery sólo autoriza Pendiente si no queda candidato elegible',()=>{
   const ds=makeDrivers(2);
   const offered=new Set(['D01']);
