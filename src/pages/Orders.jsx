@@ -67,14 +67,14 @@ export default function Orders() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <div className="space-y-6 pb-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 pb-6 -m-4 md:-m-6 p-4 md:p-6 min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 text-slate-900">
+        <div className="flex items-center justify-between rounded-2xl border border-sky-200 bg-white p-4 shadow-sm">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Órdenes de Viaje</h1>
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900">Órdenes de Viaje</h1>
           <p className="text-muted-foreground mt-1">{orders.length} viajes en total</p>
         </div>
         <Link to="/orders/new">
-          <Button className="rounded-xl gap-2">
+          <Button className="rounded-xl gap-2 bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-sm">
             <Plus className="w-4 h-4" />
             Nuevo Viaje
           </Button>
@@ -85,14 +85,14 @@ export default function Orders() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            className="pl-9 rounded-xl"
+            className="pl-9 rounded-xl bg-white border-sky-200 text-slate-900"
             placeholder="Buscar por cliente, teléfono o dirección..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Tabs value={statusFilter} onValueChange={setStatusFilter}>
-          <TabsList className="h-10">
+          <TabsList className="h-10 bg-sky-100 border border-sky-200">
             <TabsTrigger value="all" className="text-xs">Todos</TabsTrigger>
             <TabsTrigger value="pendiente" className="text-xs">Pendientes</TabsTrigger>
             <TabsTrigger value="en_viaje" className="text-xs">En Viaje</TabsTrigger>
