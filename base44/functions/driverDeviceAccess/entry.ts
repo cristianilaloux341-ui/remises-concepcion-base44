@@ -210,7 +210,10 @@ export default async function (req: Request) {
       metadata: auditMetadata,
     });
 
-    if (body?.action) return await handleNewApp(base44, body.action, body.payload || {});
+    if (body?.action) {
+      const requestedAction = String(body.action).trim();
+      return await handleNewApp(base44, requestedAction, body.payload || {});
+    }
     return json({
       success:false,
       status:"protocol_required",
