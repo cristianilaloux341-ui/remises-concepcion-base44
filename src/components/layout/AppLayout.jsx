@@ -125,7 +125,7 @@ export default function AppLayout() {
         </main>
       </div>
 
-      <BottomTabBar />
+      <BottomTabBar onMenuOpen={() => setSidebarOpen(true)} />
       <ManualInstructivo />
     </div>
   );
