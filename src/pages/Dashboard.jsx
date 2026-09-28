@@ -218,7 +218,7 @@ export default function Dashboard() {
         </h2>
         
         {/* Top Bar for Quick Assign - Posición de Choferes */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#0b1b2b] border border-cyan-500/25 p-3 rounded-xl mb-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white border border-sky-200 p-3 rounded-xl mb-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-cyan-600 text-white rounded-lg shadow-sm">
               <Zap className="w-5 h-5" />
@@ -250,7 +250,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-6">
         {/* Map */}
         <div className="col-span-1">
-          <Card className="border-cyan-500/25 bg-[#0b1b2b]/95 shadow-xl">
+          <Card className="border-sky-200 bg-white shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-lg font-extrabold text-cyan-50">Mapa en Vivo</CardTitle>
               <Link to="/map">
