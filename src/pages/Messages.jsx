@@ -171,7 +171,7 @@ export default function Messages() {
     : getDriverLabel(targetDriverId);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)] relative -m-4 md:-m-6 p-4 md:p-6 bg-gradient-to-br from-[#06111f] via-[#0b1f33] to-[#102a43] text-white">
+    <div className="flex flex-col h-[calc(100vh-120px)] relative -m-4 md:-m-6 p-4 md:p-6 bg-gradient-to-br from-sky-50 via-white to-blue-50 text-slate-900">
       {/* Toast de mensaje entrante */}
       {toast && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-2 animate-in slide-in-from-top-3 fade-in duration-300">
@@ -263,7 +263,7 @@ export default function Messages() {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-cyan-800/70 pt-4 space-y-2 bg-[#0b1b2b]/95 rounded-xl p-3">
+      <div className="border-t border-sky-200 pt-4 space-y-2 bg-white rounded-xl p-3">
         <div className="flex gap-2">
           <Input 
             className="w-24 h-9 rounded-xl text-xs" 
