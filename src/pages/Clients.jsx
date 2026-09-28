@@ -270,10 +270,10 @@ export default function Clients() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <div className="space-y-6 pb-6">
+      <div className="space-y-6 pb-6 -m-4 md:-m-6 p-4 md:p-6 min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 text-slate-900">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Clientes</h1>
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900">Clientes</h1>
           <p className="text-muted-foreground mt-1">Historial y puntuación</p>
         </div>
         <Button className="rounded-xl gap-2" onClick={() => { setEditing(null); setShowForm(true); }}>
