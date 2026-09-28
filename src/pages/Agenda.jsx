@@ -579,10 +579,10 @@ function AgendaContent() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <div className="space-y-6 pb-6 rounded-2xl p-4 bg-slate-950 text-white">
+      <div className="space-y-6 pb-6 rounded-2xl p-4 bg-gradient-to-br from-sky-50 via-white to-blue-50 text-slate-900">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">Agenda</h1>
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900">Agenda</h1>
           <p className="text-cyan-200 mt-1 font-bold">Viajes programados</p>
         </div>
         <Button className="rounded-xl gap-2 font-bold bg-cyan-600 hover:bg-cyan-500 text-white" onClick={() => { setEditing(null); setShowForm(true); }}>
@@ -592,44 +592,44 @@ function AgendaContent() {
 
       {/* Upcoming */}
       <div className="space-y-3">
-        <h2 className="text-sm font-bold text-cyan-50 uppercase tracking-wide">Próximos</h2>
+        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">Próximos</h2>
         {upcoming.length === 0 ? (
-          <Card className="border-slate-700 bg-slate-900"><CardContent className="p-8 text-center text-cyan-100 font-bold">Sin viajes programados</CardContent></Card>
+          <Card className="border-sky-200 bg-white"><CardContent className="p-8 text-center text-slate-600 font-bold">Sin viajes programados</CardContent></Card>
         ) : upcoming.map(ride => {
           const mins = minutesUntil(ride.scheduled_datetime);
           const isDateValid = ride.scheduled_datetime && !isNaN(new Date(ride.scheduled_datetime).getTime());
           const isUrgent = mins <= (ride.notify_minutes_before ?? 10) && mins >= 0;
           const isOverdue = mins < 0;
           return (
-            <Card key={ride.id} className={`transition-all border-slate-700 bg-slate-900 text-white ${isUrgent ? "border-amber-400" : ""} ${isOverdue && ride.status === "notificado" ? "border-red-400" : ""}`}>
+            <Card key={ride.id} className={`transition-all border-sky-200 bg-white text-white ${isUrgent ? "border-amber-400" : ""} ${isOverdue && ride.status === "notificado" ? "border-red-400" : ""}`}>
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-bold text-white text-lg">{ride.client_name}</p>
+                      <p className="font-bold text-slate-900 text-lg">{ride.client_name}</p>
                       <Badge className={STATUS_COLORS[ride.status] + " border-0 text-xs font-bold"}>{ride.status}</Badge>
                       {isUrgent && <Badge className="bg-amber-500 text-white border-0 text-xs animate-pulse">¡{Math.max(0, Math.ceil(mins))} min!</Badge>}
                     </div>
-                    <p className="text-sm text-cyan-100 font-bold">{ride.client_phone}</p>
+                    <p className="text-sm text-slate-600 font-bold">{ride.client_phone}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-bold text-lg text-white">{isDateValid ? format(new Date(ride.scheduled_datetime), "HH:mm", { locale: es }) : "--:--"}</p>
-                    <p className="text-sm text-cyan-100 font-bold">{isDateValid ? format(new Date(ride.scheduled_datetime), "dd/MM/yy") : "--/--/--"}</p>
+                    <p className="font-bold text-lg text-slate-900">{isDateValid ? format(new Date(ride.scheduled_datetime), "HH:mm", { locale: es }) : "--:--"}</p>
+                    <p className="text-sm text-slate-600 font-bold">{isDateValid ? format(new Date(ride.scheduled_datetime), "dd/MM/yy") : "--/--/--"}</p>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <p className="text-sm flex items-center gap-1.5 font-bold text-cyan-50">
+                  <p className="text-sm flex items-center gap-1.5 font-bold text-slate-900">
                     <div className="w-3 h-3 rounded-full bg-green-500 shrink-0" />{ride.pickup_address}
                   </p>
                   {ride.dropoff_address && (
-                    <p className="text-sm flex items-center gap-1.5 font-bold text-cyan-50">
+                    <p className="text-sm flex items-center gap-1.5 font-bold text-slate-900">
                       <MapPin className="w-4 h-4 text-red-500 shrink-0" />{ride.dropoff_address}
                     </p>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 text-sm text-cyan-100 font-bold flex-wrap">
+                <div className="flex items-center gap-2 text-sm text-slate-600 font-bold flex-wrap">
                   {ride.zone && (
                     <>
                       <Tag className="w-4 h-4 text-cyan-400" />
@@ -676,18 +676,18 @@ function AgendaContent() {
       {/* Past */}
       {past.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-cyan-50 uppercase tracking-wide mt-6">Historial reciente</h2>
+          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mt-6">Historial reciente</h2>
           {past.map(ride => {
             const isDateValid = ride.scheduled_datetime && !isNaN(new Date(ride.scheduled_datetime).getTime());
             return (
-              <Card key={ride.id} className="opacity-90 border-slate-700 bg-slate-900 text-white">
+              <Card key={ride.id} className="opacity-90 border-sky-200 bg-white text-white">
                 <CardContent className="p-3 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-bold text-white">{ride.client_name}</p>
-                    <p className="text-xs text-cyan-100 font-medium">{ride.pickup_address}</p>
+                    <p className="text-sm font-bold text-slate-900">{ride.client_name}</p>
+                    <p className="text-xs text-slate-600 font-medium">{ride.pickup_address}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className="text-xs text-cyan-100 font-bold">{isDateValid ? format(new Date(ride.scheduled_datetime), "dd/MM HH:mm") : "--/-- --:--"}</p>
+                    <p className="text-xs text-slate-600 font-bold">{isDateValid ? format(new Date(ride.scheduled_datetime), "dd/MM HH:mm") : "--/-- --:--"}</p>
                     <Badge className={STATUS_COLORS[ride.status] + " border-0 text-xs font-bold"}>{ride.status}</Badge>
                   </div>
                 </CardContent>
