@@ -1,6 +1,7 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.40";
 
 export const options = { requiresAuth: false };
+// Redeploy marker: authoritative clean-driver login contract 2026-09-28.
 
 function normalizePhone(value = "") {
   let digits = String(value).replace(/\D/g, "");
