@@ -117,10 +117,10 @@ export default function AdminUsuarios() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6 rounded-2xl bg-gradient-to-br from-sky-50 via-white to-blue-50 p-4 md:p-6 text-slate-900">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
             <Shield className="w-6 h-6 text-primary" />
             Administración de Usuarios
           </h1>
