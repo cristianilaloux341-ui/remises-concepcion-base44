@@ -141,7 +141,8 @@ async function handleNewApp(base44: any, action: string, payload: any) {
     return json({ valid });
   }
 
-  if (action !== "login") return json({ error: "Acción desconocida." }, 400);
+  const hasLoginPayload = Boolean(payload?.phone && payload?.pin && payload?.device_id);
+  if (action !== "login" && !hasLoginPayload) return json({ error: "Acción desconocida." }, 400);
 
   const phone = normalizePhone(payload.phone);
   const pin = String(payload.pin || "");
