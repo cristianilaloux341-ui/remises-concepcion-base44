@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 export default function TiempoEspera() {
   const navigate = useNavigate();
   return (
-    <div className="space-y-6 max-w-xl mx-auto">
+    <div className="space-y-6 max-w-xl mx-auto rounded-2xl bg-gradient-to-br from-sky-50 via-white to-blue-50 p-4 md:p-6 text-slate-900">
       <Button variant="ghost" className="gap-2 md:hidden -ml-3" onClick={() => navigate(-1)}>
         <ArrowLeft className="w-4 h-4" /> Volver
       </Button>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+        <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
           <Timer className="w-6 h-6 text-orange-500" />
           Tiempo de Espera Post-Viaje
         </h1>
