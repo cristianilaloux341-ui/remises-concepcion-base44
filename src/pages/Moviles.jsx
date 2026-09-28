@@ -422,7 +422,7 @@ export default function Moviles() {
   }).sort((a, b) => Number(a.numero_movil) - Number(b.numero_movil));
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 rounded-2xl bg-gradient-to-br from-sky-50 via-white to-blue-50 text-slate-900">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
