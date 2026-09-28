@@ -369,7 +369,7 @@ export default function Drivers() {
   const resetDeviceMutation = useMutation({
     mutationFn: async (id) => {
       const res = await base44.functions.invoke('adminProxy', { 
-        entity: 'Driver', op: 'update', id, data: { device_id: null, current_session_token: null }, 
+        entity: 'Driver', op: 'update', id, data: { device_id: '', current_session_token: '' }, 
         sessionToken: sessionStorage.getItem('local_operator_token') 
       });
       if (res.data?.error) throw new Error(res.data.error);
