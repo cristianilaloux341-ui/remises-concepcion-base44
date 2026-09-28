@@ -141,6 +141,33 @@ async function handleNewApp(base44: any, action: string, payload: any) {
     return json({ valid });
   }
 
+  if (action === "current_tariff") {
+    const driver = await base44.asServiceRole.entities.Driver
+      .get(String(payload.driver_id || ""))
+      .catch(() => null);
+    const valid = Boolean(
+      driver &&
+      driver.device_id === String(payload.device_id || "") &&
+      driver.current_session_token === String(payload.access_token || ""),
+    );
+    if (!valid) return json({ success: false, reason: "invalid_session" }, 401);
+
+    const configs = await base44.asServiceRole.entities.TarifaConfig.list().catch(() => []);
+    const t = configs?.[0] || {};
+    return json({
+      success: true,
+      tariff: {
+        bajada_diurna: Number(t.bajada_diurna ?? 1700),
+        bajada_nocturna: Number(t.bajada_nocturna ?? 1900),
+        ficha_distancia_m: Number(t.ficha_distancia_m ?? 80),
+        valor_ficha: Number(t.valor_ficha ?? 0),
+        espera_hora: Number(t.espera_hora ?? 12000),
+        tolerancia_espera_s: Number(t.tolerancia_espera_s ?? 240),
+        ficha_espera_s: Number(t.ficha_espera_s ?? 45),
+      },
+    });
+  }
+
   const hasLoginPayload = Boolean(payload?.phone && payload?.pin && payload?.device_id);
   if (action !== "login" && !hasLoginPayload) return json({ error: "Acción desconocida." }, 400);
 
