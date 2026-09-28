@@ -133,56 +133,6 @@ export default function Dashboard() {
   };
   const availableDrivers = drivers.filter(d => isDriverWorking(d) && getEffectiveQueueBase(d));
 
-  const handleDownloadReport = async () => {
-    const start = new Date('2026-08-21T09:00:00Z'); 
-    const end = new Date('2026-08-21T16:00:00Z');   
-
-    const rides = await base44.entities.RideOrder.list('-created_date', 1000);
-    const filtered = rides.filter(r => {
-      const d = new Date(r.created_date);
-      return d >= start && d <= end && r.driver_name;
-    });
-
-    filtered.sort((a, b) => new Date(a.created_date) - new Date(b.created_date));
-
-    let csv = "\uFEFFHora,Cliente,Origen,Destino,Chofer,Estado,Importe\n"; 
-    let totalImporte = 0;
-    let asignados = 0;
-
-    filtered.forEach(r => {
-      const d = new Date(r.created_date);
-      d.setHours(d.getHours() - 3); 
-      const timeStr = d.toISOString().substr(11, 5);
-      
-      const cliente = (r.client_name || '-').replace(/,/g, '');
-      const origen = (r.pickup_address || '-').replace(/,/g, '');
-      const destino = (r.dropoff_address || '-').replace(/,/g, '');
-      const chofer = (r.driver_name || '-').replace(/,/g, '');
-      const estado = r.status;
-      const importe = r.importe_real_actual || r.fare || 0;
-      
-      if(estado !== 'cancelado') {
-          totalImporte += Number(importe) || 0;
-          asignados++;
-      }
-
-      csv += `${timeStr},${cliente},${origen},${destino},${chofer},${estado},$${importe}\n`;
-    });
-
-    csv += `\nRESUMEN,,,,,\n`;
-    csv += `Viajes asignados (sin cancelar): ${asignados},,,,,\n`;
-    csv += `Recaudacion aprox: $${totalImporte},,,,,\n`;
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "reporte-viajes-06a13.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const stats = [
     { title: "Activos", value: activeOrders.length, icon: Car, color: "bg-cyan-500" },
     { title: "Pendientes", value: pendingOrders.length, icon: Clock, color: "bg-amber-500" },
@@ -190,18 +140,15 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 space-y-6 bg-gradient-to-br from-[#06111f] via-[#0b1f33] to-[#102a43]">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-cyan-400/25 bg-[#0b1b2b]/95 p-4 shadow-xl backdrop-blur-sm">
+    <div className="min-h-screen -m-4 md:-m-6 p-4 md:p-6 space-y-6 bg-gradient-to-br from-sky-50 via-white to-blue-50 text-slate-900">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-sky-200 bg-white/95 p-4 shadow-lg shadow-sky-100/70 backdrop-blur-sm">
         <div>
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">Central de Despacho</h1>
-          <p className="text-cyan-200 font-medium mt-1">Gestión en tiempo real</p>
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900">Central de Despacho</h1>
+          <p className="text-sky-700 font-medium mt-1">Gestión en tiempo real</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={handleDownloadReport} variant="outline" className="rounded-xl border-cyan-400/40 text-cyan-50 bg-slate-900/70 hover:bg-cyan-950 font-bold">
-            Descargar Reporte 06-13hs
-          </Button>
           <Link to="/orders/new">
-            <Button className="rounded-xl gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-black shadow-lg shadow-cyan-950/40">
+            <Button className="rounded-xl gap-2 bg-sky-600 hover:bg-sky-700 text-white font-black shadow-md shadow-sky-200">
               <Car className="w-4 h-4" />
               Nuevo Pedido
             </Button>
@@ -232,7 +179,7 @@ export default function Dashboard() {
 
       {claimedPendingOrders.length > 0 && (
         <div className="space-y-2">
-          <h2 className="text-lg font-extrabold text-violet-100 flex items-center gap-2">
+          <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-green-600" />
             Tomados desde Pendientes
           </h2>
