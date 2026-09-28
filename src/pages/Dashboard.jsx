@@ -224,7 +224,7 @@ export default function Dashboard() {
               <Zap className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white leading-none">Chóferes en Posición: {availableDrivers.length}</h2>
+              <h2 className="text-sm font-bold text-slate-900 leading-none">Chóferes en Posición: {availableDrivers.length}</h2>
               <p className="text-xs text-cyan-200 font-medium">Asignación rápida a bases</p>
             </div>
           </div>
@@ -232,9 +232,9 @@ export default function Dashboard() {
             {bases.map(b => {
               const q = drivers.filter(d => getEffectiveQueueBase(d) === b.name && isDriverWorking(d));
               return (
-                <div key={b.name} className="flex flex-col items-center justify-center bg-slate-950/70 border border-cyan-500/20 rounded-lg px-2 py-1 min-w-[3rem]">
+                <div key={b.name} className="flex flex-col items-center justify-center bg-sky-50 border border-sky-200 rounded-lg px-2 py-1 min-w-[3rem]">
                   <span className="text-[10px] text-cyan-200 truncate w-full text-center max-w-[4rem]">{b.name.split("-")[1]}</span>
-                  <span className="text-sm font-bold text-white">{q.length}</span>
+                  <span className="text-sm font-bold text-slate-900">{q.length}</span>
                 </div>
               );
             })}
@@ -254,7 +254,7 @@ export default function Dashboard() {
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-lg font-extrabold text-slate-900">Mapa en Vivo</CardTitle>
               <Link to="/map">
-                <Button variant="ghost" size="sm" className="text-xs gap-1 text-cyan-200 hover:text-white hover:bg-cyan-950/70">
+                <Button variant="ghost" size="sm" className="text-xs gap-1 text-sky-700 hover:text-sky-900 hover:bg-sky-100">
                   Ver completo <ArrowRight className="w-3 h-3" />
                 </Button>
               </Link>
