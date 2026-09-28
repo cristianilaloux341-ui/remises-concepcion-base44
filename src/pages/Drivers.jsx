@@ -365,6 +365,7 @@ export default function Drivers() {
   const [resetPinLoading, setResetPinLoading] = useState(false);
   const [resetPinSuccess, setResetPinSuccess] = useState(null); // { driver, pin }
   const [resetDeviceDriver, setResetDeviceDriver] = useState(null);
+  const [mobileSearch, setMobileSearch] = useState("");
 
   const resetDeviceMutation = useMutation({
     mutationFn: async (id) => {
@@ -402,6 +403,14 @@ export default function Drivers() {
   const getMovil = (driver) => moviles.find(
     m => String(m.id || "") === String(driver.vehicle_model || "")
   ) || null;
+
+  const normalizedMobileSearch = mobileSearch.replace(/\D/g, "");
+  const visibleDrivers = drivers.filter(driver => {
+    if (!normalizedMobileSearch) return true;
+    const movil = getMovil(driver);
+    const numero = String(movil?.numero_movil || "").replace(/\D/g, "");
+    return numero === normalizedMobileSearch;
+  });
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
@@ -504,11 +513,22 @@ export default function Drivers() {
 
   return (
     <div className="space-y-6 -m-4 md:-m-6 p-4 md:p-6 min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 text-slate-900">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900">Conductores</h1>
           <p className="text-muted-foreground mt-1">{drivers.length} conductores registrados</p>
         </div>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="relative flex-1 md:w-44">
+            <Car className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-sky-600" />
+            <Input
+              value={mobileSearch}
+              onChange={(e) => setMobileSearch(e.target.value)}
+              inputMode="numeric"
+              placeholder="Buscar móvil (ej. 97)"
+              className="pl-9 bg-white border-sky-200"
+            />
+          </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button className="rounded-xl gap-2">
@@ -523,6 +543,7 @@ export default function Drivers() {
             <DriverForm onSubmit={(data) => createMutation.mutate(data)} isSubmitting={createMutation.isPending} moviles={moviles} />
           </DialogContent>
         </Dialog>
+        </div>
 
         {/* Dialog edición */}
         <Dialog open={!!editingDriver} onOpenChange={(v) => !v && setEditingDriver(null)}>
@@ -556,9 +577,15 @@ export default function Drivers() {
           <Car className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">No hay conductores registrados</p>
         </div>
+      ) : visibleDrivers.length === 0 ? (
+        <div className="text-center py-12 bg-white border border-sky-200 rounded-2xl">
+          <Car className="w-10 h-10 text-sky-400 mx-auto mb-3" />
+          <p className="font-semibold text-slate-800">No hay un chofer vinculado al móvil {mobileSearch}</p>
+          <button type="button" onClick={() => setMobileSearch("")} className="text-sm text-sky-700 mt-2 hover:underline">Ver todos los choferes</button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...drivers].sort((a, b) => {
+          {[...visibleDrivers].sort((a, b) => {
             const movilA = getMovil(a);
             const movilB = getMovil(b);
             const numA = movilA ? Number(movilA.numero_movil) : Infinity;
