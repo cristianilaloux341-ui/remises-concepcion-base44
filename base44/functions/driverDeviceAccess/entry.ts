@@ -157,13 +157,15 @@ async function handleNewApp(base44: any, action: string, payload: any) {
     return json({
       success: true,
       tariff: {
-        bajada_diurna: Number(t.bajada_diurna ?? 1700),
-        bajada_nocturna: Number(t.bajada_nocturna ?? 1900),
-        ficha_distancia_m: Number(t.ficha_distancia_m ?? 80),
+        bajada_bandera: Number(t.bajada_bandera ?? 0),
+        nocturna_bajada_bandera: Number(t.nocturna_bajada_bandera ?? 0),
         valor_ficha: Number(t.valor_ficha ?? 0),
-        espera_hora: Number(t.espera_hora ?? 12000),
-        tolerancia_espera_s: Number(t.tolerancia_espera_s ?? 240),
-        ficha_espera_s: Number(t.ficha_espera_s ?? 45),
+        metros_por_ficha: Number(t.metros_por_ficha ?? 0),
+        valor_ficha_espera: Number(t.valor_ficha_espera ?? 0),
+        segundos_por_ficha_espera: Number(t.segundos_por_ficha_espera ?? 0),
+        tolerancia_espera_segundos: Number(t.tolerancia_espera_segundos ?? 0),
+        nocturna_hora_inicio: Number(t.nocturna_hora_inicio ?? 0),
+        nocturna_hora_fin: Number(t.nocturna_hora_fin ?? 0),
       },
     });
   }
