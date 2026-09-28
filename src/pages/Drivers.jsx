@@ -655,6 +655,16 @@ export default function Drivers() {
                   );
                 })()}
 
+                <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide font-bold text-sky-700">PIN del chofer</p>
+                    <p className="text-lg font-black font-mono tracking-widest text-slate-900">
+                      {driver.pin || "Sin PIN"}
+                    </p>
+                  </div>
+                  <KeyRound className="w-5 h-5 text-sky-600 shrink-0" />
+                </div>
+
                 {driver.notas && (
                   <div className="mb-3 flex items-start gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
                     <NotebookPen className="w-3.5 h-3.5 text-yellow-600 mt-0.5 shrink-0" />
