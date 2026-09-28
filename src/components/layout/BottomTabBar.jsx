@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Car, CalendarClock, MessageSquare, UserCircle } from "lucide-react";
+import { LayoutDashboard, Car, CalendarClock, MessageSquare, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tabs = [
@@ -8,10 +8,10 @@ const tabs = [
   { label: "Órdenes", path: "/orders", match: "/orders", icon: Car },
   { label: "Agenda", path: "/agenda", match: "/agenda", icon: CalendarClock },
   { label: "Mensajes", path: "/messages", match: "/messages", icon: MessageSquare },
-  { label: "Perfil", path: "/profile", match: "/profile", icon: UserCircle },
+  { label: "Menú", path: "#menu", match: "#menu", icon: Menu, isMenu: true },
 ];
 
-export default function BottomTabBar() {
+export default function BottomTabBar({ onMenuOpen }) {
   const location = useLocation();
   const [tabPaths, setTabPaths] = useState(() => {
     try {
@@ -43,7 +43,22 @@ export default function BottomTabBar() {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {tabs.map((tab) => {
-        const isActive = tab.exact ? location.pathname === tab.match : location.pathname.startsWith(tab.match);
+        const isActive = !tab.isMenu && (tab.exact ? location.pathname === tab.match : location.pathname.startsWith(tab.match));
+
+        if (tab.isMenu) {
+          return (
+            <button
+              key={tab.path}
+              type="button"
+              onClick={onMenuOpen}
+              className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs font-medium transition-colors text-sidebar-foreground/60 hover:text-sidebar-primary"
+            >
+              <tab.icon className="w-5 h-5" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        }
+
         // Navigate to the preserved path if exists, otherwise base path.
         // If clicking the active tab again, go to its base path (like popping to root).
         const targetPath = isActive ? tab.path : (tabPaths[tab.match] || tab.path);
