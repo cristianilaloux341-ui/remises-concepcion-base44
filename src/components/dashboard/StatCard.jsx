@@ -3,14 +3,14 @@ import { cn } from "@/lib/utils";
 
 export default function StatCard({ title, value, icon: Icon, color, children }) {
   return (
-    <Card className="p-5 relative overflow-hidden group border-cyan-500/25 bg-[#0b1b2b]/95 shadow-xl hover:border-cyan-300/60 hover:shadow-2xl transition-all duration-300">
+    <Card className="p-5 relative overflow-hidden group border-sky-200 bg-white shadow-md hover:border-sky-300 hover:shadow-lg transition-all duration-300">
       <div className="flex items-start justify-between">
         <div className="space-y-1 w-full min-w-0">
-          <p className="text-sm text-cyan-100 font-bold truncate">{title}</p>
-          <p className="text-4xl font-black tracking-tight text-white">{value}</p>
+          <p className="text-sm text-slate-600 font-bold truncate">{title}</p>
+          <p className="text-4xl font-black tracking-tight text-slate-900">{value}</p>
         </div>
         <div className={cn("p-3 rounded-xl shrink-0 ml-2", color)}>
-          <Icon className="w-5 h-5 text-white" />
+          <Icon className="w-5 h-5 text-slate-900" />
         </div>
       </div>
       {children && (
