@@ -273,6 +273,22 @@ Deno.serve(async (req) => {
       }).catch(() => {});
 
       return Response.json({ success: rejectResult?.success !== false, rejectResult });
+    } else if (action === "native_timeout") {
+      const order = await b44.entities.RideOrder.get(realOrderId).catch(() => null);
+      if (!order) return Response.json({ success:false, reason:"order_not_found" });
+      if (order.status !== "ofrecido" || order.reserved_driver_id !== driverId || Number(order.assignment_attempt) !== Number(nativeAssignmentAttempt)) {
+        return Response.json({ success:true, skipped:true, reason:"offer_changed" });
+      }
+      const expiresAt = Number(new Date(order.offerExpiresAt || 0).getTime());
+      if (expiresAt > Date.now()) return Response.json({ success:false, reason:"offer_not_expired" });
+      const rejectResponse = await b44.functions.invoke("rejectRide", {
+        orderId: realOrderId,
+        driverId,
+        assignmentAttempt: nativeAssignmentAttempt,
+        sessionToken: nativeSessionToken
+      });
+      const rejectResult = rejectResponse?.data || rejectResponse;
+      return Response.json({ success: rejectResult?.success !== false, timeout:true, rejectResult });
     }
 
     return Response.json({ success: false, reason: "unknown_action" });
