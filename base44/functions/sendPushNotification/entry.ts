@@ -217,7 +217,16 @@ Deno.serve(async (req) => {
   if (action === 'subscribe_fcm') {
     if (!driverId || !body.token) return Response.json({ error: 'Missing driverId or token' }, { status: 400 });
     await base44.asServiceRole.entities.Driver.update(driverId, { fcm_token: body.token });
-    return Response.json({ ok: true });
+    const saved = await base44.asServiceRole.entities.Driver.get(String(driverId)).catch(() => null);
+    const persisted = Boolean(saved && String(saved.fcm_token || '') === String(body.token));
+    await base44.asServiceRole.entities.AuditLog.create({
+      action: persisted ? 'FCM_TOKEN_SAVED' : 'FCM_TOKEN_SAVE_FAILED',
+      user_type: 'sistema',
+      user_name: saved?.name || String(driverId),
+      details: persisted ? 'Token FCM guardado y verificado' : 'El token FCM no persistió después del update',
+      metadata: { driverId: String(driverId), deviceId: String(body.deviceId || ''), tokenPrefix: String(body.token).slice(0, 10) }
+    }).catch(() => {});
+    return Response.json({ ok: persisted, persisted });
   }
 
 
@@ -340,7 +349,7 @@ Deno.serve(async (req) => {
              if (!fcmRes.ok) {
                const errText = await fcmRes.text();
                console.error("FCM Cancel Error:", errText);
-               if (errText.includes("UNREGISTERED") || errText.includes("NOT_FOUND") || fcmRes.status === 404) {
+               if (errText.includes('"errorCode":"UNREGISTERED"')) {
                  await base44.asServiceRole.entities.Driver.update(driver.id, { fcm_token: null });
                }
              } else {
@@ -411,7 +420,7 @@ Deno.serve(async (req) => {
            });
            if (!fcmRes.ok) {
              const errText = await fcmRes.text();
-             if (errText.includes("UNREGISTERED") || errText.includes("NOT_FOUND") || fcmRes.status === 404) {
+             if (errText.includes('"errorCode":"UNREGISTERED"')) {
                await base44.asServiceRole.entities.User.update(user.id, { fcm_token: null });
              }
            } else {
@@ -549,7 +558,7 @@ Deno.serve(async (req) => {
                  console.error("FCM Send Error HTTP " + fcmRes.status + ":", errText);
                  
                  // If the token is no longer valid, clear it so we don't keep trying and failing silently
-                 if (errText.includes("UNREGISTERED") || errText.includes("NOT_FOUND") || fcmRes.status === 404) {
+                 if (errText.includes('"errorCode":"UNREGISTERED"')) {
                    await base44.asServiceRole.entities.Driver.update(driverId, { fcm_token: null });
                    console.log("FCM Token cleared for driver", driverId, "due to UNREGISTERED/NOT_FOUND");
                  }
