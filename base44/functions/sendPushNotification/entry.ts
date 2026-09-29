@@ -438,6 +438,9 @@ Deno.serve(async (req) => {
       // intente notificar, no despertar un teléfono fuera de servicio, sin base o
       // que ya no conserve la reserva de ESTA orden.
       const cleanOrderId = String(orderId).split('_att_')[0];
+      const pushOrder = await base44.asServiceRole.entities.RideOrder.get(cleanOrderId).catch(() => null);
+      const authoritativeAttempt = String(pushOrder?.assignment_attempt || orderData?.assignmentAttempt || 1);
+      const claimToken = String(pushOrder?.reservation_token || "");
       const authoritativeBase = driver?.queue_authoritative_base || null;
       if (
         !driver ||
@@ -519,7 +522,8 @@ Deno.serve(async (req) => {
                      title: String(title),
                      body: String(bodyStr),
                      sentAt: Date.now().toString(),
-                     assignmentAttempt: orderData?.assignmentAttempt?.toString() || "1",
+                     assignmentAttempt: authoritativeAttempt,
+                     claimToken,
                      orderNotes: String(orderData?.notes || "")
                    },
                    android: {
