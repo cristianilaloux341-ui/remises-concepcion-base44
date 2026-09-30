@@ -68,7 +68,13 @@ Deno.serve(async (req) => {
       });
       const data = result?.data || result;
       if (data?.reason === 'PROCESSING_IN_PROGRESS') {
-        await sleep(1000); chain();
+        // El timeout ya venció pero otra acción posee temporalmente la oferta.
+        // Esperar un ciclo corto y relanzar el mismo watchdog; el cron queda como respaldo.
+        await sleep(1000);
+        await b44.functions.invoke('autoReassignOnTimeout', {
+          orderId, driverId, assignmentAttempt:Number(assignmentAttempt),
+          internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+        }).catch(()=>{});
         return Response.json({ ok:true, deferred:true, reason:'processing_in_progress' });
       }
       return Response.json({ ok:data?.success !== false, timeoutProcessed:true, result:data });
