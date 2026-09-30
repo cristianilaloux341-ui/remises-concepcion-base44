@@ -3,6 +3,9 @@ import { verifyRequestAuth } from '../../shared/security.ts';
 
 // Trazado detallado retirado del camino crítico de ACEPTAR.
 // Las carreras se protegen con CAS y se validan con las pruebas canónicas.
+function mutationCount(result: any): number {
+  return Number(result?.updated ?? result?.modifiedCount ?? result?.matchedCount ?? 0);
+}
 
 async function releaseLeaseCAS(b44: any, rideOrderId: string, ownerId: string, acquiredLeaseVersion: number, operationKey: string, correlationId: string) {
   const filter = {
