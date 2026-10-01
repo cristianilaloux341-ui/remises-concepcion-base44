@@ -170,6 +170,64 @@ async function handleNewApp(base44: any, action: string, payload: any) {
     });
   }
 
+  if (action === "history" || action === "messages" || action === "send_message") {
+    const driver = await base44.asServiceRole.entities.Driver
+      .get(String(payload.driver_id || ""))
+      .catch(() => null);
+    const valid = Boolean(
+      driver &&
+      driver.device_id === String(payload.device_id || "") &&
+      driver.current_session_token === String(payload.access_token || ""),
+    );
+    if (!valid) return json({ success: false, reason: "invalid_session" }, 401);
+
+    if (action === "history") {
+      const period = ["day", "week", "month"].includes(String(payload.period || ""))
+        ? String(payload.period) : "day";
+      const now = new Date();
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Argentina/Buenos_Aires", year:"numeric", month:"2-digit", day:"2-digit"
+      }).formatToParts(now).reduce((a:any,p:any)=>{ if(p.type!=="literal") a[p.type]=p.value; return a; },{});
+      const localToday = new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00-03:00`);
+      let from = new Date(localToday);
+      if (period === "week") {
+        const day = from.getDay();
+        const diff = day === 0 ? 6 : day - 1;
+        from.setDate(from.getDate() - diff);
+      } else if (period === "month") {
+        from.setDate(1);
+      }
+      const orders = await base44.asServiceRole.entities.RideOrder
+        .filter({ driver_id: driver.id, status: "completado" }).catch(() => []);
+      const selected = orders.filter((o:any) => {
+        const d = o.ride_finished_at ? new Date(o.ride_finished_at) : null;
+        return d && !Number.isNaN(d.getTime()) && d >= from && d <= now;
+      }).sort((a:any,b:any)=>new Date(b.ride_finished_at||0).getTime()-new Date(a.ride_finished_at||0).getTime());
+      const total = selected.reduce((s:number,o:any)=>s+Math.max(0,Number(o.importe_real_actual??o.fare??0)),0);
+      const meters = selected.reduce((s:number,o:any)=>s+Math.max(0,Number(o.metros_taximetro??0)),0);
+      return json({ success:true, period, summary:{ total, count:selected.length, km:meters/1000 }, total, km:meters/1000, orders:selected.map((o:any)=>({ id:o.id, ride_number:o.ride_number||o.numero_viaje||o.id, pickup_address:o.pickup_address, dropoff_address:o.dropoff_address, importe_final:Number(o.importe_real_actual??o.fare??0), metros_taximetro:Number(o.metros_taximetro??0), segundos_espera_acumulados:Number(o.segundos_espera_acumulados??0), completed_at:o.ride_finished_at })) });
+    }
+
+    if (action === "messages") {
+      const all = await base44.asServiceRole.entities.Message.list().catch(() => []);
+      const messages = all.filter((m:any) =>
+        String(m.driver_id||"") === String(driver.id) ||
+        String(m.to_driver_id||"") === String(driver.id) ||
+        m.is_general === true
+      ).sort((a:any,b:any)=>new Date(a.created_date||0).getTime()-new Date(b.created_date||0).getTime()).slice(-100);
+      return json({ success:true, messages:messages.map((m:any)=>({ id:m.id, from:m.from_type === "movil" ? "Chofer" : (m.from_name||"Central"), message:m.content, created_at:m.created_date, read:Boolean(m.read) })) });
+    }
+
+    const content = String(payload.message || "").trim();
+    if (!content) return json({ success:false, reason:"empty_message" },400);
+    if (content.length > 1000) return json({ success:false, reason:"message_too_long" },400);
+    const created = await base44.asServiceRole.entities.Message.create({
+      from_type:"movil", from_name:driver.name || "Chofer", driver_id:String(driver.id),
+      to_driver_id:String(driver.id), content, read:false, is_general:false
+    });
+    return json({ success:true, message:{ id:created?.id, from:"Chofer", message:content, created_at:created?.created_date } });
+  }
+
   const hasLoginPayload = Boolean(payload?.phone && payload?.pin && payload?.device_id);
   if (action !== "login" && !hasLoginPayload) return json({ error: "Acción desconocida." }, 400);
 
