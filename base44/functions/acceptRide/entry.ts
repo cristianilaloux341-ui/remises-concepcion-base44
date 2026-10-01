@@ -548,7 +548,21 @@ export async function acceptRideV2(b44: any, rideOrderId: string, driverId: stri
   }
 
   // 9. El lease ya quedó liberado dentro del commit comercial.
-  return { status: "SUCCESS", leaseReleasePending: false, correlationId };
+  // El commit ya dejó la orden aceptada. La respuesta al cliente incluye el estado
+  // autoritativo para que cualquier superficie (web o APK nativo) pueda cerrar la
+  // oferta inmediatamente sin tener que inferirlo ni esperar otra lectura realtime.
+  return {
+    status: "SUCCESS",
+    accepted: true,
+    orderId: rideOrderId,
+    driverId,
+    assignmentAttempt,
+    orderStatus: "aceptado",
+    acceptedAt: new Date(commitNow).toISOString(),
+    terminalOfferState: true,
+    leaseReleasePending: false,
+    correlationId
+  };
 }
 
 Deno.serve(async (req) => {
