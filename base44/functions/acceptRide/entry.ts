@@ -594,10 +594,19 @@ Deno.serve(async (req) => {
                        result.status === "SUCCESS_ALREADY_PROCESSED" || 
                        result.status === "ALREADY_ACCEPTED_BY_SAME_DRIVER";
     
-    return Response.json({ 
-        accepted: isAccepted, 
+    return Response.json({
+        accepted: isAccepted,
         idempotent: result.status === "SUCCESS_ALREADY_PROCESSED" || result.status === "ALREADY_ACCEPTED_BY_SAME_DRIVER",
-        reason: result.status
+        reason: result.status,
+        // Contrato explícito de cierre de oferta. Si accepted=true, el cliente debe
+        // considerar terminada esa pantalla/alarma aunque falle una actualización realtime.
+        terminalOfferState: isAccepted,
+        orderId,
+        driverId,
+        assignmentAttempt: assignmentAttempt || 1,
+        orderStatus: isAccepted ? "aceptado" : undefined,
+        acceptedAt: result.acceptedAt || undefined,
+        correlationId: result.correlationId
     });
   } catch (error: any) {
     return Response.json({ error: error.message, accepted: false }, { status: 500 });
