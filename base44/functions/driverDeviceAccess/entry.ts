@@ -170,6 +170,27 @@ async function handleNewApp(base44: any, action: string, payload: any) {
     });
   }
 
+  if (action === "save_occasional") {
+    const driver = await base44.asServiceRole.entities.Driver.get(String(payload.driver_id || "")).catch(() => null);
+    const valid = Boolean(driver && driver.device_id === String(payload.device_id || "") && driver.current_session_token === String(payload.access_token || ""));
+    if (!valid) return json({ success:false, reason:"invalid_session" }, 401);
+    const startedAt = String(payload.ride_started_at || "");
+    const finishedAt = String(payload.ride_finished_at || new Date().toISOString());
+    const created = await base44.asServiceRole.entities.RideOrder.create({
+      client_name:"Viaje Ocasional (Calle)", pickup_address:"Viaje en calle", status:"completado",
+      driver_id:driver.id, driver_name:driver.name || "",
+      fare:Math.round(Number(payload.importe || 0)), source:"operador"
+    });
+    await base44.asServiceRole.entities.RideOrder.update(created.id, {
+      importe_real_actual:Math.round(Number(payload.importe || 0)),
+      segundos_espera_acumulados:Math.max(0,Math.round(Number(payload.segundosEspera || 0))),
+      metros_taximetro:Math.max(0,Math.round(Number(payload.metros || 0))),
+      ride_started_at:startedAt || finishedAt,
+      ride_finished_at:finishedAt
+    }).catch(()=>null);
+    return json({success:true,order:created});
+  }
+
   if (action === "history" || action === "messages" || action === "send_message") {
     const driver = await base44.asServiceRole.entities.Driver
       .get(String(payload.driver_id || ""))
