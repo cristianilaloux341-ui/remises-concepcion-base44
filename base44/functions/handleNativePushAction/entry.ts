@@ -280,11 +280,20 @@ Deno.serve(async (req) => {
         return Response.json({ success:true, skipped:true, reason:"offer_changed" });
       }
       const expiresAt = Number(new Date(order.offerExpiresAt || 0).getTime());
-      if (expiresAt > Date.now()) return Response.json({ success:false, reason:"offer_not_expired" });
+      if (!order.alert_presented_at || Number(order.alert_presented_assignment_attempt) !== Number(nativeAssignmentAttempt) || order.offerExpiresAt == null || !Number.isFinite(expiresAt)) {
+        return Response.json({ success:false, reason:"alert_not_presented" });
+      }
+      // El reloj nativo puede terminar antes del plazo autoritativo del servidor.
+      // Conservar esta solicitud hasta el vencimiento; rejectRide revalida propiedad
+      // e intento, por lo que una aceptación durante la espera queda protegida.
+      const remainingMs = expiresAt - Date.now();
+      if (remainingMs > 120000) return Response.json({success:false,reason:"invalid_expiry"});
+      if (remainingMs > 0) await new Promise(resolve => setTimeout(resolve, remainingMs));
       const rejectResponse = await b44.functions.invoke("rejectRide", {
         orderId: realOrderId,
         driverId,
         assignmentAttempt: nativeAssignmentAttempt,
+        source: "timeout",
         sessionToken: nativeSessionToken
       });
       const rejectResult = rejectResponse?.data || rejectResponse;
