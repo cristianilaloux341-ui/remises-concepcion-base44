@@ -179,16 +179,14 @@ async function handleNewApp(base44: any, action: string, payload: any) {
     const created = await base44.asServiceRole.entities.RideOrder.create({
       client_name:"Viaje Ocasional (Calle)", pickup_address:"Viaje en calle", status:"completado",
       driver_id:driver.id, driver_name:driver.name || "",
-      fare:Math.round(Number(payload.importe || 0)), source:"operador"
+      fare:Math.round(Number(payload.importe || 0)), importe_real_actual:Math.round(Number(payload.importe || 0)), source:"operador",
+      metros_taximetro:Math.max(0,Math.round(Number(payload.metros || 0))), segundos_espera_acumulados:Math.max(0,Math.round(Number(payload.segundosEspera || 0))),
+      ride_started_at:startedAt || finishedAt, ride_finished_at:finishedAt,
+      ride_duration_seconds:Math.max(0,Math.round(Number(payload.durationSeconds || 0))), driver_vehicle_plate:String(driver.vehicle_plate || "")
     });
-    await base44.asServiceRole.entities.RideOrder.update(created.id, {
-      importe_real_actual:Math.round(Number(payload.importe || 0)),
-      segundos_espera_acumulados:Math.max(0,Math.round(Number(payload.segundosEspera || 0))),
-      metros_taximetro:Math.max(0,Math.round(Number(payload.metros || 0))),
-      ride_started_at:startedAt || finishedAt,
-      ride_finished_at:finishedAt
-    }).catch(()=>null);
-    return json({success:true,order:created});
+    const saved = await base44.asServiceRole.entities.RideOrder.get(created.id);
+    if (!saved?.ride_finished_at) return json({success:false, reason:"occasional_not_persisted"}, 500);
+    return json({success:true,order:saved});
   }
 
   if (action === "history" || action === "messages" || action === "send_message") {
