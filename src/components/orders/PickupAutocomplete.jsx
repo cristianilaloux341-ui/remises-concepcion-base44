@@ -59,8 +59,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     const queryParts = norm.split(/\s+/).filter(Boolean);
     const clientResults = clientAddresses
       .filter((ca) => {
-        // Clientes viejos sin coordenadas no deben imponerse a una dirección geocodificada.
-        if (!Number.isFinite(Number(ca.lat)) || !Number.isFinite(Number(ca.lng))) return false;
+        // La identidad del cliente no depende de tener coordenadas guardadas.
         const address = normalize(ca.full_address);
         return queryParts.every(part => address.includes(part));
       })
@@ -131,6 +130,9 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
   const handleSelect = async (s) => {
     setInputValue(s.full_address);
     setOpen(false);
+    // Completar cliente y dirección inmediatamente; el mapa sólo resuelve ubicación.
+    onChange(s.full_address, null);
+    if (s.type === "client") onClientSelect?.({ addressId:s.id, client_id:s.client_id, client_name:s.client_name ?? "", client_phone:s.client_phone ?? "", floor_apt:s.floor_apt ?? "" });
 
     // Las sugerencias externas no son coordenadas autoritativas para decidir zona.
     // Se validan abajo con el geocode estricto de calle + ciudad + altura.
@@ -171,6 +173,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
       }
     }
 
+    if (inputRef.current?.value !== s.full_address) return;
     onChange(s.full_address, coords);
 
     if (s.type === "client") {
