@@ -115,7 +115,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["drivers"],
-    queryFn: () => base44.entities.Driver.filter({ status: "disponible" }),
+    queryFn: () => base44.entities.Driver.filter({ status: { $in: ["disponible", "en_viaje"] } }),
     staleTime: 10_000,
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
@@ -125,9 +125,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
   const { data: moviles = [] } = useQuery({
     queryKey: ["moviles_order_form", availableDriverMobileIds.join(",")],
-    queryFn: async () => (await Promise.all(
-      availableDriverMobileIds.map(id => base44.entities.Movil.get(id).catch(() => null))
-    )).filter(Boolean),
+    queryFn: () => base44.entities.Movil.filter({ id: { $in: availableDriverMobileIds } }),
     enabled: availableDriverMobileIds.length > 0,
     staleTime: 10_000,
     refetchInterval: 10_000,
@@ -199,7 +197,10 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
       if (hasSelectedCoords && Number.isFinite(selectedLat) && Number.isFinite(selectedLng)) {
         coords = { lat: selectedLat, lng: selectedLng };
       } else {
-        coords = await geocodeAddress(form.pickup_address);
+        // Una dirección exacta confirmada por Central no espera al geocodificador.
+        zone = await detectZoneFromAddress(form.pickup_address);
+        if (!isCurrent()) return;
+        if (!zone) coords = await geocodeAddress(form.pickup_address);
       }
       if (!isCurrent()) return;
       if (coords) {
@@ -213,13 +214,14 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
 
       // Si el proveedor autoritativo no pudo ubicarla, recién ahí aceptamos
       // una dirección previamente confirmada por el operador. Nunca inventamos zona.
-      if (!zone && !coords) {
+      if (!zone && !coords && hasSelectedCoords) {
         zone = await detectZoneFromAddress(form.pickup_address);
         if (!isCurrent()) return;
       }
 
-      if (!isCurrent() || zoneManualOverrideRef.current) return;
+      if (!isCurrent()) return;
       setDetectingZone(false);
+      if (zoneManualOverrideRef.current) return;
       if (zone) {
         inheritedZoneRef.current = false;
         setDetectedZone(zone);
@@ -248,14 +250,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     const zoneQueue = getBaseQueue(availableDrivers, form.zone);
     setSuggestedDriver(zoneQueue[0] || null);
 
-    // Si cambió la zona después de una sugerencia/selección, borrar el móvil anterior.
-    // Así el formulario nunca arrastra un chofer perteneciente a otra base.
-    setForm(prev => {
-      if (!prev.driver_id) return prev;
-      const selected = drivers.find(d => d.id === prev.driver_id);
-      if (selected?.queue_authoritative_base === prev.zone) return prev;
-      return { ...prev, driver_id: "", driver_name: "", status: "pendiente" };
-    });
+    // Una selección explícita de Central es manual: no borrarla por otra zona.
+    // La sugerencia automática sigue limitada a la cola de la zona del pasaje.
   }, [form.zone, form.pickup_address, drivers, moviles]);
 
   const handleAddressClientSelect = (clientData) => {
@@ -399,7 +395,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     // La selección visual nunca puede saltar la validación del estado real del chofer.
     if (data.driver_id) {
       const selectedDriver = drivers.find(d => d.id === data.driver_id);
-      if (!selectedDriver || selectedDriver.status !== "disponible") {
+      if (!selectedDriver || !["disponible", "en_viaje"].includes(selectedDriver.status) || (selectedDriver.status === "en_viaje" && !data.requested_driver_only)) {
         alert(`El móvil ${data.driver_name || manualDriverInput || ""} está fuera de servicio u ocupado. El pasaje no fue asignado.`);
         return;
       }
@@ -412,8 +408,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     if (!data.driver_id && manualDriverInput) {
       const inputTrimmed = manualDriverInput.trim();
       const resolved = resolveActiveDriverForMobile(inputTrimmed, drivers, moviles);
-      if (!resolved.driver) {
-        alert(resolved.error);
+      if (!resolved.driver || (resolved.driver.status === "en_viaje" && !data.requested_driver_only)) {
+        alert(resolved.error || "El móvil está ocupado. Sólo puede recibir otro pasaje requerido por su cliente.");
         return;
       }
 
