@@ -287,6 +287,78 @@
       "type": "boolean",
       "default": false,
       "description": "Si el requerido no acepta, detener despacho autom\u00e1tico y retener para decisi\u00f3n del operador"
+    },
+    "importe_real_actual": {
+      "type": "number"
+    },
+    "metros_taximetro": {
+      "type": "number"
+    },
+    "segundos_espera_acumulados": {
+      "type": "number"
+    },
+    "segundos_tolerancia_espera_usados": {
+      "type": "number"
+    },
+    "ride_started_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ride_finished_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ride_duration_seconds": {
+      "type": "number"
+    },
+    "max_speed_kmh": {
+      "type": "number"
+    },
+    "driver_mobile": {
+      "type": "string"
+    },
+    "driver_vehicle_plate": {
+      "type": "string"
+    },
+    "taximetro_iniciado": {
+      "type": "boolean"
+    },
+    "tarifa_bajada_snapshot": {
+      "type": "number"
+    },
+    "tarifa_valor_ficha_snapshot": {
+      "type": "number"
+    },
+    "tarifa_metros_por_ficha_snapshot": {
+      "type": "number"
+    },
+    "tarifa_tolerancia_espera_segundos_snapshot": {
+      "type": "number"
+    },
+    "tarifa_segundos_por_ficha_espera_snapshot": {
+      "type": "number"
+    },
+    "tarifa_valor_ficha_espera_snapshot": {
+      "type": "number"
+    },
+    "tarifa_snapshot_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "importe_calculo_servidor": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "origen_calculo": {
+      "type": "string"
     }
   },
   "required": [
