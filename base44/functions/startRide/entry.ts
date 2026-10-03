@@ -92,7 +92,7 @@ export async function startRideCAS(b44: any, rideOrderId: string, driverId: stri
       ride_duration_seconds: 0,
       max_speed_kmh: Number(order.max_speed_kmh || 0),
       driver_name: order.driver_name || driver.name || '',
-      driver_mobile: order.driver_mobile || String(driver.vehicle_model || driver.mobile_number || ''),
+      driver_mobile: order.driver_mobile || String((await b44.entities.Movil.get(String(driver.vehicle_model || '')).catch(()=>null))?.numero_movil || ''),
       driver_vehicle_plate: order.driver_vehicle_plate || driver.vehicle_plate || '',
       taximetro_iniciado: true,
       tarifa_bajada_snapshot: Number(tarifa.bajada_bandera || 0),
