@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.40";
+import { buildRideHistory, loadCompletedRides, periodBounds } from "../../shared/rideReporting.ts";
 
 export const options = { requiresAuth: false };
 
@@ -34,11 +35,10 @@ Deno.serve(async (req) => {
     const reserved=owns(r)&&["ofrecido","aceptado"].includes(String(r.status||""))?r:null;
     const next=owns(n)&&!["completado","cancelado"].includes(String(n.status||""))?n:null;
     const serverTimeMs=Date.now();
-    const fmt=(d:Date)=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Argentina/Buenos_Aires",year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
-    const dayKey=fmt(new Date(serverTimeMs));
-    const completed=await base44.asServiceRole.entities.RideOrder.filter({driver_id:driver.id,status:"completado"}).catch(()=>[]);
-    const today=completed.filter((o:any)=>{const d=o.ride_finished_at?new Date(o.ride_finished_at):null;return d&&!Number.isNaN(d.getTime())&&fmt(d)===dayKey});
-    const earnings=today.reduce((s:number,o:any)=>s+Math.max(0,Number(o.importe_real_actual??o.fare??0)),0);
+    const now=new Date(serverTimeMs),bounds=periodBounds("day",now);
+    const completed=await loadCompletedRides(base44.asServiceRole.entities.RideOrder,driver.id,bounds.from);
+    const history=buildRideHistory(completed,"day",now);
+    const dayKey=history.day,earnings=history.summary.total,today=history.orders;
     return Response.json({valid:true,server_time:new Date(serverTimeMs).toISOString(),serverTimeMs,daily_summary:{earnings,trips:today.length,day:dayKey},driver:safeDriver(driver),active_order:active,reserved_order:reserved,next_order:next});
   } catch(e) { return Response.json({error:e?.message||"RESTORE_FAILED"},{status:500}); }
 });
