@@ -1,59 +1,5 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.40";
 
-
-// Shared by history and the home total: same completed rides, dates and amounts.
-function reportDate(value:any){
- if(!value)return null;let text=String(value);
- if(/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(text)&&!/(Z|[+-]\d\d:\d\d)$/i.test(text))text+='Z';
- const date=new Date(text);return Number.isFinite(date.getTime())?date:null;
-}
-function nonnegative(value:any){const n=Number(value);return Number.isFinite(n)?Math.max(0,n):0;}
-function optionalSeconds(value:any){return value==null||value===''?null:Math.floor(nonnegative(value));}
-function periodBounds(period:string,now=new Date()){
- const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
- const part=(type:string)=>p.find(x=>x.type===type)?.value||'';
- const day=`${part('year')}-${part('month')}-${part('day')}`;
- const anchor=new Date(day+'T12:00:00Z');
- if(period==='week')anchor.setUTCDate(anchor.getUTCDate()-(anchor.getUTCDay()+6)%7);
- if(period==='month')anchor.setUTCDate(1);
- return {day,from:new Date(anchor.toISOString().slice(0,10)+'T03:00:00Z'),to:now};
-}
-function reportRide(order:any){
- let finished:Date|null=null,source='';
- for(const field of ['ride_finished_at','completed_at','updated_date','created_date']){finished=reportDate(order[field]);if(finished){source=field;break;}}
- const started=reportDate(order.ride_started_at);
- const derived=started&&finished&&['ride_finished_at','completed_at'].includes(source)?Math.max(0,Math.floor((finished.getTime()-started.getTime())/1000)):null;
- const stored=optionalSeconds(order.ride_duration_seconds??order.duration_seconds);
- const duration=stored!=null&&stored>0?stored:derived??stored;
- const rawWait=optionalSeconds(order.segundos_detenido_acumulados);
- const billable=optionalSeconds(order.segundos_espera_acumulados??order.wait_seconds);
- return {id:order.id,ride_number:order.ride_number||order.numero_viaje||order.id,
- pickup_address:order.pickup_address||order.origin_address,dropoff_address:order.dropoff_address||order.destination_address,
- driver_name:order.driver_name,driver_mobile:order.driver_mobile,driver_vehicle_plate:order.driver_vehicle_plate,
- importe_final:nonnegative(order.importe_real_actual??order.importe_final??order.importe??order.fare),
- metros_taximetro:nonnegative(order.metros_taximetro??order.distance_meters??order.distancia_teorica_metros),
- segundos_espera_acumulados:billable,segundos_detenido_acumulados:rawWait,
- ride_duration_seconds:duration,ride_started_at:order.ride_started_at||null,
- completed_at:finished?.toISOString()||null,completion_date_estimated:!['ride_finished_at','completed_at'].includes(source)};
-}
-function buildRideHistory(orders:any[],period:string,now=new Date()){
- const bounds=periodBounds(period,now),seen=new Set();
- const rows=orders.filter(o=>{if(o.status!=='completado'||seen.has(o.id))return false;seen.add(o.id);return true;}).map(reportRide).filter(o=>{const d=reportDate(o.completed_at);return d&&d>=bounds.from&&d<=bounds.to;}).sort((a,b)=>Date.parse(b.completed_at)-Date.parse(a.completed_at));
- const total=rows.reduce((s,o)=>s+o.importe_final,0),km=rows.reduce((s,o)=>s+o.metros_taximetro,0)/1000;
- return {success:true,period,day:bounds.day,orders:rows,total,km,summary:{total,count:rows.length,km,durationSeconds:rows.reduce((s,o)=>s+(o.ride_duration_seconds||0),0),billableWaitSeconds:rows.reduce((s,o)=>s+(o.segundos_espera_acumulados||0),0)}};
-}
-async function loadCompletedRides(entity:any,driverId:string,from:Date){
- const filter={driver_id:driverId,status:'completado',$or:[{ride_finished_at:{$gte:from.toISOString()}},{updated_date:{$gte:from.toISOString()}}]};
- const rows:any[]=[];const seen=new Set();const limit=200;
- for(let skip=0;;skip+=limit){
-  const page=await entity.filter(filter,'-created_date',limit,skip);
-  if(!Array.isArray(page))throw new Error('HISTORY_INVALID_RESPONSE');
-  let added=0;for(const o of page){if(!seen.has(o.id)){seen.add(o.id);rows.push(o);added++;}}
-  if(page.length<limit)return rows;
-  if(!added)throw new Error('HISTORY_PAGINATION_STALLED');
- }
-}
-
 export const options = { requiresAuth: false };
 // Redeploy marker: authoritative clean-driver login contract 2026-09-28.
 
@@ -159,15 +105,27 @@ async function handleNewApp(base44: any, action: string, payload: any) {
       const serverTimeMs = Date.now();
       // Resumen diario autoritativo para la APK: sólo viajes realmente completados
       // por este chofer. El teléfono no mantiene un contador propio.
-      const dailyNow=new Date();const bounds=periodBounds("day",dailyNow);
-      const completed=await loadCompletedRides(base44.asServiceRole.entities.RideOrder,driver.id,bounds.from);
-      const daily=buildRideHistory(completed,"day",dailyNow);
-      const dayKey=bounds.day,today=daily.orders,earnings=daily.summary.total;
+      const dayKey = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Argentina/Buenos_Aires', year:'numeric', month:'2-digit', day:'2-digit'
+      }).format(new Date(serverTimeMs));
+      const completed = await base44.asServiceRole.entities.RideOrder
+        .filter({ driver_id: driver.id, status: 'completado' })
+        .catch(() => []);
+      const todayCompleted = completed.filter((order:any) => {
+        const finished = order.ride_finished_at ? new Date(order.ride_finished_at) : null;
+        return finished && !Number.isNaN(finished.getTime()) &&
+          new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Argentina/Buenos_Aires', year:'numeric', month:'2-digit', day:'2-digit'
+          }).format(finished) === dayKey;
+      });
+      const todayEarnings = todayCompleted.reduce(
+        (sum:number, order:any) => sum + Math.max(0, Number(order.importe_real_actual ?? order.fare ?? 0)), 0
+      );
       return json({
         valid,
         server_time: new Date(serverTimeMs).toISOString(),
         serverTimeMs,
-        daily_summary: { earnings, trips: today.length, day: dayKey },
+        daily_summary: { earnings: todayEarnings, trips: todayCompleted.length, day: dayKey },
         driver: {
           ...safeDriver(driver),
           dispatch_status: driver.dispatch_status || "normal",
@@ -224,12 +182,8 @@ async function handleNewApp(base44: any, action: string, payload: any) {
       driver_id:driver.id, driver_name:driver.name || "", driver_mobile:String(movil?.numero_movil || ""),
       fare:Math.round(Number(payload.importe || 0)), importe_real_actual:Math.round(Number(payload.importe || 0)), source:"operador",
       metros_taximetro:Math.max(0,Math.round(Number(payload.metros || 0))), segundos_espera_acumulados:Math.max(0,Math.round(Number(payload.segundosEspera || 0))),
-      segundos_detenido_acumulados:payload.segundosDetenido==null?null:nonnegative(payload.segundosDetenido),
-      segundos_tolerancia_espera_usados:nonnegative(payload.segundosTolerancia),
-      tarifa_bajada_snapshot:payload.tarifa?.bajada_bandera??null,tarifa_valor_ficha_snapshot:payload.tarifa?.valor_ficha??null,tarifa_metros_por_ficha_snapshot:payload.tarifa?.metros_por_ficha??null,
-      tarifa_valor_ficha_espera_snapshot:payload.tarifa?.valor_ficha_espera??null,tarifa_segundos_por_ficha_espera_snapshot:payload.tarifa?.segundos_por_ficha_espera??null,tarifa_tolerancia_espera_segundos_snapshot:payload.tarifa?.tolerancia_espera_segundos??null,
-      taximetro_iniciado:false,ride_started_at:startedAt || finishedAt, ride_finished_at:finishedAt,
-      ride_duration_seconds:Math.max(0,Math.floor(((reportDate(finishedAt)?.getTime()||0)-(reportDate(startedAt)?.getTime()||reportDate(finishedAt)?.getTime()||0))/1000)), driver_vehicle_plate:String(driver.vehicle_plate || "")
+      ride_started_at:startedAt || finishedAt, ride_finished_at:finishedAt,
+      ride_duration_seconds:Math.max(0,Math.round(Number(payload.durationSeconds || 0))), driver_vehicle_plate:String(driver.vehicle_plate || "")
     });
     const saved = await base44.asServiceRole.entities.RideOrder.get(created.id);
     if (!saved?.ride_finished_at) return json({success:false, reason:"occasional_not_persisted"}, 500);
@@ -250,9 +204,28 @@ async function handleNewApp(base44: any, action: string, payload: any) {
     if (action === "history") {
       const period = ["day", "week", "month"].includes(String(payload.period || ""))
         ? String(payload.period) : "day";
-      const now=new Date(),bounds=periodBounds(period,now);
-      const orders=await loadCompletedRides(base44.asServiceRole.entities.RideOrder,driver.id,bounds.from);
-      return json(buildRideHistory(orders,period,now));
+      const now = new Date();
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Argentina/Buenos_Aires", year:"numeric", month:"2-digit", day:"2-digit"
+      }).formatToParts(now).reduce((a:any,p:any)=>{ if(p.type!=="literal") a[p.type]=p.value; return a; },{});
+      const localToday = new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00-03:00`);
+      let from = new Date(localToday);
+      if (period === "week") {
+        const day = from.getDay();
+        const diff = day === 0 ? 6 : day - 1;
+        from.setDate(from.getDate() - diff);
+      } else if (period === "month") {
+        from.setDate(1);
+      }
+      const orders = await base44.asServiceRole.entities.RideOrder
+        .filter({ driver_id: driver.id, status: "completado" }).catch(() => []);
+      const selected = orders.filter((o:any) => {
+        const d = o.ride_finished_at ? new Date(o.ride_finished_at) : null;
+        return d && !Number.isNaN(d.getTime()) && d >= from && d <= now;
+      }).sort((a:any,b:any)=>new Date(b.ride_finished_at||0).getTime()-new Date(a.ride_finished_at||0).getTime());
+      const total = selected.reduce((s:number,o:any)=>s+Math.max(0,Number(o.importe_real_actual??o.fare??0)),0);
+      const meters = selected.reduce((s:number,o:any)=>s+Math.max(0,Number(o.metros_taximetro??0)),0);
+      return json({ success:true, period, summary:{ total, count:selected.length, km:meters/1000 }, total, km:meters/1000, orders:selected.map((o:any)=>({ id:o.id, ride_number:o.ride_number||o.numero_viaje||o.id, pickup_address:o.pickup_address, dropoff_address:o.dropoff_address, importe_final:Number(o.importe_real_actual??o.fare??0), metros_taximetro:Number(o.metros_taximetro??0), segundos_espera_acumulados:Number(o.segundos_espera_acumulados??0), completed_at:o.ride_finished_at })) });
     }
 
     if (action === "messages") {
@@ -359,4 +332,3 @@ export default async function (req: Request) {
     return json({ success: false, status: "error", error: message, message }, 500);
   }
 }
-
