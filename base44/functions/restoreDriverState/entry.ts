@@ -12,11 +12,23 @@ Deno.serve(async (req) => {
   const base44=createClientFromRequest(req);
   try {
     const payload=await req.json().catch(()=>({}));
-    const driver=await base44.asServiceRole.entities.Driver.get(String(payload.driver_id||"")).catch(()=>null);
+    let driver=await base44.asServiceRole.entities.Driver.get(String(payload.driver_id||"")).catch(()=>null);
     const valid=Boolean(driver && driver.device_id===String(payload.device_id||"") && driver.current_session_token===String(payload.access_token||""));
     if(!valid) return Response.json({valid:false},{status:401});
     const load=async(id:any)=>id?await base44.asServiceRole.entities.RideOrder.get(String(id)).catch(()=>null):null;
-    const [a,r,n]=await Promise.all([load(driver.active_ride_id),load(driver.reserved_order_id),load(driver.next_order_id)]);
+    let [a,r,n]=await Promise.all([load(driver.active_ride_id),load(driver.reserved_order_id),load(driver.next_order_id)]);
+    // La reconciliación no puede devolver indefinidamente una oferta vencida.
+    // El motor canónico revalida intento, propietario y aceptación concurrente.
+    if (r?.status === "ofrecido" && r.reserved_driver_id === driver.id &&
+        r.alert_presented_at && Number(r.alert_presented_assignment_attempt) === Number(r.assignment_attempt) &&
+        r.offerExpiresAt != null && Number.isFinite(Number(r.offerExpiresAt)) && Number(r.offerExpiresAt) <= Date.now()) {
+      await base44.asServiceRole.functions.invoke("rejectRide", {
+        orderId:r.id,driverId:driver.id,assignmentAttempt:Number(r.assignment_attempt),
+        source:"timeout",sessionToken:String(payload.access_token||"")
+      });
+      driver=await base44.asServiceRole.entities.Driver.get(driver.id);
+      [a,r,n]=await Promise.all([load(driver.active_ride_id),load(driver.reserved_order_id),load(driver.next_order_id)]);
+    }
     const owns=(o:any)=>o&&String(o.driver_id||"")===String(driver.id);
     const active=owns(a)&&["aceptado","en_camino","en_viaje"].includes(String(a.status||""))?a:null;
     const reserved=owns(r)&&["ofrecido","aceptado"].includes(String(r.status||""))?r:null;
