@@ -114,7 +114,20 @@ export function useRealtimeOrders({ limit = 100, sort = "-created_date", fallbac
             ] }
           : { status: { $in: activeStatusList } };
 
-        const freshList = await base44.entities.RideOrder.filter(filter).catch(() => []);
+        let freshList = await base44.entities.RideOrder.filter(filter).catch(() => []);
+        const operatorToken=sessionStorage.getItem("local_operator_token");
+        if (operatorToken && Array.isArray(freshList)) {
+          const expired=freshList.filter(o=>o.status==="ofrecido" && o.reserved_driver_id &&
+            o.alert_presented_at && Number(o.alert_presented_assignment_attempt)===Number(o.assignment_attempt) &&
+            o.offerExpiresAt!=null && Number.isFinite(Number(o.offerExpiresAt)) && Number(o.offerExpiresAt)<=Date.now());
+          if (expired.length) {
+            await Promise.allSettled(expired.map(o=>base44.functions.invoke("operatorOrderAction",{
+              action:"expire_offer",orderId:o.id,driverId:o.reserved_driver_id,
+              assignmentAttempt:Number(o.assignment_attempt),sessionToken:operatorToken
+            })));
+            freshList=await base44.entities.RideOrder.filter(filter).catch(()=>freshList);
+          }
+        }
         if (!mountedRef.current || !Array.isArray(freshList)) return;
 
         setOrders(prev => {
