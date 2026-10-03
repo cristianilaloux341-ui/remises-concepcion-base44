@@ -115,7 +115,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
   }, [form.pickup_address, form.dropoff_address]);
 
   const { data: drivers = [] } = useQuery({
-    queryKey: ["drivers"],
+    queryKey: ["drivers_order_form"],
     queryFn: () => base44.entities.Driver.filter({ status: { $in: ["disponible", "en_viaje"] } }),
     staleTime: 10_000,
     refetchInterval: 10_000,
@@ -568,7 +568,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
               <PickupAutocomplete
                 value={form.pickup_address}
                 onChange={(v, coords) => {
-                  zoneManualOverrideRef.current = false;
+                  if (v !== form.pickup_address) zoneManualOverrideRef.current = false;
                   setForm(prev => ({ 
                     ...prev, 
                     pickup_address: v, 
@@ -776,7 +776,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
                 value={manualDriverInput}
                 onChange={(e) => {
                   setManualDriverInput(e.target.value);
-                  setForm(prev => ({ ...prev, driver_id: "" })); // Clear actual ID to trigger auto-creation on submit
+                  const resolved = resolveActiveDriverForMobile(e.target.value, drivers, moviles);
+                  setForm(prev => ({ ...prev, driver_id: resolved.driver?.id || "", driver_name: resolved.driver?.name || "", requested_driver_only: false }));
                 }}
               />
               <Button type="button" variant="outline" className="gap-1.5 rounded-lg shrink-0"
