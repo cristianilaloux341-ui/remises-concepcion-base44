@@ -176,9 +176,10 @@ async function handleNewApp(base44: any, action: string, payload: any) {
     if (!valid) return json({ success:false, reason:"invalid_session" }, 401);
     const startedAt = String(payload.ride_started_at || "");
     const finishedAt = String(payload.ride_finished_at || new Date().toISOString());
+    const movil = driver.vehicle_model ? await base44.asServiceRole.entities.Movil.get(String(driver.vehicle_model)).catch(()=>null) : null;
     const created = await base44.asServiceRole.entities.RideOrder.create({
       client_name:"Viaje Ocasional (Calle)", pickup_address:"Viaje en calle", status:"completado",
-      driver_id:driver.id, driver_name:driver.name || "",
+      driver_id:driver.id, driver_name:driver.name || "", driver_mobile:String(movil?.numero_movil || ""),
       fare:Math.round(Number(payload.importe || 0)), importe_real_actual:Math.round(Number(payload.importe || 0)), source:"operador",
       metros_taximetro:Math.max(0,Math.round(Number(payload.metros || 0))), segundos_espera_acumulados:Math.max(0,Math.round(Number(payload.segundosEspera || 0))),
       ride_started_at:startedAt || finishedAt, ride_finished_at:finishedAt,
