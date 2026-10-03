@@ -14,6 +14,7 @@ import AddressAutocomplete from "@/components/orders/AddressAutocomplete";
 import { recordAddressUsage } from "@/hooks/useAddressSuggestions";
 import { useTarifaConfig, calcularDistanciaRuta, calcularImporte } from "@/hooks/useTarifaConfig";
 import { resolveActiveDriverForMobile } from "@/lib/mobileDriverResolver";
+import { phoneDigits, matchClientByPhone, matchClientByAddress } from "@/lib/clientAutofill";
 
 const ZONES = ["0-Pendientes", "1-Puerto", "2-Plaza", "3-Columna", "4-Base", "5-Cementerio", "6-Díaz Vélez", "7-Don Bosco", "8-Monumento"];
 
@@ -147,6 +148,33 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     queryFn: () => base44.entities.ClientAddress.list("-usage_count", 500),
     staleTime: 30_000,
   });
+
+  // Autocompletar identidad independientemente de coordenadas o geocodificación.
+  useEffect(() => {
+    const phone = form.client_phone;
+    const digits = phoneDigits(phone);
+    if (digits.length < 7) return;
+    let cancelled = false;
+    const fill = rows => {
+      if (cancelled) return;
+      const match = matchClientByPhone(phone, rows, clientAddresses);
+      if (!match) return;
+      setForm(prev => prev.client_phone !== phone ? prev : {...prev, client_id:match.client_id, client_name:match.client_name});
+    };
+    fill(clients);
+    const timer = setTimeout(async () => {
+      const pattern = digits.split("").join("[^0-9]*") + "[^0-9]*$";
+      try { fill(await base44.entities.Client.filter({phone:{$regex:pattern}}, "-updated_date", 100)); } catch {}
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [form.client_phone, clients, clientAddresses]);
+
+  useEffect(() => {
+    const address = form.pickup_address;
+    const match = matchClientByAddress(address, clients, clientAddresses);
+    if (!match) return;
+    setForm(prev => prev.pickup_address !== address || prev.client_name?.trim() ? prev : {...prev, ...match});
+  }, [form.pickup_address, clients, clientAddresses]);
 
   const isDriverWorking = (d) => {
     if (d.status !== "disponible") return false;
