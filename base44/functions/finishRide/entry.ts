@@ -122,7 +122,8 @@ Deno.serve(async (req) => {
 
     if (isClean(freshDriver)) {
       await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_ALREADY_PROCESSED', user_type: 'sistema', user_name: 'finishRide', details: 'Already completed perfectly', metadata: { orderId, driverId } });
-      return Response.json({ success: true, idempotent: true, reason: 'ALREADY_PROCESSED' });
+      const savedOrder = await b44.entities.RideOrder.get(orderId).catch(()=>order);
+      return Response.json({ success: true, idempotent: true, reason: 'ALREADY_PROCESSED', order:savedOrder });
     }
 
     const fixRes = await b44.entities.Driver.updateMany(
@@ -273,5 +274,7 @@ Deno.serve(async (req) => {
     console.error('Backend next ride promotion failed', promotionError);
   }
 
-  return Response.json({ success: true, promotedNextOrderId });
+  const verifiedOrder = await b44.entities.RideOrder.get(orderId).catch(()=>null);
+  if (!verifiedOrder || verifiedOrder.status !== 'completado') return Response.json({ success:false, reason:'FINISH_NOT_CONVERGED' }, { status:409 });
+  return Response.json({ success: true, promotedNextOrderId, order:verifiedOrder });
 });
