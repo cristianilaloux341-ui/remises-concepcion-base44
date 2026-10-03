@@ -101,12 +101,13 @@ Deno.serve(async (req) => {
       }).catch(()=>{});
       return Response.json({success:false,orderId:order.id,assigned:false,status:"pendiente",centralReview:true,reason:"ZONE_REQUIRED"},{status:409});
     }
+    // Compartida por la selección inicial y la revalidación final de la zona.
+    const excludedDriverIds = new Set<string>();
     if (!isDirectPendingZone) {
       // Si el primer candidato pierde la reserva por concurrencia (otro pasaje lo
       // tomó entre la lectura y el CAS), continuar con el siguiente de ESTA MISMA
       // zona. Un intento fallido no debe mandar a Pendientes mientras quede otro
       // móvil elegible en la cola.
-      const excludedDriverIds = new Set<string>();
       const zoneSnapshot = await b44.entities.Driver.filter({
         status:'disponible',
         queue_authoritative_base:order.zone
