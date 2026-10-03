@@ -43,14 +43,15 @@ Deno.serve(async (req) => {
         return Response.json({ ok:true, skipped:true, reason:'presented_without_expiry_guard' });
       }
       const remaining = expiry - Date.now();
-      if (remaining > 0) {
-        await sleep(Math.min(MAX_WAIT_MS, Math.max(250, remaining)));
+      // Mantener viva esta ejecución hasta el vencimiento; no perder el reloj
+      // al devolver una respuesta con una invocación pendiente sin await.
+      while (order && Number(order.offerExpiresAt) > Date.now()) {
+        await sleep(Math.min(MAX_WAIT_MS, Math.max(250, Number(order.offerExpiresAt) - Date.now())));
         order = await readCurrent();
         if (!order) return Response.json({ ok:true, skipped:true, reason:'offer_changed_during_wait' });
         const freshExpiry = Number(order.offerExpiresAt);
-        if (Number.isFinite(freshExpiry) && Date.now() < freshExpiry) {
-          chain();
-          return Response.json({ ok:true, chained:true, reason:'response_window_active', remainingMs:freshExpiry-Date.now() });
+        if (!Number.isFinite(freshExpiry)) {
+          return Response.json({ ok:true, skipped:true, reason:'presented_without_expiry_guard' });
         }
       }
 
