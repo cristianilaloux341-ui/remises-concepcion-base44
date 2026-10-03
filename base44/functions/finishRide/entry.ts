@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
   const payload = await req.json();
-  const { orderId, driverId, importeFinal, metrosFinales, segundosEsperaFinales, segundosToleranciaFinales, segundosDetenidoFinales, operationKey } = payload;
+  const { orderId, driverId, importeFinal, metrosFinales, segundosEsperaFinales, segundosToleranciaFinales, operationKey } = payload;
   const opKey = operationKey || `FINISH_${orderId}_${driverId}`;
 
   await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_REQUESTED', user_type: 'sistema', user_name: 'finishRide', details: `Requested finish for ${orderId}`, metadata: { orderId, driverId } });
@@ -177,7 +177,6 @@ Deno.serve(async (req) => {
             metros_taximetro: finalMetros,
             segundos_espera_acumulados: finalEspera,
             segundos_tolerancia_espera_usados: finalTolerancia,
-            ...(segundosDetenidoFinales!=null?{segundos_detenido_acumulados:Math.max(Number(order.segundos_detenido_acumulados||0),Number(segundosDetenidoFinales||0))}:{}),
             ride_finished_at: order.ride_finished_at || finishedAt.toISOString(),
             ride_duration_seconds: rideDurationSeconds,
             updated_date: finishedAt.toISOString(),
@@ -227,7 +226,6 @@ Deno.serve(async (req) => {
         metros_taximetro: finalMetros,
         segundos_espera_acumulados: finalEspera,
         segundos_tolerancia_espera_usados: finalTolerancia,
-            ...(segundosDetenidoFinales!=null?{segundos_detenido_acumulados:Math.max(Number(order.segundos_detenido_acumulados||0),Number(segundosDetenidoFinales||0))}:{}),
         importe_calculo_servidor: importeServidor,
         origen_calculo: origenCalculo,
         ride_finished_at: finishedAt.toISOString(),
