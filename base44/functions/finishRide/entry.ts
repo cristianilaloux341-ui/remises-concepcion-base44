@@ -218,7 +218,7 @@ Deno.serve(async (req) => {
         ride_finished_at: finishedAt.toISOString(),
         ride_duration_seconds: rideDurationSeconds,
         driver_name: order.driver_name || driver.name || '',
-        driver_mobile: order.driver_mobile || String(driver.vehicle_model || driver.mobile_number || ''),
+        driver_mobile: order.driver_mobile || String((await b44.entities.Movil.get(String(driver.vehicle_model || '')).catch(()=>null))?.numero_movil || ''),
         driver_vehicle_plate: order.driver_vehicle_plate || driver.vehicle_plate || '',
         updated_date: finishedAt.toISOString(),
         reserved_driver_id: null,
