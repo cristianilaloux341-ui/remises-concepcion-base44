@@ -227,7 +227,7 @@ export async function detectZoneFromAddress(address) {
   if (!address || address.trim().length < 2) return null;
 
   const addressNorm = _normalize(address);
-  const history = await base44.entities.AddressHistory.list("-last_used", 2000).catch(() => []);
+  const history = await base44.entities.AddressHistory.filter({ normalized_address: addressNorm, zone_confirmed: true }, "-last_used", 10).catch(() => []);
   const learned = history.find(h => (h.normalized_address || _normalize(h.address)) === addressNorm && h.zone_confirmed && h.zone);
   if (learned) return learned.zone;
 
