@@ -47,6 +47,8 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
     ...order,
   });
 
+  const currentPickupRef = useRef(form.pickup_address);
+  currentPickupRef.current = form.pickup_address;
   const [autoAssigning, setAutoAssigning] = useState(false);
   const queryClient = useQueryClient();
   const [suggestedDriver, setSuggestedDriver] = useState(null);
@@ -568,7 +570,7 @@ export default function OrderForm({ order, onSubmit, isSubmitting, onCancel = ()
               <PickupAutocomplete
                 value={form.pickup_address}
                 onChange={(v, coords) => {
-                  if (v !== form.pickup_address) zoneManualOverrideRef.current = false;
+                  if (v !== currentPickupRef.current) zoneManualOverrideRef.current = false;
                   setForm(prev => ({ 
                     ...prev, 
                     pickup_address: v, 
