@@ -359,6 +359,13 @@
     },
     "origen_calculo": {
       "type": "string"
+    },
+    "segundos_detenido_acumulados": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "Segundos detenido confirmados por GPS, incluida la parte anterior a la tolerancia; no es espera facturada."
     }
   },
   "required": [
