@@ -8,7 +8,7 @@ Deno.serve(async (req) => {
   try {
     const payload = await req.json();
     const { orderId, action, sessionToken } = payload;
-    if (!orderId || action !== 'cancel') {
+    if (!orderId || !['cancel','expire_offer'].includes(action)) {
       return Response.json({ success:false, reason:'INVALID_PARAMS' }, { status:400 });
     }
     // Esta función pertenece a Central. La futura app cliente tendrá su propia
@@ -19,6 +19,22 @@ Deno.serve(async (req) => {
     }
     const order = await b44.entities.RideOrder.get(orderId).catch(()=>null);
     if (!order) return Response.json({ success:false, reason:'ORDER_NOT_FOUND' }, { status:404 });
+
+    if (action === 'expire_offer') {
+      if (order.status !== 'ofrecido' || order.reserved_driver_id !== payload.driverId ||
+          Number(order.assignment_attempt) !== Number(payload.assignmentAttempt)) {
+        return Response.json({success:true,skipped:true,reason:'offer_changed'});
+      }
+      if (!order.alert_presented_at || Number(order.alert_presented_assignment_attempt) !== Number(order.assignment_attempt) ||
+          order.offerExpiresAt == null || !Number.isFinite(Number(order.offerExpiresAt)) || Number(order.offerExpiresAt) > Date.now()) {
+        return Response.json({success:false,reason:'OFFER_STILL_ACTIVE'});
+      }
+      const result=await b44.functions.invoke('rejectRide',{
+        orderId,driverId:order.reserved_driver_id,assignmentAttempt:Number(order.assignment_attempt),
+        source:'timeout',internalKey:Deno.env.get('INTERNAL_SERVICE_KEY')
+      });
+      return Response.json(result?.data || result);
+    }
 
     // Cancelación es terminal. Un pasaje cancelado no se reactiva: si vuelve a pedirse,
     // debe nacer una orden nueva y entrar por el motor canónico de despacho.
