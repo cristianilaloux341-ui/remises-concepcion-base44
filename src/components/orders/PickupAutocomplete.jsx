@@ -15,6 +15,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
   const [inputValue, setInputValue] = useState(value || "");
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+  const selectionSeqRef = useRef(0);
 
   useEffect(() => { setInputValue(value || ""); }, [value]);
 
@@ -120,6 +121,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
 
   const handleChange = (e) => {
     const val = e.target.value;
+    selectionSeqRef.current += 1;
     setInputValue(val);
     // Al teclear, la dirección todavía NO tiene un punto confirmado.
     // El padre debe borrar cualquier lat/lng de la selección anterior.
@@ -128,6 +130,7 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
   };
 
   const handleSelect = async (s) => {
+    const seq = ++selectionSeqRef.current;
     setInputValue(s.full_address);
     setOpen(false);
     // Completar cliente y dirección inmediatamente; el mapa sólo resuelve ubicación.
@@ -173,18 +176,10 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
       }
     }
 
-    if (inputRef.current?.value !== s.full_address) return;
+    if (selectionSeqRef.current !== seq || inputRef.current?.value !== s.full_address) return;
     onChange(s.full_address, coords);
 
-    if (s.type === "client") {
-      onClientSelect?.({
-        addressId: s.id,
-        client_id: s.client_id,
-        client_name: s.client_name ?? "",
-        client_phone: s.client_phone ?? "",
-        floor_apt: s.floor_apt ?? "",
-      });
-    }
+    // El cliente ya se completó al seleccionar; una respuesta del mapa no lo pisa.
   };
 
   return (
