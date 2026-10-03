@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const b44 = base44.asServiceRole;
   const payload = await req.json();
-  const { orderId, driverId, importeFinal, operationKey } = payload;
+  const { orderId, driverId, importeFinal, metrosFinales, segundosEsperaFinales, segundosToleranciaFinales, operationKey } = payload;
   const opKey = operationKey || `FINISH_${orderId}_${driverId}`;
 
   await b44.entities.AuditLog.create({ action: 'FINISH_RIDE_REQUESTED', user_type: 'sistema', user_name: 'finishRide', details: `Requested finish for ${orderId}`, metadata: { orderId, driverId } });
@@ -165,12 +165,18 @@ Deno.serve(async (req) => {
         ? Math.max(0, Math.floor((finishedAt.getTime() - startedAtMs) / 1000))
         : Number(order.ride_duration_seconds || 0);
       const finalImporte = Math.max(0, Number(importeFinal ?? order.importe_real_actual ?? 0));
+      const finalMetros = Math.max(Number(order.metros_taximetro || 0), Number(metrosFinales || 0));
+      const finalEspera = Math.max(Number(order.segundos_espera_acumulados || 0), Number(segundosEsperaFinales || 0));
+      const finalTolerancia = Math.max(Number(order.segundos_tolerancia_espera_usados || 0), Number(segundosToleranciaFinales || 0));
 
       const repairOrder = await b44.entities.RideOrder.updateMany(
         { id: orderId, status: 'completado', driver_id: driverId },
         { $set: {
             taximetro_iniciado: false,
             importe_real_actual: finalImporte,
+            metros_taximetro: finalMetros,
+            segundos_espera_acumulados: finalEspera,
+            segundos_tolerancia_espera_usados: finalTolerancia,
             ride_finished_at: order.ride_finished_at || finishedAt.toISOString(),
             ride_duration_seconds: rideDurationSeconds,
             updated_date: finishedAt.toISOString(),
@@ -200,6 +206,9 @@ Deno.serve(async (req) => {
   // otro calculador al finalizar: un cambio de tarifa nunca puede alterar un viaje activo.
   const importeTelefono = Math.max(0, Number(importeFinal ?? order.importe_real_actual ?? 0));
   const finalImporte = importeTelefono;
+  const finalMetros = Math.max(Number(order.metros_taximetro||0), Number(metrosFinales||0));
+  const finalEspera = Math.max(Number(order.segundos_espera_acumulados||0), Number(segundosEsperaFinales||0));
+  const finalTolerancia = Math.max(Number(order.segundos_tolerancia_espera_usados||0), Number(segundosToleranciaFinales||0));
   const importeServidor = null;
   const origenCalculo = 'taximetro_snapshot_telefono';
   const finishedAt = new Date();
@@ -213,7 +222,10 @@ Deno.serve(async (req) => {
     { $set: { 
         status: 'completado',
         taximetro_iniciado: false,
-        importe_real_actual: finalImporte, 
+        importe_real_actual: finalImporte,
+        metros_taximetro: finalMetros,
+        segundos_espera_acumulados: finalEspera,
+        segundos_tolerancia_espera_usados: finalTolerancia,
         importe_calculo_servidor: importeServidor,
         origen_calculo: origenCalculo,
         ride_finished_at: finishedAt.toISOString(),
