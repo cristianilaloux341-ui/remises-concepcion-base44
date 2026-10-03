@@ -6,6 +6,7 @@ import { MapPin, User, Clock, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGooglePlaces } from "@/hooks/useGooglePlaces";
 import { useAddressSuggestions } from "@/hooks/useAddressSuggestions";
+import { addressKey, uniqueClient } from "@/lib/clientAutofill";
 
 const normalize = (s) =>
   (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -48,6 +49,19 @@ export default function PickupAutocomplete({ value, onChange, onClientSelect, pl
     enabled: !!restrictToClient || searchTerm.length >= 3,
     staleTime: 30_000,
   });
+
+  const autofilledAddressRef = useRef("");
+  useEffect(() => {
+    const key = addressKey(inputValue);
+    if (!key || !/\d/.test(key)) { autofilledAddressRef.current = ""; return; }
+    const rows = clientAddresses.filter(c => addressKey(c.full_address) === key);
+    const match = uniqueClient(rows);
+    if (!match) { autofilledAddressRef.current = ""; return; }
+    const identity = key + "#" + match.client_id;
+    if (autofilledAddressRef.current === identity) return;
+    autofilledAddressRef.current = identity;
+    onClientSelect?.(match);
+  }, [inputValue, clientAddresses, onClientSelect]);
 
   const osmAndHistory = useAddressSuggestions(inputValue);
   const { predictions, getPlaceDetails } = useGooglePlaces(inputValue);
