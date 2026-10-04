@@ -49,9 +49,9 @@ Deno.serve(async (req) => {
 
     // Telemetría pasiva: sólo registra lo que informa el APK. No modifica RideOrder,
     // no inicia/reinicia relojes y no participa de aceptar/rechazar/reasignar.
-    if (action === "native_telemetry") {
+    if (String(action || "").startsWith("native_telemetry_")) {
       const driver = await b44.entities.Driver.get(driverId).catch(() => null);
-      const event = String(payload.telemetryEvent || "UNKNOWN").slice(0, 80);
+      const event = String(action).replace(/^native_telemetry_/, "").slice(0, 80);
       await b44.entities.AuditLog.create({
         action: "NATIVE_SPY_" + event,
         user_type: "sistema",
