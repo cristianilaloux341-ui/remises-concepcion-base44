@@ -47,6 +47,32 @@ Deno.serve(async (req) => {
       return Response.json({ success:false, reason:"ALERT_PRESENTED_PROTOCOL_REQUIRED" }, { status:409 });
     }
 
+    // Telemetría pasiva: sólo registra lo que informa el APK. No modifica RideOrder,
+    // no inicia/reinicia relojes y no participa de aceptar/rechazar/reasignar.
+    if (action === "native_telemetry") {
+      const driver = await b44.entities.Driver.get(driverId).catch(() => null);
+      const event = String(payload.telemetryEvent || "UNKNOWN").slice(0, 80);
+      await b44.entities.AuditLog.create({
+        action: "NATIVE_SPY_" + event,
+        user_type: "sistema",
+        user_name: driver?.name || "Chofer",
+        details: "Telemetría pasiva APK: " + event,
+        metadata: {
+          orderId: realOrderId,
+          driverId,
+          assignmentAttempt: nativeAssignmentAttempt,
+          telemetryEvent: event,
+          clientWallTimeMs: Number(payload.clientWallTimeMs) || null,
+          clientElapsedMs: Number(payload.clientElapsedMs) || null,
+          appState: payload.appState || null,
+          sdkInt: payload.sdkInt || null,
+          deviceModel: payload.deviceModel || null,
+          serverReceivedAt: new Date().toISOString()
+        }
+      }).catch(() => {});
+      return Response.json({ success:true, telemetry:true });
+    }
+
     if (action === "native_ack") {
       const driver = await b44.entities.Driver.get(driverId).catch(() => null);
       const order = await b44.entities.RideOrder.get(realOrderId).catch(() => null);
