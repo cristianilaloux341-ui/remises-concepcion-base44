@@ -1,0 +1,54 @@
+{
+  "entity": "Operator",
+  "record_count": 3,
+  "records": [
+    {
+      "role": "admin",
+      "notes": "",
+      "pin": "2361",
+      "phone": "3442563246",
+      "name": "Luciano Roa",
+      "active": true,
+      "last_active": "2026-06-29T15:08:08.627Z",
+      "email": "lucho210375@gmail.com",
+      "id": "6a4286c86f968596b077c756",
+      "created_date": "2026-06-29T14:52:56.975000",
+      "updated_date": "2026-06-29T15:08:01.821000",
+      "created_by_id": "anonymous",
+      "created_by": "anonymous",
+      "is_sample": false
+    },
+    {
+      "role": "operador",
+      "notes": "",
+      "pin": "1234",
+      "phone": "3442674044",
+      "name": "melina roa",
+      "active": true,
+      "last_active": "2026-07-04T00:41:17.099Z",
+      "email": "roamelina8@gmail.com",
+      "id": "6a402946011030ecaa008677",
+      "created_date": "2026-06-27T19:49:26.051000",
+      "updated_date": "2026-07-04T00:41:17.672000",
+      "created_by_id": "6a1fcdd119031a7db72f3841",
+      "created_by": "cristianilaloux341@gmail.com",
+      "is_sample": false
+    },
+    {
+      "role": "admin",
+      "notes": "",
+      "pin": "1313",
+      "phone": "3442640443",
+      "name": "Cristian Laloux",
+      "active": true,
+      "last_active": "2026-07-05T15:05:51.038Z",
+      "email": null,
+      "id": "6a3b3055ea9656f7a145e206",
+      "created_date": "2026-06-24T01:18:13.797000",
+      "updated_date": "2026-07-05T15:05:51.317000",
+      "created_by_id": "6a1fcdd119031a7db72f3841",
+      "created_by": "cristianilaloux341@gmail.com",
+      "is_sample": false
+    }
+  ]
+}
